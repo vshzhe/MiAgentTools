@@ -130,10 +130,20 @@ your-project/
 | :--- | :--- | :--- |
 | `venus init` | 生成全部技能 + 指令到当前项目 | `--tools <ids>`、`--force`、`--onboarding` |
 | `venus list` | 列出已安装技能（按类型分组） | `--json` |
+| `venus show <query>` | 查看技能详情（frontmatter / 类型 / 白名单 / 正文预览） | `--json` |
 | `venus validate` | 校验已安装技能规范符合性（frontmatter / 类型 / 命名） | `--json` |
 | `venus update` | 更新技能到内置模板最新版（手改保护） | `--force` |
 | `venus generate` | 按类型生成新技能骨架（写入 `skills/` 并安装） | `--type`、`--name`、`--desc`、`--force` |
+| `venus uninstall` | 移除 venus 技能与指令（非 venus 技能不碰） | `--yes`、`--purge-config` |
 | `venus completion` | 安装/卸载 shell 补全 | `<install\|uninstall>`、`--shell <bash\|powershell>` |
+
+`show` 支持完整名（`venus_tr_tools_pwd`）、去前缀（`tr_tools_pwd`）与片段（`pwd`）匹配；
+多命中时列出候选，`--json` 输出结构化详情。
+
+`uninstall` 默认保留 `.venus/` 配置（用户维护的 rules 不丢）；先干跑展示影响面，
+`--yes` 才执行，`--purge-config` 连配置一起删。
+
+更多：[快速上手指南](docs/getting-started.md) · [AI 代理导航（AGENTS.md）](AGENTS.md) · [变更日志](CHANGELOG.md)
 
 `validate` 校验项：`venus_` 前缀、frontmatter `name` = 目录名、`description` / `allowed-tools` / `metadata.type` 必填、`type` 为 7 类之一；存在 CRITICAL 时退出码 1（可接入 CI）。
 

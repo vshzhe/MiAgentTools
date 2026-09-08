@@ -15,6 +15,8 @@ import { runGenerate } from '../commands/generate.js';
 import { runValidateCommand } from '../commands/validate.js';
 import { runUpdate } from '../commands/update.js';
 import { runCompletion, renderCompletionOutput } from '../commands/completion.js';
+import { runUninstall, previewUninstall, renderUninstallOutput } from '../commands/uninstall.js';
+import { runShow } from '../commands/show.js';
 import { renderOnboardingHints } from '../commands/onboarding.js';
 import { AI_TOOLS, SKILL_TYPES } from '../core/config.js';
 
@@ -122,6 +124,36 @@ export function buildProgram(): Command {
         .action((action: 'install' | 'uninstall', options: { shell?: string }) => {
             const results = runCompletion(action, options);
             console.log(renderCompletionOutput(results, action));
+        });
+
+    program
+        .command('uninstall')
+        .description('移除本项目已安装的 venus 技能与指令（非 venus 技能不碰）')
+        .option('--purge-config', '连同 .venus/ 项目配置一起删除（默认保留）')
+        .option('--yes', '跳过确认提示（脚本用）')
+        .action((options: { purgeConfig?: boolean; yes?: boolean }) => {
+            if (!options.yes) {
+                const result = previewUninstall(process.cwd());
+                console.log('将删除：');
+                console.log(`  技能 ${result.removedSkills.length} 个、指令 ${result.removedCommands.length} 个${options.purgeConfig ? '、.venus/ 配置' : ''}`);
+                console.log('确认执行请加 --yes，或重新运行并确认。');
+                process.exitCode = 1;
+                return;
+            }
+            const result = runUninstall(process.cwd(), options);
+            console.log(renderUninstallOutput(result));
+        });
+
+    program
+        .command('show <query>')
+        .description('查看技能详情（frontmatter / 类型 / 白名单 / 正文预览），支持前缀匹配')
+        .option('--json', '以 JSON 输出（供程序处理）')
+        .action((query: string, options: { json?: boolean }) => {
+            const { output, exitCode } = runShow(process.cwd(), query, options);
+            console.log(output);
+            if (exitCode !== 0) {
+                process.exitCode = exitCode;
+            }
         });
 
     program
