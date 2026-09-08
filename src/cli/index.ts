@@ -18,6 +18,7 @@ import { runCompletion, renderCompletionOutput } from '../commands/completion.js
 import { runUninstall, previewUninstall, renderUninstallOutput } from '../commands/uninstall.js';
 import { runShow } from '../commands/show.js';
 import { renderOnboardingHints } from '../commands/onboarding.js';
+import { ensureDependencies, renderDependencyReport } from '../core/dependencies.js';
 import { AI_TOOLS, SKILL_TYPES } from '../core/config.js';
 
 const require = createRequire(import.meta.url);
@@ -36,15 +37,16 @@ export function buildProgram(): Command {
 
     program
         .command('init')
-        .description('生成全部技能（SKILL.md）与斜杠指令到当前项目')
+        .description('生成全部技能（SKILL.md）与斜杠指令到当前项目，并检测安装依赖（codegraph / openspec）')
         .addOption(
             new Option('--tools <ids>', `目标工具，逗号分隔（默认全部：${TOOL_IDS}）`).choices(
                 AI_TOOLS.map((t) => t.value)
             )
         )
         .option('--force', '覆盖已存在的文件')
+        .option('--no-deps', '跳过依赖检测与安装（codegraph / openspec）')
         .option('--onboarding', '完成后显示下一步使用引导')
-        .action((options: { tools?: string; force?: boolean; onboarding?: boolean }) => {
+        .action((options: { tools?: string; force?: boolean; deps?: boolean; onboarding?: boolean }) => {
             const result = runInit(process.cwd(), options);
             console.log(`Venus 初始化完成（工具：${result.tools.join(', ')}）`);
             console.log(`  技能：${result.skillsInstalled.length} 个`);
@@ -66,6 +68,9 @@ export function buildProgram(): Command {
             for (const ruleFile of result.ruleFilesCreated) {
                 console.log(`    + ${ruleFile}`);
             }
+            // 依赖检测与安装（codegraph / openspec，--no-deps 跳过）
+            const deps = ensureDependencies(process.cwd(), { skip: options.deps === false });
+            console.log(renderDependencyReport(deps));
             // 首次初始化（配置刚创建）或显式 --onboarding 时显示引导
             if (result.configState === 'created' || options.onboarding) {
                 console.log(renderOnboardingHints());

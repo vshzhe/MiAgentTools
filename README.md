@@ -128,7 +128,7 @@ your-project/
 
 | 命令 | 说明 | 主要参数 |
 | :--- | :--- | :--- |
-| `venus init` | 生成全部技能 + 指令到当前项目 | `--tools <ids>`、`--force`、`--onboarding` |
+| `venus init` | 生成全部技能 + 指令到当前项目，并检测安装依赖（codegraph / openspec） | `--tools <ids>`、`--force`、`--no-deps`、`--onboarding` |
 | `venus list` | 列出已安装技能（按类型分组） | `--json` |
 | `venus show <query>` | 查看技能详情（frontmatter / 类型 / 白名单 / 正文预览） | `--json` |
 | `venus validate` | 校验已安装技能规范符合性（frontmatter / 类型 / 命名） | `--json` |
@@ -148,6 +148,17 @@ your-project/
 `validate` 校验项：`venus_` 前缀、frontmatter `name` = 目录名、`description` / `allowed-tools` / `metadata.type` 必填、`type` 为 7 类之一；存在 CRITICAL 时退出码 1（可接入 CI）。
 
 `update` 保护策略：内容与内置一致 → 跳过（幂等）；来自旧版本 → 自动升级；检测到用户手改 → 跳过并列出（`--force` 才覆盖）。
+
+## 依赖自检（codegraph / openspec）
+
+`venus init` 会在生成技能后自动检测并安装后续功能集成所需的两个外部依赖（已存在则跳过，绝不升级覆盖）：
+
+| 依赖 | 检测项 | 缺失时自动执行 |
+| :--- | :--- | :--- |
+| [codegraph](https://github.com/colbymchenry/codegraph)（代码知识图谱） | CLI 命令可用性；用户级 MCP 注册（`~/.claude.json`） | `npm install -g @colbymchenry/codegraph`；`claude mcp add codegraph -s user -- codegraph serve --mcp` |
+| [openspec](https://github.com/Fission-AI/OpenSpec)（规格驱动开发） | CLI 命令可用性；项目根 `openspec/` 目录 | `npm install -g @fission-ai/openspec`；`openspec init --tools claude`（项目内非交互初始化） |
+
+安装失败仅输出警告与手动执行命令，不阻断技能生成主流程；`--no-deps` 可跳过整个依赖步骤。
 
 ## Shell 补全
 

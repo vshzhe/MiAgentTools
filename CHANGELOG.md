@@ -7,6 +7,15 @@
 
 ## [Unreleased]
 
+### Added
+
+- `venus init` 依赖自检与自动安装：检测 codegraph CLI / 用户级 MCP 注册、
+  openspec CLI / 项目 `openspec/` 目录，缺失时自动执行
+  （`npm install -g`、`claude mcp add codegraph -s user`、`openspec init --tools claude`），
+  作为后续功能集成的基础；已存在的依赖只检测不升级，
+  安装失败仅警告不阻断主流程，`--no-deps` 可跳过
+
+
 ## [0.1.0] - 2026-09-08
 
 首个可用版本：按生命周期类型（`tr_*`）分类生成与管理 `venus_` 前缀的 Agent 技能。
