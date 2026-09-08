@@ -157,28 +157,44 @@ venus completion uninstall
 - **PowerShell**：脚本写入 `Documents/PowerShell/VenusCompletion.ps1`，`$PROFILE` 中标记块 dot-source；新开窗口生效（兼容 PowerShell 5.1 与 7+）
 - 补全覆盖 5 个子命令 + 常用选项（如 `generate --type`、`list --json`）
 
-## 项目级配置（venus.config.yaml）
+## 项目级配置（.venus/ 目录）
 
-`venus init` 会在项目根创建配置模板（已存在则保留，不覆盖你的修改）：
+`venus init` 会在项目根创建 `.venus/` 配置目录（已存在则保留，不覆盖你的修改）：
+
+```text
+.venus/
+├── config.yaml          # 项目背景 + 规则引用
+└── rules/
+    ├── tr_impl.md       # 实现类规则（每行一条，# 为注释）
+    └── tr_test.md       # 测试类规则
+```
+
+**config.yaml 通过 `rules` 列表显式引用规则文件**：
 
 ```yaml
 context: |                       # 项目背景 —— generate 骨架时注入正文头部
   技术栈：JDK 17 + Spring Boot 3 + MySQL 8
   分层约定：Controller → Service → DAO
 
-rules:                           # 按类型的项目规则 —— generate 骨架时注入约束区
-  tr_impl:
-    - 遵循项目分层架构，禁止跨层调用
-  tr_test:
-    - 测试框架与既有用例保持一致
+rules:                           # 引用 rules/ 下的文件，顺序即注入顺序
+  - tr_impl                     # 删除某行即停用对应规则
+  - tr_test                     # 新增类型：在 rules/ 建 tr_xxx.md 并在此登记
 ```
 
-`venus generate` 生成的骨架会自动带上 `context`（引用块）与对应类型的 `rules`（约束列表），
-填充正文时项目约定就在眼前，不需要翻文档。
+规则文件格式（`.venus/rules/tr_impl.md`）：
+
+```markdown
+# tr_impl 类型项目规则（每行一条，# 开头为注释）
+遵循项目分层架构，禁止跨层调用
+实现类需补充 JavaDoc/方法注释
+```
+
+`venus generate` 生成的骨架会自动带上 `context`（引用块）与该类型被引用的 `rules`（约束列表）；
+未在 config.yaml 引用的规则文件不生效。引用了但文件缺失的类型会记入 `missingRuleFiles`。
 
 ## init 后的下一步引导
 
-首次 `venus init`（配置文件刚创建）时，终端会输出按生命周期排序的使用引导：
+首次 `venus init`（`.venus/` 配置刚创建）时，终端会输出按生命周期排序的使用引导：
 
 ```text
 ═══════════════════════════════════════════════════════

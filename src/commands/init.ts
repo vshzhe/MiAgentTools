@@ -42,6 +42,8 @@ export interface InitResult {
     skipped: string[];
     /** 配置文件状态：created（新建模板）| exists（已存在，跳过） */
     configState: 'created' | 'exists';
+    /** 本次创建的规则文件（项目相对路径，如 .venus/rules/tr_impl.md） */
+    ruleFilesCreated: string[];
 }
 
 /** 读取当前包版本（供 metadata.generatedBy） */
@@ -134,8 +136,8 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
         }
     }
 
-    // 3. 项目级配置文件（venus.config.yaml，已存在则跳过）
-    const configState = ensureProjectConfig(projectRoot);
+    // 3. 项目级配置（.venus/config.yaml + .venus/rules/，已存在则跳过）
+    const config = ensureProjectConfig(projectRoot);
 
     return {
         projectRoot,
@@ -143,6 +145,7 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
         skillsInstalled,
         commandsInstalled,
         skipped,
-        configState,
+        configState: config.state,
+        ruleFilesCreated: config.ruleFiles,
     };
 }

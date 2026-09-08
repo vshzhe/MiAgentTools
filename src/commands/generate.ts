@@ -16,7 +16,7 @@ import {
 } from '../core/config.js';
 import { generateSkillContent } from '../core/command-generation/index.js';
 import { AI_TOOLS } from '../core/config.js';
-import { readProjectConfig, type ProjectConfig } from '../core/project-config.js';
+import { readProjectConfig, type ResolvedProjectConfig } from '../core/project-config.js';
 import type { SkillTemplate } from '../core/templates/types.js';
 import { ensureDir, writeFile, pathExists } from '../utils/file-system.js';
 
@@ -47,23 +47,23 @@ const KEBAB_CASE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 /**
  * 构造新技能的骨架模板（正文为待填充的引导结构）。
- * 若项目存在 venus.config.yaml，将 context 与该类型的 rules 注入正文。
+ * 若项目存在 .venus/ 配置，将 context 与该类型的 rules 注入正文。
  */
 function buildSkeletonTemplate(
     type: SkillType,
     name: string,
     desc: string | undefined,
-    projectConfig: ProjectConfig | null
+    projectConfig: ResolvedProjectConfig | null
 ): SkillTemplate {
-    // 项目规则注入：该类型配置了 rules 时追加到约束区
+    // 项目规则注入：该类型被 config 引用且规则文件有内容时追加到约束区
     const typeRules = projectConfig?.rules[type] ?? [];
     const ruleLines = typeRules.length > 0
-        ? ['项目规则（来自 venus.config.yaml）：', ...typeRules.map((r) => `- ${r}`)].join('\n')
+        ? ['项目规则（来自 .venus/rules/）：', ...typeRules.map((r) => `- ${r}`)].join('\n')
         : '- 需要遵守的边界与规范';
 
     // 项目背景注入：开头以引用块提示
     const contextBlock = projectConfig && projectConfig.context.trim().length > 0
-        ? `> **项目背景**（来自 venus.config.yaml，执行时遵守）：\n> ${projectConfig.context.split('\n').join('\n> ')}\n\n`
+        ? `> **项目背景**（来自 .venus/config.yaml，执行时遵守）：\n> ${projectConfig.context.split('\n').join('\n> ')}\n\n`
         : '';
 
     return {

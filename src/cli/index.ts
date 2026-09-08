@@ -58,9 +58,12 @@ export function buildProgram(): Command {
             }
             console.log(
                 result.configState === 'created'
-                    ? '  配置：venus.config.yaml 已创建（可编辑 context/rules 定制项目约束）'
-                    : '  配置：venus.config.yaml 已存在，保留'
+                    ? '  配置：.venus/ 已创建（config.yaml + rules/，可编辑定制项目约束）'
+                    : '  配置：.venus/ 已存在，保留'
             );
+            for (const ruleFile of result.ruleFilesCreated) {
+                console.log(`    + ${ruleFile}`);
+            }
             // 首次初始化（配置刚创建）或显式 --onboarding 时显示引导
             if (result.configState === 'created' || options.onboarding) {
                 console.log(renderOnboardingHints());
