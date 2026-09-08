@@ -3,3 +3,12 @@ dist/
 *.log
 .DS_Store
 Thumbs.db
+
+# venus 本地项目配置与 codegraph 索引（本机生成，不入库）
+.venus/
+.codegraph/
+
+# openspec 本地产物（init 生成，不入库；.claude/ 下仅忽略非 venus 部分）
+openspec/
+.claude/skills/openspec-*/
+.claude/commands/opsx/
