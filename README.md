@@ -6,15 +6,50 @@ AI Agent 技能生成与管理 CLI —— 按生命周期类型（`tr_*`）分�
 
 ## 安装
 
+### 方式一：本地全局安装（推荐，任意目录可用 `venus` 命令）
+
 ```bash
+cd E:\github\VenusAgentTools
+
+# 安装依赖并构建
 pnpm install
 pnpm build
+
+# 全局链接（把 venus 命令挂到 PATH）
+pnpm link --global
 ```
 
-本地开发运行：
+> **提示**：pnpm 10 偶发首次 link 不生成全局 bin 软链接 —— 若 `venus --version` 报"命令不存在"，
+> 再执行一次 `pnpm link --global` 即可。已实测：链接后在任意目录（含 Git Bash / cmd / PowerShell）
+> `venus` 直接可用。
+
+验证安装：
 
 ```bash
-node bin/venus.js <command>
+venus --version    # 输出 0.1.0
+venus --help       # 查看全部命令
+```
+
+卸载全局链接：
+
+```bash
+pnpm uninstall --global venus-agent-tools
+```
+
+### 方式二：项目内直接运行（不装全局命令）
+
+```bash
+cd E:\github\VenusAgentTools
+node bin/venus.js <command>     # 效果与 venus <command> 完全一致
+```
+
+### 方式三：目标项目本地依赖（固定版本）
+
+在目标项目中：
+
+```bash
+pnpm add file:E:\github\VenusAgentTools
+pnpm exec venus init
 ```
 
 ## 快速开始
@@ -28,9 +63,41 @@ venus init
 # 查看已安装技能（按 7 类分组）
 venus list
 
+# 校验技能规范符合性
+venus validate
+
 # 按类型生成新技能骨架
 venus generate --type tr_tools --name env-check --desc "环境检查"
 ```
+
+### 如何在 Claude Code 中使用关联指令
+
+`venus init` 会在目标项目生成 **SKILL 与斜杠指令两套入口**，Claude Code 均可直接调用：
+
+| 使用方式 | 输入形式 | 说明 |
+| :--- | :--- | :--- |
+| 斜杠指令 | `/venus:tools-pwd` | 输入 `/` 后补全列表中选择，回车触发 |
+| 技能自动触发 | 直接说"看下当前目录在哪" | Claude 按技能 description 自动匹配调用 |
+
+**使用步骤**（以查看当前路径为例）：
+
+1. 在目标项目执行 `venus init`（生成 `.claude/` 产物）
+2. 打开该项目的 Claude Code 会话
+3. 输入 `/venus:tools-pwd`，或直接提问"当前目录是什么"
+4. Claude 按技能指引运行 `pwd`（Windows cmd 环境自动降级 `echo %CD%`）并展示绝对路径
+
+全部 8 个斜杠指令对照：
+
+| 斜杠指令 | 功能 |
+| :--- | :--- |
+| `/venus:init-project` | 初始化项目（目录结构、配置、脚手架） |
+| `/venus:impl-feature` | 实现功能（分层架构编写代码） |
+| `/venus:test-generate` | 生成测试（目标驱动：先写用例再通过） |
+| `/venus:commit-change` | 提交变更（规范提交信息 + 暂存管理） |
+| `/venus:review-code` | 审查代码（分级审查报告） |
+| `/venus:release-version` | 发布版本（SemVer + 变更日志） |
+| `/venus:tools-pwd` | 查看当前路径 |
+| `/venus:tools-list` | 列出可用技能 |
 
 ## 技能分类体系
 
@@ -89,6 +156,16 @@ src/cli/index.ts + src/commands/        命令层：venus init / list / generate
 - **内容与形式分离**：模板层定义工具无关的技能内容；适配器负责目标工具的路径与 frontmatter 格式
 - **适配器可扩展**：新增 AI 工具只需实现 `ToolCommandAdapter` 并在 `CommandAdapterRegistry` 注册
 - **指令 id 派生**：`venus_tr_tools_pwd` → `tr-tools-pwd`（`.claude/commands/venus/tr-tools-pwd.md`）
+
+### 本地开发调试（修改本项目代码后）
+
+```bash
+pnpm build                  # 重新编译 dist/
+node bin/venus.js list      # 直接验证新逻辑
+
+# 已 pnpm link --global 的场景：dist/ 是真实引用（软链接指向本仓库），
+# 重新 build 后全局 venus 命令即刻生效，无需重新 link
+```
 
 ## 开发
 
