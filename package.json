@@ -1,0 +1,47 @@
+{
+  "name": "venus-agent-tools",
+  "version": "0.1.0",
+  "description": "AI Agent 技能生成与管理 CLI —— 按生命周期类型（tr_*）分类生成 venus_ 前缀的 SKILL 与指令",
+  "keywords": [
+    "venus",
+    "agent-tools",
+    "skills",
+    "cli",
+    "claude-code",
+    "ai"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@10.34.5",
+  "bin": {
+    "venus": "./bin/venus.js"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "!dist/**/*.test.js",
+    "!dist/**/__tests__"
+  ],
+  "scripts": {
+    "build": "node build.js",
+    "lint": "eslint src/ test/",
+    "dev": "tsc --watch",
+    "dev:cli": "pnpm build && node bin/venus.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "generate:skills": "node scripts/generate-skills.mjs",
+    "prepare": "node build.js"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.65.0",
+    "vitest": "^3.2.6"
+  },
+  "dependencies": {
+    "commander": "^14.0.0"
+  }
+}
