@@ -128,15 +128,69 @@ your-project/
 
 | 命令 | 说明 | 主要参数 |
 | :--- | :--- | :--- |
-| `venus init` | 生成全部技能 + 指令到当前项目 | `--tools <ids>`、`--force` |
+| `venus init` | 生成全部技能 + 指令到当前项目 | `--tools <ids>`、`--force`、`--onboarding` |
 | `venus list` | 列出已安装技能（按类型分组） | `--json` |
 | `venus validate` | 校验已安装技能规范符合性（frontmatter / 类型 / 命名） | `--json` |
 | `venus update` | 更新技能到内置模板最新版（手改保护） | `--force` |
 | `venus generate` | 按类型生成新技能骨架（写入 `skills/` 并安装） | `--type`、`--name`、`--desc`、`--force` |
+| `venus completion` | 安装/卸载 shell 补全 | `<install\|uninstall>`、`--shell <bash\|powershell>` |
 
 `validate` 校验项：`venus_` 前缀、frontmatter `name` = 目录名、`description` / `allowed-tools` / `metadata.type` 必填、`type` 为 7 类之一；存在 CRITICAL 时退出码 1（可接入 CI）。
 
 `update` 保护策略：内容与内置一致 → 跳过（幂等）；来自旧版本 → 自动升级；检测到用户手改 → 跳过并列出（`--force` 才覆盖）。
+
+## Shell 补全
+
+```bash
+# 安装（bash + PowerShell 两个都装）
+venus completion install
+
+# 只装某一个
+venus completion install --shell bash
+venus completion install --shell powershell
+
+# 卸载（只删 venus 管理的标记块，不动其他配置）
+venus completion uninstall
+```
+
+- **bash**：脚本写入 `~/.venus-completion.sh`，`~/.bashrc` 中以 `VENUS-COMPLETION:START/END` 标记块 source；新开终端或 `source ~/.bashrc` 后生效
+- **PowerShell**：脚本写入 `Documents/PowerShell/VenusCompletion.ps1`，`$PROFILE` 中标记块 dot-source；新开窗口生效（兼容 PowerShell 5.1 与 7+）
+- 补全覆盖 5 个子命令 + 常用选项（如 `generate --type`、`list --json`）
+
+## 项目级配置（venus.config.yaml）
+
+`venus init` 会在项目根创建配置模板（已存在则保留，不覆盖你的修改）：
+
+```yaml
+context: |                       # 项目背景 —— generate 骨架时注入正文头部
+  技术栈：JDK 17 + Spring Boot 3 + MySQL 8
+  分层约定：Controller → Service → DAO
+
+rules:                           # 按类型的项目规则 —— generate 骨架时注入约束区
+  tr_impl:
+    - 遵循项目分层架构，禁止跨层调用
+  tr_test:
+    - 测试框架与既有用例保持一致
+```
+
+`venus generate` 生成的骨架会自动带上 `context`（引用块）与对应类型的 `rules`（约束列表），
+填充正文时项目约定就在眼前，不需要翻文档。
+
+## init 后的下一步引导
+
+首次 `venus init`（配置文件刚创建）时，终端会输出按生命周期排序的使用引导：
+
+```text
+═══════════════════════════════════════════════════════
+  下一步：在 Claude Code 中试试这些指令
+═══════════════════════════════════════════════════════
+
+  /venus:tools-pwd
+    在 Claude Code 中试试最简单的技能：问"当前目录是什么"
+  ...
+```
+
+已初始化过的项目不重复打扰；想再看用 `venus init --onboarding`。
 
 ## 架构
 
@@ -171,7 +225,7 @@ node bin/venus.js list      # 直接验证新逻辑
 
 ```bash
 pnpm build          # 构建（tsc → dist/）
-pnpm test           # 运行 vitest 测试（47 个用例）
+pnpm test           # 运行 vitest 测试（57 个用例）
 pnpm lint           # eslint 检查（src/ + test/）
 pnpm generate:skills  # 重新生成 skills/ 静态快照（改模板后必须运行）
 pnpm dev            # 监听模式编译

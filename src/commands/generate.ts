@@ -16,6 +16,7 @@ import {
 } from '../core/config.js';
 import { generateSkillContent } from '../core/command-generation/index.js';
 import { AI_TOOLS } from '../core/config.js';
+import { readProjectConfig, type ProjectConfig } from '../core/project-config.js';
 import type { SkillTemplate } from '../core/templates/types.js';
 import { ensureDir, writeFile, pathExists } from '../utils/file-system.js';
 
@@ -46,15 +47,32 @@ const KEBAB_CASE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 /**
  * 构造新技能的骨架模板（正文为待填充的引导结构）。
+ * 若项目存在 venus.config.yaml，将 context 与该类型的 rules 注入正文。
  */
-function buildSkeletonTemplate(type: SkillType, name: string, desc?: string): SkillTemplate {
+function buildSkeletonTemplate(
+    type: SkillType,
+    name: string,
+    desc: string | undefined,
+    projectConfig: ProjectConfig | null
+): SkillTemplate {
+    // 项目规则注入：该类型配置了 rules 时追加到约束区
+    const typeRules = projectConfig?.rules[type] ?? [];
+    const ruleLines = typeRules.length > 0
+        ? ['项目规则（来自 venus.config.yaml）：', ...typeRules.map((r) => `- ${r}`)].join('\n')
+        : '- 需要遵守的边界与规范';
+
+    // 项目背景注入：开头以引用块提示
+    const contextBlock = projectConfig && projectConfig.context.trim().length > 0
+        ? `> **项目背景**（来自 venus.config.yaml，执行时遵守）：\n> ${projectConfig.context.split('\n').join('\n> ')}\n\n`
+        : '';
+
     return {
         name: `${SKILL_PREFIX}${type}_${name.replaceAll('-', '_')}`,
         description: desc ?? `（待补充）${SKILL_TYPES.find((t) => t.id === type)?.name ?? type}类技能：${name}`,
         // 骨架默认宽松白名单，正文填充后应按实际命令收紧
         allowedTools: 'Read, Write, Edit, Glob, Grep, Bash',
         type,
-        instructions: `（待补充技能正文）
+        instructions: `${contextBlock}（待补充技能正文）
 
 ## 功能说明
 
@@ -67,7 +85,7 @@ function buildSkeletonTemplate(type: SkillType, name: string, desc?: string): Sk
 
 ## 约束
 
-- 需要遵守的边界与规范`,
+${ruleLines}`,
         license: 'MIT',
         compatibility: '无特殊依赖，通用环境可用。',
         metadata: { author: 'venus-agent-tools', version: '1.0' },
@@ -91,7 +109,8 @@ export function runGenerate(projectRoot: string, options: GenerateOptions): Gene
     }
 
     const packageVersion = getPackageVersion();
-    const template = buildSkeletonTemplate(options.type, options.name, options.desc);
+    const projectConfig = readProjectConfig(projectRoot);
+    const template = buildSkeletonTemplate(options.type, options.name, options.desc, projectConfig);
     const generated = generateSkillContent(template, packageVersion);
     const skillName = generated.dirName;
 

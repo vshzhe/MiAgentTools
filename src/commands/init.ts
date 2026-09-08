@@ -22,6 +22,7 @@ import {
     TOOL_SKILLS_SUBDIR,
     type AIToolOption,
 } from '../core/config.js';
+import { ensureProjectConfig } from '../core/project-config.js';
 import { ensureDir, writeFile, pathExists } from '../utils/file-system.js';
 
 /** init 命令选项 */
@@ -39,6 +40,8 @@ export interface InitResult {
     skillsInstalled: string[];
     commandsInstalled: string[];
     skipped: string[];
+    /** 配置文件状态：created（新建模板）| exists（已存在，跳过） */
+    configState: 'created' | 'exists';
 }
 
 /** 读取当前包版本（供 metadata.generatedBy） */
@@ -131,11 +134,15 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
         }
     }
 
+    // 3. 项目级配置文件（venus.config.yaml，已存在则跳过）
+    const configState = ensureProjectConfig(projectRoot);
+
     return {
         projectRoot,
         tools: tools.map((t) => t.value),
         skillsInstalled,
         commandsInstalled,
         skipped,
+        configState,
     };
 }

@@ -7,13 +7,15 @@
  *   venus generate  按类型生成新技能骨架
  */
 
-import { Command, Option } from 'commander';
+import { Argument, Command, Option } from 'commander';
 import { createRequire } from 'node:module';
 import { runInit } from '../commands/init.js';
 import { runList } from '../commands/list.js';
 import { runGenerate } from '../commands/generate.js';
 import { runValidateCommand } from '../commands/validate.js';
 import { runUpdate } from '../commands/update.js';
+import { runCompletion, renderCompletionOutput } from '../commands/completion.js';
+import { renderOnboardingHints } from '../commands/onboarding.js';
 import { AI_TOOLS, SKILL_TYPES } from '../core/config.js';
 
 const require = createRequire(import.meta.url);
@@ -39,7 +41,8 @@ export function buildProgram(): Command {
             )
         )
         .option('--force', '覆盖已存在的文件')
-        .action((options: { tools?: string; force?: boolean }) => {
+        .option('--onboarding', '完成后显示下一步使用引导')
+        .action((options: { tools?: string; force?: boolean; onboarding?: boolean }) => {
             const result = runInit(process.cwd(), options);
             console.log(`Venus 初始化完成（工具：${result.tools.join(', ')}）`);
             console.log(`  技能：${result.skillsInstalled.length} 个`);
@@ -52,6 +55,15 @@ export function buildProgram(): Command {
             }
             if (result.skipped.length > 0) {
                 console.log(`  跳过（已存在，--force 覆盖）：${result.skipped.length} 个`);
+            }
+            console.log(
+                result.configState === 'created'
+                    ? '  配置：venus.config.yaml 已创建（可编辑 context/rules 定制项目约束）'
+                    : '  配置：venus.config.yaml 已存在，保留'
+            );
+            // 首次初始化（配置刚创建）或显式 --onboarding 时显示引导
+            if (result.configState === 'created' || options.onboarding) {
+                console.log(renderOnboardingHints());
             }
         });
 
@@ -97,6 +109,16 @@ export function buildProgram(): Command {
                     console.log(`    ! ${skill}`);
                 }
             }
+        });
+
+    program
+        .command('completion')
+        .description('安装/卸载 shell 补全（bash / powershell）')
+        .addArgument(new Argument('<action>', 'install 或 uninstall').choices(['install', 'uninstall']))
+        .option('--shell <shell>', '目标 shell（默认两个都装）')
+        .action((action: 'install' | 'uninstall', options: { shell?: string }) => {
+            const results = runCompletion(action, options);
+            console.log(renderCompletionOutput(results, action));
         });
 
     program
