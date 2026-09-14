@@ -5,6 +5,7 @@
  *   venus init      生成全部技能与指令到当前项目 .claude/
  *   venus list      列出已安装技能（--json）
  *   venus generate  按类型生成新技能骨架
+ *   venus spec      规格驱动工作流子命令组（new / status / instructions / archive）
  */
 
 import { Argument, Command, Option } from 'commander';
@@ -18,8 +19,11 @@ import { runCompletion, renderCompletionOutput } from '../commands/completion.js
 import { runUninstall, previewUninstall, renderUninstallOutput } from '../commands/uninstall.js';
 import { runShow } from '../commands/show.js';
 import { renderOnboardingHints } from '../commands/onboarding.js';
+import { buildSpecCommand } from '../commands/spec.js';
 import { ensureDependencies, renderDependencyReport } from '../core/dependencies.js';
 import { AI_TOOLS, SKILL_TYPES } from '../core/config.js';
+import { reconcileOrphanCount } from '../core/reconcile.js';
+import { runConfigInteractive, runConfigShow, runConfigSet } from '../commands/config.js';
 
 const require = createRequire(import.meta.url);
 const { version } = require('../../package.json') as { version: string };
@@ -37,14 +41,14 @@ export function buildProgram(): Command {
 
     program
         .command('init')
-        .description('生成全部技能（SKILL.md）与斜杠指令到当前项目，并检测安装依赖（codegraph / openspec）')
+        .description('生成全部技能（SKILL.md）与斜杠指令到当前项目，并检测安装依赖（codegraph）')
         .addOption(
             new Option('--tools <ids>', `目标工具，逗号分隔（默认全部：${TOOL_IDS}）`).choices(
                 AI_TOOLS.map((t) => t.value)
             )
         )
         .option('--force', '覆盖已存在的文件')
-        .option('--no-deps', '跳过依赖检测与安装（codegraph / openspec）')
+        .option('--no-deps', '跳过依赖检测与安装（codegraph）')
         .option('--onboarding', '完成后显示下一步使用引导')
         .action((options: { tools?: string; force?: boolean; deps?: boolean; onboarding?: boolean }) => {
             const result = runInit(process.cwd(), options);
@@ -68,7 +72,29 @@ export function buildProgram(): Command {
             for (const ruleFile of result.ruleFilesCreated) {
                 console.log(`    + ${ruleFile}`);
             }
-            // 依赖检测与安装（codegraph / openspec，--no-deps 跳过）
+            console.log(
+                `  workflow 来源：${result.workflowsSource === 'default' ? '默认集' : '用户配置'}`
+            );
+            if (result.injectedDeps.length > 0) {
+                console.log(`  依赖注入自动补全：${result.injectedDeps.length} 个`);
+                for (const dep of result.injectedDeps) {
+                    console.log(`    + ${dep}`);
+                }
+            }
+            const orphanCount = reconcileOrphanCount(result.reconcileOrphans);
+            if (orphanCount > 0) {
+                console.log(
+                    `  ! ${orphanCount} 个已装产物不在当前 workflows 配置中，保留未删：`
+                );
+                for (const skill of result.reconcileOrphans.skills) {
+                    console.log(`    - ${skill}`);
+                }
+                for (const cmd of result.reconcileOrphans.commands) {
+                    console.log(`    - ${cmd}`);
+                }
+                console.log('    如需移除：venus uninstall 或手动删除');
+            }
+            // 依赖检测与安装（codegraph，--no-deps 跳过）
             const deps = ensureDependencies(process.cwd(), { skip: options.deps === false });
             console.log(renderDependencyReport(deps));
             // 首次初始化（配置刚创建）或显式 --onboarding 时显示引导
@@ -118,6 +144,28 @@ export function buildProgram(): Command {
                 for (const skill of result.skippedModified) {
                     console.log(`    ! ${skill}`);
                 }
+            }
+            console.log(
+                `  workflow 来源：${result.workflowsSource === 'default' ? '默认集' : '用户配置'}`
+            );
+            if (result.injectedDeps.length > 0) {
+                console.log(`  依赖注入自动补全：${result.injectedDeps.length} 个`);
+                for (const dep of result.injectedDeps) {
+                    console.log(`    + ${dep}`);
+                }
+            }
+            const orphanCount = reconcileOrphanCount(result.reconcileOrphans);
+            if (orphanCount > 0) {
+                console.log(
+                    `  ! ${orphanCount} 个已装产物不在当前 workflows 配置中，保留未删：`
+                );
+                for (const skill of result.reconcileOrphans.skills) {
+                    console.log(`    - ${skill}`);
+                }
+                for (const cmd of result.reconcileOrphans.commands) {
+                    console.log(`    - ${cmd}`);
+                }
+                console.log('    如需移除：venus uninstall 或手动删除');
             }
         });
 
@@ -174,6 +222,43 @@ export function buildProgram(): Command {
             console.log(`  源文件：${result.sourcePath}`);
             console.log(`  已安装：${result.installedPath}`);
         });
+
+    program
+        .command('config')
+        .description('配置本项目要安装的 workflow（.venus/config.yaml 的 workflows 字段）')
+        .option('--set <list>', '非交互设置 workflow 列表（逗号分隔，脚本/CI 用）')
+        .option('--show', '打印当前配置与生效 workflow 集')
+        .action(async (options: { set?: string; show?: boolean }) => {
+            if (options.set) {
+                const result = runConfigSet(process.cwd(), options.set);
+                console.log(`workflow 已设置：${result.workflows?.length ?? 0} 项（含依赖注入）`);
+                for (const wf of result.workflows ?? []) {
+                    console.log(`  + ${wf}`);
+                }
+                return;
+            }
+            if (options.show) {
+                console.log(runConfigShow(process.cwd()));
+                return;
+            }
+            try {
+                const result = await runConfigInteractive(process.cwd());
+                if (result.cancelled) {
+                    console.log('未修改');
+                } else {
+                    console.log(`workflow 已更新：${result.workflows?.length ?? 0} 项`);
+                    for (const wf of result.workflows ?? []) {
+                        console.log(`  + ${wf}`);
+                    }
+                }
+            } catch (error) {
+                console.error(`错误：${(error as Error).message}`);
+                process.exitCode = 1;
+            }
+        });
+
+    // 规格驱动工作流子命令组（venus spec new / status / instructions / archive）
+    program.addCommand(buildSpecCommand());
 
     return program;
 }

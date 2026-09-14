@@ -1,11 +1,12 @@
 /**
  * init 依赖自检与自动安装。
  *
- * venus 后续功能依赖两个外部工具，init 时保证就位：
+ * venus 功能依赖一个外部工具，init 时保证就位：
  *   - codegraph（npm: @colbymchenry/codegraph）：代码知识图谱，
  *     MCP 以用户级注册（claude mcp add codegraph -s user -- codegraph serve --mcp）
- *   - openspec（npm: @fission-ai/openspec）：规格驱动开发，
- *     项目级初始化标志为项目根存在 openspec/ 目录
+ *
+ * spec 工作流不依赖 openspec CLI（ADR-0001：venus spec 命令组自研状态校验，
+ * openspec/ 目录骨架由 venus spec new 按需自动创建）。
  *
  * 策略（已确认）：
  *   - 自动安装：检测到缺失直接装，--no-deps 跳过
@@ -18,13 +19,10 @@
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { pathExists, readFileIfExists } from '../utils/file-system.js';
+import { readFileIfExists } from '../utils/file-system.js';
 
 /** codegraph 的 npm 包名 */
 const CODEGRAPH_PACKAGE = '@colbymchenry/codegraph';
-
-/** openspec 的 npm 包名 */
-const OPENSPEC_PACKAGE = '@fission-ai/openspec';
 
 /** 单条命令超时（npm install -g 可能较慢） */
 const COMMAND_TIMEOUT_MS = 120000;
@@ -57,15 +55,6 @@ export interface DependencyReport {
         cli: DepItemState;
         /** 用户级 MCP 注册状态 */
         mcp: DepItemState;
-        /** 失败警告（含手动处理建议） */
-        warnings: string[];
-    };
-    /** openspec 依赖状态 */
-    openspec: {
-        /** CLI 命令可用性 */
-        cli: DepItemState;
-        /** 项目级初始化状态（openspec/ 目录） */
-        project: DepItemState;
         /** 失败警告（含手动处理建议） */
         warnings: string[];
     };
@@ -113,27 +102,21 @@ function isCodegraphMcpRegistered(claudeConfigDir: string): boolean {
     return 'codegraph' in (servers as Record<string, unknown>);
 }
 
-/** 检测 openspec 是否已在本项目初始化（项目根存在 openspec/ 目录） */
-function isOpenSpecInitialized(projectRoot: string): boolean {
-    return pathExists(path.join(projectRoot, 'openspec'));
-}
-
 /**
  * 检测并安装依赖（自动模式）。
  *
- * @param projectRoot - 目标项目根目录（openspec 项目初始化位置）
+ * @param _projectRoot - 目标项目根目录（保留参数位，当前无项目级依赖；spec 目录骨架由 venus spec new 按需创建）
  * @param options - 选项（skip 跳过 / runner 注入 / claudeConfigDir 注入）
  * @returns 依赖报告（各子项状态 + 失败警告）
  */
 export function ensureDependencies(
-    projectRoot: string,
+    _projectRoot: string,
     options: EnsureDependenciesOptions = {}
 ): DependencyReport {
     const runner = options.runner ?? defaultRunner;
     const claudeConfigDir = options.claudeConfigDir ?? os.homedir();
     const report: DependencyReport = {
         codegraph: { cli: 'skipped', mcp: 'skipped', warnings: [] },
-        openspec: { cli: 'skipped', project: 'skipped', warnings: [] },
     };
     if (options.skip) {
         return report;
@@ -169,33 +152,6 @@ export function ensureDependencies(
         report.codegraph.warnings.push(
             'claude CLI 不可用，可手动执行：claude mcp add codegraph -s user -- codegraph serve --mcp'
         );
-    }
-
-    // 3. openspec CLI
-    if (isCommandAvailable(runner, 'openspec')) {
-        report.openspec.cli = 'ok';
-    } else {
-        const result = runner('npm', ['install', '-g', OPENSPEC_PACKAGE], {});
-        report.openspec.cli = result.status === 0 ? 'installed' : 'failed';
-        if (result.status !== 0) {
-            report.openspec.warnings.push(`openspec CLI 安装失败，可手动执行：npm install -g ${OPENSPEC_PACKAGE}`);
-        }
-    }
-
-    // 4. openspec 项目初始化（openspec init --tools claude，非交互）
-    if (isOpenSpecInitialized(projectRoot)) {
-        report.openspec.project = 'ok';
-    } else if (report.openspec.cli !== 'ok' && report.openspec.cli !== 'installed') {
-        report.openspec.project = 'failed';
-        report.openspec.warnings.push('openspec CLI 不可用，跳过项目初始化');
-    } else {
-        const result = runner('openspec', ['init', '--tools', 'claude'], { cwd: projectRoot });
-        report.openspec.project = result.status === 0 ? 'installed' : 'failed';
-        if (result.status !== 0) {
-            report.openspec.warnings.push(
-                `openspec 项目初始化失败，可在项目根手动执行：openspec init --tools claude`
-            );
-        }
     }
 
     return report;
@@ -239,14 +195,12 @@ export function renderDependencyReport(report: DependencyReport): string {
     const items: { name: string; state: DepItemState }[] = [
         { name: 'codegraph CLI', state: report.codegraph.cli },
         { name: 'codegraph MCP', state: report.codegraph.mcp },
-        { name: 'openspec CLI', state: report.openspec.cli },
-        { name: 'openspec 项目', state: report.openspec.project },
     ];
     const lines: string[] = ['  依赖（后续功能集成用）：'];
     for (const item of items) {
         lines.push(`    ${itemSymbol(item.state)} ${item.name}（${itemLabel(item.state)}）`);
     }
-    for (const warning of [...report.codegraph.warnings, ...report.openspec.warnings]) {
+    for (const warning of report.codegraph.warnings) {
         lines.push(`    ! ${warning}`);
     }
     return lines.join('\n');

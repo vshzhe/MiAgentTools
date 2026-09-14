@@ -22,6 +22,9 @@ import {
     TOOL_SKILLS_SUBDIR,
     type AIToolOption,
 } from '../core/config.js';
+import { readProjectConfig } from '../core/project-config.js';
+import { resolveWorkflows } from '../core/profiles.js';
+import { scanReconcileOrphans, type ReconcileOrphans } from '../core/reconcile.js';
 import { ensureDir, writeFile, readFileIfExists } from '../utils/file-system.js';
 
 /** update 命令选项 */
@@ -42,6 +45,12 @@ export interface UpdateResult {
     skippedModified: string[];
     /** 写入的指令文件数 */
     commandsWritten: number;
+    /** 生效 workflow 集来源：default（未配置用默认集）| user（用户显式配置） */
+    workflowsSource: 'default' | 'user';
+    /** 依赖注入自动补全的 workflow id（供输出提示） */
+    injectedDeps: string[];
+    /** 已装但不在生效集内的 venus 产物（保留不删，供输出提示） */
+    reconcileOrphans: ReconcileOrphans;
 }
 
 /** 读取当前包版本 */
@@ -69,6 +78,11 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
     const skippedModified: string[] = [];
     let commandsWritten = 0;
 
+    // 读项目配置，解析生效 workflow 集（未配置用默认集 + 依赖注入补全）
+    const projectConfig = readProjectConfig(projectRoot);
+    const resolved = resolveWorkflows(projectConfig?.workflows);
+    const workflowsSource = projectConfig && projectConfig.workflows.length > 0 ? 'user' : 'default';
+
     for (const tool of tools) {
         const adapter = CommandAdapterRegistry.get(tool.value);
         if (!adapter) {
@@ -78,7 +92,7 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
         ensureDir(skillsRoot);
 
         // 1. 技能：按内容与版本对比决策
-        for (const { template } of getSkillTemplates()) {
+        for (const { template } of getSkillTemplates(undefined, resolved.workflows)) {
             const generated = generateSkillContent(template, packageVersion);
             const skillDir = path.join(skillsRoot, generated.dirName);
             const skillFile = path.join(skillDir, 'SKILL.md');
@@ -105,7 +119,7 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
         }
 
         // 2. 指令：venus 命名空间内存在即刷新（指令无 generatedBy，不做手改保护）
-        for (const { template, id } of getCommandTemplates()) {
+        for (const { template, id } of getCommandTemplates(undefined, resolved.workflows)) {
             const content: CommandContent = {
                 id,
                 name: template.name,
@@ -125,6 +139,9 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
         }
     }
 
+    // reconcile 扫描：已装但不在生效集内的 venus 产物（保留不删，供输出提示）
+    const reconcileOrphans = scanReconcileOrphans(projectRoot, resolved.workflows);
+
     return {
         projectRoot,
         tools: tools.map((t) => t.value),
@@ -132,6 +149,9 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
         updated,
         skippedModified,
         commandsWritten,
+        workflowsSource,
+        injectedDeps: resolved.injected,
+        reconcileOrphans,
     };
 }
 

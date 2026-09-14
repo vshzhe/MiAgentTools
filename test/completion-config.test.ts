@@ -20,6 +20,8 @@ import {
     listRuleFiles,
     CONFIG_FILE_NAME,
     RULES_DIR_NAME,
+    ensureProjectConfig,
+    writeWorkflowsToConfig,
 } from '../src/core/project-config.js';
 import { runInit } from '../src/commands/init.js';
 import { runGenerate } from '../src/commands/generate.js';
@@ -66,13 +68,25 @@ describe('shell 补全脚本生成', () => {
 });
 
 describe('onboarding 提示', () => {
-    it('包含生命周期顺序的指令引导', () => {
+    it('默认集提示包含 spec 核心与 tr-init-project', () => {
         const output = renderOnboardingHints();
-        expect(output).toContain('/venus:tools-pwd');
-        expect(output).toContain('/venus:impl-feature');
-        expect(output).toContain('/venus:commit-change');
-        expect(output).toContain('/venus:review-code');
+        // 默认集 7 个（tr-init-project + spec 全 6）
+        expect(output).toContain('/venus:tr-init-project');
+        expect(output).toContain('/venus:spec-explore');
+        expect(output).toContain('/venus:spec-propose');
+        expect(output).toContain('/venus:spec-apply');
+        expect(output).toContain('/venus:spec-archive');
         expect(output).toContain('venus list');
+        expect(output).toContain('venus config');
+        // 非默认 workflow 不在默认提示中
+        expect(output).not.toContain('/venus:tr-impl-feature');
+    });
+
+    it('按传入 workflow 集过滤提示', () => {
+        const output = renderOnboardingHints(['tr-impl-feature', 'tr-commit-change']);
+        expect(output).toContain('/venus:tr-impl-feature');
+        expect(output).toContain('/venus:tr-commit-change');
+        expect(output).not.toContain('/venus:spec-explore');
     });
 });
 
@@ -87,7 +101,7 @@ describe('项目配置（.venus/ 目录结构）', () => {
     it('解析 config：context 块 + rules 引用列表', () => {
         const parsed = parseProjectConfig(defaultConfigFileContent());
         expect(parsed.context).toContain('项目背景');
-        expect(parsed.rules).toEqual(['tr_impl', 'tr_test']);
+        expect(parsed.rules).toEqual(['tr_impl', 'tr_test', 'spec']);
     });
 
     it('解析容忍注释与未知项', () => {
@@ -108,7 +122,7 @@ describe('项目配置（.venus/ 目录结构）', () => {
         // 默认规则文件
         expect(fs.existsSync(path.join(rulesDir, 'tr_impl.md'))).toBe(true);
         expect(fs.existsSync(path.join(rulesDir, 'tr_test.md'))).toBe(true);
-        expect(result.ruleFilesCreated.length).toBe(2);
+        expect(result.ruleFilesCreated.length).toBe(3);
     });
 
     it('重复 init 保留用户修改的 config 与规则文件', () => {
@@ -192,5 +206,59 @@ describe('项目配置（.venus/ 目录结构）', () => {
         const impl = defaultRuleFileContent('tr_impl');
         expect(impl).toContain('分层架构');
         expect(impl).toContain('#');
+    });
+});
+
+describe('workflows 字段（profile 配置）', () => {
+    it('默认 config 内容含默认集 7 项', () => {
+        const content = defaultConfigFileContent();
+        expect(content).toContain('workflows:');
+        expect(content).toContain('- tr-init-project');
+        expect(content).toContain('- spec-explore');
+        expect(content).toContain('- spec-verify-proposal');
+
+        const parsed = parseProjectConfig(content);
+        expect(parsed.workflows.length).toBe(7);
+        expect(parsed.workflows).toContain('tr-init-project');
+        expect(parsed.workflows).toContain('spec-archive');
+    });
+
+    it('解析 workflows 列表项', () => {
+        const raw = [
+            'context: |',
+            '  背景',
+            '',
+            'workflows:',
+            '  - tr-impl-feature',
+            '  - spec-explore',
+        ].join('\n');
+        const parsed = parseProjectConfig(raw);
+        expect(parsed.workflows).toEqual(['tr-impl-feature', 'spec-explore']);
+    });
+
+    it('无 workflows 字段时解析为空数组（用默认集）', () => {
+        const raw = ['context: |', '  背景', '', 'rules:', '  - tr_impl'].join('\n');
+        const parsed = parseProjectConfig(raw);
+        expect(parsed.workflows).toEqual([]);
+    });
+
+    it('writeWorkflowsToConfig 替换已有 workflows 段且保留 context/rules', () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), 'venus-wf-write-'));
+        try {
+            ensureProjectConfig(root);
+            writeWorkflowsToConfig(root, ['spec-propose']);
+            let resolved = readProjectConfig(root);
+            expect(resolved?.workflows).toEqual(['spec-propose']);
+
+            // 再次写回替换
+            writeWorkflowsToConfig(root, ['tr-init-project', 'spec-explore']);
+            resolved = readProjectConfig(root);
+            expect(resolved?.workflows).toEqual(['tr-init-project', 'spec-explore']);
+            // context/rules 段保留
+            expect(resolved?.context).toContain('项目背景');
+            expect(resolved?.rules).toBeTruthy();
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
     });
 });

@@ -18,7 +18,9 @@ export type SkillType =
     | 'tr_commit'
     | 'tr_review'
     | 'tr_release'
-    | 'tr_tools';
+    | 'tr_tools'
+    | 'tr_docs'
+    | 'spec';
 
 /** 类型元数据：id + 中文名 + 说明（用于 list 展示与文档生成） */
 export interface SkillTypeMeta {
@@ -36,6 +38,16 @@ export const SKILL_TYPES: SkillTypeMeta[] = [
     { id: 'tr_review', name: '审查', description: '代码审查：质量检查、规范核对、问题发现' },
     { id: 'tr_release', name: '版本', description: '版本发布：版本号管理、变更日志、发布流程' },
     { id: 'tr_tools', name: '工具', description: '通用工具：路径查询、环境探测等辅助操作' },
+    {
+        id: 'tr_docs',
+        name: '文档',
+        description: '文档生成：源项目功能扫描、需求实现文档、项目功能地图',
+    },
+    {
+        id: 'spec',
+        name: '规格',
+        description: '规格驱动工作流：探索、提案、实现、归档、验证（依赖 venus spec 命令组）',
+    },
 ];
 
 /** 全部合法类型 id（用于参数校验） */

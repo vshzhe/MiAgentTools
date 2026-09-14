@@ -22,7 +22,7 @@ interface RunnerCall {
 /**
  * mock runner 工厂：
  *   - available 中的命令 --version 返回 0（其余返回 1）
- *   - 非检测类命令（npm install / claude mcp add / openspec init）返回 installStatus
+ *   - 非检测类命令（npm install / claude mcp add）返回 installStatus
  */
 function createMockRunner(config: { available?: string[]; installStatus?: number }): CommandRunner & { calls: RunnerCall[] } {
     const calls: RunnerCall[] = [];
@@ -36,16 +36,13 @@ function createMockRunner(config: { available?: string[]; installStatus?: number
     return Object.assign(runner, { calls });
 }
 
-let tempRoot: string;
 let tempHome: string;
 
 beforeAll(() => {
-    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'venus-deps-project-'));
     tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'venus-deps-home-'));
 });
 
 afterAll(() => {
-    fs.rmSync(tempRoot, { recursive: true, force: true });
     fs.rmSync(tempHome, { recursive: true, force: true });
 });
 
@@ -60,17 +57,14 @@ function writeClaudeConfig(homeDir: string, withCodegraph: boolean): void {
 describe('ensureDependencies', () => {
     it('全部已存在时返回 ok 且不触发任何安装', () => {
         writeClaudeConfig(tempHome, true);
-        fs.mkdirSync(path.join(tempRoot, 'openspec'), { recursive: true });
-        const runner = createMockRunner({ available: ['codegraph', 'claude', 'openspec'] });
+        const runner = createMockRunner({ available: ['codegraph', 'claude'] });
 
-        const report = ensureDependencies(tempRoot, { runner, claudeConfigDir: tempHome });
+        const report = ensureDependencies('/tmp/any-project', { runner, claudeConfigDir: tempHome });
 
         expect(report.codegraph.cli).toBe('ok');
         expect(report.codegraph.mcp).toBe('ok');
-        expect(report.openspec.cli).toBe('ok');
-        expect(report.openspec.project).toBe('ok');
-        // 仅 2 次可用性检测（codegraph / openspec），MCP 已注册时不检测 claude，无安装调用
-        expect(runner.calls.length).toBe(2);
+        // 仅 1 次可用性检测（codegraph），MCP 已注册时不检测 claude，无安装调用
+        expect(runner.calls.length).toBe(1);
         for (const call of runner.calls) {
             expect(call.args[0]).toBe('--version');
         }
@@ -78,15 +72,12 @@ describe('ensureDependencies', () => {
 
     it('全部缺失时执行完整安装序列', () => {
         writeClaudeConfig(tempHome, false);
-        fs.rmSync(path.join(tempRoot, 'openspec'), { recursive: true, force: true });
         const runner = createMockRunner({ available: ['claude'], installStatus: 0 });
 
-        const report = ensureDependencies(tempRoot, { runner, claudeConfigDir: tempHome });
+        const report = ensureDependencies('/tmp/any-project', { runner, claudeConfigDir: tempHome });
 
         expect(report.codegraph.cli).toBe('installed');
         expect(report.codegraph.mcp).toBe('installed');
-        expect(report.openspec.cli).toBe('installed');
-        expect(report.openspec.project).toBe('installed');
         // 断言安装命令参数
         expect(runner.calls).toContainEqual({
             cmd: 'npm',
@@ -98,43 +89,29 @@ describe('ensureDependencies', () => {
             args: ['mcp', 'add', 'codegraph', '-s', 'user', '--', 'codegraph', 'serve', '--mcp'],
             options: {},
         });
-        expect(runner.calls).toContainEqual({
-            cmd: 'npm',
-            args: ['install', '-g', '@fission-ai/openspec'],
-            options: {},
-        });
-        // 项目初始化必须以项目根为工作目录
-        expect(runner.calls).toContainEqual({
-            cmd: 'openspec',
-            args: ['init', '--tools', 'claude'],
-            options: { cwd: tempRoot },
-        });
+        // spec 工作流自持（ADR-0001）：不安装 openspec CLI、不执行 openspec init
+        expect(runner.calls.some((c) => c.cmd === 'openspec')).toBe(false);
+        expect(runner.calls.some((c) => c.args.includes('@fission-ai/openspec'))).toBe(false);
     });
 
     it('npm 安装失败时标记 failed 并给出手动命令，不阻断后续检测', () => {
         writeClaudeConfig(tempHome, false);
-        fs.rmSync(path.join(tempRoot, 'openspec'), { recursive: true, force: true });
         const runner = createMockRunner({ available: ['claude'], installStatus: 1 });
 
-        const report = ensureDependencies(tempRoot, { runner, claudeConfigDir: tempHome });
+        const report = ensureDependencies('/tmp/any-project', { runner, claudeConfigDir: tempHome });
 
         expect(report.codegraph.cli).toBe('failed');
-        expect(report.openspec.cli).toBe('failed');
-        // CLI 不可用导致 MCP 注册与项目初始化跳过为 failed
+        // CLI 不可用导致 MCP 注册跳过为 failed
         expect(report.codegraph.mcp).toBe('failed');
-        expect(report.openspec.project).toBe('failed');
         // 警告包含手动安装命令
-        const warnings = [...report.codegraph.warnings, ...report.openspec.warnings];
-        expect(warnings.some((w) => w.includes('npm install -g @colbymchenry/codegraph'))).toBe(true);
-        expect(warnings.some((w) => w.includes('npm install -g @fission-ai/openspec'))).toBe(true);
+        expect(report.codegraph.warnings.some((w) => w.includes('npm install -g @colbymchenry/codegraph'))).toBe(true);
     });
 
     it('claude CLI 不可用时 MCP 注册 failed 并提示手动注册命令', () => {
         writeClaudeConfig(tempHome, false);
-        fs.mkdirSync(path.join(tempRoot, 'openspec'), { recursive: true });
-        const runner = createMockRunner({ available: ['codegraph', 'openspec'], installStatus: 0 });
+        const runner = createMockRunner({ available: ['codegraph'], installStatus: 0 });
 
-        const report = ensureDependencies(tempRoot, { runner, claudeConfigDir: tempHome });
+        const report = ensureDependencies('/tmp/any-project', { runner, claudeConfigDir: tempHome });
 
         expect(report.codegraph.cli).toBe('ok');
         expect(report.codegraph.mcp).toBe('failed');
@@ -142,18 +119,17 @@ describe('ensureDependencies', () => {
     });
 
     it('.claude.json 缺失或损坏时视为未注册', () => {
-        fs.rmSync(path.join(tempRoot, 'openspec'), { recursive: true, force: true });
         // 场景 1：文件不存在
         const claudeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'venus-deps-home2-'));
         try {
-            const runner = createMockRunner({ available: ['codegraph', 'claude', 'openspec'], installStatus: 0 });
-            const report = ensureDependencies(tempRoot, { runner, claudeConfigDir: claudeDir });
+            const runner = createMockRunner({ available: ['codegraph', 'claude'], installStatus: 0 });
+            const report = ensureDependencies('/tmp/any-project', { runner, claudeConfigDir: claudeDir });
             expect(report.codegraph.mcp).toBe('installed');
 
             // 场景 2：文件内容非法 JSON
             fs.writeFileSync(path.join(claudeDir, '.claude.json'), 'not-a-json', 'utf8');
-            const runner2 = createMockRunner({ available: ['codegraph', 'claude', 'openspec'], installStatus: 0 });
-            const report2 = ensureDependencies(tempRoot, { runner: runner2, claudeConfigDir: claudeDir });
+            const runner2 = createMockRunner({ available: ['codegraph', 'claude'], installStatus: 0 });
+            const report2 = ensureDependencies('/tmp/any-project', { runner: runner2, claudeConfigDir: claudeDir });
             expect(report2.codegraph.mcp).toBe('installed');
         } finally {
             fs.rmSync(claudeDir, { recursive: true, force: true });
@@ -161,28 +137,24 @@ describe('ensureDependencies', () => {
     });
 
     it('skip 为 true 时全部 skipped 且零命令执行', () => {
-        const runner = createMockRunner({ available: ['codegraph', 'claude', 'openspec'] });
+        const runner = createMockRunner({ available: ['codegraph', 'claude'] });
 
-        const report = ensureDependencies(tempRoot, { skip: true, runner, claudeConfigDir: tempHome });
+        const report = ensureDependencies('/tmp/any-project', { skip: true, runner, claudeConfigDir: tempHome });
 
         expect(report.codegraph.cli).toBe('skipped');
         expect(report.codegraph.mcp).toBe('skipped');
-        expect(report.openspec.cli).toBe('skipped');
-        expect(report.openspec.project).toBe('skipped');
         expect(runner.calls.length).toBe(0);
     });
 });
 
 describe('renderDependencyReport', () => {
-    it('渲染各子项状态与失败警告', () => {
+    it('渲染各子项状态与失败警告（仅 codegraph，无 openspec 项）', () => {
         const output = renderDependencyReport({
             codegraph: { cli: 'ok', mcp: 'failed', warnings: ['claude CLI 不可用，可手动执行：claude mcp add codegraph -s user -- codegraph serve --mcp'] },
-            openspec: { cli: 'installed', project: 'skipped', warnings: [] },
         });
         expect(output).toContain('codegraph CLI');
         expect(output).toContain('codegraph MCP');
-        expect(output).toContain('openspec CLI');
-        expect(output).toContain('openspec 项目');
         expect(output).toContain('! claude CLI 不可用');
+        expect(output).not.toContain('openspec');
     });
 });

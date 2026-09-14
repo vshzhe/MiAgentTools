@@ -10,11 +10,16 @@ import { runInit } from '../src/commands/init.js';
 import { runGenerate } from '../src/commands/generate.js';
 import { runUninstall, previewUninstall } from '../src/commands/uninstall.js';
 import { runShow, findSkills } from '../src/commands/show.js';
+import { ensureProjectConfig, writeWorkflowsToConfig } from '../src/core/project-config.js';
+import { getSkillTemplates } from '../src/core/templates/index.js';
 
 let tempRoot: string;
 
 beforeAll(() => {
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'venus-uninst-'));
+    // 配置全量 workflows，让 init 装全部 23 个技能（默认集仅 7 个）
+    ensureProjectConfig(tempRoot);
+    writeWorkflowsToConfig(tempRoot, getSkillTemplates().map((e) => e.commandId));
 });
 
 afterAll(() => {
@@ -27,8 +32,8 @@ describe('venus uninstall', () => {
         runGenerate(tempRoot, { type: 'tr_tools', name: 'extra-one' });
 
         const preview = previewUninstall(tempRoot);
-        expect(preview.removedSkills.length).toBe(9); // 8 内置 + 1 生成
-        expect(preview.removedCommands.length).toBe(8);
+        expect(preview.removedSkills.length).toBe(24); // 23 内置 + 1 生成
+        expect(preview.removedCommands.length).toBe(23);
         // 未删除：文件仍在
         expect(fs.existsSync(path.join(tempRoot, '.claude', 'skills', 'venus_tr_tools_pwd', 'SKILL.md'))).toBe(true);
     });
@@ -39,7 +44,7 @@ describe('venus uninstall', () => {
         fs.writeFileSync(path.join(otherDir, 'SKILL.md'), 'other', 'utf8');
 
         const result = runUninstall(tempRoot, { yes: true });
-        expect(result.removedSkills.length).toBe(9);
+        expect(result.removedSkills.length).toBe(24);
         expect(result.skipped.some((s) => s.includes('other_tool_skill'))).toBe(true);
         // 其他技能保留
         expect(fs.existsSync(path.join(otherDir, 'SKILL.md'))).toBe(true);
@@ -64,6 +69,9 @@ describe('venus uninstall', () => {
 
 describe('venus show', () => {
     it('唯一命中展示完整详情', () => {
+        // uninstall purge 可能已删 .venus，重建全量 config 确保 tr-tools-pwd 等被装
+        ensureProjectConfig(tempRoot);
+        writeWorkflowsToConfig(tempRoot, getSkillTemplates().map((e) => e.commandId));
         runInit(tempRoot);
         const { output, exitCode } = runShow(tempRoot, 'venus_tr_tools_pwd');
         expect(exitCode).toBe(0);

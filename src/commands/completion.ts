@@ -32,8 +32,9 @@ export const COMPLETION_MARKERS = {
 /**
  * 顶层命令定义（静态补全数据源）。
  * 新增 CLI 命令时同步更新此表。
+ * subcommands 非空的命令为嵌套子命令组（补全第二级）。
  */
-const VENUS_COMMANDS: { name: string; description: string; flags: string[] }[] = [
+const VENUS_COMMANDS: { name: string; description: string; flags: string[]; subcommands?: string[] }[] = [
     { name: 'init', description: '生成全部技能与指令到当前项目', flags: ['--tools', '--force'] },
     { name: 'list', description: '列出已安装技能', flags: ['--json'] },
     { name: 'validate', description: '校验技能规范符合性', flags: ['--json'] },
@@ -42,6 +43,12 @@ const VENUS_COMMANDS: { name: string; description: string; flags: string[] }[] =
         name: 'generate',
         description: '按类型生成新技能骨架',
         flags: ['--type', '--name', '--desc', '--force'],
+    },
+    {
+        name: 'spec',
+        description: '规格驱动工作流（new/status/instructions/archive）',
+        flags: [],
+        subcommands: ['new', 'status', 'instructions', 'archive'],
     },
 ];
 
@@ -55,11 +62,18 @@ export function generateBashCompletion(): string {
     const commandList = VENUS_COMMANDS.map((c) => c.name).join(' ');
     const caseBlocks = VENUS_COMMANDS.map((cmd) => {
         const flags = cmd.flags.join(' ');
+        // 嵌套子命令组：第二级补全子命令名；普通命令：仅 flags
+        const tail =
+            cmd.subcommands === undefined
+                ? '      fi\n      ;;'
+                : `      elif [[ $COMP_CWORD -eq 2 ]]; then
+        COMPREPLY=($(compgen -W "${cmd.subcommands.join(' ')}" -- "$cur"))
+      fi
+      ;;`;
         return `    ${cmd.name})
       if [[ $cur == -* ]]; then
         COMPREPLY=($(compgen -W "${flags}" -- "$cur"))
-      fi
-      ;;`;
+${tail}`;
     }).join('\n');
 
     return `# Bash completion script for venus CLI
@@ -95,6 +109,15 @@ export function generatePowerShellCompletion(): string {
 
     const flagSwitchCases = VENUS_COMMANDS.map((cmd) => {
         const flagList = cmd.flags.map((f) => `"${f}"`).join(', ');
+        // 嵌套子命令组：第二级补全子命令名
+        const subcommandBlock =
+            cmd.subcommands === undefined
+                ? ''
+                : `            elseif ($commandCount -eq 2 -or ($commandCount -eq 3 -and $wordToComplete)) {
+                @(${cmd.subcommands.map((s) => `'${s}'`).join(', ')}) | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+                    [System.Management.Automation.CompletionResult]::new($_, $_, "ParameterValue", "${cmd.description}")
+                }
+            }`;
         return `        '${cmd.name}' {
             if ($wordToComplete -like '-*') {
                 $flags = @(${flagList})
@@ -102,7 +125,7 @@ export function generatePowerShellCompletion(): string {
                     [System.Management.Automation.CompletionResult]::new($_, $_, "ParameterName", "")
                 }
                 return
-            }
+            }${subcommandBlock}
         }`;
     }).join('\n');
 

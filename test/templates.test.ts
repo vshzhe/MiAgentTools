@@ -10,8 +10,8 @@ describe('模板注册表', () => {
     const skills = getSkillTemplates();
     const commands = getCommandTemplates();
 
-    it('内置 8 个技能（7 类 + tr_tools 双技能）', () => {
-        expect(skills.length).toBe(8);
+    it('内置 23 个技能（9 类：8 类 tr_* 共 16 技能 + spec 类 7 技能）', () => {
+        expect(skills.length).toBe(23);
     });
 
     it('全部技能名以 venus_ 开头', () => {
@@ -20,16 +20,16 @@ describe('模板注册表', () => {
         }
     });
 
-    it('7 类类型全部有技能覆盖', () => {
+    it('9 类类型全部有技能覆盖', () => {
         const coveredTypes = new Set(skills.map((s) => s.template.type));
         expect([...coveredTypes].sort()).toEqual([...SKILL_TYPE_IDS].sort());
     });
 
-    it('技能名的类型段与其 type 字段一致', () => {
+    it('技能名的类型段与其 type 字段一致（venus_<type>[_<sub>] 前缀）', () => {
         for (const { template } of skills) {
-            const segments = template.name.slice(SKILL_PREFIX.length).split('_');
-            const typeSegment = `${segments[0]}_${segments[1]}`;
-            expect(typeSegment).toBe(template.type);
+            // tr_* 类型名为 venus_<type>_<name>（三段），spec 类名为 venus_<type>_<name>（两段），
+            // 统一校验：去掉 venus_ 前缀后以 "<type>_" 开头
+            expect(template.name.startsWith(`${SKILL_PREFIX}${template.type}_`)).toBe(true);
         }
     });
 
@@ -56,6 +56,12 @@ describe('模板注册表', () => {
         expect(deriveCommandId('venus_tr_init_project')).toBe('tr-init-project');
     });
 
+    it('迁移套件三新模板的 commandId 派生正确', () => {
+        expect(deriveCommandId('venus_tr_impl_migration_check')).toBe('tr-impl-migration-check');
+        expect(deriveCommandId('venus_tr_impl_auto_migration')).toBe('tr-impl-auto-migration');
+        expect(deriveCommandId('venus_tr_docs_feature_doc')).toBe('tr-docs-feature-doc');
+    });
+
     it('非法前缀的技能名在派生时抛错', () => {
         expect(() => deriveCommandId('openspec_explore')).toThrow(/venus_/);
     });
@@ -68,15 +74,52 @@ describe('模板注册表', () => {
         expect(getCommandTemplates('tr_init').map((c) => c.id)).toEqual(['tr-init-project']);
     });
 
-    it('类型统计覆盖全部 7 类', () => {
+    it('类型统计覆盖全部 9 类', () => {
         const counts = countSkillsByType();
-        expect(counts.size).toBe(7);
+        expect(counts.size).toBe(9);
         expect(counts.get('tr_tools')).toBe(2);
         expect(counts.get('tr_init')).toBe(1);
+        expect(counts.get('tr_impl')).toBe(7);
+        expect(counts.get('tr_docs')).toBe(2);
+        expect(counts.get('spec')).toBe(7);
     });
 
     it('isSkillType 校验', () => {
         expect(isSkillType('tr_init')).toBe(true);
         expect(isSkillType('tr_unknown')).toBe(false);
+    });
+});
+
+describe('workflowFilter 过滤', () => {
+    it('workflowFilter 按派生 id 过滤技能', () => {
+        expect(getSkillTemplates(undefined, ['spec-explore']).map((s) => s.template.name)).toEqual([
+            'venus_spec_explore',
+        ]);
+        expect(getCommandTemplates(undefined, ['tr-init-project']).map((c) => c.id)).toEqual([
+            'tr-init-project',
+        ]);
+    });
+
+    it('workflowFilter 多项过滤保持注册顺序', () => {
+        const ids = getSkillTemplates(undefined, ['tr-tools-list', 'spec-apply', 'tr-tools-pwd']).map(
+            (s) => s.commandId
+        );
+        expect(ids).toEqual(['tr-tools-pwd', 'tr-tools-list', 'spec-apply']);
+    });
+
+    it('workflowFilter 与 typeFilter 正交叠加', () => {
+        // spec 类 6 个中只保留 spec-propose
+        expect(
+            getSkillTemplates('spec', ['spec-propose', 'tr-impl-feature']).map((s) => s.commandId)
+        ).toEqual(['spec-propose']);
+        // tr_tools 类 2 个中保留 tr-tools-list
+        expect(
+            getCommandTemplates('tr_tools', ['tr-tools-list']).map((c) => c.id)
+        ).toEqual(['tr-tools-list']);
+    });
+
+    it('空数组 workflowFilter 结果为空（显式配置空集）', () => {
+        expect(getSkillTemplates(undefined, [])).toEqual([]);
+        expect(getCommandTemplates(undefined, [])).toEqual([]);
     });
 });

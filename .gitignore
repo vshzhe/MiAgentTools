@@ -12,3 +12,4 @@ Thumbs.db
 openspec/
 .claude/skills/openspec-*/
 .claude/commands/opsx/
+.openspec-tmp/

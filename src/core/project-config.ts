@@ -34,6 +34,8 @@ export interface ProjectConfig {
     context: string;
     /** 显式引用的规则类型（顺序即注入顺序） */
     rules: SkillType[];
+    /** 用户选择的 workflow id 列表（空=未配置，用默认集） */
+    workflows: string[];
 }
 
 /** 解析后的完整配置（rules 文件内容已展开） */
@@ -43,6 +45,8 @@ export interface ResolvedProjectConfig {
     rules: Partial<Record<SkillType, string[]>>;
     /** config 引用了但文件缺失的类型（提示用户） */
     missingRuleFiles: SkillType[];
+    /** 用户选择的 workflow id 列表（空=未配置，用默认集） */
+    workflows: string[];
 }
 
 /** 默认 config.yaml 内容 */
@@ -61,6 +65,19 @@ context: |
 rules:
   - tr_impl
   - tr_test
+  - spec
+
+# 选择本项目要安装的 workflow（venus init/update 据此过滤生成）
+# 未配置或为空时使用默认集（7 项：tr-init-project + spec 全 6）
+# 选了 spec-propose 自动带 spec-verify-proposal；选了 spec-archive 自动带 spec-verify
+workflows:
+  - tr-init-project
+  - spec-explore
+  - spec-propose
+  - spec-apply
+  - spec-archive
+  - spec-verify
+  - spec-verify-proposal
 `;
 }
 
@@ -72,6 +89,11 @@ export function defaultRuleFileContent(type: SkillType): string {
             '（待补充）实现类需补充 JavaDoc/方法注释',
         ],
         tr_test: ['（待补充）测试框架与既有用例保持一致'],
+        spec: [
+            '变更制品位于 openspec/changes/，按 spec-driven 依赖序生成（proposal → specs/design → tasks）',
+            '提案实现前必须通过 venus_spec_verify_proposal 评分门（阈值 90%）',
+            '（待补充）本项目规格驱动工作流约束',
+        ],
     };
     const lines = [
         `# ${type} 类型项目规则（每行一条，# 开头为注释）`,
@@ -98,7 +120,7 @@ function readConfigRaw(projectRoot: string): string | null {
  */
 export function parseProjectConfig(raw: string): ProjectConfig {
     const lines = raw.split(/\r?\n/);
-    const config: ProjectConfig = { context: '', rules: [] };
+    const config: ProjectConfig = { context: '', rules: [], workflows: [] };
 
     let i = 0;
     while (i < lines.length) {
@@ -121,6 +143,18 @@ export function parseProjectConfig(raw: string): ProjectConfig {
                 const item = lines[i].replace(/^\s+-\s/, '').trim();
                 if (isSkillType(item)) {
                     config.rules.push(item);
+                }
+                i++;
+            }
+            continue;
+        }
+        // workflows 列表（workflow id，连字符形式如 spec-explore；不校验类型，与 rules 正交）
+        if (/^workflows:/.test(line)) {
+            i++;
+            while (i < lines.length && /^\s+-\s/.test(lines[i])) {
+                const item = lines[i].replace(/^\s+-\s/, '').trim();
+                if (item.length > 0) {
+                    config.workflows.push(item);
                 }
                 i++;
             }
@@ -152,8 +186,8 @@ export function readProjectConfig(projectRoot: string): ResolvedProjectConfig | 
     if (raw === null) {
         return null;
     }
-    const { context, rules } = parseProjectConfig(raw);
-    const resolved: ResolvedProjectConfig = { context, rules: {}, missingRuleFiles: [] };
+    const { context, rules, workflows } = parseProjectConfig(raw);
+    const resolved: ResolvedProjectConfig = { context, rules: {}, missingRuleFiles: [], workflows };
 
     for (const type of rules) {
         const ruleFile = path.join(projectRoot, RULES_DIR_NAME, `${type}.md`);
@@ -187,7 +221,7 @@ export function ensureProjectConfig(projectRoot: string): {
     fs.writeFileSync(configPath, defaultConfigFileContent(), 'utf8');
     // 默认规则文件（已存在的不覆盖）
     const created: string[] = [];
-    for (const type of ['tr_impl', 'tr_test'] as SkillType[]) {
+    for (const type of ['tr_impl', 'tr_test', 'spec'] as SkillType[]) {
         const ruleFile = path.join(rulesDir, `${type}.md`);
         if (!fs.existsSync(ruleFile)) {
             fs.writeFileSync(ruleFile, defaultRuleFileContent(type), 'utf8');
@@ -207,4 +241,56 @@ export function listRuleFiles(projectRoot: string): string[] {
         .readdirSync(rulesDir)
         .filter((name) => name.endsWith('.md') && isSkillType(name.replace(/\.md$/, '')))
         .map((name) => path.join(RULES_DIR_NAME, name));
+}
+
+/**
+ * 更新 config.yaml 的 workflows 字段（保留 context/rules 不动）。
+ * 若 config.yaml 不存在则先创建目录与默认 context/rules，再写入指定 workflows。
+ *
+ * @param projectRoot - 项目根目录
+ * @param workflows - 要写入的 workflow id 列表
+ */
+export function writeWorkflowsToConfig(projectRoot: string, workflows: string[]): void {
+    const configPath = path.join(projectRoot, CONFIG_FILE_NAME);
+    const raw = readConfigRaw(projectRoot) ?? defaultConfigFileContent();
+    const lines = raw.split(/\r?\n/);
+    const out: string[] = [];
+    let i = 0;
+    let found = false;
+
+    while (i < lines.length) {
+        // 命中 workflows 段：替换为新的列表
+        if (/^workflows:/.test(lines[i])) {
+            found = true;
+            out.push('workflows:');
+            for (const wf of workflows) {
+                out.push(`  - ${wf}`);
+            }
+            i++;
+            // 跳过原 workflows 列表项（缩进的 "- xxx"）
+            while (i < lines.length && /^\s+-\s/.test(lines[i])) {
+                i++;
+            }
+            continue;
+        }
+        out.push(lines[i]);
+        i++;
+    }
+    // 原 config 无 workflows 段：追加
+    if (!found) {
+        if (out.length > 0 && out[out.length - 1] !== '') {
+            out.push('');
+        }
+        out.push('workflows:');
+        for (const wf of workflows) {
+            out.push(`  - ${wf}`);
+        }
+    }
+
+    // 确保配置目录存在（config.yaml 不存在时首次创建）
+    const configDir = path.join(projectRoot, VENUS_DIR_NAME);
+    if (!fs.existsSync(configDir)) {
+        fs.mkdirSync(configDir, { recursive: true });
+    }
+    fs.writeFileSync(configPath, out.join('\n') + '\n', 'utf8');
 }

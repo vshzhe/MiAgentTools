@@ -55,4 +55,18 @@ describe('skills/ 静态快照与模板一致性', () => {
             ).toBe(true);
         }
     });
+
+    it('workflowId 派生不破坏命名/指令一致性（每个技能可被 workflowFilter 唯一命中）', () => {
+        // workflow id = deriveCommandId(技能名)，逐个技能验证过滤唯一命中
+        for (const { template, commandId } of templates) {
+            const hit = getSkillTemplates(undefined, [commandId]);
+            expect(hit.length, `workflow ${commandId} 应唯一命中`).toBe(1);
+            expect(hit[0].template.name).toBe(template.name);
+            expect(hit[0].commandId).toBe(commandId);
+        }
+        // 23 个 workflow id 无重复
+        const allIds = templates.map((t) => t.commandId);
+        expect(new Set(allIds).size).toBe(allIds.length);
+        expect(allIds.length).toBe(23);
+    });
 });

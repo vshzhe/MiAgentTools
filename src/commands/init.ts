@@ -22,7 +22,9 @@ import {
     TOOL_SKILLS_SUBDIR,
     type AIToolOption,
 } from '../core/config.js';
-import { ensureProjectConfig } from '../core/project-config.js';
+import { ensureProjectConfig, readProjectConfig } from '../core/project-config.js';
+import { resolveWorkflows } from '../core/profiles.js';
+import { scanReconcileOrphans, type ReconcileOrphans } from '../core/reconcile.js';
 import { ensureDir, writeFile, pathExists } from '../utils/file-system.js';
 
 /** init 命令选项 */
@@ -44,6 +46,12 @@ export interface InitResult {
     configState: 'created' | 'exists';
     /** 本次创建的规则文件（项目相对路径，如 .venus/rules/tr_impl.md） */
     ruleFilesCreated: string[];
+    /** 生效 workflow 集来源：default（未配置用默认集）| user（用户显式配置） */
+    workflowsSource: 'default' | 'user';
+    /** 依赖注入自动补全的 workflow id（供输出提示） */
+    injectedDeps: string[];
+    /** 已装但不在生效集内的 venus 产物（保留不删，供输出提示） */
+    reconcileOrphans: ReconcileOrphans;
 }
 
 /** 读取当前包版本（供 metadata.generatedBy） */
@@ -101,6 +109,11 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
     const commandsInstalled: string[] = [];
     const skipped: string[] = [];
 
+    // 读项目配置，解析生效 workflow 集（未配置用默认集 + 依赖注入补全）
+    const projectConfig = readProjectConfig(projectRoot);
+    const resolved = resolveWorkflows(projectConfig?.workflows);
+    const workflowsSource = projectConfig && projectConfig.workflows.length > 0 ? 'user' : 'default';
+
     for (const tool of tools) {
         const adapter = CommandAdapterRegistry.get(tool.value);
         if (!adapter) {
@@ -110,7 +123,7 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
         // 1. 生成 SKILL.md（.claude/skills/venus_<type>_<name>/SKILL.md）
         const skillsRoot = path.join(projectRoot, tool.skillsDir, TOOL_SKILLS_SUBDIR);
         ensureDir(skillsRoot);
-        for (const { template } of getSkillTemplates()) {
+        for (const { template } of getSkillTemplates(undefined, resolved.workflows)) {
             const generated = generateSkillContent(template, packageVersion);
             const skillDir = path.join(skillsRoot, generated.dirName);
             const skillFile = path.join(skillDir, 'SKILL.md');
@@ -124,7 +137,7 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
         }
 
         // 2. 生成斜杠指令（.claude/commands/venus/<type>-<name>.md）
-        for (const { template, id } of getCommandTemplates()) {
+        for (const { template, id } of getCommandTemplates(undefined, resolved.workflows)) {
             const generated = buildCommand(template, id, adapter);
             const commandFile = path.join(projectRoot, generated.path);
             if (pathExists(commandFile) && !options.force) {
@@ -139,6 +152,9 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
     // 3. 项目级配置（.venus/config.yaml + .venus/rules/，已存在则跳过）
     const config = ensureProjectConfig(projectRoot);
 
+    // 4. reconcile 扫描：已装但不在生效集内的 venus 产物（保留不删，供输出提示）
+    const reconcileOrphans = scanReconcileOrphans(projectRoot, resolved.workflows);
+
     return {
         projectRoot,
         tools: tools.map((t) => t.value),
@@ -147,5 +163,8 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
         skipped,
         configState: config.state,
         ruleFilesCreated: config.ruleFiles,
+        workflowsSource,
+        injectedDeps: resolved.injected,
+        reconcileOrphans,
     };
 }
