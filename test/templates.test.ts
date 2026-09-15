@@ -10,8 +10,8 @@ describe('模板注册表', () => {
     const skills = getSkillTemplates();
     const commands = getCommandTemplates();
 
-    it('内置 23 个技能（9 类：8 类 tr_* 共 16 技能 + spec 类 7 技能）', () => {
-        expect(skills.length).toBe(23);
+    it('内置 26 个技能（10 类：8 类 tr_* 共 18 技能 + tr_test_gentest 类 1 技能 + spec 类 7 技能）', () => {
+        expect(skills.length).toBe(26);
     });
 
     it('全部技能名以 venus_ 开头', () => {
@@ -20,7 +20,7 @@ describe('模板注册表', () => {
         }
     });
 
-    it('9 类类型全部有技能覆盖', () => {
+    it('10 类类型全部有技能覆盖', () => {
         const coveredTypes = new Set(skills.map((s) => s.template.type));
         expect([...coveredTypes].sort()).toEqual([...SKILL_TYPE_IDS].sort());
     });
@@ -74,12 +74,12 @@ describe('模板注册表', () => {
         expect(getCommandTemplates('tr_init').map((c) => c.id)).toEqual(['tr-init-project']);
     });
 
-    it('类型统计覆盖全部 9 类', () => {
+    it('类型统计覆盖全部 10 类', () => {
         const counts = countSkillsByType();
-        expect(counts.size).toBe(9);
+        expect(counts.size).toBe(10);
         expect(counts.get('tr_tools')).toBe(2);
         expect(counts.get('tr_init')).toBe(1);
-        expect(counts.get('tr_impl')).toBe(7);
+        expect(counts.get('tr_impl')).toBe(9);
         expect(counts.get('tr_docs')).toBe(2);
         expect(counts.get('spec')).toBe(7);
     });

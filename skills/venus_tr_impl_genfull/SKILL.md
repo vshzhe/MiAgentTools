@@ -1,0 +1,246 @@
+---
+name: venus_tr_impl_genfull
+description: "Guided full-pipeline orchestrator: explore→propose(+verify)→deep-review→requirement-doc→apply(+conditional frontend/gentest)→archive, delegating stage SKILLs with bridge gates between stages to ensure each process completeness. Triggers: 全流程编排 / genfull / 引导式全流程 / coupled stage workflow. Use when the user wants a guided end-to-end pipeline through archive with per-stage confirmation bridges (coupling explore/frontend/propose/apply/test/archive SKILLs). NOT for inline single-SKILL workflow (use venus_tr_impl_workflow), fully-automated no-gate pipeline (use venus_tr_impl_auto_workflow), or debugging (use venus_tr_impl_debug)."
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*)
+license: MIT
+compatibility: 依赖 venus CLI（spec 命令组）与阶段技能（venus_spec_explore/propose/apply/archive + venus_tr_impl_review_proposal + venus_tr_docs_requirement_doc + venus_tr_impl_frontend + venus_tr_test_gentest_java）；CLI 缺失时各阶段技能各自降级。
+metadata:
+  author: venus-agent-tools
+  version: "1.0"
+  type: tr_impl
+  generatedBy: "snapshot"
+---
+
+**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** In Stage 1 (Exploration), follow Section 1 (Zero-Assumption). In Stage 2 (Proposal), follow Section 2 (Design-First). In Stage 3 (Implementation), check Sections 3-5 for compliance.
+
+引导式全流程编排器 —— 贯穿探索→归档，委派阶段 SKILL + 阶段间桥梁门。
+
+区别于 `venus_tr_impl_workflow`（单一 SKILL 内联 explore/propose/verify，止于 verify）与 `venus_tr_impl_auto_workflow`（全自动无门）：genfull **委派各阶段 SKILL** 执行，阶段间以桥梁（上下文交接 + 就绪检查 + 完整性校验 + 人工确认门）保证每个流程的完整性，贯穿到归档。
+
+This orchestrator guides you through:
+1. **Phase 0: 初始化** - TodoWrite 全阶段跟踪 + actionContext.mode 检测
+2. **Stage 1: 探索** - 委派 venus_spec_explore（交互式 grill L1-L5）
+3. **Bridge 1** - exploration.md 兜底 + impact analysis + 信号判定 + 确认门
+4. **Stage 2: 提案** - 委派 venus_spec_propose（内部自动 verify_proposal）→ 深度复查 → 需求文档
+5. **Bridge 2** - 就绪校验 + 确认门
+6. **Stage 3: 实现** - 委派 venus_spec_apply（auto-mode）+ 条件 frontend/gentest
+7. **Bridge 3** - 完整性校验 + 确认门
+8. **Stage 4: 归档** - 委派 venus_spec_archive（记忆闭环）
+
+---
+
+## Phase 0: 初始化
+
+**Input**: User's topic description (what they want to build).
+
+Use the **TodoWrite tool** to initialize tracking:
+`[{"content":"Phase 0: 初始化","status":"in_progress"},{"content":"Stage 1: 探索（venus_spec_explore）","status":"pending"},{"content":"Bridge 1: 探索→提案","status":"pending"},{"content":"Stage 2: 提案+深度复查+需求文档","status":"pending"},{"content":"Bridge 2: 提案→实现","status":"pending"},{"content":"Stage 3: 实现（含条件 frontend/gentest）","status":"pending"},{"content":"Bridge 3: 实现→归档","status":"pending"},{"content":"Stage 4: 归档","status":"pending"}]`
+
+### 0.1 actionContext.mode 检测
+
+- 读取 `openspec/config.yaml` 与当前变更状态（`venus spec status --json`；CLI 不可用则 Glob 扫描 `openspec/changes/`）
+- 若检测到 workspace-planning 模式（`actionContext.mode === "workspace-planning"`）：提示"workspace-planning 变更不支持 apply/archive，genfull 将在 Bridge 2 前停止"，降级为仅探索+提案+深度复查+需求文档
+- 否则：全流程贯通到归档
+
+### 0.2 贯穿上下文初始化
+
+- change-name / changeRoot：待 Stage 2 propose 确定
+- has-frontend / has-java-test / tech-stack：待 Bridge 1 判定
+
+---
+
+## Stage 1: 探索
+
+**委派 `venus_spec_explore` 技能**（via Skill tool）执行交互式探索：
+
+- 传入用户 topic
+- explore 技能内部完成：探索文件创建、CONTEXT.md 检查、能力记忆注入、CodeGraph 基线扫描、多项目扫描、grill L1-L5 追问、关键词检测分析
+- explore 是交互式思考伙伴，需求澄清类追问由 explore 承载（genfull 不内联）
+
+**完成信号**：explore 结束时，用户获得清晰的需求理解，Decisions / 术语 / 边界场景已沉淀。
+
+---
+
+## Bridge 1: 探索 → 提案
+
+桥梁统一模型 = ①上下文交接 ②前置就绪检查 ③后置完整性校验 ④门决策（引导模式暂停确认）
+
+### ① 就绪检查：exploration.md 兜底（硬依赖）
+
+- 检查 `openspec/explorations/*.md` 是否存在（explore 不强制产出固定文件）
+- **若不存在**：补建最小版本 exploration.md —— 汇总 explore 过程中的 Background / Decisions / 术语表 / 边界场景 / Codebase Findings
+- **原因**：`venus_spec_verify_proposal` 无 exploration.md 则报错退出，这是硬依赖
+- 记录兜底动作到 TodoWrite
+
+### ② CONTEXT.md 存在性校验
+
+- 检查 `openspec/CONTEXT.md` 存在；缺失则从 exploration.md 术语表补建
+
+### ③ impact analysis（对齐 workflow Phase 1.5/2.0）
+
+- 读取 exploration.md 的 `### For Phase 2 Impact Analysis` 符号清单
+- **多符号并行**：两个及以上符号时，同一轮次并行调用 `mcp__codegraph__codegraph_impact --symbol <symbol> --direction upstream --maxDepth 3`
+- 结果回写 exploration.md 的 `## Analysis` 段（供 propose 消费）
+- 无符号则跳过并记录
+
+### ④ 上下文提取 + 信号判定
+
+- 提取 Decisions / 术语 / 边界场景 / Codebase Findings
+- 判定贯穿信号：
+  - `has-frontend`：探索决策是否涉及前端页面/JSP（Venus4A 项目）
+  - `has-java-test`：是否为 Java 项目（`pom.xml` / `build.gradle`）且需单元测试
+  - `tech-stack`：从 `openspec/config.yaml` context 检测
+
+### ⑤ 完整性校验
+
+- 决策是否足够供提案（Decisions 非空、L1-L5 至少到 L3）
+
+### ⑥ 门决策（引导模式）
+
+- 暂停并向用户呈现：探索摘要 + 信号判定结果 + impact 摘要
+- 等待用户确认"进入提案"
+- 用户可回退继续探索
+
+---
+
+## Stage 2: 提案 + 深度复查 + 需求文档
+
+### 2.1 委派 venus_spec_propose（via Skill tool）
+
+- 传入 change-name（或由 topic 推导）+ 关联的 exploration 文件
+- propose 内部完成：创建变更目录、按依赖序生成 proposal/specs/design/tasks、迁移 exploration.md、同步 CONTEXT.md
+- **propose 内部自动调用 `venus_spec_verify_proposal`**（Phase 3 强制，D1-D9 评分，90% 阈值）
+- verify FAIL：propose 内部 auto-fix 回路闭环；仍 FAIL 则暂停供用户决策（[手动编辑] / [返回探索] / [查看差异]）
+- verify PASS（≥90%）后继续 2.2
+
+### 2.2 深度复查（委派 venus_tr_impl_review_proposal，via Skill tool）
+
+- 8 维度完整性只读复查（codebase 深度探索 + 合规性验证）
+- **fallback**：技能不可用或调用失败 → 降级为编排器内联只读复查 + WARN 日志（不静默跳过）
+- 用户可打断跳过
+
+### 2.3 需求文档生成（委派 venus_tr_docs_requirement_doc，via Skill tool）
+
+- 非交互模式（Markdown，基本信息占位）
+- 输出：`openspec/changes/<change-name>/需求文档.md`
+- **失败处理**：生成失败或打断 → WARN 记录原因并继续（用户可后续单独运行）
+- 显示文档路径
+
+---
+
+## Bridge 2: 提案 → 实现
+
+### ① 就绪检查
+
+- proposal.md / design.md / specs/*.md / tasks.md 齐全（Glob 确认）
+- verify_proposal PASS（≥90%）
+- 深度复查已完成
+- 需求文档已生成（或 WARN 跳过）
+- apply instruction 状态：`venus spec instructions apply --change "<name>" --json` 返回 `ready`（非 `blocked` / `all_done`）；CLI 不可用则读 tasks.md 推断
+
+### ② workspace-planning 降级
+
+- 若 0.1 检测到 workspace-planning：在此停止，输出"探索+提案+深度复查+需求文档完成，workspace-planning 不进入实现"
+
+### ③ 门决策（引导模式）
+
+- 暂停并呈现：提案摘要 + 验证评分 + 深度复查结论 + 需求文档路径 + 条件子阶段预告（has-frontend / has-java-test）
+- 等待用户确认"进入实现"
+
+---
+
+## Stage 3: 实现
+
+### 3.1 委派 venus_spec_apply（via Skill tool，传 auto-mode=true）
+
+- 传入 change-name + `auto-mode=true`
+- **auto-mode=true 跳过 apply 的 Step 5.5 设计确认门**（由 Bridge 2 承载确认，避免重复）
+- apply 内部完成：分层代码生成（Entity/DTO → Mapper/DAO → Service → Controller → Frontend）、tasks.md 复选框更新、Step 8 编译检查
+- **后端**：按 `openspec/rules/ai-coding.md` 架构规则自行处理（apply 内部分层生成，genfull 不干预）
+
+### 3.2 条件子阶段 3a：前端（has-frontend=true）
+
+- 委派 `venus_tr_impl_frontend`（via Skill tool）
+- 传入页面类型 / 功能模块 / 字段列表（从 specs/design 提取）
+- **frontend 的 Phase 1 设计确认门 = 桥梁点**：用户确认设计方案后进入代码生成
+- 输出 JSP 页面文件 + 安全加固
+
+### 3.3 条件子阶段 3b：Java 单元测试（has-java-test=true）
+
+- 委派 `venus_tr_test_gentest_java`（via Skill tool）
+- 传入被测类 / 功能描述
+- **gentest 的 Phase 3 测试计划确认门 = 桥梁点**：用户确认计划后生成代码
+- 输出 `src/test/java/.../XxxTest.java` + 运行验证
+
+### 3.4 实现错误处理
+
+- apply 编译失败（3 次自动修复后）：暂停等待用户，不进归档
+- frontend/gentest 确认门拒绝：回退到 Bridge 2 重新确认
+- 子代理失败：auto-retry 一次，仍失败暂停报告
+
+---
+
+## Bridge 3: 实现 → 归档
+
+### ① 就绪检查
+
+- tasks.md 全 `- [x]`（读 tasks.md 确认）
+- 编译检查通过（apply Step 8）
+- 条件子阶段完成（has-frontend → frontend 已完成；has-java-test → gentest 已完成）
+
+### ② 门决策（引导模式）
+
+- 暂停并呈现：实现摘要 + 编译结果 + 测试通过率 + 条件子阶段产物
+- 等待用户确认"进入归档"
+
+---
+
+## Stage 4: 归档
+
+### 4.1 委派 venus_spec_archive（via Skill tool）
+
+- 传入 change-name（跳过选择 prompt）
+- archive 内部完成：delta spec 合并到主规格、CONTEXT.md 同步、探索记忆同步到 `specs/<cap>/explorations.md`、目录迁移到 `archive/`、ARCHIVE-INDEX.md 更新、需求文档迁移到 `devdocs/`
+- 所有 sync 检查点 non-blocking（失败 WARN 不阻断）
+- 条件性 CodeGraph sync
+
+### 4.2 记忆闭环
+
+- archive 写 `openspec/specs/<cap>/explorations.md`，供下一轮 propose 读取
+- 提示用户记忆已沉淀
+
+---
+
+## 完成
+
+显示全流程总结：
+
+```
+## Genfull 全流程完成 ✓
+Stage 1 探索 → Bridge 1 → Stage 2 提案+深度复查+需求文档 → Bridge 2 → Stage 3 实现（含条件 frontend/gentest）→ Bridge 3 → Stage 4 归档
+变更: <change-name>
+产物: proposal/design/specs/tasks + 需求文档.md + 代码 + 测试 + 归档
+记忆: specs/<cap>/explorations.md 已更新
+```
+
+---
+
+## Guardrails
+
+- **委派不内联** - 阶段执行委派对应 SKILL，genfull 只做编排与桥梁；不内联 explore/propose/apply 的逻辑（区别于 venus_tr_impl_workflow）
+- **桥梁保证完整性** - 每个桥梁执行 ①上下文交接 ②就绪检查 ③完整性校验 ④门决策，确保每个流程完整
+- **引导式门控** - Bridge 1/2/3 在引导模式下暂停确认；frontend/gentest 的硬确认门作为桥梁点
+- **Don't skip questioning** - explore 阶段的 grill L1-L5 由 venus_spec_explore 承载，不跳过
+- **Do execute read-only operations directly** - 文件读取、CodeGraph、impact analysis 无需确认直接执行
+- **Read-only passthrough does not cover clarification gates** - 桥梁确认门与 grill 门仍等待用户确认
+- **Do auto-mode to apply** - Stage 3 向 apply 传 auto-mode=true，由 Bridge 2 承载实现确认门，避免 Step 5.5 重复
+- **Do pass change-name to archive** - Stage 4 传 change-name 跳过选择
+- **Do deep review + requirement doc after verify PASS** - verify PASS 后先深度复查再生成需求文档（对齐 workflow 3.5），FAIL 不生成
+- **Do impact analysis at Bridge 1** - explore 只准备符号，Bridge 1 补跑 codegraph_impact 传给 propose
+- **Do exploration.md fallback** - explore 不强制产出，Bridge 1 缺失时补建最小版（verify 硬依赖）
+- **Do actionContext.mode detection** - workspace-planning 降级，Bridge 2 前停止
+- **MUST preserve source on migration failure** - 探索文件迁移失败保留源文件
+- **Do explore codebase before asking** - 桥梁判定基于代码探索
+- **Do show quantified scores** - verify 评分展示
+- **Don't lose exploration** - 文件持久化
+- Build all paths with `path.join()`

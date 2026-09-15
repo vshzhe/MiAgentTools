@@ -27,7 +27,9 @@ src/
 │   ├── templates/
 │   │   ├── types.ts                 SkillTemplate / CommandTemplate 接口
 │   │   ├── registry.ts               模板注册表 + deriveCommandId 派生规则
-│   │   └── workflows/tr-*.ts         7 类技能模板（中文正文）
+│   │   ├── derive-command.ts         spec 模板 command 压缩版派生（CMD:SKIP 标记裁剪）
+│   │   └── workflows/               技能模板（中文正文）：tr-*.ts 生命周期 7 类
+│   │                                 + spec-*.ts 规格工作流（单一源，command 派生）
 │   └── command-generation/
 │       ├── types.ts                  ToolCommandAdapter 接口（多工具扩展点）
 │       ├── generator.ts              generateSkillContent / generateCommand
@@ -62,6 +64,13 @@ node bin/venus.js <cmd> # 直接运行 CLI
 4. **新增技能类型**：`src/core/config.ts` 的 `SKILL_TYPES` 加条目，类型体系即 7→N 类
 5. **YAML 转义**：含冒号/引号的 frontmatter 值必须走 `escapeYamlValue`
 6. Windows 兼容：路径断言用 `replaceAll('\\', '/')` 归一化；`path.join` 不硬编码分隔符
+7. **spec 模板单一源（已落地）**：`workflows/spec-*.ts` 的正文仅维护 skill 版
+   `getSpecXxxSkillTemplate().instructions`（唯一源），command 版 content 由
+   `derive-command.ts` 的 `deriveCommandContent()` 从唯一源派生 —— 禁止直接编辑
+   派生产物或另立手工字符串。裁剪段落用 `<!-- CMD:SKIP -->` / `<!-- /CMD:SKIP -->`
+   成对标记（仅 skill 版可见）；未标记段落默认进入 command 版（fail-safe：漏标
+   只会让 command 更长，不会缺失防护语句）；Guardrails 段永不标记。改动模板后
+   仍须依次 `pnpm build && pnpm generate:skills`（见第 1 条）
 
 ## 项目约定
 

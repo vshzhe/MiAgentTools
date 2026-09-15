@@ -320,6 +320,7 @@ Threshold interpretation (unified 90% — the previous 70%/90% dual-band is remo
 
 ---
 
+<!-- CMD:SKIP -->
 ## Score Report Output
 
 ```
@@ -376,6 +377,7 @@ Threshold interpretation (unified 90% — the previous 70%/90% dual-band is remo
 - ⚠ D6 WARNING: 交互细节矩阵缺失。建议补充以提升实现质量。
 - ⚠ D7 WARNING: API 交互契约缺失。建议补充端点定义。
 ```
+<!-- /CMD:SKIP -->
 
 ---
 
@@ -440,6 +442,7 @@ After fixes applied, re-run verification. If still FAIL, proceed to Step 2.
 
 ---
 
+<!-- CMD:SKIP -->
 ## Verification Output
 
 ```
@@ -486,6 +489,7 @@ venus spec status --change "<name>" --json
 ```
 
 Check for `exploration.md` in change directory using `artifactPaths` from status.
+<!-- /CMD:SKIP -->
 
 ---
 

@@ -40,18 +40,33 @@ Implement tasks from a change's artifacts (proposal/specs/design/tasks) under op
 
    **Workspace guard:** If status JSON reports `actionContext.mode: "workspace-planning"` and `allowedEditRoots` is empty, explain that full workspace apply is not supported in this slice. Treat linked repos and folders as read-only context, ask the user to select an affected area through an explicit implementation workflow, and STOP before editing files.
 
+   **Skipped artifacts handling:** If status reports any artifact with `skipped` state (the change declares `skip_specs`), do NOT treat it as missing — its dependencies are considered satisfied, and implementation proceeds normally for the remaining artifacts. Such artifacts are not flagged as incomplete in the `instruction` state returned by Step 3.
+
 3. **Get task list and context files**
 
-   The venus CLI does not provide an `instructions apply` command — get tasks and context by reading the change directory's artifact files directly:
+   **Primary path — venus CLI `instructions apply` (preferred):**
+   ```bash
+   venus spec instructions apply --change "<name>" --json
+   ```
+   Parse the JSON to obtain structured task context:
+   - `contextFiles`: artifact → file path mapping (proposal/specs/design/tasks → their absolute or change-relative paths); use these as the authoritative file list instead of assuming standard file names
+   - `progress`: total, complete, remaining task counts (used for progress display in Step 5)
+   - `taskList`: structured task entries with checkbox state and group labels (used for batch planning in Step 5.5)
+   - `instruction`: dynamic three-state directive:
+     - `"blocked"`: artifacts missing or incomplete → suggest running `venus_spec_verify` to complete artifacts first; STOP before implementing
+     - `"ready"`: artifacts complete and tasks pending → proceed to Step 4 (read context files)
+     - `"all_done"`: all tasks already complete → congratulate, suggest archive; STOP
 
-   - `openspec/changes/<name>/proposal.md` — proposal (Why, What changes)
-   - `openspec/changes/<name>/specs/` — delta specs (requirements)
-   - `openspec/changes/<name>/design.md` — design (Decisions, architecture, dependencies)
-   - `openspec/changes/<name>/tasks.md` — task list with checkboxes
+   **Fallback path (old CLI without `instructions apply`):**
+   - If the `venus spec instructions apply` command does not exist (unrecognized subcommand) or exits non-zero (older CLI version that does not support the structured apply context contract), fall back to directly reading the change directory's artifact files:
+     - `openspec/changes/<name>/proposal.md` — proposal (Why, What changes)
+     - `openspec/changes/<name>/specs/` — delta specs (requirements)
+     - `openspec/changes/<name>/design.md` — design (Decisions, architecture, dependencies)
+     - `openspec/changes/<name>/tasks.md` — task list with checkboxes
+   - Log a WARN stating the fallback reason (e.g., "command not found" or "non-zero exit code <N>") so the user knows structured context was unavailable
+   - Task completion status is read directly from the tasks.md checkboxes (`- [x]` = complete, `- [ ]` = pending) in fallback mode
 
-   Task completion status is read directly from the tasks.md checkboxes (`- [x]` = complete, `- [ ]` = pending). The `contextFiles` semantics here is simply "read the artifact files under the change directory" — no CLI-level file mapping is needed.
-
-   **Handle states:**
+   **Handle states (both paths):**
    - If artifacts are missing (proposal/specs/design/tasks): show message, suggest using `venus_spec_verify` to complete the artifacts first
    - If all tasks are already complete: congratulate, suggest archive
    - Otherwise: proceed to implementation
@@ -199,6 +214,7 @@ Implement tasks from a change's artifacts (proposal/specs/design/tasks) under op
    - Implementation reveals a design issue → suggest updating artifacts
    - Error or blocker encountered → report and wait for guidance
    - User interrupts → complete current batch, mark remaining tasks as incomplete, then pause
+   - Implementation reveals a task's spec behavior must be narrowed, delayed, or simplified to pass → mark **[待确认]** with the difference explanation, ask the user, and after confirmation update proposal/specs/design before continuing (see Scope-creep guard in Guardrails)
 
 7. **On completion or pause, show status**
 
@@ -275,6 +291,7 @@ Implement tasks from a change's artifacts (proposal/specs/design/tasks) under op
    - All tasks complete status
    - Suggest archiving the change via venus spec archive "<name>" --yes (or the venus_spec_archive skill)
 
+<!-- CMD:SKIP -->
 **Output During Implementation**
 
 ```
@@ -397,6 +414,7 @@ The failed task remains unchecked (`- [ ]`) in tasks.md; confirmed tasks in the 
 
 What would you like to do?
 ```
+<!-- /CMD:SKIP -->
 
 **Guardrails**
 - Keep going through tasks until done or blocked
@@ -404,7 +422,8 @@ What would you like to do?
 - If task is ambiguous, pause and ask before implementing
 - If implementation reveals issues, pause and suggest artifact updates
 - Keep code changes minimal and scoped to each task
-- Update tasks.md centrally: mark confirmed-complete tasks (`- [ ]` → `- [x]`) after collecting a whole batch's results; for directly implemented tasks (serial fallback or single-task batch), mark complete immediately after the task
+- Update tasks.md centrally: mark confirmed-complete tasks (`- [ ]` → `- [x]`) ONLY when the task's spec behavior is fully implemented — partial or delayed implementations SHALL NOT be checked; for directly implemented tasks (serial fallback or single-task batch), mark complete immediately after the task is fully done
+- ⚠️ **Scope-creep guard**: If implementation reveals that a task's spec behavior must be narrowed, delayed, or simplified to pass, MUST surface the finding — mark it **[待确认]** with a clear explanation of the difference between the spec and the actual implementation, and ask the user. Never silently shrink, delay, or simplify spec behavior to make a task checkmark pass. After user confirmation, MUST update proposal/specs/design to reflect the adjusted scope before continuing implementation.
 - Pause on errors, blockers, or unclear requirements - don't guess
 - Never fabricate database field names, types, or API endpoints — verify against existing code
 - Follow layered generation order: Entity/DTO → Mapper/DAO → Service → Controller → Frontend

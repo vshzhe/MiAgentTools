@@ -13,3 +13,6 @@ openspec/
 .claude/skills/openspec-*/
 .claude/commands/opsx/
 .openspec-tmp/
+
+# gentest-java 运行临时工作区（本机生成，不入库）
+venus_java_unit_test-workspace/

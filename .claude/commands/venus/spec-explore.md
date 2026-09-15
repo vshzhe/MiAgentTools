@@ -6,7 +6,7 @@ category: Venus / 规格
 tags: [venus, spec, explore, codegraph]
 ---
 
-**Before exploring, read openspec/rules/ai-coding.md for AI coding guardrails.** Mark undefined items as **[待确认]** and ask the user.
+**Before exploring, read openspec/rules/ai-coding.md for AI coding guardrails.** When encountering undefined database fields, business logic, or API parameters, mark them as **[待确认]** and ask the user rather than guessing.
 
 Enter explore mode. Think deeply. Visualize freely. Follow the conversation wherever it goes.
 
@@ -180,7 +180,10 @@ There's no required ending. Discovery might:
 - **Just provide clarity**: User has what they need, moves on
 - **Continue later**: "We can pick this up anytime"
 
-When things crystallize, you might offer a summary - but it's optional. Sometimes the thinking IS the value.
+When it feels like things are crystallizing, you might summarize:
+
+
+But this summary is optional. Sometimes the thinking IS the value.
 
 ---
 
@@ -195,3 +198,6 @@ When things crystallize, you might offer a summary - but it's optional. Sometime
 - **Do explore the codebase** - Ground discussions in reality
 - **Do question assumptions** - Including the user's and your own
 - **Do understand design intent** - Before modifying existing code, analyze WHY it was built that way — not just WHAT it does. Check code comments, git history, and config files for constraints, trade-offs, and rationale. Mark inferences with confidence levels.
+- **Write confirmation is scoped and explicit** - When offering to save findings or update OpenSpec artifacts, confirmation scope is limited to the specifically named file(s). Blanket "yes to all" authorization is never accepted. Answering design questions (discussing approaches, clarifying requirements, explaining terminology) does NOT constitute consent to write operations — each write requires an independent yes/no confirmation.
+- **Re-read files from disk** - Files the user may have edited during the session (CONTEXT.md, exploration.md, change artifacts such as proposal/design/specs/tasks) MUST be re-read from disk before each use. Never rely on session-cached content.
+- **Surface material ambiguities** - Ambiguities affecting scope, behavioral contracts, backward compatibility, or acceptance criteria MUST be surfaced to the user as **[待确认]** questions. Non-material detail-level ambiguities may be resolved with reasonable assumptions, documented alongside the assumption.

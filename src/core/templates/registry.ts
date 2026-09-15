@@ -27,10 +27,18 @@ import {
     getTrImplAutoWorkflowCommandTemplate,
 } from './workflows/tr-impl-auto-workflow.js';
 import {
+    getTrImplGenfullSkillTemplate,
+    getTrImplGenfullCommandTemplate,
+} from './workflows/tr-impl-genfull.js';
+import {
     getTrImplDebugSkillTemplate,
     getTrImplDebugCommandTemplate,
 } from './workflows/tr-impl-debug.js';
 import { getTrTestGenerateSkillTemplate, getTrTestGenerateCommandTemplate } from './workflows/tr-test.js';
+import {
+    getTrTestGentestJavaSkillTemplate,
+    getTrTestGentestJavaCommandTemplate,
+} from './workflows/tr-test-gentest-java.js';
 import { getTrCommitChangeSkillTemplate, getTrCommitChangeCommandTemplate } from './workflows/tr-commit.js';
 import { getTrReviewCodeSkillTemplate, getTrReviewCodeCommandTemplate } from './workflows/tr-review.js';
 import { getTrReleaseVersionSkillTemplate, getTrReleaseVersionCommandTemplate } from './workflows/tr-release.js';
@@ -71,6 +79,10 @@ import {
     getTrImplReviewProposalSkillTemplate,
     getTrImplReviewProposalCommandTemplate,
 } from './workflows/tr-impl-review-proposal.js';
+import {
+    getTrImplFrontendSkillTemplate,
+    getTrImplFrontendCommandTemplate,
+} from './workflows/tr-impl-frontend.js';
 
 
 /**
@@ -97,12 +109,16 @@ const WORKFLOW_PAIRS: WorkflowPair[] = [
     // 迁移套件（tr_impl）：迁移后一致性检查 + 一站式迁移编排
     { skill: getTrImplMigrationCheckSkillTemplate(), command: getTrImplMigrationCheckCommandTemplate() },
     { skill: getTrImplAutoMigrationSkillTemplate(), command: getTrImplAutoMigrationCommandTemplate() },
-    // 工作流套件（tr_impl）：引导工作流 + 全自动管线 + 一站式调试 + 提案完整性复查（迁移自 OpenSpec 工作流技能）
+    // 工作流套件（tr_impl）：引导工作流 + 全自动管线 + 引导式全流程编排 + 一站式调试 + 提案完整性复查（迁移自 OpenSpec 工作流技能）
     { skill: getTrImplWorkflowSkillTemplate(), command: getTrImplWorkflowCommandTemplate() },
     { skill: getTrImplAutoWorkflowSkillTemplate(), command: getTrImplAutoWorkflowCommandTemplate() },
+    { skill: getTrImplGenfullSkillTemplate(), command: getTrImplGenfullCommandTemplate() },
     { skill: getTrImplDebugSkillTemplate(), command: getTrImplDebugCommandTemplate() },
     { skill: getTrImplReviewProposalSkillTemplate(), command: getTrImplReviewProposalCommandTemplate() },
+    // 前端套件（tr_impl）：前端页面设计与生成，组件设计决策 + 代码模板生成
+    { skill: getTrImplFrontendSkillTemplate(), command: getTrImplFrontendCommandTemplate() },
     { skill: getTrTestGenerateSkillTemplate(), command: getTrTestGenerateCommandTemplate() },
+    { skill: getTrTestGentestJavaSkillTemplate(), command: getTrTestGentestJavaCommandTemplate() },
     { skill: getTrCommitChangeSkillTemplate(), command: getTrCommitChangeCommandTemplate() },
     { skill: getTrReviewCodeSkillTemplate(), command: getTrReviewCodeCommandTemplate() },
     { skill: getTrReleaseVersionSkillTemplate(), command: getTrReleaseVersionCommandTemplate() },

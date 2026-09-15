@@ -3,19 +3,80 @@
  *
  * 命令（自研替代 openspec CLI，零外部依赖，ADR-0001）：
  *   venus spec new "<name>"                          创建变更骨架（.openspec.yaml 兼容元数据）
- *   venus spec status --change <name> [--json] [--all]  artifact 状态校验
- *   venus spec instructions <artifact-id> --change <name> [--json]  模板分发
+ *   venus spec status --change <name> [--json] [--all]  artifact 状态校验（含 skip_specs 语义）
+ *   venus spec instructions <artifact-id> --change <name> [--json]  模板分发（artifact-id=apply 返回 apply 阶段上下文）
  *   venus spec archive <name> [--yes] [--json]       归档移动（spec 合并由 spec-archive 技能执行）
+ *
+ * skip_specs 语义（对齐 OpenSpec v1.1.20）：
+ *   .openspec.yaml 声明 skip_specs: true 时，specs artifact 视为 skipped（满足态）；
+ *   若 specs/ 下同时存在 delta spec 文件，则视为 conflict（冲突态），需用户二选一解决。
  */
 
 import { Command } from 'commander';
 import { createChange } from '../core/spec/new-change.js';
-import { getChangeStatus } from '../core/spec/status.js';
+import { getChangeStatus, detectCompleted, parseTaskProgress } from '../core/spec/status.js';
 import { getArtifactInstructions } from '../core/spec/instructions.js';
 import { executeArchive, previewArchive } from '../core/spec/archive.js';
 import { listSubdirectories } from '../utils/file-system.js';
+import { SPEC_DRIVEN_SCHEMA } from '../core/spec/schema.js';
 import * as path from 'path';
 import * as fs from 'fs';
+
+/** 变更状态结果类型（从 getChangeStatus 派生） */
+type ChangeStatusResult = ReturnType<typeof getChangeStatus>;
+
+/** 单个 artifact 状态类型 */
+type ArtifactStatus = ChangeStatusResult['artifacts'][number];
+
+/** 扩展 artifact 状态：在 done/ready/blocked 基础上增加 skipped/conflict（skip_specs 语义） */
+type ExtendedArtifactStatus = Omit<ArtifactStatus, 'status'> & {
+    status: 'done' | 'ready' | 'blocked' | 'skipped' | 'conflict';
+};
+
+/** 扩展变更状态结果（artifacts 使用扩展状态） */
+type ExtendedChangeStatusResult = Omit<ChangeStatusResult, 'artifacts'> & {
+    artifacts: ExtendedArtifactStatus[];
+};
+
+/** 扩展 artifact instructions：增加 skipped/conflict 标记（skip_specs 语义） */
+export type ExtendedArtifactInstructions = ReturnType<typeof getArtifactInstructions> & {
+    skipped?: boolean;
+    conflict?: boolean;
+    warning?: string;
+};
+
+/** apply 阶段任务列表项 */
+export interface TaskListItem {
+    /** 原始行文本 */
+    text: string;
+    /** 是否已勾选（[x]=true，[ ]=false） */
+    checked: boolean;
+    /** 缩进空格数（层级信息） */
+    indent: number;
+}
+
+/** apply 阶段动态指导 */
+export interface ApplyInstruction {
+    state: 'blocked' | 'ready' | 'all_done';
+    text: string;
+    /** 仅 blocked 时存在：未满足的依赖列表 */
+    missingDeps?: string[];
+}
+
+/** venus spec instructions apply --json 的返回结构 */
+export interface ApplyInstructionsResult {
+    changeName: string;
+    changeRoot: string;
+    contextFiles: {
+        proposal: string;
+        specs: string;
+        design: string;
+        tasks: string;
+    };
+    progress: { total: number; complete: number; remaining: number };
+    taskList: TaskListItem[];
+    instruction: ApplyInstruction;
+}
 
 /** 构造 spec 子命令组（挂到主 program 上） */
 export function buildSpecCommand(): Command {
@@ -40,7 +101,7 @@ export function buildSpecCommand(): Command {
         });
 
     spec.command('status')
-        .description('校验变更 artifact 状态（done/ready/blocked）与任务进度')
+        .description('校验变更 artifact 状态（done/ready/blocked/skipped/conflict）与任务进度')
         .option('--change <name>', '目标变更名')
         .option('--all', '列出全部活跃变更的状态')
         .option('--json', '以 JSON 输出（供程序处理）')
@@ -53,16 +114,36 @@ export function buildSpecCommand(): Command {
         });
 
     spec.command('instructions <artifact-id>')
-        .description('获取 artifact 生成指令与模板（proposal / specs / design / tasks）')
+        .description('获取 artifact 生成指令与模板（proposal / specs / design / tasks），或 apply 阶段上下文（artifact-id=apply）')
         .requiredOption('--change <name>', '目标变更名')
         .option('--json', '以 JSON 输出（供程序处理）')
         .action((artifactId: string, options: { change: string; json?: boolean }) => {
-            const info = getArtifactInstructions(process.cwd(), options.change, artifactId);
+            // apply 分支：返回 apply 阶段上下文（contextFiles / progress / taskList / instruction）
+            if (artifactId === 'apply') {
+                const result = getApplyInstructions(process.cwd(), options.change);
+                console.log(JSON.stringify(result, null, 2));
+                return;
+            }
+            const info = getInstructionsResult(process.cwd(), options.change, artifactId);
             if (options.json) {
                 console.log(JSON.stringify(info, null, 2));
                 return;
             }
+            // 文本输出
             console.log(`artifact：${info.artifactId}（${info.description}）`);
+            if (info.conflict) {
+                console.log(`⚠ 冲突：${info.warning}`);
+                console.log('请先解决冲突（删除 specs/ 下文件 或 移除 skip_specs 声明）后再获取指令。');
+                return;
+            }
+            if (info.skipped) {
+                console.log('输出路径：（已声明 skip_specs，跳过创建）');
+                console.log(`依赖：${info.dependencies.map((d) => `${d.id}(${d.done ? 'done' : 'pending'})`).join('、') || '无'}`);
+                console.log(`解锁：${info.unlocks.join('、') || '无'}`);
+                console.log('\n生成说明：');
+                console.log(info.instruction);
+                return;
+            }
             console.log(`输出路径：${info.outputPath}`);
             console.log(`依赖：${info.dependencies.map((d) => `${d.id}(${d.done ? 'done' : 'pending'})`).join('、') || '无'}`);
             console.log(`解锁：${info.unlocks.join('、') || '无'}`);
@@ -121,7 +202,10 @@ export function runSpecStatus(
         if (changes.length === 0) {
             return { output: options.json ? JSON.stringify({ changes: [], root: projectRoot }) : '无活跃变更。', exitCode: 0 };
         }
-        const statuses = changes.map((name) => getChangeStatus(projectRoot, name, warnings));
+        const statuses = changes.map((name) => {
+            const raw = getChangeStatus(projectRoot, name, warnings);
+            return adjustStatusForSkipSpecs(raw, warnings);
+        });
         if (options.json) {
             return { output: JSON.stringify({ changes: statuses, root: projectRoot, warnings }, null, 2), exitCode: 0 };
         }
@@ -137,7 +221,8 @@ export function runSpecStatus(
         const message = `变更不存在：${options.change}（期望目录 ${changeRoot}）`;
         return { output: options.json ? JSON.stringify({ error: message }) : message, exitCode: 1 };
     }
-    const status = getChangeStatus(projectRoot, options.change, warnings);
+    const rawStatus = getChangeStatus(projectRoot, options.change, warnings);
+    const status = adjustStatusForSkipSpecs(rawStatus, warnings);
     if (options.json) {
         return { output: JSON.stringify({ ...status, warnings }, null, 2), exitCode: 0 };
     }
@@ -153,10 +238,14 @@ function listActiveChanges(projectRoot: string): string[] {
 }
 
 /** 渲染单变更状态文本 */
-function renderStatusText(status: ReturnType<typeof getChangeStatus>): string {
+function renderStatusText(status: ExtendedChangeStatusResult): string {
     const lines = [`变更：${status.changeName}（schema: ${status.schemaName}）`];
     for (const artifact of status.artifacts) {
-        const suffix = artifact.status === 'blocked' ? `（缺失依赖：${artifact.missingDeps?.join('、')}）` : '';
+        const suffix =
+            artifact.status === 'blocked' ? `（缺失依赖：${artifact.missingDeps?.join('、')}）` :
+            artifact.status === 'conflict' ? '（冲突：skip_specs 与 specs 文件共存）' :
+            artifact.status === 'skipped' ? '（已声明 skip_specs，跳过）' :
+            '';
         lines.push(`  ${artifact.id.padEnd(10)} ${artifact.status}${suffix}`);
     }
     if (status.progress !== null) {
@@ -166,4 +255,282 @@ function renderStatusText(status: ReturnType<typeof getChangeStatus>): string {
     }
     lines.push(`  规划完成：${status.isPlanningComplete ? '是' : '否'}`);
     return lines.join('\n');
+}
+
+// ===== skip_specs 语义与 apply 分支实现 =====
+
+/**
+ * 读取 .openspec.yaml 的 skip_specs 声明。
+ *
+ * @param changeRoot - 变更目录绝对路径
+ * @returns skip_specs: true 时返回 true，否则 false（含未声明）
+ */
+function readSkipSpecs(changeRoot: string): boolean {
+    const metadataPath = path.join(changeRoot, '.openspec.yaml');
+    if (!fs.existsSync(metadataPath)) {
+        return false;
+    }
+    const content = fs.readFileSync(metadataPath, 'utf8');
+    const match = /^skip_specs:\s*(true|false)\s*$/m.exec(content);
+    return match !== null && match[1] === 'true';
+}
+
+/**
+ * 根据 skip_specs 声明调整变更状态：
+ * - 声明且 specs 文件不存在 → specs 状态为 skipped（满足态），下游 missingDeps 不含 specs
+ * - 声明且 specs 文件存在   → specs 状态为 conflict（冲突态），下游 missingDeps 含 specs
+ * - 未声明                    → 原样返回
+ *
+ * @param status - getChangeStatus 的原始结果
+ * @param warnings - 容错/冲突警告收集
+ */
+function adjustStatusForSkipSpecs(status: ChangeStatusResult, warnings: string[]): ExtendedChangeStatusResult {
+    const skipSpecs = readSkipSpecs(status.changeRoot);
+    if (!skipSpecs) {
+        return status;
+    }
+
+    const completed = detectCompleted(status.changeRoot);
+    const specsExist = completed.has('specs');
+    const conflict = specsExist;
+    const skipped = !specsExist;
+
+    // 满足集合：completed 为基础；skipped 时加入 specs（视为满足）；conflict 时移除 specs（视为未满足）
+    const satisfied = new Set(completed);
+    if (skipped) {
+        satisfied.add('specs');
+    }
+    if (conflict) {
+        satisfied.delete('specs');
+    }
+
+    const artifacts: ExtendedArtifactStatus[] = status.artifacts.map((artifact) => {
+        if (artifact.id === 'specs') {
+            if (conflict) {
+                warnings.push(
+                    `变更 ${status.changeName} 冲突：声明 skip_specs: true，但 specs/ 目录下仍存在 delta spec 文件。请二选一：删除 specs/ 下文件，或移除 skip_specs 声明。`
+                );
+                return { ...artifact, status: 'conflict' as const, missingDeps: [] };
+            }
+            // skipped 态：视为满足，missingDeps 为空数组
+            return { ...artifact, status: 'skipped' as const, missingDeps: [] };
+        }
+
+        // 下游 artifact（design/tasks）：skipped 视为满足，conflict 视为未满足
+        const missingDeps = artifact.requires.filter((dep) => !satisfied.has(dep));
+        if (completed.has(artifact.id)) {
+            return { ...artifact, status: 'done' as const, missingDeps: undefined };
+        }
+        if (missingDeps.length === 0) {
+            return { ...artifact, status: 'ready' as const, missingDeps: undefined };
+        }
+        return { ...artifact, status: 'blocked' as const, missingDeps };
+    });
+
+    // 调整 isPlanningComplete：skipped specs 视为完成
+    const planningComplete = SPEC_DRIVEN_SCHEMA.artifacts.every((a) => {
+        if (a.id === 'specs' && skipped) {
+            return true;
+        }
+        return completed.has(a.id);
+    });
+
+    return {
+        changeName: status.changeName,
+        changeRoot: status.changeRoot,
+        schemaName: status.schemaName,
+        artifacts,
+        applyRequires: status.applyRequires,
+        progress: status.progress,
+        isPlanningComplete: planningComplete,
+        warnings: status.warnings,
+    };
+}
+
+/**
+ * 获取 artifact instructions（含 skip_specs 语义后处理）。
+ * 非 specs artifact 直接返回原始结果；specs artifact 按 skip_specs 声明调整。
+ *
+ * @param projectRoot - 目标项目根目录
+ * @param changeName - 变更名
+ * @param artifactId - artifact 标识（proposal/specs/design/tasks）
+ */
+export function getInstructionsResult(
+    projectRoot: string,
+    changeName: string,
+    artifactId: string
+): ExtendedArtifactInstructions {
+    const info = getArtifactInstructions(projectRoot, changeName, artifactId) as ExtendedArtifactInstructions;
+    if (artifactId === 'specs') {
+        adjustSpecsInstructionsForSkipSpecs(projectRoot, changeName, info);
+    }
+    return info;
+}
+
+/**
+ * 调整 specs artifact 的 instructions 输出以反映 skip_specs 语义。
+ * - 冲突态：清空 template/outputPath，设置 conflict 标记与警告
+ * - 跳过态：template 设为 skip guidance 文本，outputPath 清空
+ * - 未声明：原样不动
+ */
+function adjustSpecsInstructionsForSkipSpecs(
+    projectRoot: string,
+    changeName: string,
+    info: ExtendedArtifactInstructions
+): void {
+    const changeRoot = path.join(projectRoot, 'openspec', 'changes', changeName);
+    const skipSpecs = readSkipSpecs(changeRoot);
+    if (!skipSpecs) {
+        return;
+    }
+    const completed = detectCompleted(changeRoot);
+    const specsExist = completed.has('specs');
+    if (specsExist) {
+        // 冲突态：不返回正常模板也不返回 skip guidance
+        info.conflict = true;
+        info.warning = 'skip_specs 声明与 specs/ 下 delta spec 文件共存。请二选一：删除 specs/ 下文件，或移除 skip_specs 声明。';
+        info.template = '';
+        info.outputPath = '';
+        info.resolvedOutputPath = '';
+        info.instruction = '检测到冲突：skip_specs 声明与 specs 文件共存。请先解决冲突后再获取指令。';
+    } else {
+        // 跳过态：返回 skip guidance
+        info.skipped = true;
+        info.template = '已声明 skip_specs，无需创建 delta spec 文件。';
+        info.outputPath = '';
+        info.resolvedOutputPath = '';
+        info.instruction = '已声明 skip_specs，无需创建 delta spec 文件。';
+    }
+}
+
+/**
+ * 获取 apply 阶段上下文（venus spec instructions apply --change <name> --json 的数据源）。
+ *
+ * 基于内置 spec-driven 依赖图计算当前状态，返回 contextFiles / progress / taskList / instruction。
+ * 不读外部 schema.yaml（ADR-0001），不读项目代码，不触发写操作。
+ *
+ * @param projectRoot - 目标项目根目录
+ * @param changeName - 变更名
+ * @throws 变更目录不存在时抛出
+ */
+export function getApplyInstructions(projectRoot: string, changeName: string): ApplyInstructionsResult {
+    const changeRoot = path.join(projectRoot, 'openspec', 'changes', changeName);
+    if (!fs.existsSync(changeRoot)) {
+        throw new Error(`变更不存在：${changeName}（期望目录 ${changeRoot}）`);
+    }
+
+    const completed = detectCompleted(changeRoot);
+    const skipSpecs = readSkipSpecs(changeRoot);
+    const specsExist = completed.has('specs');
+    const conflict = skipSpecs && specsExist;
+    const skipped = skipSpecs && !specsExist;
+
+    // 满足集合（用于下游依赖判定）
+    const satisfied = new Set(completed);
+    if (skipped) {
+        satisfied.add('specs');
+    }
+    if (conflict) {
+        satisfied.delete('specs');
+    }
+
+    // contextFiles：已创建 → 绝对路径；未创建 → 空字符串
+    const contextFiles = {
+        proposal: completed.has('proposal') ? path.join(changeRoot, 'proposal.md') : '',
+        specs: specsExist ? path.join(changeRoot, 'specs') : '',
+        design: completed.has('design') ? path.join(changeRoot, 'design.md') : '',
+        tasks: completed.has('tasks') ? path.join(changeRoot, 'tasks.md') : '',
+    };
+
+    // progress：tasks.md 不存在时返回全零（不报错）
+    const rawProgress = parseTaskProgress(changeRoot);
+    const progress = rawProgress ?? { total: 0, complete: 0, remaining: 0 };
+
+    // taskList：解析 tasks.md 勾选项
+    const taskList = parseTaskList(changeRoot);
+
+    // instruction 三态判定
+    const missingDeps: string[] = [];
+    let state: 'blocked' | 'ready' | 'all_done';
+    let text: string;
+
+    if (conflict) {
+        // 冲突态：blocked，提示先解决冲突
+        state = 'blocked';
+        text = '检测到 skip_specs 声明与 specs/ 下文件共存。请先解决冲突（删除 specs/ 下文件 或 移除 skip_specs 声明）后再进入实现。';
+        missingDeps.push('specs');
+    } else {
+        // 检查 tasks 依赖是否满足（skipped 视为满足）
+        if (!satisfied.has('specs')) {
+            missingDeps.push('specs');
+        }
+        if (!satisfied.has('design')) {
+            missingDeps.push('design');
+        }
+        // specs/design 满足但 tasks.md 不存在
+        if (missingDeps.length === 0 && !completed.has('tasks')) {
+            missingDeps.push('tasks');
+        }
+
+        if (missingDeps.length > 0) {
+            state = 'blocked';
+            text = `依赖未满足：${missingDeps.join('、')}。请先完成对应 artifact（使用 venus spec instructions <artifact-id> --change ${changeName}）再进入实现。`;
+        } else if (progress.remaining > 0) {
+            // 依赖满足且存在未完成勾选项
+            state = 'ready';
+            text = '按 tasks.md 逐项实现，规格行为完整实现方可勾选 [x]。';
+        } else if (progress.total > 0) {
+            // 全部勾选 [x]
+            state = 'all_done';
+            text = '所有任务已完成，准备归档（venus spec archive ' + changeName + ' --yes）。';
+        } else {
+            // tasks.md 存在但无可识别勾选项
+            state = 'ready';
+            text = 'tasks.md 无可识别勾选项。请先按 venus spec instructions tasks --change ' + changeName + ' 补充任务清单。';
+        }
+    }
+
+    return {
+        changeName,
+        changeRoot,
+        contextFiles,
+        progress,
+        taskList,
+        instruction: {
+            state,
+            text,
+            missingDeps: missingDeps.length > 0 ? missingDeps : undefined,
+        },
+    };
+}
+
+/**
+ * 解析 tasks.md 为任务列表。
+ * 每项含原始行文本、勾选状态与缩进层级。
+ * tasks.md 不存在时返回空数组。
+ *
+ * @param changeRoot - 变更目录绝对路径
+ */
+function parseTaskList(changeRoot: string): TaskListItem[] {
+    const tasksFile = path.join(changeRoot, SPEC_DRIVEN_SCHEMA.apply.tracks);
+    if (!fs.existsSync(tasksFile)) {
+        return [];
+    }
+    const content = fs.readFileSync(tasksFile, 'utf8');
+    const items: TaskListItem[] = [];
+    // 匹配 - [ ] / - [x]（容忍首尾空白与列表标记变体 -/*）
+    const pattern = /^(\s*)[-*]\s+\[([ xX])\]/;
+    for (const line of content.split(/\r?\n/)) {
+        const match = pattern.exec(line);
+        if (match === null) {
+            continue;
+        }
+        const [, indent, mark] = match;
+        items.push({
+            text: line,
+            checked: mark !== ' ',
+            indent: indent.length,
+        });
+    }
+    return items;
 }

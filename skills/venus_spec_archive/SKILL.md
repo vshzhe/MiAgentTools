@@ -182,6 +182,26 @@ Archive a completed change in the change workflow.
      - Create the devdocs directory if it does not exist (use `path.join()`); overwrite the target if it already exists
    - **If the file does not exist**: skip this step silently — no error, no warning, continue with the archive process
 
+6.5 **Post-Archive CodeGraph Sync + Verification (conditional)**
+
+   **Only execute if step 4.6 confirmed CodeGraph is enabled.** If step 4.6 skipped (CodeGraph not initialized), skip this step entirely.
+
+   1. **Sync the CodeGraph knowledge graph** with the just-archived change's implemented code:
+      - Run `codegraph sync` (via Bash) to incrementally index the newly implemented code
+      - Display "CodeGraph: syncing implemented code..." before running
+      - Log the sync result after completion
+
+   2. **Verify consistency** after sync completes successfully:
+      - Use MCP `codegraph_search` to query the change name plus key symbols mentioned in the change's `tasks.md` and `design.md`
+      - Confirm the implemented symbols are now indexed
+      - Display "CodeGraph: ✓ N symbols verified in index" or warn if no matches
+      - If no symbols found (e.g., config-only or doc-only change), log warning — do NOT treat as failure
+
+   3. **Failure handling** (non-blocking):
+      - If `codegraph sync` fails (CLI error, timeout, or CLI not in PATH): log warning, do NOT block archive
+      - If verification query fails or returns no matches: log warning, do NOT block archive
+      - CodeGraph sync runs independent of `--skip-specs` / `--no-validate` / validation skip choices
+
 7. **Update or create ARCHIVE-INDEX.md**
 
    **IMPORTANT**: Skip this step for workspace-scoped changes (actionContext.mode: "workspace-planning").
@@ -189,6 +209,7 @@ Archive a completed change in the change workflow.
    The archive index file is located at `openspec/changes/archive/ARCHIVE-INDEX.md`.
 
    **If file does not exist, create it**:
+<!-- CMD:SKIP -->
    ```markdown
    # OpenSpec 变更归档索引
 
@@ -213,8 +234,10 @@ Archive a completed change in the change workflow.
 
    *更新时间: YYYY-MM-DD*
    ```
+<!-- /CMD:SKIP -->
 
    **If file exists, append new entry**:
+<!-- CMD:SKIP -->
 
    a. Extract entry information:
       - **Archive date**: from archive directory name `YYYY-MM-DD-{change-name}`
@@ -231,28 +254,9 @@ Archive a completed change in the change workflow.
       - Add new row for new module (count: 1)
 
    d. Update footer timestamp to current date
+<!-- /CMD:SKIP -->
 
    **Cross-platform note**: Use `path.join()` for path construction on Windows. Handle case sensitivity differences when checking for existing files.
-
-6.5 **Post-Archive CodeGraph Sync + Verification (conditional)**
-
-   **Only execute if step 4.6 confirmed CodeGraph is enabled.** If step 4.6 skipped (CodeGraph not initialized), skip this step entirely.
-
-   1. **Sync the CodeGraph knowledge graph** with the just-archived change's implemented code:
-      - Run `codegraph sync` (via Bash) to incrementally index the newly implemented code
-      - Display "CodeGraph: syncing implemented code..." before running
-      - Log the sync result after completion
-
-   2. **Verify consistency** after sync completes successfully:
-      - Use MCP `codegraph_search` to query the change name plus key symbols mentioned in the change's `tasks.md` and `design.md`
-      - Confirm the implemented symbols are now indexed
-      - Display "CodeGraph: ✓ N symbols verified in index" or warn if no matches
-      - If no symbols found (e.g., config-only or doc-only change), log warning — do NOT treat as failure
-
-   3. **Failure handling** (non-blocking):
-      - If `codegraph sync` fails (CLI error, timeout, or CLI not in PATH): log warning, do NOT block archive
-      - If verification query fails or returns no matches: log warning, do NOT block archive
-      - CodeGraph sync runs independent of `--skip-specs` / `--no-validate` / validation skip choices
 
 8. **Display summary**
 
@@ -274,13 +278,15 @@ Archive a completed change in the change workflow.
 **Change:** <change-name>
 **Schema:** <schema-name>
 **Archived to:** openspec/changes/archive/YYYY-MM-DD-<name>/
-**Specs:** ✓ Synced to main specs (or "No delta specs" or "Sync failed — warning logged")
+**Specs:** ✓ Synced to main specs (or "No delta specs" or "Sync failed — warning logged" or "主规格未同步（skip_specs 声明）")
+**Archive Index:** ✓ Updated ARCHIVE-INDEX.md
 **Exploration Memory:** ✓ Synced to specs/<capability>/explorations.md (or "Skipped — no exploration file" or "Skipped — no delta specs" or "Failed — warning logged")
 **CodeGraph:** ✓ Synced (or "Not initialized — skipped" or "Sync skipped due to error")
 
 All artifacts complete. All tasks complete.
 ```
 
+<!-- CMD:SKIP -->
 **Output On Success With Warnings**
 
 ```
@@ -313,6 +319,7 @@ Target archive directory already exists.
 2. Delete the existing archive if it's a duplicate
 3. Wait until a different date to archive
 ```
+<!-- /CMD:SKIP -->
 
 **Guardrails**
 - Always prompt for change selection if not provided (unless change name was explicitly passed from workflow context)
@@ -322,5 +329,6 @@ Target archive directory already exists.
 - Preserve `attachments/` subdirectory — it moves with the change directory automatically
 - When extracting summary for ARCHIVE-INDEX.md, scan `tasks.md` for supplement type labels and append `[含xxx]` annotation to the summary
 - Sync exploration memory to specs/<capability>/explorations.md for every involved capability before the archive move; skip (with log) when exploration.md or delta specs are missing; never block the archive on sync failure
+- When the change declares `skip_specs` (status reports specs as skipped), the archive summary MUST note "主规格未同步（skip_specs 声明）" to prevent users from mistaking it as a spec sync omission
 - Show clear summary of what happened
 - If delta specs exist, run the sync assessment, show the combined summary, and execute the inline AI merge directly (ADDED/MODIFIED/REMOVED/RENAMED → main spec, following v1.1.20 specs-apply semantics)

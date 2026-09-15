@@ -13,6 +13,8 @@ metadata:
 
 Propose a new change - create the change and generate all artifacts in one step.
 
+**Planning Boundary**: 触发此工作流的用户请求授权的是规划——即使请求要求"实现它"或"开始编码"，也只完成规划 artifacts（不编辑项目代码）；全部 artifacts 生成且 Phase 3 验证通过后停止，等待用户发起新请求（/venus:spec-apply）才进入实现；本工作流不启动代码实现。
+
 I'll create a change with artifacts:
 - proposal.md (what & why)
 - design.md (how)
@@ -34,22 +36,23 @@ I'll create a change with artifacts:
 
 在创建变更前，MUST 扫描并关联探索文件：
 
-0. **能力级探索记忆检测（Capability Exploration Memory Injection）**
+0.1. **能力级探索记忆检测（Capability Exploration Memory Injection）**
    - 从用户描述/变更名推断涉及的 capability（参照 Naming Convention 的 Module Identification：Glob `openspec/specs/` 匹配模块关键词）
    - 对每个涉及的 capability，检测 `openspec/specs/<capability>/explorations.md` 是否存在
    - 存在：读取该文件，将历史 Decisions、术语、边界场景注入探索与提案生成上下文
      - 标注「已过时（由 <change-name> 取代）」的分节仅作历史参考，以取代变更的决策为准
    - 不存在：记录 "无能力级探索记忆 — 全新探索"，正常流程
 
-1. **扫描探索文件目录**
+<!-- CMD:SKIP -->
+0.2. **扫描探索文件目录**
    - MUST 使用 Glob 工具扫描 `openspec/explorations/*.md`
    - 获取所有探索文件列表
 
-2. **判断探索文件状态**
+0.3. **判断探索文件状态**
    - 如果无探索文件：继续正常流程，记录为 "无探索上下文"
    - 如果有探索文件：MUST 提示用户选择（不允许静默跳过）
 
-3. **提示用户（当存在探索文件时）**
+0.4. **提示用户（当存在探索文件时）**
    > 检测到探索文件:
    > - {filename-1} (修改时间: {time})
    > - {filename-2} (修改时间: {time})
@@ -57,7 +60,7 @@ I'll create a change with artifacts:
    > 是否关联探索文件到此变更？
    > [关联选择的文件] [跳过]
 
-4. **CONTEXT.md 检查（MANDATORY CHECKPOINT）**
+0.5. **CONTEXT.md 检查（MANDATORY CHECKPOINT）**
    - 如果用户选择关联探索文件，在迁移前检查 `openspec/CONTEXT.md`
    - 如果 CONTEXT.md 存在：
      - 验证所有探索文件术语表条目已写入
@@ -67,7 +70,7 @@ I'll create a change with artifacts:
    - 如果无探索文件：跳过检查，记录 "无探索上下文，跳过 CONTEXT.md 检查"
    - 日志：记录 CONTEXT.md 状态
 
-5. **用户选择处理**
+0.6. **用户选择处理**
    - **关联**：将探索文件迁移到变更目录
      - 源路径: `openspec/explorations/{filename}`
      - 目标路径: `openspec/changes/{change-name}/exploration.md`
@@ -75,12 +78,13 @@ I'll create a change with artifacts:
      - 迁移后读取探索内容作为提案生成的上下文
    - **跳过**：继续正常流程，记录为 "无探索上下文"
 
-6. **探索内容传递给提案生成**
+0.7. **探索内容传递给提案生成**
    - 如果用户选择关联探索文件：
      - 读取 `exploration.md` 中的 Decisions 章节 → 填充 proposal.md
      - 读取 Analysis 章节 → 填充 design.md
      - 读取 Questions 章节 → 填充 specs
      - 读取 Codebase Findings 章节 → 填充 tasks.md
+<!-- /CMD:SKIP -->
 
 1. **If no clear input provided, ask what they want to build**
 
@@ -114,10 +118,12 @@ Apply the following naming rules when deriving a change name:
 **Prefix Priority** (when multiple keywords match): security > fix > sync > add > remove > improve > refactor > perf > config > docs
 
 **Module Identification**:
-1. Use Glob tool to scan `openspec/specs/` directory for module names
-2. Match user description keywords against module names
-3. Common module keywords: archive→cli-archive, artifact/workflow→cli-artifact-workflow, validate→cli-validate, workspace→workspace-foundation, change→change-creation
-4. If no module matches, use simplified format `{prefix}-{feature}`
+- Use Glob tool to scan `openspec/specs/` directory for module names
+- Match user description keywords against module names
+<!-- CMD:SKIP -->
+- Common module keywords: archive→cli-archive, artifact/workflow→cli-artifact-workflow, validate→cli-validate, workspace→workspace-foundation, change→change-creation
+<!-- /CMD:SKIP -->
+- If no module matches, use simplified format `{prefix}-{feature}`
 
 **Example Transformations**:
 | User Input | Generated Name |
@@ -164,15 +170,18 @@ Apply the following naming rules when deriving a change name:
         - `instruction`: Schema-specific guidance for this artifact type
         - `resolvedOutputPath`: Resolved path or pattern to write the artifact
         - `dependencies`: Completed artifacts to read for context
+      - **Re-read dependency artifacts from disk**: 生成新 artifact 需读取已完成的依赖 artifact 时，从磁盘重新读取最新内容（用户可能在会话期间手工编辑），不依赖会话缓存
       - Read any completed dependency files for context
       - Create the artifact file using `template` as the structure and write it to `resolvedOutputPath`
       - Apply `context` and `rules` as constraints - but do NOT copy them into the file
       - Show brief progress: "Created <artifact-id>"
 
-   b. **Continue until all `applyRequires` artifacts are complete**
+   b. **Continue until all required artifacts are complete (apply-ready = applyRequires 传递闭包)**
+      - 停止条件：按 requires 边构建 applyRequires 的传递闭包作为必需集（applyRequires ∪ 其传递依赖），所有必需 artifact 均 status "done" 才视为 apply-ready
+      - 防止早停：tasks 已 done 而 specs 未写时，applyRequires 只列 tasks 不能视为完成；闭包展开后 specs 也属必需
       - After creating each artifact, re-run `venus spec status --change "<name>" --json`
-      - Check if every artifact ID in `applyRequires` has `status: "done"` in the artifacts array
-      - Stop when all `applyRequires` artifacts are done
+      - Check if every artifact ID in the transitive closure of `applyRequires` has `status: "done"` in the artifacts array
+      - Stop when all required artifacts (closure) are done
 
    c. **If an artifact requires user input** (unclear context):
       - Use **AskUserQuestion tool** to clarify
@@ -183,6 +192,11 @@ Apply the following naming rules when deriving a change name:
       - Merge all generated delta specs before proceeding to the next artifact in the dependency order (the proposal → specs → design → tasks chain is unchanged)
       - For a single-capability change: generate the delta spec directly in the artifact loop (automatic serial fallback, no dispatch)
       - On a sub-agent failure: the main workflow regenerates that capability's delta spec serially
+
+   e. **Skipped artifacts handling (skipped 联动)**:
+      - status 报告 `skipped` 状态的 artifact（如变更声明 `skip_specs` 后的 specs）不创建文件
+      - 其依赖视为满足，继续推进后续 artifact
+      - 在 TodoWrite 中标记该 artifact 为 skipped 而非 done
 
 5. **Show final status**
    ```bash
@@ -227,6 +241,7 @@ After completing all artifacts AND Phase 3 verification passes:
 - Create ALL artifacts needed for implementation (as defined by schema's `apply.requires`)
 - Always read dependency artifacts before creating a new one
 - If context is critically unclear, mark as **[待确认]** and ask the user. Never guess!
+- **Material ambiguity划分**: 影响范围/行为契约/向后兼容性/验收标准的歧义 MUST 表面化并向用户提问（标记 [待确认]）；细节性歧义可做合理假设并记录到 planning artifacts
 - After all artifacts are created, display a design blueprint summary and wait for user confirmation before suggesting implementation.
 - If a change with that name already exists, ask if user wants to continue it or create a new one
 - Verify each artifact file exists after writing before proceeding to next

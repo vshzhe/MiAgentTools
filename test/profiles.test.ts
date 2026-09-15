@@ -6,11 +6,11 @@ import { describe, it, expect } from 'vitest';
 import { resolveWorkflows, DEFAULT_WORKFLOWS, DEPS } from '../src/core/profiles.js';
 
 describe('resolveWorkflows', () => {
-    it('未配置（undefined）返回默认集 7 项，无注入', () => {
+    it('未配置（undefined）返回默认集 9 项，无注入', () => {
         const result = resolveWorkflows(undefined);
         expect(result.workflows).toEqual([...DEFAULT_WORKFLOWS]);
         expect(result.injected).toEqual([]);
-        expect(result.workflows.length).toBe(7);
+        expect(result.workflows.length).toBe(9);
     });
 
     it('空数组视为未配置，返回默认集', () => {
@@ -71,7 +71,7 @@ describe('resolveWorkflows', () => {
         expect(result.workflows).toEqual(['spec-propose', 'spec-verify-proposal']);
     });
 
-    it('DEPS 规则表含 propose/archive/bulk-archive/auto-migration/workflow 套件七条', () => {
+    it('DEPS 规则表含 propose/archive/bulk-archive/auto-migration/workflow/genfull 套件八条', () => {
         expect(Object.keys(DEPS).sort()).toEqual([
             'spec-archive',
             'spec-bulk-archive',
@@ -79,6 +79,7 @@ describe('resolveWorkflows', () => {
             'tr-impl-auto-migration',
             'tr-impl-auto-workflow',
             'tr-impl-debug',
+            'tr-impl-genfull',
             'tr-impl-workflow',
         ]);
     });
@@ -98,6 +99,40 @@ describe('resolveWorkflows', () => {
         expect(result.workflows).toContain('tr-docs-requirement-doc');
         expect(result.workflows).toContain('tr-impl-review-proposal');
         expect(result.injected).toEqual(['tr-impl-workflow', 'tr-docs-requirement-doc', 'tr-impl-review-proposal']);
+    });
+
+    it('tr-impl-genfull 注入八阶段技能并连带传递依赖（不动点迭代）', () => {
+        const result = resolveWorkflows(['tr-impl-genfull']);
+        expect(result.workflows).toContain('tr-impl-genfull');
+        // 8 个显式阶段技能
+        for (const dep of [
+            'spec-explore',
+            'spec-propose',
+            'spec-apply',
+            'spec-archive',
+            'tr-impl-frontend',
+            'tr-test-gentest-java',
+            'tr-impl-review-proposal',
+            'tr-docs-requirement-doc',
+        ]) {
+            expect(result.workflows).toContain(dep);
+        }
+        // 传递注入：spec-verify-proposal（via spec-propose）、spec-verify（via spec-archive）
+        expect(result.workflows).toContain('spec-verify-proposal');
+        expect(result.workflows).toContain('spec-verify');
+        // 注入顺序：8 显式在前，2 传递在后
+        expect(result.injected).toEqual([
+            'spec-explore',
+            'spec-propose',
+            'spec-apply',
+            'spec-archive',
+            'tr-impl-frontend',
+            'tr-test-gentest-java',
+            'tr-impl-review-proposal',
+            'tr-docs-requirement-doc',
+            'spec-verify-proposal',
+            'spec-verify',
+        ]);
     });
 
     it('tr-impl-debug 注入需求文档与提案评分两技能', () => {

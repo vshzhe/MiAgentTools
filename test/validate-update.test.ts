@@ -16,7 +16,7 @@ let tempRoot: string;
 
 beforeAll(() => {
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'venus-validate-'));
-    // 配置全量 workflows，让 init 装全部 23 个技能（默认集仅 7 个）
+    // 配置全量 workflows，让 init 装全部 25 个技能（默认集仅 7 个）
     ensureProjectConfig(tempRoot);
     writeWorkflowsToConfig(tempRoot, getSkillTemplates().map((e) => e.commandId));
 });
@@ -29,7 +29,7 @@ describe('venus validate', () => {
     it('init 后全部技能通过校验', () => {
         runInit(tempRoot);
         const result = runValidate(tempRoot);
-        expect(result.total).toBe(23);
+        expect(result.total).toBe(26);
         expect(result.failed).toBe(0);
         expect(result.issues.filter((i) => i.level === 'CRITICAL')).toHaveLength(0);
     });
@@ -37,8 +37,8 @@ describe('venus validate', () => {
     it('JSON 输出结构合法，退出码 0', () => {
         const { output, exitCode } = runValidateCommand(tempRoot, { json: true });
         const parsed = JSON.parse(output) as { total: number; passed: number; failed: number };
-        expect(parsed.total).toBe(23);
-        expect(parsed.passed).toBe(23);
+        expect(parsed.total).toBe(26);
+        expect(parsed.passed).toBe(26);
         expect(exitCode).toBe(0);
     });
 

@@ -12,9 +12,12 @@
  */
 
 /** 默认 workflow 集（未配置 workflows 字段时生效）。
- *  tr-init-project（项目起步必需）+ spec 全 6（规格驱动闭环）。 */
+ *  tr-init-project（项目起步必需）+ spec 全 6（规格驱动闭环）
+ *  + tr-test-generate（通用测试生成）+ tr-test-gentest-java（Java 单元测试）。 */
 export const DEFAULT_WORKFLOWS: readonly string[] = [
     'tr-init-project',
+    'tr-test-generate',
+    'tr-test-gentest-java',
     'spec-explore',
     'spec-propose',
     'spec-apply',
@@ -32,6 +35,10 @@ export const DEFAULT_WORKFLOWS: readonly string[] = [
  *    （验证 PASS 后深度复查与需求文档生成依赖两技能）
  *  - tr-impl-auto-workflow ⇒ tr-impl-workflow + tr-docs-requirement-doc
  *    （Phase 1-3 与引导工作流同构，Phase 3.3 生成需求文档）
+ *  - tr-impl-genfull ⇒ spec-explore + spec-propose + spec-apply + spec-archive
+ *    + tr-impl-frontend + tr-test-gentest-java + tr-impl-review-proposal + tr-docs-requirement-doc
+ *    （引导式全流程编排：委派 8 个阶段技能；spec-verify-proposal 由 spec-propose 传递注入，
+ *    spec-verify 由 spec-archive 传递注入，不在此重复列出）
  *  - tr-impl-debug ⇒ tr-docs-requirement-doc + spec-verify-proposal
  *    （P7 验证调用两技能）
  *  - spec-apply 不注入（apply 时假设 propose 阶段已过评分门，避免冗余） */
@@ -42,6 +49,16 @@ export const DEPS: Record<string, readonly string[]> = {
     'tr-impl-auto-migration': ['tr-docs-feature-doc', 'tr-impl-migration-check'],
     'tr-impl-workflow': ['tr-impl-review-proposal', 'tr-docs-requirement-doc'],
     'tr-impl-auto-workflow': ['tr-impl-workflow', 'tr-docs-requirement-doc'],
+    'tr-impl-genfull': [
+        'spec-explore',
+        'spec-propose',
+        'spec-apply',
+        'spec-archive',
+        'tr-impl-frontend',
+        'tr-test-gentest-java',
+        'tr-impl-review-proposal',
+        'tr-docs-requirement-doc',
+    ],
     'tr-impl-debug': ['tr-docs-requirement-doc', 'spec-verify-proposal'],
 };
 

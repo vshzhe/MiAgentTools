@@ -6,9 +6,9 @@ category: Venus / 规格
 tags: [venus, spec, propose]
 ---
 
-**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.**
-
 Propose a new change - create the change and generate all artifacts in one step.
+
+**Planning Boundary**: 触发此工作流的用户请求授权的是规划——即使请求要求"实现它"或"开始编码"，也只完成规划 artifacts（不编辑项目代码）；全部 artifacts 生成且 Phase 3 验证通过后停止，等待用户发起新请求（/venus:spec-apply）才进入实现；本工作流不启动代码实现。
 
 I'll create a change with artifacts:
 - proposal.md (what & why)
@@ -19,20 +19,27 @@ I'll create a change with artifacts:
 
 ---
 
-**Input**: The argument after `/venus:spec-propose` is the change name (kebab-case), OR a description of what the user wants to build.
+**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** Mark undefined items as **[待确认]** and ask the user rather than guessing.
+
+---
+
+**Input**: The user's request should include a change name (kebab-case) OR a description of what they want to build.
 
 **Steps**
 
-**Step 0: 能力级探索记忆检测（Capability Exploration Memory Injection）**
+**Step 0: 探索文件检测**
 
-在创建变更前，MUST 检测能力级探索记忆：
+在创建变更前，MUST 扫描并关联探索文件：
 
-1. 从用户描述推断涉及的 capability（参照下方 Module Identification：Glob `openspec/specs/` 匹配模块关键词）
-2. 对每个涉及的 capability，检测 `openspec/specs/<capability>/explorations.md` 是否存在
-3. 存在：读取该文件，将历史 Decisions、术语、边界场景注入提案生成上下文；标注「已过时（由 <change-name> 取代）」的分节仅作历史参考，以取代变更的决策为准
-4. 不存在：记录 "无能力级探索记忆 — 全新探索"，正常流程
+0.1. **能力级探索记忆检测（Capability Exploration Memory Injection）**
+   - 从用户描述/变更名推断涉及的 capability（参照 Naming Convention 的 Module Identification：Glob `openspec/specs/` 匹配模块关键词）
+   - 对每个涉及的 capability，检测 `openspec/specs/<capability>/explorations.md` 是否存在
+   - 存在：读取该文件，将历史 Decisions、术语、边界场景注入探索与提案生成上下文
+     - 标注「已过时（由 <change-name> 取代）」的分节仅作历史参考，以取代变更的决策为准
+   - 不存在：记录 "无能力级探索记忆 — 全新探索"，正常流程
 
-1. **If no input provided, ask what they want to build**
+
+1. **If no clear input provided, ask what they want to build**
 
    Use the **AskUserQuestion tool** (open-ended, no preset options) to ask:
    > "What change do you want to work on? Describe what you want to build or fix."
@@ -64,9 +71,19 @@ Apply the following naming rules when deriving a change name:
 **Prefix Priority** (when multiple keywords match): security > fix > sync > add > remove > improve > refactor > perf > config > docs
 
 **Module Identification**:
-1. Use Glob tool to scan `openspec/specs/` directory for module names
-2. Match user description keywords against module names
-3. If no module matches, use simplified format `{prefix}-{feature}`
+- Use Glob tool to scan `openspec/specs/` directory for module names
+- Match user description keywords against module names
+- If no module matches, use simplified format `{prefix}-{feature}`
+
+**Example Transformations**:
+| User Input | Generated Name |
+|------------|----------------|
+| "新增归档索引功能" | `add-cli-archive-index` |
+| "修复 artifact graph 解析问题" | `fix-artifact-graph-parsing` |
+| "优化 workspace 查询性能" | `perf-workspace-foundation-query` |
+| "修复登录安全漏洞" | `security-auth-login-vulnerability` |
+
+**User-provided name**: If user provides a valid name, use it. If it has correct prefix but missing module, add module identifier.
 
 2. **Create the change directory**
    ```bash
@@ -103,15 +120,18 @@ Apply the following naming rules when deriving a change name:
         - `instruction`: Schema-specific guidance for this artifact type
         - `resolvedOutputPath`: Resolved path or pattern to write the artifact
         - `dependencies`: Completed artifacts to read for context
+      - **Re-read dependency artifacts from disk**: 生成新 artifact 需读取已完成的依赖 artifact 时，从磁盘重新读取最新内容（用户可能在会话期间手工编辑），不依赖会话缓存
       - Read any completed dependency files for context
       - Create the artifact file using `template` as the structure and write it to `resolvedOutputPath`
       - Apply `context` and `rules` as constraints - but do NOT copy them into the file
       - Show brief progress: "Created <artifact-id>"
 
-   b. **Continue until all `applyRequires` artifacts are complete**
+   b. **Continue until all required artifacts are complete (apply-ready = applyRequires 传递闭包)**
+      - 停止条件：按 requires 边构建 applyRequires 的传递闭包作为必需集（applyRequires ∪ 其传递依赖），所有必需 artifact 均 status "done" 才视为 apply-ready
+      - 防止早停：tasks 已 done 而 specs 未写时，applyRequires 只列 tasks 不能视为完成；闭包展开后 specs 也属必需
       - After creating each artifact, re-run `venus spec status --change "<name>" --json`
-      - Check if every artifact ID in `applyRequires` has `status: "done"` in the artifacts array
-      - Stop when all `applyRequires` artifacts are done
+      - Check if every artifact ID in the transitive closure of `applyRequires` has `status: "done"` in the artifacts array
+      - Stop when all required artifacts (closure) are done
 
    c. **If an artifact requires user input** (unclear context):
       - Use **AskUserQuestion tool** to clarify
@@ -123,17 +143,22 @@ Apply the following naming rules when deriving a change name:
       - For a single-capability change: generate the delta spec directly in the artifact loop (automatic serial fallback, no dispatch)
       - On a sub-agent failure: the main workflow regenerates that capability's delta spec serially
 
+   e. **Skipped artifacts handling (skipped 联动)**:
+      - status 报告 `skipped` 状态的 artifact（如变更声明 `skip_specs` 后的 specs）不创建文件
+      - 其依赖视为满足，继续推进后续 artifact
+      - 在 TodoWrite 中标记该 artifact 为 skipped 而非 done
+
 5. **Show final status**
    ```bash
    venus spec status --change "<name>"
    ```
 
 6. **Phase 3 Verification (auto — MANDATORY, no skip)**
-   After all `applyRequires` artifacts are done, automatically enter Phase 3 verification (do NOT end before verification):
-   - Invoke the `venus_spec_verify_proposal` **skill** (via Skill tool) for D1-D5 scoring. (`venus_spec_verify_proposal` is a skill name, NOT a valid `venus spec instructions` artifact ID.)
+   After all `applyRequires` artifacts are done, automatically enter Phase 3 verification (do NOT end the workflow at "Ready for implementation" before verification):
+   - Invoke the `venus_spec_verify_proposal` **skill** (via Skill tool) for D1-D5 scoring. (`venus_spec_verify_proposal` is a skill name, NOT a valid `venus spec instructions` artifact ID — do not run it as a CLI instruction.)
    - **Verification review sub-agent**: dispatch an independent read-only review sub-agent (Task tool, subagent_type: "general-purpose") to perform the D1-D5 scoring — the sub-agent reads the change's artifacts without modifying them. On sub-agent dispatch failure: fall back to main-workflow inline scoring with a WARN log (never silently skip verification).
    - **PASS (≥90%)**: 验证通过后可对提案做一次内联深度复查（由主工作流在通过后直接执行一次 read-only 复查，不依赖专门技能名）。
-   - **FAIL (<90%)**: auto-fix, re-run; if still FAIL, offer [Manual edit] / [Return to exploration (/venus:spec-explore)] / [View diff] (no skip-to-apply).
+   - **FAIL (<90%)**: auto-generate fixes, apply, re-run; if still FAIL, offer [Manual edit] / [Return to exploration (/venus:spec-explore)] / [View diff] (no skip-to-apply).
    - Fallback if skill unavailable: AI inline D1-D5 scoring + WARN log; never silently skip.
    - 验证使用 90% 通过阈值。
 
@@ -166,5 +191,7 @@ After completing all artifacts AND Phase 3 verification passes:
 - Create ALL artifacts needed for implementation (as defined by schema's `apply.requires`)
 - Always read dependency artifacts before creating a new one
 - If context is critically unclear, mark as **[待确认]** and ask the user. Never guess!
+- **Material ambiguity划分**: 影响范围/行为契约/向后兼容性/验收标准的歧义 MUST 表面化并向用户提问（标记 [待确认]）；细节性歧义可做合理假设并记录到 planning artifacts
+- After all artifacts are created, display a design blueprint summary and wait for user confirmation before suggesting implementation.
 - If a change with that name already exists, ask if user wants to continue it or create a new one
 - Verify each artifact file exists after writing before proceeding to next

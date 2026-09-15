@@ -21,6 +21,13 @@ Enter explore mode. Think deeply. Visualize freely. Follow the conversation wher
 
 **This is a stance, not a workflow.** There are no fixed steps, no required sequence, no mandatory outputs. You're a thinking partner helping the user explore.
 
+**Input**: The argument after `/venus:spec-explore` is whatever the user wants to think about. Could be:
+- A vague idea: "real-time collaboration"
+- A specific problem: "the auth system is getting unwieldy"
+- A change name: "add-dark-mode" (to explore in context of that change)
+- A comparison: "postgres vs sqlite for this"
+- Nothing (just enter explore mode)
+
 ---
 
 ## The Stance
@@ -89,7 +96,8 @@ When modifying existing code, go beyond surface analysis:
 │   System diagrams, state machines,      │
 │   data flows, architecture sketches,    │
 │   dependency graphs, comparison tables  │
-│                                         │└─────────────────────────────────────────┘
+│                                         │
+└─────────────────────────────────────────┘
 ```
 
 **Surface risks and unknowns**
@@ -114,6 +122,8 @@ This tells you:
 - If there are active changes
 - Their names, schemas, and status
 - What the user might be working on
+
+If the user mentioned a specific change name, read its artifacts for context.
 
 ### When no change exists
 
@@ -163,6 +173,7 @@ If the user mentions a change or you detect one is relevant:
 - Reach a conclusion
 - Stay on topic if a tangent is valuable
 - Be brief (this is thinking time)
+<!-- CMD:SKIP -->
 
 ---
 
@@ -267,6 +278,7 @@ You: That changes everything.
 
      Unless... is there a sync component?
 ```
+<!-- /CMD:SKIP -->
 
 ---
 
@@ -281,6 +293,7 @@ There's no required ending. Discovery might:
 
 When it feels like things are crystallizing, you might summarize:
 
+<!-- CMD:SKIP -->
 ```
 ## What We Figured Out
 
@@ -294,6 +307,7 @@ When it feels like things are crystallizing, you might summarize:
 - Create a change proposal
 - Keep exploring: just keep talking
 ```
+<!-- /CMD:SKIP -->
 
 But this summary is optional. Sometimes the thinking IS the value.
 
@@ -310,3 +324,6 @@ But this summary is optional. Sometimes the thinking IS the value.
 - **Do explore the codebase** - Ground discussions in reality
 - **Do question assumptions** - Including the user's and your own
 - **Do understand design intent** - Before modifying existing code, analyze WHY it was built that way — not just WHAT it does. Check code comments, git history, and config files for constraints, trade-offs, and rationale. Mark inferences with confidence levels.
+- **Write confirmation is scoped and explicit** - When offering to save findings or update OpenSpec artifacts, confirmation scope is limited to the specifically named file(s). Blanket "yes to all" authorization is never accepted. Answering design questions (discussing approaches, clarifying requirements, explaining terminology) does NOT constitute consent to write operations — each write requires an independent yes/no confirmation.
+- **Re-read files from disk** - Files the user may have edited during the session (CONTEXT.md, exploration.md, change artifacts such as proposal/design/specs/tasks) MUST be re-read from disk before each use. Never rely on session-cached content.
+- **Surface material ambiguities** - Ambiguities affecting scope, behavioral contracts, backward compatibility, or acceptance criteria MUST be surfaced to the user as **[待确认]** questions. Non-material detail-level ambiguities may be resolved with reasonable assumptions, documented alongside the assumption.

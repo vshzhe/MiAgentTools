@@ -60,18 +60,24 @@ const ONBOARDING_HINTS: OnboardingHint[] = [
         command: '/venus:spec-verify-proposal <变更名>',
         hint: '提案生成后、实现前做量化评分（阈值 90%）',
     },
+    {
+        workflowId: 'tr-test-generate',
+        name: '生成测试',
+        command: '/venus:tr-test-generate <被测目标>',
+        hint: '为代码补充结构化测试：BCDE 场景矩阵、AAA 结构、框架自动检测',
+    },
+    {
+        workflowId: 'tr-test-gentest-java',
+        name: 'Java 测试',
+        command: '/venus:tr-test-gentest-java <被测类>',
+        hint: 'Java 项目单元测试：框架检测、BCDE 场景矩阵、多模板生成、运行验证',
+    },
     // 非默认 workflow（需 venus config 启用后才在提示中出现）
     {
         workflowId: 'tr-impl-feature',
         name: '实现功能',
         command: '/venus:tr-impl-feature <功能描述>',
         hint: '描述想做的功能，按分层架构规范实现',
-    },
-    {
-        workflowId: 'tr-test-generate',
-        name: '生成测试',
-        command: '/venus:tr-test-generate <被测目标>',
-        hint: '为刚写的代码补测试：先写用例，再让它通过',
     },
     {
         workflowId: 'tr-commit-change',
@@ -84,6 +90,12 @@ const ONBOARDING_HINTS: OnboardingHint[] = [
         name: '审查代码',
         command: '/venus:tr-review-code',
         hint: '默认审查未提交变更，输出分级审查报告',
+    },
+    {
+        workflowId: 'tr-impl-frontend',
+        name: '前端页面设计与生成',
+        command: '/venus:tr-impl-frontend <页面需求>',
+        hint: 'Venus4A 前端 JSP 页面设计决策 + 代码模板生成，涵盖 zTree/select2/layui/ECharts 等组件',
     },
     {
         workflowId: 'tr-release-version',
