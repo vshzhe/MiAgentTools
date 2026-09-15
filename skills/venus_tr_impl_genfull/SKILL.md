@@ -1,6 +1,6 @@
 ---
 name: venus_tr_impl_genfull
-description: "Guided full-pipeline orchestrator: explore→propose(+verify)→deep-review→requirement-doc→apply(+conditional frontend/gentest)→archive, delegating stage SKILLs with bridge gates between stages to ensure each process completeness. Triggers: 全流程编排 / genfull / 引导式全流程 / coupled stage workflow. Use when the user wants a guided end-to-end pipeline through archive with per-stage confirmation bridges (coupling explore/frontend/propose/apply/test/archive SKILLs). NOT for inline single-SKILL workflow (use venus_tr_impl_workflow), fully-automated no-gate pipeline (use venus_tr_impl_auto_workflow), or debugging (use venus_tr_impl_debug)."
+description: "Guided full-pipeline orchestrator: explore→[frontend-design]→propose(+verify)→deep-review→requirement-doc→apply(+conditional frontend-impl/gentest)→archive, delegating stage SKILLs with bridge gates between stages to ensure each process completeness. Frontend design (Phase 1) is front-loaded to proposal stage; frontend impl (Phase 2) stays in apply. Triggers: 全流程编排 / genfull / 引导式全流程 / coupled stage workflow. Use when the user wants a guided end-to-end pipeline through archive with per-stage confirmation bridges (coupling explore/frontend/propose/apply/test/archive SKILLs). NOT for inline single-SKILL workflow (use venus_tr_impl_workflow), fully-automated no-gate pipeline (use venus_tr_impl_auto_workflow), or debugging (use venus_tr_impl_debug)."
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*)
 license: MIT
 compatibility: 依赖 venus CLI（spec 命令组）与阶段技能（venus_spec_explore/propose/apply/archive + venus_tr_impl_review_proposal + venus_tr_docs_requirement_doc + venus_tr_impl_frontend + venus_tr_test_gentest_java）；CLI 缺失时各阶段技能各自降级。
@@ -21,11 +21,12 @@ This orchestrator guides you through:
 1. **Phase 0: 初始化** - TodoWrite 全阶段跟踪 + actionContext.mode 检测
 2. **Stage 1: 探索** - 委派 venus_spec_explore（交互式 grill L1-L5）
 3. **Bridge 1** - exploration.md 兜底 + impact analysis + 信号判定 + 确认门
-4. **Stage 2: 提案** - 委派 venus_spec_propose（内部自动 verify_proposal）→ 深度复查 → 需求文档
-5. **Bridge 2** - 就绪校验 + 确认门
-6. **Stage 3: 实现** - 委派 venus_spec_apply（auto-mode）+ 条件 frontend/gentest
-7. **Bridge 3** - 完整性校验 + 确认门
-8. **Stage 4: 归档** - 委派 venus_spec_archive（记忆闭环）
+4. **Stage 1.5: 前端设计**（条件 has-frontend）- 委派 venus_tr_impl_frontend 仅设计，产出喂入 propose
+5. **Stage 2: 提案** - 委派 venus_spec_propose（内部自动 verify_proposal）→ 深度复查 → 需求文档
+6. **Bridge 2** - 就绪校验 + 确认门
+7. **Stage 3: 实现** - 委派 venus_spec_apply（auto-mode）+ 条件 frontend 实现/gentest
+8. **Bridge 3** - 完整性校验 + 确认门
+9. **Stage 4: 归档** - 委派 venus_spec_archive（记忆闭环）
 
 ---
 
@@ -34,7 +35,7 @@ This orchestrator guides you through:
 **Input**: User's topic description (what they want to build).
 
 Use the **TodoWrite tool** to initialize tracking:
-`[{"content":"Phase 0: 初始化","status":"in_progress"},{"content":"Stage 1: 探索（venus_spec_explore）","status":"pending"},{"content":"Bridge 1: 探索→提案","status":"pending"},{"content":"Stage 2: 提案+深度复查+需求文档","status":"pending"},{"content":"Bridge 2: 提案→实现","status":"pending"},{"content":"Stage 3: 实现（含条件 frontend/gentest）","status":"pending"},{"content":"Bridge 3: 实现→归档","status":"pending"},{"content":"Stage 4: 归档","status":"pending"}]`
+`[{"content":"Phase 0: 初始化","status":"in_progress"},{"content":"Stage 1: 探索（venus_spec_explore）","status":"pending"},{"content":"Bridge 1: 探索→提案","status":"pending"},{"content":"Stage 1.5: 前端设计（条件 has-frontend）","status":"pending"},{"content":"Stage 2: 提案+深度复查+需求文档","status":"pending"},{"content":"Bridge 2: 提案→实现","status":"pending"},{"content":"Stage 3: 实现（含条件 frontend/gentest）","status":"pending"},{"content":"Bridge 3: 实现→归档","status":"pending"},{"content":"Stage 4: 归档","status":"pending"}]`
 
 ### 0.1 actionContext.mode 检测
 
@@ -103,6 +104,24 @@ Use the **TodoWrite tool** to initialize tracking:
 
 ---
 
+## Stage 1.5: 前端设计（条件 has-frontend=true）
+
+**委派 venus_tr_impl_frontend 技能**（via Skill tool）执行**仅设计**部分：
+
+- 传入探索期的页面类型 / 功能模块 / 字段列表
+- 指令：**仅执行主 SKILL 的 Phase 1 设计决策**，不读 references 实现模板、不生成 JSP 代码
+- 设计产出（写入 exploration.md 的 `## 前端设计` 段，供 Stage 2 propose 提取到 design.md）：
+  - 页面类型（list/add/edit/detail/tree）
+  - 组件选型（zTree/select2/calendar/ECharts/ymPrompt/DWR 等，基于决策表 + 先查已有实现原则）
+  - 字段-组件映射矩阵（字段名 → UI 组件 → 校验/交互规则）
+  - jQuery 版本与标准引入顺序
+  - 4 种 UI 状态处理（Loading / Empty / Error / Data）
+  - 前端-后端交互方式（DWR / form / ajax）
+- **设计确认门 = 桥梁点**：用户确认设计方案后进入提案
+- references 实现模板（page-templates / component-templates / popup-selectors / action-routing / style-and-security）留待 Stage 3 实现
+
+---
+
 ## Stage 2: 提案 + 深度复查 + 需求文档
 
 ### 2.1 委派 venus_spec_propose（via Skill tool）
@@ -158,12 +177,14 @@ Use the **TodoWrite tool** to initialize tracking:
 - apply 内部完成：分层代码生成（Entity/DTO → Mapper/DAO → Service → Controller → Frontend）、tasks.md 复选框更新、Step 8 编译检查
 - **后端**：按 `openspec/rules/ai-coding.md` 架构规则自行处理（apply 内部分层生成，genfull 不干预）
 
-### 3.2 条件子阶段 3a：前端（has-frontend=true）
+### 3.2 条件子阶段 3a：前端实现（has-frontend=true）
 
-- 委派 `venus_tr_impl_frontend`（via Skill tool）
-- 传入页面类型 / 功能模块 / 字段列表（从 specs/design 提取）
-- **frontend 的 Phase 1 设计确认门 = 桥梁点**：用户确认设计方案后进入代码生成
-- 输出 JSP 页面文件 + 安全加固
+- 委派 `venus_tr_impl_frontend`（via Skill tool）执行**仅实现**部分
+- 传入：前端设计方案（来自 design.md / exploration.md 的 `## 前端设计` 段，由 Stage 1.5 产出）
+- 指令：**基于设计方案读 references 实现模板，执行 Phase 2 生成 JSP 代码**（不重做设计决策）
+- 读 references：page-templates / component-templates / popup-selectors / action-routing / style-and-security
+- 输出 JSP 页面文件 + 安全加固（StringUtils.htmlEncode / 分页参数兼容 / 权限检查）
+- **实现确认门 = 桥梁点**：用户确认生成代码后完成
 
 ### 3.3 条件子阶段 3b：Java 单元测试（has-java-test=true）
 
@@ -217,7 +238,7 @@ Use the **TodoWrite tool** to initialize tracking:
 
 ```
 ## Genfull 全流程完成 ✓
-Stage 1 探索 → Bridge 1 → Stage 2 提案+深度复查+需求文档 → Bridge 2 → Stage 3 实现（含条件 frontend/gentest）→ Bridge 3 → Stage 4 归档
+Stage 1 探索 → Bridge 1 → [Stage 1.5 前端设计（条件）] → Stage 2 提案+深度复查+需求文档 → Bridge 2 → Stage 3 实现（含条件 frontend 实现/gentest）→ Bridge 3 → Stage 4 归档
 变更: <change-name>
 产物: proposal/design/specs/tasks + 需求文档.md + 代码 + 测试 + 归档
 记忆: specs/<cap>/explorations.md 已更新
@@ -229,7 +250,8 @@ Stage 1 探索 → Bridge 1 → Stage 2 提案+深度复查+需求文档 → Bri
 
 - **委派不内联** - 阶段执行委派对应 SKILL，genfull 只做编排与桥梁；不内联 explore/propose/apply 的逻辑（区别于 venus_tr_impl_workflow）
 - **桥梁保证完整性** - 每个桥梁执行 ①上下文交接 ②就绪检查 ③完整性校验 ④门决策，确保每个流程完整
-- **引导式门控** - Bridge 1/2/3 在引导模式下暂停确认；frontend/gentest 的硬确认门作为桥梁点
+- **引导式门控** - Bridge 1/2/3 在引导模式下暂停确认；frontend 设计/实现确认门与 gentest 确认门作为桥梁点
+- **前端设计前置** - Stage 1.5 委派 venus_tr_impl_frontend 仅执行主 SKILL Phase 1 设计（产出喂入 propose design.md），Stage 3.2 仅执行 Phase 2 实现（读 references 生成 JSP）；设计与实现分离，避免 apply 阶段重做设计
 - **Don't skip questioning** - explore 阶段的 grill L1-L5 由 venus_spec_explore 承载，不跳过
 - **Do execute read-only operations directly** - 文件读取、CodeGraph、impact analysis 无需确认直接执行
 - **Read-only passthrough does not cover clarification gates** - 桥梁确认门与 grill 门仍等待用户确认

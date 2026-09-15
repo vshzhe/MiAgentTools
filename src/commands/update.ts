@@ -25,7 +25,7 @@ import {
 import { readProjectConfig } from '../core/project-config.js';
 import { resolveWorkflows } from '../core/profiles.js';
 import { scanReconcileOrphans, type ReconcileOrphans } from '../core/reconcile.js';
-import { ensureDir, writeFile, readFileIfExists } from '../utils/file-system.js';
+import { ensureDir, writeFile, readFileIfExists, writeSkillReferences, removeDir } from '../utils/file-system.js';
 
 /** update 命令选项 */
 export interface UpdateOptions {
@@ -92,6 +92,12 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
         ensureDir(skillsRoot);
 
         // 1. 技能：按内容与版本对比决策
+        // 写入 SKILL.md 时同步重写 references（先清空 references/ 子目录避免旧文件残留）。
+        // SKILL.md 跳过的技能，references 也一并跳过（跟随手改保护决策）。
+        const syncReferences = (skillDir: string, references: Array<{ path: string; content: string }> | undefined): void => {
+            removeDir(path.join(skillDir, 'references'));
+            writeSkillReferences(skillDir, references);
+        };
         for (const { template } of getSkillTemplates(undefined, resolved.workflows)) {
             const generated = generateSkillContent(template, packageVersion);
             const skillDir = path.join(skillsRoot, generated.dirName);
@@ -102,16 +108,19 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
             if (existing === undefined) {
                 ensureDir(skillDir);
                 writeFile(skillFile, generated.fileContent, { force: true });
+                syncReferences(skillDir, generated.references);
                 installed.push(relativeSkill);
             } else if (existing === generated.fileContent) {
                 continue;
             } else if (isFromEarlierVersion(existing, packageVersion)) {
                 ensureDir(skillDir);
                 writeFile(skillFile, generated.fileContent, { force: true });
+                syncReferences(skillDir, generated.references);
                 updated.push(relativeSkill);
             } else if (options.force) {
                 ensureDir(skillDir);
                 writeFile(skillFile, generated.fileContent, { force: true });
+                syncReferences(skillDir, generated.references);
                 updated.push(relativeSkill);
             } else {
                 skippedModified.push(relativeSkill);

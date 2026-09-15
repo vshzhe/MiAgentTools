@@ -25,7 +25,7 @@ import {
 import { ensureProjectConfig, readProjectConfig } from '../core/project-config.js';
 import { resolveWorkflows } from '../core/profiles.js';
 import { scanReconcileOrphans, type ReconcileOrphans } from '../core/reconcile.js';
-import { ensureDir, writeFile, pathExists } from '../utils/file-system.js';
+import { ensureDir, writeFile, pathExists, writeSkillReferences } from '../utils/file-system.js';
 
 /** init 命令选项 */
 export interface InitOptions {
@@ -133,6 +133,8 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
             }
             ensureDir(skillDir);
             writeFile(skillFile, generated.fileContent, { force: true });
+            // 附加参考文件（references/*.md）
+            writeSkillReferences(skillDir, generated.references);
             skillsInstalled.push(path.relative(projectRoot, skillFile));
         }
 

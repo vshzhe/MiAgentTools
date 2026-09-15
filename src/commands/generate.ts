@@ -18,7 +18,7 @@ import { generateSkillContent } from '../core/command-generation/index.js';
 import { AI_TOOLS } from '../core/config.js';
 import { readProjectConfig, type ResolvedProjectConfig } from '../core/project-config.js';
 import type { SkillTemplate } from '../core/templates/types.js';
-import { ensureDir, writeFile, pathExists } from '../utils/file-system.js';
+import { ensureDir, writeFile, pathExists, writeSkillReferences } from '../utils/file-system.js';
 
 /** generate 命令选项 */
 export interface GenerateOptions {
@@ -122,6 +122,7 @@ export function runGenerate(projectRoot: string, options: GenerateOptions): Gene
     }
     ensureDir(sourceDir);
     writeFile(sourceFile, generated.fileContent, { force: true });
+    writeSkillReferences(sourceDir, generated.references);
 
     // 2. 安装到各目标工具目录（.claude/skills/...）
     let installedPath = '';
@@ -130,6 +131,7 @@ export function runGenerate(projectRoot: string, options: GenerateOptions): Gene
         const installFile = path.join(installDir, 'SKILL.md');
         ensureDir(installDir);
         writeFile(installFile, generated.fileContent, { force: true });
+        writeSkillReferences(installDir, generated.references);
         installedPath = path.relative(projectRoot, installFile);
     }
 

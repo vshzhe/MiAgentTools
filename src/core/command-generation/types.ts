@@ -53,6 +53,8 @@ export interface GeneratedSkill {
     dirName: string;
     /** 完整文件内容（frontmatter + 正文） */
     fileContent: string;
+    /** 附加参考文件（与模板 references 透传，生成时一并写入技能目录） */
+    references?: Array<{ path: string; content: string }>;
 }
 
 /** 技能模板的引用来源（built-in 模板或 generate 命令产生的骨架） */

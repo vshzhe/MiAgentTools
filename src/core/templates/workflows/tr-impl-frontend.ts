@@ -1,211 +1,13 @@
 /**
  * tr_impl 类型技能模板：前端页面设计与生成（create-page + frontend-design 合并版）。
  *
- * 将原 Venus4A 项目的 create-page（代码模板库，5029 行）和 frontend-design
- *（组件选择决策指南，1229 行 + 1059 行参考文档）合并为单一 SKILL，
- * 覆盖"组件设计决策 → 代码生成"全流程。
+ * 主 SKILL 承载"设计决策"（Phase 1 组件选型 + 执行流程 + 约束清单），
+ * 完整页面/组件/弹窗/路由/样式"实现模板"拆分为 5 个 references 子文件，
+ * 主 SKILL 通过索引段引用，AI 按需 Read 加载，避免单文件上下文膨胀。
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 
-export function getTrImplFrontendSkillTemplate(): SkillTemplate {
-    return {
-        name: 'venus_tr_impl_frontend',
-        description: '前端页面设计与生成。当用户要进行 Venus4A 项目前端开发、创建 JSP 页面、设计页面组件、选择前端技术栈、修改现有页面或生成页面代码时使用。涵盖组件选择决策（zTree/select2/layui/ymPrompt/ECharts等）和完整页面代码生成。',
-        allowedTools: 'Read, Write, Edit, Glob, Grep, Bash(*), Bash(pnpm:*), Bash(npm:*), Bash(node:*)',
-        type: 'tr_impl',
-        instructions: `# 前端页面设计与生成 Skill
-
-## 概述
-
-本 SKILL 将 **组件设计决策** 与 **代码模板生成** 合并为单一工作流：
-1. **设计阶段**：根据需求选择合适的前端组件和技术方案
-2. **生成阶段**：输出完整的 JSP 页面代码
-
-> ⚠️ **适用项目**: Venus4A 系列（JSP + Struts2 + DWR 技术栈）
-> 基于 1106 个 JSP 文件的真实扫描统计
-
----
-
-## Phase 1: 设计决策
-
-### 1.1 真实技术栈全景
-
-#### TOP 10 前端库（按使用文件数排名）
-
-| 排名 | 技术 | 文件数 | 用途 |
-|------|------|--------|------|
-| 1 | jQuery | 415 | DOM 操作、Ajax |
-| 2 | DWR | 165 | 后端异步调用 |
-| 3 | calendar.js | 161 | 日期选择 |
-| 4 | zTree | 149 | 树形组件 |
-| 5 | ymPrompt | 123 | 弹窗提示 |
-| 6 | dTree | 69 | 自定义树形 |
-| 7 | Bootstrap | ~25 | 样式框架 |
-| 8 | ECharts | 18 | 图表可视化 |
-| 9 | select2 | 14 | 增强下拉框 |
-| 10 | layer | 6 | 弹窗层 |
-
-#### 存在但未使用的库（避免使用）
-- jqGrid — 0 文件使用
-- Highcharts — 0 文件使用（全部使用 ECharts）
-- Angular — 0 文件使用
-- jquery-1.12.4.min.js — 虽然存在但无实际引用
-
-#### 仅本地存在的库
-- layui v2.2.0 / v2.6.8 — 少数页面使用
-- Ace Admin — 3 个文件，后台模板
-- bootstrap-fileinput、ckeditor、DataTables — 个别页面
-
-### 1.2 组件选择决策表
-
-| 需求场景 | 推荐组件 | 替代方案 | 关键决策依据 |
-|----------|----------|----------|-------------|
-| 树形选择（基础） | **zTree** | dTree | zTree 有 149 文件使用；dTree 仅 69 且不支持异步 |
-| 树形选择（checkbox多选） | **zTree.excheck** | dTree | zTree 有完整 checkbox 控制（chkboxType） |
-| 下拉选择（简单） | **原生 select + util:Option** | — | 零依赖，样式统一 |
-| 下拉选择（远程搜索） | **select2** | — | 14 文件使用，支持 Ajax 搜索 |
-| 日期选择 | **calendar.js** | My97DatePicker | calendar.js 161 文件 vs My97 仅 5 |
-| 图表展示 | **ECharts** | Highcharts/jqGrid | ECharts 18 文件，Highcharts/jqGrid 0 |
-| 消息提示 | **ymPrompt** | layer | ymPrompt 123 文件，layer 仅 6 |
-| 复杂弹窗交互 | **layer** | ymPrompt | layer 支持 iframe 弹窗 |
-| 数据表格 | **html:vectorobject** | jqGrid/DataTables | 自定义标签，0 额外依赖 |
-| 分页 | **html:page** | — | 自定义标签，0 额外依赖 |
-| 异步调用 | **DWR** | jQuery.ajax | DWR 165 文件，注册 40+ Java 接口 |
-| 文本输入 | **util:Text / util:TextArea** | — | 自定义标签，样式统一 |
-
-#### 核心选择原则
-1. **zTree > dTree**：优先使用 zTree v3.5.18，除非页面已有 dTree 引用
-2. **calendar.js > My97DatePicker**：优先使用 calendar.js，My97 尽量不引入
-3. **ECharts >= Highcharts**：ECharts v3.1.5 或 v4.8.0，Highcharts 虽存在但已无实际引用
-4. **原生 select > select2**：仅远程搜索场景才用 select2
-5. **html:vectorobject > jqGrid**：自定义标签优先，减少额外依赖
-6. **ymPrompt > layer**：简单消息提示用 ymPrompt；复杂弹窗用 layer
-7. **DWR > jQuery.ajax**：项目已有 40+ Java 接口注册，优先使用 DWR
-
-### 1.3 jQuery 版本选择指南
-
-| 场景 | 推荐版本 | 引入路径 | 原因 |
-|------|----------|----------|------|
-| 传统页面（IE8兼容） | **v1.8.3** | \`./js/jquery.js\` | 最大兼容性 |
-| Ace Admin 模板 | **v2.1.1** | \`./common/assets/js/jquery.2.1.1.min.js\` | Ace 模板要求 |
-| zTree 页面 | **zTree 自带** | \`./zTree_v3/js/jquery.js\` | 避免版本冲突 |
-| layui 页面 | **layui.\$**（内置） | layui 模块化加载 | 混用外部 jQuery 出问题 |
-| 现代浏览器 | **v3.6.0** | \`./common/assets/js/jquery.3.6.0.min.js\` | 最新特性 |
-
-### 1.4 标准引入顺序
-
-~~~
-1. JSP 指令和 taglib 声明
-2. <%@ include file="/init.jsp"%>（自动引入 frm.js、common.js、calendar.js、style.css）
-3. <meta> 标签（编码、兼容性）
-4. <title> 标题
-5. 【CSS 部分】（按优先级）
-   ├─ 基础框架 CSS（bootstrap.min.css）
-   ├─ 字体 CSS（font-awesome.min.css）
-   ├─ 插件 CSS（select2.css, zTreeStyle.css, layui.css）
-   ├─ 自定义主题 CSS（style.css）
-   └─ 内联样式 <style>
-6. 【JavaScript 部分】（按依赖顺序）
-   ├─ DWR 脚本（interface/xxx.js → engine.js → util.js）
-   ├─ jQuery 核心库（必须是 JS 第一个）
-   ├─ jQuery 插件（jquery-ui, select2, zTree 等）
-   ├─ 公共工具 JS（common.js — 已通过 init.jsp 引入）
-   ├─ 其他库（layui.js, echarts 等）
-   └─ 页面特定 JS
-7. 内联脚本 <script>
-~~~
-
-### 1.5 IE 兼容性约束
-
-> Venus4A 项目兼容 **IE8+**，禁止使用以下 ES6+ 特性
-
-| 禁止使用 | ES5 替代方案 |
-|----------|-------------|
-| \`const\` / \`let\` | \`var\` |
-| 箭头函数 \`() => {}\` | \`function() {}\` |
-| 模板字符串 \`\`...\\\${}\`\` | 字符串拼接 \`"..." + var\` |
-| Promise / async/await | 回调函数 |
-| fetch | jQuery.ajax / DWR |
-| for...of | for 循环 |
-| Array.includes / find | indexOf / 手动循环 |
-| Object.assign | 手动属性赋值 |
-| Map / Set | Object / Array |
-| class 语法 | 构造函数 + prototype |
-| let 块级作用域 | 函数作用域 |
-
-> 新引入第三方库时**必须确认**其 IE8 兼容性
-
-### 1.6 弹窗技术选择
-
-| 场景 | 推荐方式 | 说明 |
-|------|----------|------|
-| 消息提示 | \`ymPrompt.alert\` | 简单提示，import ymPrompt.js |
-| 确认对话框 | \`ymPrompt.confirm\` | 确认/取消，handler 回调 |
-| iframe 弹窗 | \`layer.open({type: 2})\` | 复杂交互弹窗 |
-| 新窗口弹窗 | \`browser(url, w, h, name)\` | 独立页面选择器 |
-| 错误提示 | \`ymPrompt.error\` | 错误消息显示 |
-
-#### browser() 函数注意
-- browser() 第 5 个参数控制滚动条：**必须传 \`1\`** 启用滚动条
-- 示例: \`browser('url', 800, 600, 'name', 1)\`
-
-### 1.7 组件兼容性速查
-
-| 冲突风险 | 说明 | 解决方案 |
-|----------|------|----------|
-| zTree 自带 jQuery vs 页面已有 jQuery | \$ 冲突 | 使用 zTree 目录下 jQuery，保持同一实例 |
-| select2 与 ymPrompt | CSS 样式冲突 | 调整样式优先级 |
-| layer 与 ymPrompt | 弹窗层级冲突 | 不要混用，选一种 |
-| Bootstrap 与 style.css | 样式覆盖 | style.css 在 Bootstrap CSS 之后引入 |
-
-**标准 import 顺序**: DWR → jQuery → 插件 CSS → 插件 JS → common.js → 页面脚本
-
-### 1.8 前端-后端交互方式选择
-
-| 交互场景 | 推荐方式 | 说明 |
-|----------|----------|------|
-| 简单数据查询 | DWR | 40+ 已注册接口，零配置 |
-| 复杂表单提交 | form submit | 传统方式，支持文件上传 |
-| 列表查询/刷新 | form submit + state_form.jsp | 保持分页状态 |
-| 异步数据刷新 | jQuery.ajax | 灵活的数据交互 |
-| 实时推送 | DWR（startGetAuditList） | 监控场景 |
-
-### 1.9 分页参数安全处理
-
-后端设置分页参数时可能使用 Integer 或 String 类型，JSP 中必须做类型兼容处理：
-
-\`\`\`jsp
-<%
-    Object pageSizeObj = request.getAttribute("pageSize");
-    int pageSizeInt = 15;
-    if (pageSizeObj != null) {
-        if (pageSizeObj instanceof Integer) {
-            pageSizeInt = (Integer) pageSizeObj;
-        } else if (pageSizeObj instanceof String) {
-            String ps = (String) pageSizeObj;
-            if (!"null".equals(ps) && !ps.isEmpty()) {
-                pageSizeInt = Integer.parseInt(ps);
-            }
-        }
-    }
-%>
-\`\`\`
-
----
-
-## Phase 2: 页面生成
-
-### 2.0 执行流程
-
-1. **理解需求**：确认页面类型（list/add/edit/detail/tree）、模块、字段
-2. **设计决策**：选择合适的组件（Phase 1 决策表）
-3. **用户确认**：输出设计方案，获确认后进入生成
-4. **生成代码**：按页面类型选择对应模板
-5. **配齐组件**：按需引入组件代码（zTree/select2/layui 等）
-6. **安全防护**：添加 XSS 防护、分页安全处理
-7. **避坑检查**：检查常见错误（附避坑清单）
-
-### 2.1 列表页面模板
+const PAGE_TEMPLATES = `### 2.1 列表页面模板
 
 > 列表页面使用多个独立 table（标题、搜索、数据列表、分页）。
 > **所有动态输出必须使用 \`StringUtils.htmlEncode()\` 进行转义。**
@@ -503,363 +305,6 @@ function validateForm() {
 </BODY>
 </HTML>
 \`\`\`
-
-### 2.3 zTree 树形组件模板
-
-\`\`\`jsp
-<link rel="stylesheet" href="<%=request.getContextPath()%>/zTree_v3/css/zTreeStyle/zTreeStyle.css" type="text/css">
-<script type="text/javascript" src="<%=request.getContextPath()%>/zTree_v3/js/jquery.js"></script>
-<script type="text/javascript" src="<%=request.getContextPath()%>/zTree_v3/js/jquery.ztree.core-3.5.js"></script>
-<script type="text/javascript" src="<%=request.getContextPath()%>/zTree_v3/js/jquery.ztree.excheck-3.5.js"></script>
-
-<ul id="treeDemo" class="ztree" style="width:180px; height:300px;"></ul>
-
-<script type="text/javascript">
-var setting = {
-    check: { enable: true, chkboxType: {"Y":"s", "N":"ps"} },
-    view: { dblClickExpand: false },
-    data: { simpleData: { enable: true, idKey: "id", pIdKey: "pId", name: "name" } },
-    callback: {
-        beforeClick: function(treeId, treeNode) {
-            var zTree = $.fn.zTree.getZTreeObj("treeDemo");
-            zTree.checkNode(treeNode, !treeNode.checked, null, true);
-            return false;
-        },
-        onCheck: function(e, treeId, treeNode) {
-            var zTree = $.fn.zTree.getZTreeObj("treeDemo"),
-                nodes = zTree.getCheckedNodes(true),
-                ids = [], names = [];
-            for (var i = 0; i < nodes.length; i++) {
-                ids.push(nodes[i].id);
-                names.push(nodes[i].name);
-            }
-            $("#selectedIds").val(ids.join(","));
-            $("#selectedNames").val(names.join(","));
-        }
-    }
-};
-
-// 后端 JSON: [{id:1, pId:0, name:"节点1"}, ...]
-var zNodes = \${nodes};
-
-$(document).ready(function(){
-    $.fn.zTree.init($("#treeDemo"), setting, zNodes);
-});
-</script>
-\`\`\`
-
-### 2.4 select2 下拉选择组件
-
-\`\`\`jsp
-<link href="<%=request.getContextPath()%>/aaa/css/select2.css" rel="stylesheet">
-<script src="<%=request.getContextPath()%>/aaa/js/select2.full.min.js"></script>
-
-<select class="js-example-basic-single" id="selectField" name="selectField" style="width:200px;">
-    <option value="">请选择</option>
-</select>
-
-<script type="text/javascript">
-$(document).ready(function(){
-    // 基础初始化
-    $("#selectField").select2({ placeholder: "请选择", allowClear: true });
-
-    // Ajax 远程搜索（可选）
-    // $("#selectField").select2({
-    //     ajax: {
-    //         url: "<%=request.getContextPath()%>/XXXAction.do?method=getData",
-    //         dataType: 'json', delay: 250,
-    //         data: function(params) { return { keyword: params.term }; },
-    //         processResults: function(data) { return { results: data.items }; },
-    //         cache: true
-    //     },
-    //     minimumInputLength: 1,
-    //     placeholder: "请输入关键字搜索"
-    // });
-
-    // 设置选中值
-    // $("#selectField").val("\${selectedValue}").trigger("change");
-});
-</script>
-\`\`\`
-
-### 2.5 ymPrompt 弹窗组件
-
-\`\`\`jsp
-<link rel="stylesheet" href="<%=request.getContextPath()%>/images/venus4a/ymPrompt.css">
-<script src="<%=request.getContextPath()%>/js/ymPrompt.js"></script>
-
-<script type="text/javascript">
-ymPrompt.alert({ message: '操作成功!', title: '提示', width: 300, height: 185 });
-
-ymPrompt.confirm({
-    message: '确认删除该记录吗？',
-    title: '确认',
-    handler: function(tp) {
-        if (tp == 'ok') { /* 执行删除 */ }
-    }
-});
-
-ymPrompt.error({ message: '操作失败，请重试!' });
-</script>
-\`\`\`
-
-### 2.6 calendar 日期选择组件
-
-\`\`\`jsp
-<link rel="stylesheet" href="<%=request.getContextPath()%>/js/calendar/calendar.css">
-<script src="<%=request.getContextPath()%>/js/calendar/calendar.js"></script>
-<script src="<%=request.getContextPath()%>/js/calendar/calendar-setup.js"></script>
-<script src="<%=request.getContextPath()%>/js/calendar/calendar-zh.js"></script>
-
-<input type="text" id="startDate" name="startDate" size="16">
-<input type="text" id="endDate" name="endDate" size="16">
-
-<script type="text/javascript">
-Calendar.setup({ inputField: "startDate", ifFormat: "%Y-%m-%d", showsTime: false, button: "startDateBtn" });
-Calendar.setup({ inputField: "endDate", ifFormat: "%Y-%m-%d %H:%M:%S", showsTime: true, button: "endDateBtn" });
-</script>
-\`\`\`
-
-> ⚠️ Calendar.setup 必须放在 \`</body>\` 前的独立 script 块中（不能在 head 内）
-
-### 2.7 ECharts 图表组件
-
-\`\`\`jsp
-<script src="<%=request.getContextPath()%>/common/assets/echarts/echarts.all.min.js"></script>
-
-<div id="chartContainer" style="width:600px;height:400px;"></div>
-
-<script type="text/javascript">
-var chart = echarts.init(document.getElementById('chartContainer'));
-chart.setOption({
-    title: { text: '数据统计' },
-    tooltip: {},
-    xAxis: { data: ['类别1', '类别2', '类别3'] },
-    yAxis: {},
-    series: [{ name: '数量', type: 'bar', data: [10, 20, 30] }]
-});
-</script>
-\`\`\`
-
-### 2.8 DWR 调用组件
-
-\`\`\`jsp
-<script src='<%=request.getContextPath()%>/dwr/interface/XXXDao.js'></script>
-<script src='<%=request.getContextPath()%>/dwr/engine.js'></script>
-<script src='<%=request.getContextPath()%>/dwr/util.js'></script>
-
-<script type="text/javascript">
-// 1. 基础 DWR 调用
-XXXDao.getData(param, function(data) {
-    // 处理返回数据
-});
-
-// 2. DWR 填充下拉框
-function fillSelectByDWR() {
-    DWRUtil.removeAllOptions("selectId");
-    XXXDao.getOptions(function(list) {
-        for (var i = 0; i < list.length; i++) {
-            var option = new Option(list[i].name, list[i].id);
-            document.getElementById("selectId").add(option);
-        }
-    });
-}
-
-// 3. DWR 实时推送（监控场景）
-AccountDao.startGetAuditList(function(data) { updateTable(data); });
-// 停止推送: AccountDao.removeListener();
-</script>
-\`\`\`
-
-### 2.9 弹窗选择器模板
-
-#### 组织机构选择（dTree + DWR）
-
-\`\`\`jsp
-<link rel="StyleSheet" href="<%=request.getContextPath()%>/css/dtree.css" type="text/css" />
-<script type="text/javascript" src="<%=request.getContextPath()%>/js/dtree.js"></script>
-<script src='<%=request.getContextPath()%>/dwr/interface/OrganiseListDao.js'></script>
-<script src='<%=request.getContextPath()%>/dwr/engine.js'></script>
-
-<script type="text/javascript">
-var treeList = new dTree('treeList');
-treeList.add(0, -1, "组织树", '');
-
-<% // 后端数据
-com.beststar.framework.common.dao.DataStore store = (com.beststar.framework.common.dao.DataStore)request.getAttribute("treeList");
-if (store != null) {
-    for (int i = 0; i < store.rowCount(); i++) {
-        String id = store.getString(i, "id");
-        String pid = store.getString(i, "parentorgid");
-        String name = store.getString(i, "name");
-        String autoid = store.getString(i, "autoid");
-        if ("-1".equals(pid)) pid = "-5";
-%>
-    treeList.add(<%=id%>, <%=pid%>, '<%=name%>', <%=autoid%>);
-<% }} %>
-
-treeList.write(document.getElementById("treeinfo"));
-
-treeList.update = function() {
-    var sel = treeList.getSelected();
-    document.getElementById("orgname").value = sel.text;
-    document.getElementById("autoid").value = sel.value;
-};
-
-function getOrg() {
-    if (document.getElementById("autoid").value != "") {
-        // 回传父页面
-        if (window.opener.document.getElementById("orgName") != undefined)
-            window.opener.document.getElementById("orgName").value = document.getElementById("orgname").value;
-        if (window.opener.document.getElementById("orgId") != undefined)
-            window.opener.document.getElementById("orgId").value = document.getElementById("autoid").value;
-        window.close();
-    } else {
-        alert("请选择组织");
-    }
-}
-</script>
-\`\`\`
-
-### 2.10 layui 组件模板
-
-\`\`\`jsp
-<link rel="stylesheet" href="<%=request.getContextPath()%>/js/layui-v2.6.8/layui/css/layui.css">
-<script src="<%=request.getContextPath()%>/js/layui-v2.6.8/layui/layui.js"></script>
-
-<script type="text/javascript">
-layui.use(['form', 'layer', 'table', 'jquery'], function() {
-    var form = layui.form;
-    var layer = layui.layer;
-    var $ = layui.$;
-
-    // 表单事件
-    form.on('submit(formDemo)', function(data) {
-        layer.msg('提交成功');
-        return false;
-    });
-
-    // 弹窗
-    layer.open({
-        type: 1,
-        title: '标题',
-        area: ['600px', '400px'],
-        content: '内容'
-    });
-});
-</script>
-\`\`\`
-
-### 2.11 前端-后端数据传递规范
-
-#### NameElement 对象引用问题
-
-> **问题**: 不同 JSP 页面中 NameElement 对象的 \`name\` 和 \`value\` 属性引用同一个底层 char[] 数组。
-> 修改一个页面的值会意外影响其他页面。
-
-**解决方案**: 使用 \`_\` 前缀约定区分变量作用域
-\`\`\`jsp
-<%-- Action 层 --%>
-// 使用 _ 前缀标记"内部使用"变量
-String _tmpName = request.getParameter("name");
-NameElement nameEl = new NameElement(_tmpName, _tmpName + "_val");
-
-// 设置到 request
-request.setAttribute("_pageData", nameEl);
-%>
-
-<%-- JSP 层 --%>
-<%
-// 读取时始终使用 _ 前缀变量
-NameElement _el = (NameElement)request.getAttribute("_pageData");
-%>
-\`\`\`
-
-#### Action 层规则
-
-\`\`\`java
-public ActionForward toList(ActionMapping mapping, ActionForm form,
-        HttpServletRequest request, HttpServletResponse response) {
-    // 1. 设置页标题
-    request.setAttribute("pageTitle", "列表管理");
-
-    // 2. 获取分页参数（兼容 null）
-    int pageNum = request.getParameter("pageNum") != null
-        ? Integer.parseInt(request.getParameter("pageNum")) : 1;
-    int pageSize = 15;
-
-    // 3. 查询数据列表
-    DataStore dataList = service.queryList(pageNum, pageSize);
-    request.setAttribute("dataList", dataList);
-
-    // 4. 设置分页参数
-    request.setAttribute("pageSize", pageSize);
-    request.setAttribute("rowCount", dataList != null ? dataList.getTotalRowCount() : 0);
-
-    return mapping.findForward("list");
-}
-\`\`\`
-
-### 2.12 XSS 安全防护
-
-> **所有用户输入输出必须使用 \`StringUtils.htmlEncode()\` 转义**
-
-\`\`\`jsp
-<%@ page import="cn.com.venustech.venus4a.common.util.StringUtils"%>
-
-<%-- 安全输出 --%>
-<input type="text" value="<%=StringUtils.htmlEncode(userInput)%>">
-
-<%-- 搜索条件回显 --%>
-<%=StringUtils.htmlEncode(keyword)%>
-
-<%-- 表格数据 --%>
-<%=StringUtils.htmlEncode(dataObject.getString("field_name"))%>
-\`\`\`
-
-### 2.13 组件类型速查（标签库对照）
-
-| 组件 | 标签/JS | 数据源 | 说明 |
-|------|---------|--------|------|
-| 文本输入 | \`<util:Text>\` | request 属性 | 自定义标签，自动回显 |
-| 文本域 | \`<util:TextArea>\` | request 属性 | 多行文本 |
-| 下拉框 | \`<util:Option>\` | List/Map/NameElement[] | 自定义标签 |
-| 数据表格 | \`<html:vectorobject>\` + \`<html:databean>\` | DataStore | 遍历数据行 |
-| 数据显示 | \`<html:show>\` | 任意 Java 类型 | 显示 Bean 属性 |
-| 分页 | \`<html:page>\` | 数字参数 | 列表分页 |
-| 复选框 | \`<input type="checkbox">\` + JS | JS 操作 | 配合 checkItems() |
-| 单选框 | \`<input type="radio">\` + JS | JS 操作 | 配合 set_input_checked() |
-
-### 2.14 先查已有实现原则（选型前置要求）
-
-> **重要**：Venus4A 是大型存量项目，选型前必须先判断"项目是否已有同类实现可复用"。盲目按选型表新写代码会破坏一致性，也浪费既有资产。
-
-**决策流程**：
-
-~~~
-1. 用 Grep/Glob 搜索目标模块（及相邻模块）是否已有同类组件实现
-   例：gotoAddfireWall.jsp 要加树选择 → 先 grep 该页是否已用 zTree
-   ↓
-2a. 已有实现 → 复用既有组件 + 既有写法（chkboxType/引入路径/回传模式都与既有页面一致）
-    ↓ 不按选型表"另起炉灶"，保持模块内风格统一
-2b. 无既有实现 → 按本 skill 选型决策表选型（基于真实使用统计）
-~~~
-
-**为什么这条原则重要**：
-- **一致性优先于"最优"**：某模块若已用 select2 做远程搜索，新同类需求也用 select2，不要因为"layui formSelects 更现代"就换。模块内约定统一 > 跨模块组件最优。
-- **既有实现可省工**：项目常有现成 Action 接口和选择器弹窗（如 \`UserManagerAction.findUser\`、\`dataMaskRuleSelect.jsp\`、\`selectMaster.jsp\`），先搜后写，避免重复造轮子。
-- **风格匹配**：同一页面的相邻字段（如"业务系统"用 zTree 下拉浮层），新增同类字段应照搬同一交互模式（同样 menuContent 浮层、同样 onCheck 回填），不要引入新弹窗组件。
-
-**搜索方法**：
-
-| 需求 | 搜索什么 | 命令示例 |
-|---|---|---|
-| 目标页面是否已用某组件 | grep 组件名 | \`grep -l "ztree\|select2" WebRoot/authorization/firewall/*.jsp\` |
-| 是否有现成选择器弹窗 | grep 关键词 | \`grep -rl "selectMaster\|dataMaskRuleSelect" WebRoot/\` |
-| 是否有现成 Ajax 接口 | grep Action 方法 | \`grep -rn "method=findUser\|method=findOrg" WebRoot/ src/\` |
-| 同模块弹窗模式 | grep 弹窗调用 | \`grep -l "window.open\|layer.open\|ymPrompt" WebRoot/datamask/*.jsp\` |
-
-**适用判断**：若搜索命中既有实现，本 skill 的选型表让位给"既有实现复用"原则——跟着既有约定走。只有项目无同类实现时，才用选型表做全新决策。
 
 ### 2.15 编辑页面模板
 
@@ -1211,6 +656,254 @@ function callbackList(url){ location.replace(url); }
 \`\`\`
 
 > **关键点**：zTree 下拉浮层用 \`position:absolute\` 的 \`#menuContent\` 包裹 \`<ul id="treeDemo" class="ztree">\`；\`showTree()\` 按触发输入框位置定位浮层；\`onBodyDown\` 监听 body 点击外部收起。回显用 \`getNodeByParam("id", ...)\` + \`checkNode(node, true, true)\`。
+`;
+
+const COMPONENT_TEMPLATES = `### 2.3 zTree 树形组件模板
+
+\`\`\`jsp
+<link rel="stylesheet" href="<%=request.getContextPath()%>/zTree_v3/css/zTreeStyle/zTreeStyle.css" type="text/css">
+<script type="text/javascript" src="<%=request.getContextPath()%>/zTree_v3/js/jquery.js"></script>
+<script type="text/javascript" src="<%=request.getContextPath()%>/zTree_v3/js/jquery.ztree.core-3.5.js"></script>
+<script type="text/javascript" src="<%=request.getContextPath()%>/zTree_v3/js/jquery.ztree.excheck-3.5.js"></script>
+
+<ul id="treeDemo" class="ztree" style="width:180px; height:300px;"></ul>
+
+<script type="text/javascript">
+var setting = {
+    check: { enable: true, chkboxType: {"Y":"s", "N":"ps"} },
+    view: { dblClickExpand: false },
+    data: { simpleData: { enable: true, idKey: "id", pIdKey: "pId", name: "name" } },
+    callback: {
+        beforeClick: function(treeId, treeNode) {
+            var zTree = $.fn.zTree.getZTreeObj("treeDemo");
+            zTree.checkNode(treeNode, !treeNode.checked, null, true);
+            return false;
+        },
+        onCheck: function(e, treeId, treeNode) {
+            var zTree = $.fn.zTree.getZTreeObj("treeDemo"),
+                nodes = zTree.getCheckedNodes(true),
+                ids = [], names = [];
+            for (var i = 0; i < nodes.length; i++) {
+                ids.push(nodes[i].id);
+                names.push(nodes[i].name);
+            }
+            $("#selectedIds").val(ids.join(","));
+            $("#selectedNames").val(names.join(","));
+        }
+    }
+};
+
+// 后端 JSON: [{id:1, pId:0, name:"节点1"}, ...]
+var zNodes = \${nodes};
+
+$(document).ready(function(){
+    $.fn.zTree.init($("#treeDemo"), setting, zNodes);
+});
+</script>
+\`\`\`
+
+### 2.4 select2 下拉选择组件
+
+\`\`\`jsp
+<link href="<%=request.getContextPath()%>/aaa/css/select2.css" rel="stylesheet">
+<script src="<%=request.getContextPath()%>/aaa/js/select2.full.min.js"></script>
+
+<select class="js-example-basic-single" id="selectField" name="selectField" style="width:200px;">
+    <option value="">请选择</option>
+</select>
+
+<script type="text/javascript">
+$(document).ready(function(){
+    // 基础初始化
+    $("#selectField").select2({ placeholder: "请选择", allowClear: true });
+
+    // Ajax 远程搜索（可选）
+    // $("#selectField").select2({
+    //     ajax: {
+    //         url: "<%=request.getContextPath()%>/XXXAction.do?method=getData",
+    //         dataType: 'json', delay: 250,
+    //         data: function(params) { return { keyword: params.term }; },
+    //         processResults: function(data) { return { results: data.items }; },
+    //         cache: true
+    //     },
+    //     minimumInputLength: 1,
+    //     placeholder: "请输入关键字搜索"
+    // });
+
+    // 设置选中值
+    // $("#selectField").val("\${selectedValue}").trigger("change");
+});
+</script>
+\`\`\`
+
+### 2.5 ymPrompt 弹窗组件
+
+\`\`\`jsp
+<link rel="stylesheet" href="<%=request.getContextPath()%>/images/venus4a/ymPrompt.css">
+<script src="<%=request.getContextPath()%>/js/ymPrompt.js"></script>
+
+<script type="text/javascript">
+ymPrompt.alert({ message: '操作成功!', title: '提示', width: 300, height: 185 });
+
+ymPrompt.confirm({
+    message: '确认删除该记录吗？',
+    title: '确认',
+    handler: function(tp) {
+        if (tp == 'ok') { /* 执行删除 */ }
+    }
+});
+
+ymPrompt.error({ message: '操作失败，请重试!' });
+</script>
+\`\`\`
+
+### 2.6 calendar 日期选择组件
+
+\`\`\`jsp
+<link rel="stylesheet" href="<%=request.getContextPath()%>/js/calendar/calendar.css">
+<script src="<%=request.getContextPath()%>/js/calendar/calendar.js"></script>
+<script src="<%=request.getContextPath()%>/js/calendar/calendar-setup.js"></script>
+<script src="<%=request.getContextPath()%>/js/calendar/calendar-zh.js"></script>
+
+<input type="text" id="startDate" name="startDate" size="16">
+<input type="text" id="endDate" name="endDate" size="16">
+
+<script type="text/javascript">
+Calendar.setup({ inputField: "startDate", ifFormat: "%Y-%m-%d", showsTime: false, button: "startDateBtn" });
+Calendar.setup({ inputField: "endDate", ifFormat: "%Y-%m-%d %H:%M:%S", showsTime: true, button: "endDateBtn" });
+</script>
+\`\`\`
+
+> ⚠️ Calendar.setup 必须放在 \`</body>\` 前的独立 script 块中（不能在 head 内）
+
+### 2.7 ECharts 图表组件
+
+\`\`\`jsp
+<script src="<%=request.getContextPath()%>/common/assets/echarts/echarts.all.min.js"></script>
+
+<div id="chartContainer" style="width:600px;height:400px;"></div>
+
+<script type="text/javascript">
+var chart = echarts.init(document.getElementById('chartContainer'));
+chart.setOption({
+    title: { text: '数据统计' },
+    tooltip: {},
+    xAxis: { data: ['类别1', '类别2', '类别3'] },
+    yAxis: {},
+    series: [{ name: '数量', type: 'bar', data: [10, 20, 30] }]
+});
+</script>
+\`\`\`
+
+### 2.8 DWR 调用组件
+
+\`\`\`jsp
+<script src='<%=request.getContextPath()%>/dwr/interface/XXXDao.js'></script>
+<script src='<%=request.getContextPath()%>/dwr/engine.js'></script>
+<script src='<%=request.getContextPath()%>/dwr/util.js'></script>
+
+<script type="text/javascript">
+// 1. 基础 DWR 调用
+XXXDao.getData(param, function(data) {
+    // 处理返回数据
+});
+
+// 2. DWR 填充下拉框
+function fillSelectByDWR() {
+    DWRUtil.removeAllOptions("selectId");
+    XXXDao.getOptions(function(list) {
+        for (var i = 0; i < list.length; i++) {
+            var option = new Option(list[i].name, list[i].id);
+            document.getElementById("selectId").add(option);
+        }
+    });
+}
+
+// 3. DWR 实时推送（监控场景）
+AccountDao.startGetAuditList(function(data) { updateTable(data); });
+// 停止推送: AccountDao.removeListener();
+</script>
+\`\`\`
+
+### 2.10 layui 组件模板
+
+\`\`\`jsp
+<link rel="stylesheet" href="<%=request.getContextPath()%>/js/layui-v2.6.8/layui/css/layui.css">
+<script src="<%=request.getContextPath()%>/js/layui-v2.6.8/layui/layui.js"></script>
+
+<script type="text/javascript">
+layui.use(['form', 'layer', 'table', 'jquery'], function() {
+    var form = layui.form;
+    var layer = layui.layer;
+    var $ = layui.$;
+
+    // 表单事件
+    form.on('submit(formDemo)', function(data) {
+        layer.msg('提交成功');
+        return false;
+    });
+
+    // 弹窗
+    layer.open({
+        type: 1,
+        title: '标题',
+        area: ['600px', '400px'],
+        content: '内容'
+    });
+});
+</script>
+\`\`\`
+`;
+
+const POPUP_SELECTORS = `### 2.9 弹窗选择器模板
+
+#### 组织机构选择（dTree + DWR）
+
+\`\`\`jsp
+<link rel="StyleSheet" href="<%=request.getContextPath()%>/css/dtree.css" type="text/css" />
+<script type="text/javascript" src="<%=request.getContextPath()%>/js/dtree.js"></script>
+<script src='<%=request.getContextPath()%>/dwr/interface/OrganiseListDao.js'></script>
+<script src='<%=request.getContextPath()%>/dwr/engine.js'></script>
+
+<script type="text/javascript">
+var treeList = new dTree('treeList');
+treeList.add(0, -1, "组织树", '');
+
+<% // 后端数据
+com.beststar.framework.common.dao.DataStore store = (com.beststar.framework.common.dao.DataStore)request.getAttribute("treeList");
+if (store != null) {
+    for (int i = 0; i < store.rowCount(); i++) {
+        String id = store.getString(i, "id");
+        String pid = store.getString(i, "parentorgid");
+        String name = store.getString(i, "name");
+        String autoid = store.getString(i, "autoid");
+        if ("-1".equals(pid)) pid = "-5";
+%>
+    treeList.add(<%=id%>, <%=pid%>, '<%=name%>', <%=autoid%>);
+<% }} %>
+
+treeList.write(document.getElementById("treeinfo"));
+
+treeList.update = function() {
+    var sel = treeList.getSelected();
+    document.getElementById("orgname").value = sel.text;
+    document.getElementById("autoid").value = sel.value;
+};
+
+function getOrg() {
+    if (document.getElementById("autoid").value != "") {
+        // 回传父页面
+        if (window.opener.document.getElementById("orgName") != undefined)
+            window.opener.document.getElementById("orgName").value = document.getElementById("orgname").value;
+        if (window.opener.document.getElementById("orgId") != undefined)
+            window.opener.document.getElementById("orgId").value = document.getElementById("autoid").value;
+        window.close();
+    } else {
+        alert("请选择组织");
+    }
+}
+</script>
+\`\`\`
 
 ### 2.17 主账号多选弹窗选择器（组织树 + 左右双列表）
 
@@ -1651,235 +1344,6 @@ function setRes(){
 > - 资源组节点 \`type=0\`（文件夹图标，不可选），资源节点 \`type=1\`（叶子，可选）。
 > - 不同 \`getFlag\` 场景的回传字段和后续跳转逻辑不同，必须按分支处理。
 
-### 2.19 修改现有页面：样式匹配与换行规则
-
-> **⚠️ 重要**：修改现有页面（加按钮/字段等）时，**禁止**直接套用新页面模板的样式，必须先检测现有页面样式模式，保持一致性，避免换行问题。
-
-#### 步骤1：检测现有页面样式模式
-
-修改前必须 Read 目标页面文件，检测以下样式特征：
-
-| 检测项 | 检测方法（搜索关键词） | 关键标识 |
-|--------|----------|----------|
-| **按钮样式类型** | \`left.gif\`、\`middle.gif\`、\`input type="button"\`、\`class="btn"\` | 确定使用哪种按钮样式 |
-| **表格布局结构** | \`liststyle\`、\`biaodan-\`、\`table width=\` | 确定表格样式类名 |
-| **换行控制方式** | \`nowrap\`、\`word-break\`、\`white-space\` | 确定换行处理方式 |
-| **间距设置** | \`&nbsp;\`、\`cellspacing\`、\`cellpadding\` | 确定间距规范 |
-| **颜色样式** | \`STYLE7\`、\`STYLE3\`、\`STYLE5\` | 确定颜色类名 |
-
-#### 步骤2：3种按钮样式分类与匹配
-
-项目中存在 **3种主要按钮样式**，必须根据现有页面使用的样式进行匹配：
-
-**样式A：图片组合按钮（传统样式，最常用）**
-
-\`\`\`html
-<!-- 检测标识：left.gif + middle.gif + right.gif -->
-<table width="80" border="0" cellpadding="0" cellspacing="0">
-    <tr>
-        <td width="5"><img src="<%=request.getContextPath()%>/images/left.gif" width="5" height="19"></td>
-        <td align="center" background="<%=request.getContextPath()%>/images/middle.gif" onclick="xxx()" style="cursor:hand"><span class="STYLE7">按钮文字</span></td>
-        <td width="5"><img src="<%=request.getContextPath()%>/images/right.gif" width="5" height="19"></td>
-    </tr>
-</table>
-\`\`\`
-> 特点：三张图片(left/middle/right)拼接成按钮，高度固定 19px，文字白色(STYLE7)。
-
-**样式B：简单 input 按钮**
-
-\`\`\`html
-<!-- 检测标识：input type="button" + class="btn" 或内联样式 -->
-<input type="button" value="按钮文字" onclick="xxx()" class="btn">
-<!-- 或带内联样式 -->
-<input type="button" value="按钮文字" onclick="xxx()" style="background-color:#0033FF;color:white;height:23px;">
-\`\`\`
-> 特点：原生 input 按钮，可能带 \`class="btn"\` 或内联样式。
-
-**样式C：图标按钮（操作列常用）**
-
-\`\`\`html
-<!-- 检测标识：class="iconButton" + edit.gif/delete.gif -->
-<a href="javascript:xxx()"><img src="<%=request.getContextPath()%>/images/img/edit.gif" class="iconButton" alt="修改"></a>
-<a href="javascript:xxx()"><img src="<%=request.getContextPath()%>/images/img/delete.gif" class="iconButton" alt="删除"></a>
-\`\`\`
-> 特点：图片图标 + \`class="iconButton"\`，常用于列表操作列。
-
-#### 步骤3：样式匹配决策表
-
-| 现有页面检测结果 | 新增按钮应使用样式 | 参考 |
-|------------------|-------------------|------|
-| 发现 \`left.gif/middle.gif/right.gif\` | **样式A** 图片组合按钮 | 样式A模板 |
-| 发现 \`input type="button" class="btn"\` | **样式B** 简单input按钮 | \`<input type="button" class="btn" ...>\` |
-| 发现 \`iconButton\` 且在操作列 | **样式C** 图标按钮 | \`<img src="xxx.gif" class="iconButton">\` |
-| 混合使用多种样式 | **优先匹配最近相邻按钮** | 查看目标位置附近的按钮样式 |
-| 无法确定样式 | **询问用户** | "请确认按钮样式：图片按钮/简单按钮/图标按钮" |
-
-#### 步骤4：换行处理规则
-
-**规则1：在 table 同一行内添加元素，勿新增行破坏布局**
-
-\`\`\`html
-<!-- ❌ 错误：新增行导致布局断裂 -->
-<tr><td>原有字段</td><td>原有按钮</td></tr>
-<tr><td>新增按钮</td></tr>  <!-- 新增行导致换行 -->
-
-<!-- ✅ 正确：在现有行内扩展 td -->
-<tr><td>原有字段</td><td>原有按钮</td><td nowrap>新增按钮</td></tr>
-\`\`\`
-
-**规则2：按钮组必须保持在同一 table 结构内**
-
-\`\`\`html
-<!-- ❌ 错误：按钮脱离原有 table -->
-</table>
-<input type="button" value="新按钮">  <!-- 独立在 table 外 -->
-<table>
-
-<!-- ✅ 正确：按钮加入原有按钮 table，使用相同结构 -->
-<table border="0" cellpadding="0" cellspacing="0">
-    <tr>
-        <td class="title5"><table width="80"><!-- 原有按钮结构 -->...</table></td>
-        <td class="title5"><table width="80"><!-- 新增按钮，同结构 -->
-            <tr>
-                <td width="5"><img src="images/left.gif"></td>
-                <td align="center" background="images/middle.gif"><span class="STYLE7">新按钮</span></td>
-                <td width="5"><img src="images/right.gif"></td>
-            </tr>
-        </table></td>
-    </tr>
-</table>
-\`\`\`
-
-**规则3：操作列/按钮列用 \`nowrap\` 防止换行**
-
-\`\`\`html
-<td align="center" class="liststyle1" nowrap>
-    <a href="#"><img src="images/img/edit.gif" class="iconButton"></a>
-    <a href="#"><img src="images/img/delete.gif" class="iconButton"></a>
-    <a href="#"><img src="images/img/new.gif" class="iconButton"></a>  <!-- 新增图标 -->
-</td>
-\`\`\`
-
-**规则4：宽度计算避免超出容器**
-
-\`\`\`html
-<!-- ❌ 错误：新增字段导致总宽度超出 -->
-<table width="90%">
-    <tr><td width="15%">字段1</td><td width="15%">字段2</td><td width="70%">操作</td></tr>  <!-- 已占满 -->
-</table>
-
-<!-- ✅ 正确：重新分配宽度 -->
-<table width="90%">
-    <tr><td width="12%">字段1</td><td width="12%">字段2</td><td width="10%">新增字段</td><td width="66%">操作</td></tr>
-</table>
-\`\`\`
-
-#### 步骤5：修改现有页面执行流程
-
-~~~
-1. Read 目标页面文件
-   ↓
-2. 检测样式模式（按钮类型、表格结构、换行控制）
-   ↓
-3. 确定匹配样式（参考步骤3决策表）
-   ↓
-4. 生成修改代码（严格匹配现有样式）
-   ↓
-5. 检查换行问题（使用 nowrap、宽度计算）
-   ↓
-6. 展示修改对比（标注新增部分）
-   ↓
-7. 用户确认后保存
-~~~
-
-> **⚠️ 关键提醒**：修改现有页面时，**禁止**直接使用新页面模板的样式；必须**先检测**现有页面样式再生成匹配代码；添加元素时**必须考虑**原有布局的换行控制；无法确定样式时**必须询问用户**。
-
-### 2.20 Action 路由机制与 action_mappings.xml
-
-> Venus4A 前后端交互基于自研框架（\`framework1.4.jar\` + \`venustech-common-2.0.2-SNAPSHOT.jar\`），三个 XML 配置协作。
-
-#### 四层路由体系
-
-| 配置文件 | 位置 | 作用 |
-|---|---|---|
-| \`action_mappings.xml\` | \`WebRoot/WEB-INF/\` | URL \`*.do\` → Java Action 类映射 |
-| \`screen_mappings.xml\` | \`WebRoot/WEB-INF/\` | Action 返回逻辑页名 → 真实 JSP 路径 |
-| \`dwr.xml\` | \`WebRoot/WEB-INF/\` | DWR 可调用的 Java 类注册 |
-
-#### 完整路由链路（以 \`TacacsUserAction.do?method=gotoUserList\` 为例）
-
-~~~
-1. 浏览器请求 TacacsUserAction.do?method=gotoUserList
-2. web.xml 中 *.do → action servlet 拦截
-3. 框架查 action_mappings.xml：<TacacsUserAction> → cn.com.venustech.venus4a.aaa.action.TacacsUserAction
-4. 调用 Action.perform()，根据 method 参数分发：
-   if ("gotoUserList".equals(method)) return gotoTacacsUserList(...);
-5. Action 读 pageNum/pageSize，调 DAO 查询，setAttribute 存数据
-6. return new ActionRouter("tacacsUserList-page")
-7. 框架查 screen_mappings.xml：<tacacsUserList-page> → /aaa/tacacsUser/tacacsUserList.jsp
-8. forward 到 JSP 渲染
-~~~
-
-#### Action 类骨架（DispatchAction 模式）
-
-\`\`\`java
-public class TacacsUserAction extends ActionBase {
-    @Override
-    public ActionRouter perform(HttpServlet servlet, HttpServletRequest request,
-            HttpServletResponse response) throws SystemException, ValidateException {
-        String method = ParameterUtil.getParameter(request, "method");
-        if ("gotoUserList".equals(method)) { return gotoTacacsUserList(servlet, request, response); }
-        if ("addTacacsUser".equals(method)) { return addTacacsUser(servlet, request, response); }
-        return gotoTacacsUserList(servlet, request, response);  // 默认分支
-    }
-}
-\`\`\`
-
-#### 两种返回模式
-
-- **页面跳转**：\`return new ActionRouter("逻辑页名-page")\` → 框架查 \`screen_mappings.xml\` → forward 到 JSP
-- **Ajax 响应**：\`response.getWriter().write("1"); return null;\` → 直接写流，不跳转
-
-> Ajax 返回 JSON 时，Action 直接 \`response.getWriter().write(json)\`，不要走 ActionRouter。
-
-#### 前端调用四种形态
-
-| 形态 | 写法 | 适用场景 |
-|---|---|---|
-| 表单提交 | \`<form action="XxxAction.do?method=yyy" onSubmit="return gotoSubmit()">\` | CRUD 保存、列表查询 |
-| 编程式提交 | \`document.forms[0].action="XxxAction.do?method=yyy"; document.forms[0].submit();\` | 动态切换 action、列表刷新 |
-| jQuery.ajax | \`$.ajax({url:"XxxAction.do?method=yyy", dataType:"json", ...})\` | 异步 CRUD、校验 |
-| DWR | \`XxxDao.methodName(params, callback)\` | 调用 DAO 查询逻辑 |
-
-> **关键约束**：URL 一律 \`XxxAction.do?method=methodName\`，**不要写 RESTful 风格**；\`$.ajax\` 同步需 \`async: false\`（级联下拉、zTree 异步加载）；中文参数用 \`encodeURI(params.term)\` 编码。
-
-#### action_mappings.xml 配置参考
-
-**位置**: \`WebRoot/WEB-INF/action_mappings.xml\`
-
-\`\`\`xml
-<action-mappings>
-    <action name="XXXForm" path="/XXXAction" type="cn.com.venustech.venus4a.{module}.action.XXXAction" parameter="method">
-        <forward name="list" path="/{module}/list.jsp"/>
-        <forward name="add" path="/{module}/add.jsp"/>
-        <forward name="edit" path="/{module}/edit.jsp"/>
-        <forward name="detail" path="/{module}/detail.jsp"/>
-    </action>
-</action-mappings>
-\`\`\`
-
-> 新增模块时，必须在此 XML 注册 Action 映射 + 在 \`screen_mappings.xml\` 注册逻辑页名 → JSP 路径，否则 \`*.do\` 请求 404。
-
-#### 分页参数传递链
-
-~~~
-前端 → Action:  pageNum / pageSize（表单隐藏字段，html:page 标签生成）
-Action → DAO:   request.getParameter("pageNum") + request.getParameter("pageSize")
-DAO → DB:       Sql.executePage(sql, pageSize, pageNum) + getTotalRow()
-Action → JSP:   setAttribute("rowCount", total) + setAttribute("pageSize", size) + setAttribute("pageNum", pageNum - 1)
-JSP 渲染:       <html:page pageSize="<%=...%>" totalNum="<%=...%>">
-~~~
-
 ### 2.21 父子窗口数据回传7种写法
 
 > 项目**统一用 \`window.opener\` 通信**回传选择器弹窗数据（不用 ymPrompt 的 doHandler/getArgument，项目零调用）。
@@ -2032,6 +1496,562 @@ function setRes(i) {
 - 多选数据用 \`data-*\` 属性或分隔符携带多字段，收集成对象数组回传。
 - \`window.close()\` 关闭子窗口前完成回传。
 - 使用 \`window.opener.document.getElementById()\` 而非 \`window.opener.$()\`（IE 兼容）。
+`;
+
+const ACTION_ROUTING = `### 2.11 前端-后端数据传递规范
+
+#### NameElement 对象引用问题
+
+> **问题**: 不同 JSP 页面中 NameElement 对象的 \`name\` 和 \`value\` 属性引用同一个底层 char[] 数组。
+> 修改一个页面的值会意外影响其他页面。
+
+**解决方案**: 使用 \`_\` 前缀约定区分变量作用域
+\`\`\`jsp
+<%-- Action 层 --%>
+// 使用 _ 前缀标记"内部使用"变量
+String _tmpName = request.getParameter("name");
+NameElement nameEl = new NameElement(_tmpName, _tmpName + "_val");
+
+// 设置到 request
+request.setAttribute("_pageData", nameEl);
+%>
+
+<%-- JSP 层 --%>
+<%
+// 读取时始终使用 _ 前缀变量
+NameElement _el = (NameElement)request.getAttribute("_pageData");
+%>
+\`\`\`
+
+#### Action 层规则
+
+\`\`\`java
+public ActionForward toList(ActionMapping mapping, ActionForm form,
+        HttpServletRequest request, HttpServletResponse response) {
+    // 1. 设置页标题
+    request.setAttribute("pageTitle", "列表管理");
+
+    // 2. 获取分页参数（兼容 null）
+    int pageNum = request.getParameter("pageNum") != null
+        ? Integer.parseInt(request.getParameter("pageNum")) : 1;
+    int pageSize = 15;
+
+    // 3. 查询数据列表
+    DataStore dataList = service.queryList(pageNum, pageSize);
+    request.setAttribute("dataList", dataList);
+
+    // 4. 设置分页参数
+    request.setAttribute("pageSize", pageSize);
+    request.setAttribute("rowCount", dataList != null ? dataList.getTotalRowCount() : 0);
+
+    return mapping.findForward("list");
+}
+\`\`\`
+
+### 2.20 Action 路由机制与 action_mappings.xml
+
+> Venus4A 前后端交互基于自研框架（\`framework1.4.jar\` + \`venustech-common-2.0.2-SNAPSHOT.jar\`），三个 XML 配置协作。
+
+#### 四层路由体系
+
+| 配置文件 | 位置 | 作用 |
+|---|---|---|
+| \`action_mappings.xml\` | \`WebRoot/WEB-INF/\` | URL \`*.do\` → Java Action 类映射 |
+| \`screen_mappings.xml\` | \`WebRoot/WEB-INF/\` | Action 返回逻辑页名 → 真实 JSP 路径 |
+| \`dwr.xml\` | \`WebRoot/WEB-INF/\` | DWR 可调用的 Java 类注册 |
+
+#### 完整路由链路（以 \`TacacsUserAction.do?method=gotoUserList\` 为例）
+
+~~~
+1. 浏览器请求 TacacsUserAction.do?method=gotoUserList
+2. web.xml 中 *.do → action servlet 拦截
+3. 框架查 action_mappings.xml：<TacacsUserAction> → cn.com.venustech.venus4a.aaa.action.TacacsUserAction
+4. 调用 Action.perform()，根据 method 参数分发：
+   if ("gotoUserList".equals(method)) return gotoTacacsUserList(...);
+5. Action 读 pageNum/pageSize，调 DAO 查询，setAttribute 存数据
+6. return new ActionRouter("tacacsUserList-page")
+7. 框架查 screen_mappings.xml：<tacacsUserList-page> → /aaa/tacacsUser/tacacsUserList.jsp
+8. forward 到 JSP 渲染
+~~~
+
+#### Action 类骨架（DispatchAction 模式）
+
+\`\`\`java
+public class TacacsUserAction extends ActionBase {
+    @Override
+    public ActionRouter perform(HttpServlet servlet, HttpServletRequest request,
+            HttpServletResponse response) throws SystemException, ValidateException {
+        String method = ParameterUtil.getParameter(request, "method");
+        if ("gotoUserList".equals(method)) { return gotoTacacsUserList(servlet, request, response); }
+        if ("addTacacsUser".equals(method)) { return addTacacsUser(servlet, request, response); }
+        return gotoTacacsUserList(servlet, request, response);  // 默认分支
+    }
+}
+\`\`\`
+
+#### 两种返回模式
+
+- **页面跳转**：\`return new ActionRouter("逻辑页名-page")\` → 框架查 \`screen_mappings.xml\` → forward 到 JSP
+- **Ajax 响应**：\`response.getWriter().write("1"); return null;\` → 直接写流，不跳转
+
+> Ajax 返回 JSON 时，Action 直接 \`response.getWriter().write(json)\`，不要走 ActionRouter。
+
+#### 前端调用四种形态
+
+| 形态 | 写法 | 适用场景 |
+|---|---|---|
+| 表单提交 | \`<form action="XxxAction.do?method=yyy" onSubmit="return gotoSubmit()">\` | CRUD 保存、列表查询 |
+| 编程式提交 | \`document.forms[0].action="XxxAction.do?method=yyy"; document.forms[0].submit();\` | 动态切换 action、列表刷新 |
+| jQuery.ajax | \`$.ajax({url:"XxxAction.do?method=yyy", dataType:"json", ...})\` | 异步 CRUD、校验 |
+| DWR | \`XxxDao.methodName(params, callback)\` | 调用 DAO 查询逻辑 |
+
+> **关键约束**：URL 一律 \`XxxAction.do?method=methodName\`，**不要写 RESTful 风格**；\`$.ajax\` 同步需 \`async: false\`（级联下拉、zTree 异步加载）；中文参数用 \`encodeURI(params.term)\` 编码。
+
+#### action_mappings.xml 配置参考
+
+**位置**: \`WebRoot/WEB-INF/action_mappings.xml\`
+
+\`\`\`xml
+<action-mappings>
+    <action name="XXXForm" path="/XXXAction" type="cn.com.venustech.venus4a.{module}.action.XXXAction" parameter="method">
+        <forward name="list" path="/{module}/list.jsp"/>
+        <forward name="add" path="/{module}/add.jsp"/>
+        <forward name="edit" path="/{module}/edit.jsp"/>
+        <forward name="detail" path="/{module}/detail.jsp"/>
+    </action>
+</action-mappings>
+\`\`\`
+
+> 新增模块时，必须在此 XML 注册 Action 映射 + 在 \`screen_mappings.xml\` 注册逻辑页名 → JSP 路径，否则 \`*.do\` 请求 404。
+
+#### 分页参数传递链
+
+~~~
+前端 → Action:  pageNum / pageSize（表单隐藏字段，html:page 标签生成）
+Action → DAO:   request.getParameter("pageNum") + request.getParameter("pageSize")
+DAO → DB:       Sql.executePage(sql, pageSize, pageNum) + getTotalRow()
+Action → JSP:   setAttribute("rowCount", total) + setAttribute("pageSize", size) + setAttribute("pageNum", pageNum - 1)
+JSP 渲染:       <html:page pageSize="<%=...%>" totalNum="<%=...%>">
+~~~
+`;
+
+const STYLE_AND_SECURITY = `### 2.12 XSS 安全防护
+
+> **所有用户输入输出必须使用 \`StringUtils.htmlEncode()\` 转义**
+
+\`\`\`jsp
+<%@ page import="cn.com.venustech.venus4a.common.util.StringUtils"%>
+
+<%-- 安全输出 --%>
+<input type="text" value="<%=StringUtils.htmlEncode(userInput)%>">
+
+<%-- 搜索条件回显 --%>
+<%=StringUtils.htmlEncode(keyword)%>
+
+<%-- 表格数据 --%>
+<%=StringUtils.htmlEncode(dataObject.getString("field_name"))%>
+\`\`\`
+
+### 2.13 组件类型速查（标签库对照）
+
+| 组件 | 标签/JS | 数据源 | 说明 |
+|------|---------|--------|------|
+| 文本输入 | \`<util:Text>\` | request 属性 | 自定义标签，自动回显 |
+| 文本域 | \`<util:TextArea>\` | request 属性 | 多行文本 |
+| 下拉框 | \`<util:Option>\` | List/Map/NameElement[] | 自定义标签 |
+| 数据表格 | \`<html:vectorobject>\` + \`<html:databean>\` | DataStore | 遍历数据行 |
+| 数据显示 | \`<html:show>\` | 任意 Java 类型 | 显示 Bean 属性 |
+| 分页 | \`<html:page>\` | 数字参数 | 列表分页 |
+| 复选框 | \`<input type="checkbox">\` + JS | JS 操作 | 配合 checkItems() |
+| 单选框 | \`<input type="radio">\` + JS | JS 操作 | 配合 set_input_checked() |
+
+### 2.14 先查已有实现原则（选型前置要求）
+
+> **重要**：Venus4A 是大型存量项目，选型前必须先判断"项目是否已有同类实现可复用"。盲目按选型表新写代码会破坏一致性，也浪费既有资产。
+
+**决策流程**：
+
+~~~
+1. 用 Grep/Glob 搜索目标模块（及相邻模块）是否已有同类组件实现
+   例：gotoAddfireWall.jsp 要加树选择 → 先 grep 该页是否已用 zTree
+   ↓
+2a. 已有实现 → 复用既有组件 + 既有写法（chkboxType/引入路径/回传模式都与既有页面一致）
+    ↓ 不按选型表"另起炉灶"，保持模块内风格统一
+2b. 无既有实现 → 按本 skill 选型决策表选型（基于真实使用统计）
+~~~
+
+**为什么这条原则重要**：
+- **一致性优先于"最优"**：某模块若已用 select2 做远程搜索，新同类需求也用 select2，不要因为"layui formSelects 更现代"就换。模块内约定统一 > 跨模块组件最优。
+- **既有实现可省工**：项目常有现成 Action 接口和选择器弹窗（如 \`UserManagerAction.findUser\`、\`dataMaskRuleSelect.jsp\`、\`selectMaster.jsp\`），先搜后写，避免重复造轮子。
+- **风格匹配**：同一页面的相邻字段（如"业务系统"用 zTree 下拉浮层），新增同类字段应照搬同一交互模式（同样 menuContent 浮层、同样 onCheck 回填），不要引入新弹窗组件。
+
+**搜索方法**：
+
+| 需求 | 搜索什么 | 命令示例 |
+|---|---|---|
+| 目标页面是否已用某组件 | grep 组件名 | \`grep -l "ztree\|select2" WebRoot/authorization/firewall/*.jsp\` |
+| 是否有现成选择器弹窗 | grep 关键词 | \`grep -rl "selectMaster\|dataMaskRuleSelect" WebRoot/\` |
+| 是否有现成 Ajax 接口 | grep Action 方法 | \`grep -rn "method=findUser\|method=findOrg" WebRoot/ src/\` |
+| 同模块弹窗模式 | grep 弹窗调用 | \`grep -l "window.open\|layer.open\|ymPrompt" WebRoot/datamask/*.jsp\` |
+
+**适用判断**：若搜索命中既有实现，本 skill 的选型表让位给"既有实现复用"原则——跟着既有约定走。只有项目无同类实现时，才用选型表做全新决策。
+
+### 2.19 修改现有页面：样式匹配与换行规则
+
+> **⚠️ 重要**：修改现有页面（加按钮/字段等）时，**禁止**直接套用新页面模板的样式，必须先检测现有页面样式模式，保持一致性，避免换行问题。
+
+#### 步骤1：检测现有页面样式模式
+
+修改前必须 Read 目标页面文件，检测以下样式特征：
+
+| 检测项 | 检测方法（搜索关键词） | 关键标识 |
+|--------|----------|----------|
+| **按钮样式类型** | \`left.gif\`、\`middle.gif\`、\`input type="button"\`、\`class="btn"\` | 确定使用哪种按钮样式 |
+| **表格布局结构** | \`liststyle\`、\`biaodan-\`、\`table width=\` | 确定表格样式类名 |
+| **换行控制方式** | \`nowrap\`、\`word-break\`、\`white-space\` | 确定换行处理方式 |
+| **间距设置** | \`&nbsp;\`、\`cellspacing\`、\`cellpadding\` | 确定间距规范 |
+| **颜色样式** | \`STYLE7\`、\`STYLE3\`、\`STYLE5\` | 确定颜色类名 |
+
+#### 步骤2：3种按钮样式分类与匹配
+
+项目中存在 **3种主要按钮样式**，必须根据现有页面使用的样式进行匹配：
+
+**样式A：图片组合按钮（传统样式，最常用）**
+
+\`\`\`html
+<!-- 检测标识：left.gif + middle.gif + right.gif -->
+<table width="80" border="0" cellpadding="0" cellspacing="0">
+    <tr>
+        <td width="5"><img src="<%=request.getContextPath()%>/images/left.gif" width="5" height="19"></td>
+        <td align="center" background="<%=request.getContextPath()%>/images/middle.gif" onclick="xxx()" style="cursor:hand"><span class="STYLE7">按钮文字</span></td>
+        <td width="5"><img src="<%=request.getContextPath()%>/images/right.gif" width="5" height="19"></td>
+    </tr>
+</table>
+\`\`\`
+> 特点：三张图片(left/middle/right)拼接成按钮，高度固定 19px，文字白色(STYLE7)。
+
+**样式B：简单 input 按钮**
+
+\`\`\`html
+<!-- 检测标识：input type="button" + class="btn" 或内联样式 -->
+<input type="button" value="按钮文字" onclick="xxx()" class="btn">
+<!-- 或带内联样式 -->
+<input type="button" value="按钮文字" onclick="xxx()" style="background-color:#0033FF;color:white;height:23px;">
+\`\`\`
+> 特点：原生 input 按钮，可能带 \`class="btn"\` 或内联样式。
+
+**样式C：图标按钮（操作列常用）**
+
+\`\`\`html
+<!-- 检测标识：class="iconButton" + edit.gif/delete.gif -->
+<a href="javascript:xxx()"><img src="<%=request.getContextPath()%>/images/img/edit.gif" class="iconButton" alt="修改"></a>
+<a href="javascript:xxx()"><img src="<%=request.getContextPath()%>/images/img/delete.gif" class="iconButton" alt="删除"></a>
+\`\`\`
+> 特点：图片图标 + \`class="iconButton"\`，常用于列表操作列。
+
+#### 步骤3：样式匹配决策表
+
+| 现有页面检测结果 | 新增按钮应使用样式 | 参考 |
+|------------------|-------------------|------|
+| 发现 \`left.gif/middle.gif/right.gif\` | **样式A** 图片组合按钮 | 样式A模板 |
+| 发现 \`input type="button" class="btn"\` | **样式B** 简单input按钮 | \`<input type="button" class="btn" ...>\` |
+| 发现 \`iconButton\` 且在操作列 | **样式C** 图标按钮 | \`<img src="xxx.gif" class="iconButton">\` |
+| 混合使用多种样式 | **优先匹配最近相邻按钮** | 查看目标位置附近的按钮样式 |
+| 无法确定样式 | **询问用户** | "请确认按钮样式：图片按钮/简单按钮/图标按钮" |
+
+#### 步骤4：换行处理规则
+
+**规则1：在 table 同一行内添加元素，勿新增行破坏布局**
+
+\`\`\`html
+<!-- ❌ 错误：新增行导致布局断裂 -->
+<tr><td>原有字段</td><td>原有按钮</td></tr>
+<tr><td>新增按钮</td></tr>  <!-- 新增行导致换行 -->
+
+<!-- ✅ 正确：在现有行内扩展 td -->
+<tr><td>原有字段</td><td>原有按钮</td><td nowrap>新增按钮</td></tr>
+\`\`\`
+
+**规则2：按钮组必须保持在同一 table 结构内**
+
+\`\`\`html
+<!-- ❌ 错误：按钮脱离原有 table -->
+</table>
+<input type="button" value="新按钮">  <!-- 独立在 table 外 -->
+<table>
+
+<!-- ✅ 正确：按钮加入原有按钮 table，使用相同结构 -->
+<table border="0" cellpadding="0" cellspacing="0">
+    <tr>
+        <td class="title5"><table width="80"><!-- 原有按钮结构 -->...</table></td>
+        <td class="title5"><table width="80"><!-- 新增按钮，同结构 -->
+            <tr>
+                <td width="5"><img src="images/left.gif"></td>
+                <td align="center" background="images/middle.gif"><span class="STYLE7">新按钮</span></td>
+                <td width="5"><img src="images/right.gif"></td>
+            </tr>
+        </table></td>
+    </tr>
+</table>
+\`\`\`
+
+**规则3：操作列/按钮列用 \`nowrap\` 防止换行**
+
+\`\`\`html
+<td align="center" class="liststyle1" nowrap>
+    <a href="#"><img src="images/img/edit.gif" class="iconButton"></a>
+    <a href="#"><img src="images/img/delete.gif" class="iconButton"></a>
+    <a href="#"><img src="images/img/new.gif" class="iconButton"></a>  <!-- 新增图标 -->
+</td>
+\`\`\`
+
+**规则4：宽度计算避免超出容器**
+
+\`\`\`html
+<!-- ❌ 错误：新增字段导致总宽度超出 -->
+<table width="90%">
+    <tr><td width="15%">字段1</td><td width="15%">字段2</td><td width="70%">操作</td></tr>  <!-- 已占满 -->
+</table>
+
+<!-- ✅ 正确：重新分配宽度 -->
+<table width="90%">
+    <tr><td width="12%">字段1</td><td width="12%">字段2</td><td width="10%">新增字段</td><td width="66%">操作</td></tr>
+</table>
+\`\`\`
+
+#### 步骤5：修改现有页面执行流程
+
+~~~
+1. Read 目标页面文件
+   ↓
+2. 检测样式模式（按钮类型、表格结构、换行控制）
+   ↓
+3. 确定匹配样式（参考步骤3决策表）
+   ↓
+4. 生成修改代码（严格匹配现有样式）
+   ↓
+5. 检查换行问题（使用 nowrap、宽度计算）
+   ↓
+6. 展示修改对比（标注新增部分）
+   ↓
+7. 用户确认后保存
+~~~
+
+> **⚠️ 关键提醒**：修改现有页面时，**禁止**直接使用新页面模板的样式；必须**先检测**现有页面样式再生成匹配代码；添加元素时**必须考虑**原有布局的换行控制；无法确定样式时**必须询问用户**。
+`;
+
+export function getTrImplFrontendSkillTemplate(): SkillTemplate {
+    return {
+        name: 'venus_tr_impl_frontend',
+        description: '前端页面设计与生成。当用户要进行 Venus4A 项目前端开发、创建 JSP 页面、设计页面组件、选择前端技术栈、修改现有页面或生成页面代码时使用。涵盖组件选择决策（zTree/select2/layui/ymPrompt/ECharts等）和完整页面代码生成。',
+        allowedTools: 'Read, Write, Edit, Glob, Grep, Bash(*), Bash(pnpm:*), Bash(npm:*), Bash(node:*)',
+        type: 'tr_impl',
+        instructions: `# 前端页面设计与生成 Skill
+
+## 概述
+
+本 SKILL 将 **组件设计决策** 与 **代码模板生成** 合并为单一工作流：
+1. **设计阶段**：根据需求选择合适的前端组件和技术方案
+2. **生成阶段**：输出完整的 JSP 页面代码
+
+> ⚠️ **适用项目**: Venus4A 系列（JSP + Struts2 + DWR 技术栈）
+> 基于 1106 个 JSP 文件的真实扫描统计
+
+---
+
+## Phase 1: 设计决策
+
+### 1.1 真实技术栈全景
+
+#### TOP 10 前端库（按使用文件数排名）
+
+| 排名 | 技术 | 文件数 | 用途 |
+|------|------|--------|------|
+| 1 | jQuery | 415 | DOM 操作、Ajax |
+| 2 | DWR | 165 | 后端异步调用 |
+| 3 | calendar.js | 161 | 日期选择 |
+| 4 | zTree | 149 | 树形组件 |
+| 5 | ymPrompt | 123 | 弹窗提示 |
+| 6 | dTree | 69 | 自定义树形 |
+| 7 | Bootstrap | ~25 | 样式框架 |
+| 8 | ECharts | 18 | 图表可视化 |
+| 9 | select2 | 14 | 增强下拉框 |
+| 10 | layer | 6 | 弹窗层 |
+
+#### 存在但未使用的库（避免使用）
+- jqGrid — 0 文件使用
+- Highcharts — 0 文件使用（全部使用 ECharts）
+- Angular — 0 文件使用
+- jquery-1.12.4.min.js — 虽然存在但无实际引用
+
+#### 仅本地存在的库
+- layui v2.2.0 / v2.6.8 — 少数页面使用
+- Ace Admin — 3 个文件，后台模板
+- bootstrap-fileinput、ckeditor、DataTables — 个别页面
+
+### 1.2 组件选择决策表
+
+| 需求场景 | 推荐组件 | 替代方案 | 关键决策依据 |
+|----------|----------|----------|-------------|
+| 树形选择（基础） | **zTree** | dTree | zTree 有 149 文件使用；dTree 仅 69 且不支持异步 |
+| 树形选择（checkbox多选） | **zTree.excheck** | dTree | zTree 有完整 checkbox 控制（chkboxType） |
+| 下拉选择（简单） | **原生 select + util:Option** | — | 零依赖，样式统一 |
+| 下拉选择（远程搜索） | **select2** | — | 14 文件使用，支持 Ajax 搜索 |
+| 日期选择 | **calendar.js** | My97DatePicker | calendar.js 161 文件 vs My97 仅 5 |
+| 图表展示 | **ECharts** | Highcharts/jqGrid | ECharts 18 文件，Highcharts/jqGrid 0 |
+| 消息提示 | **ymPrompt** | layer | ymPrompt 123 文件，layer 仅 6 |
+| 复杂弹窗交互 | **layer** | ymPrompt | layer 支持 iframe 弹窗 |
+| 数据表格 | **html:vectorobject** | jqGrid/DataTables | 自定义标签，0 额外依赖 |
+| 分页 | **html:page** | — | 自定义标签，0 额外依赖 |
+| 异步调用 | **DWR** | jQuery.ajax | DWR 165 文件，注册 40+ Java 接口 |
+| 文本输入 | **util:Text / util:TextArea** | — | 自定义标签，样式统一 |
+
+#### 核心选择原则
+1. **zTree > dTree**：优先使用 zTree v3.5.18，除非页面已有 dTree 引用
+2. **calendar.js > My97DatePicker**：优先使用 calendar.js，My97 尽量不引入
+3. **ECharts >= Highcharts**：ECharts v3.1.5 或 v4.8.0，Highcharts 虽存在但已无实际引用
+4. **原生 select > select2**：仅远程搜索场景才用 select2
+5. **html:vectorobject > jqGrid**：自定义标签优先，减少额外依赖
+6. **ymPrompt > layer**：简单消息提示用 ymPrompt；复杂弹窗用 layer
+7. **DWR > jQuery.ajax**：项目已有 40+ Java 接口注册，优先使用 DWR
+
+### 1.3 jQuery 版本选择指南
+
+| 场景 | 推荐版本 | 引入路径 | 原因 |
+|------|----------|----------|------|
+| 传统页面（IE8兼容） | **v1.8.3** | \`./js/jquery.js\` | 最大兼容性 |
+| Ace Admin 模板 | **v2.1.1** | \`./common/assets/js/jquery.2.1.1.min.js\` | Ace 模板要求 |
+| zTree 页面 | **zTree 自带** | \`./zTree_v3/js/jquery.js\` | 避免版本冲突 |
+| layui 页面 | **layui.\$**（内置） | layui 模块化加载 | 混用外部 jQuery 出问题 |
+| 现代浏览器 | **v3.6.0** | \`./common/assets/js/jquery.3.6.0.min.js\` | 最新特性 |
+
+### 1.4 标准引入顺序
+
+~~~
+1. JSP 指令和 taglib 声明
+2. <%@ include file="/init.jsp"%>（自动引入 frm.js、common.js、calendar.js、style.css）
+3. <meta> 标签（编码、兼容性）
+4. <title> 标题
+5. 【CSS 部分】（按优先级）
+   ├─ 基础框架 CSS（bootstrap.min.css）
+   ├─ 字体 CSS（font-awesome.min.css）
+   ├─ 插件 CSS（select2.css, zTreeStyle.css, layui.css）
+   ├─ 自定义主题 CSS（style.css）
+   └─ 内联样式 <style>
+6. 【JavaScript 部分】（按依赖顺序）
+   ├─ DWR 脚本（interface/xxx.js → engine.js → util.js）
+   ├─ jQuery 核心库（必须是 JS 第一个）
+   ├─ jQuery 插件（jquery-ui, select2, zTree 等）
+   ├─ 公共工具 JS（common.js — 已通过 init.jsp 引入）
+   ├─ 其他库（layui.js, echarts 等）
+   └─ 页面特定 JS
+7. 内联脚本 <script>
+~~~
+
+### 1.5 IE 兼容性约束
+
+> Venus4A 项目兼容 **IE8+**，禁止使用以下 ES6+ 特性
+
+| 禁止使用 | ES5 替代方案 |
+|----------|-------------|
+| \`const\` / \`let\` | \`var\` |
+| 箭头函数 \`() => {}\` | \`function() {}\` |
+| 模板字符串 \`\`...\\\${}\`\` | 字符串拼接 \`"..." + var\` |
+| Promise / async/await | 回调函数 |
+| fetch | jQuery.ajax / DWR |
+| for...of | for 循环 |
+| Array.includes / find | indexOf / 手动循环 |
+| Object.assign | 手动属性赋值 |
+| Map / Set | Object / Array |
+| class 语法 | 构造函数 + prototype |
+| let 块级作用域 | 函数作用域 |
+
+> 新引入第三方库时**必须确认**其 IE8 兼容性
+
+### 1.6 弹窗技术选择
+
+| 场景 | 推荐方式 | 说明 |
+|------|----------|------|
+| 消息提示 | \`ymPrompt.alert\` | 简单提示，import ymPrompt.js |
+| 确认对话框 | \`ymPrompt.confirm\` | 确认/取消，handler 回调 |
+| iframe 弹窗 | \`layer.open({type: 2})\` | 复杂交互弹窗 |
+| 新窗口弹窗 | \`browser(url, w, h, name)\` | 独立页面选择器 |
+| 错误提示 | \`ymPrompt.error\` | 错误消息显示 |
+
+#### browser() 函数注意
+- browser() 第 5 个参数控制滚动条：**必须传 \`1\`** 启用滚动条
+- 示例: \`browser('url', 800, 600, 'name', 1)\`
+
+### 1.7 组件兼容性速查
+
+| 冲突风险 | 说明 | 解决方案 |
+|----------|------|----------|
+| zTree 自带 jQuery vs 页面已有 jQuery | \$ 冲突 | 使用 zTree 目录下 jQuery，保持同一实例 |
+| select2 与 ymPrompt | CSS 样式冲突 | 调整样式优先级 |
+| layer 与 ymPrompt | 弹窗层级冲突 | 不要混用，选一种 |
+| Bootstrap 与 style.css | 样式覆盖 | style.css 在 Bootstrap CSS 之后引入 |
+
+**标准 import 顺序**: DWR → jQuery → 插件 CSS → 插件 JS → common.js → 页面脚本
+
+### 1.8 前端-后端交互方式选择
+
+| 交互场景 | 推荐方式 | 说明 |
+|----------|----------|------|
+| 简单数据查询 | DWR | 40+ 已注册接口，零配置 |
+| 复杂表单提交 | form submit | 传统方式，支持文件上传 |
+| 列表查询/刷新 | form submit + state_form.jsp | 保持分页状态 |
+| 异步数据刷新 | jQuery.ajax | 灵活的数据交互 |
+| 实时推送 | DWR（startGetAuditList） | 监控场景 |
+
+### 1.9 分页参数安全处理
+
+后端设置分页参数时可能使用 Integer 或 String 类型，JSP 中必须做类型兼容处理：
+
+\`\`\`jsp
+<%
+    Object pageSizeObj = request.getAttribute("pageSize");
+    int pageSizeInt = 15;
+    if (pageSizeObj != null) {
+        if (pageSizeObj instanceof Integer) {
+            pageSizeInt = (Integer) pageSizeObj;
+        } else if (pageSizeObj instanceof String) {
+            String ps = (String) pageSizeObj;
+            if (!"null".equals(ps) && !ps.isEmpty()) {
+                pageSizeInt = Integer.parseInt(ps);
+            }
+        }
+    }
+%>
+\`\`\`
+
+---
+
+## Phase 2: 页面生成
+
+### 2.0 执行流程
+
+1. **理解需求**：确认页面类型（list/add/edit/detail/tree）、模块、字段
+2. **设计决策**：选择合适的组件（Phase 1 决策表）
+3. **用户确认**：输出设计方案，获确认后进入生成
+4. **生成代码**：按页面类型选择对应模板
+5. **配齐组件**：按需引入组件代码（zTree/select2/layui 等）
+6. **安全防护**：添加 XSS 防护、分页安全处理
+7. **避坑检查**：检查常见错误（附避坑清单）
+
+
+### 实现模板索引（按需 Read 子文件）
+
+> 本 SKILL 的完整页面/组件/弹窗/路由/样式实现模板拆分为 5 个参考文件，按页面类型与交互场景按需加载（allowed-tools 已含 Read 工具）。执行时按需 Read 对应子文件，不必全部加载，避免上下文膨胀。
+
+| 子文件 | 包含内容 | 何时 Read |
+|---|---|---|
+| \`references/page-templates.md\` | 列表/添加/编辑/树形选择页面完整 JSP 模板 | 生成或修改上述页面类型时 |
+| \`references/component-templates.md\` | zTree/select2/ymPrompt/calendar/ECharts/DWR/layui 组件模板 | 页面需要某组件时 |
+| \`references/popup-selectors.md\` | 组织机构/主账号多选/资源选择弹窗 + 父子窗口回传7写法 | 实现选择器弹窗或数据回传时 |
+| \`references/action-routing.md\` | 前端-后端数据传递规范 + Action 路由机制 | 涉及前后端交互、路由配置时 |
+| \`references/style-and-security.md\` | XSS 安全 + 组件速查 + 先查已有实现 + 样式匹配换行规则 | 安全加固、选型前置、修改现有页面时 |
+
+> 子文件路径相对技能目录（如 \`.claude/skills/venus_tr_impl_frontend/references/page-templates.md\`）。生成页面时先读本 SKILL 的 Phase 1 决策表选型，再按索引 Read 对应实现模板。
 
 ---
 
@@ -2084,6 +2104,13 @@ function setRes(i) {
 4. **安全加固**：添加 XSS 防护、分页安全处理、权限检查
 5. **避坑自检**：逐项检查避坑清单
 6. **输出总结**：列出生成的文件、使用的组件、后续注意事项`,
+        references: [
+            { path: 'references/page-templates.md', content: PAGE_TEMPLATES },
+            { path: 'references/component-templates.md', content: COMPONENT_TEMPLATES },
+            { path: 'references/popup-selectors.md', content: POPUP_SELECTORS },
+            { path: 'references/action-routing.md', content: ACTION_ROUTING },
+            { path: 'references/style-and-security.md', content: STYLE_AND_SECURITY },
+        ],
         license: 'MIT',
         compatibility: '适用 Venus4A 系列项目（JSP + Struts2 + DWR 技术栈）。依赖项目特有的前端库路径（init.jsp、DWR、zTree、select2 等），非 Venus4A 项目需调整路径。',
         metadata: { author: 'venus-agent-tools', version: '1.0' },

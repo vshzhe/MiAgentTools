@@ -43,3 +43,27 @@ export function listSubdirectories(dirPath: string): string[] {
 export function pathExists(filePath: string): boolean {
     return fs.existsSync(filePath);
 }
+
+/**
+ * 写入技能附加参考文件（references/*.md 等）。
+ * 将 generated.references 各项写到 skillDir 下对应相对路径，自动创建父目录。
+ * 不主动清理旧文件——调用方需在 references 列表缩减时自行清理（如 update 命令）。
+ */
+export function writeSkillReferences(
+    skillDir: string,
+    references: Array<{ path: string; content: string }> | undefined
+): void {
+    if (!references || references.length === 0) {
+        return;
+    }
+    for (const ref of references) {
+        const refPath = path.join(skillDir, ref.path);
+        ensureDir(path.dirname(refPath));
+        fs.writeFileSync(refPath, ref.content, 'utf8');
+    }
+}
+
+/** 递归删除目录（不存在则跳过） */
+export function removeDir(dirPath: string): void {
+    fs.rmSync(dirPath, { recursive: true, force: true });
+}

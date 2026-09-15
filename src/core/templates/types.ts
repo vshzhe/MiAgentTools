@@ -4,6 +4,17 @@
 
 import type { SkillType } from '../config.js';
 
+/** 技能附加参考文件（写入技能目录下，如 references/xxx.md）。
+ * 主 SKILL.md 正文通过文字引用子文件，AI 按需用 Read 工具加载，
+ * 避免单文件上下文膨胀。路径相对技能目录，content 为 Markdown 正文（不含 frontmatter）。
+ */
+export interface SkillReference {
+    /** 相对技能目录的路径（如 "references/page-templates.md"） */
+    path: string;
+    /** 文件内容（Markdown 正文，不含 frontmatter） */
+    content: string;
+}
+
 /**
  * 技能模板（SKILL.md 的内容来源）。
  * name 必须以 venus_ 开头，且等于安装目录名。
@@ -28,6 +39,8 @@ export interface SkillTemplate {
     compatibility?: string;
     /** 其他元数据 */
     metadata?: Record<string, string>;
+    /** 附加参考文件，生成 SKILL.md 时一并写入技能目录 */
+    references?: SkillReference[];
 }
 
 /**

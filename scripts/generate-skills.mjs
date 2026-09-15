@@ -34,12 +34,22 @@ function cleanSkillSubdirectories() {
 cleanSkillSubdirectories();
 
 let count = 0;
+let refCount = 0;
 for (const { template } of getSkillTemplates()) {
     const generated = generateSkillContent(template, 'snapshot');
     const skillDir = join(outDir, generated.dirName);
     mkdirSync(skillDir, { recursive: true });
     writeFileSync(join(skillDir, 'SKILL.md'), generated.fileContent, 'utf8');
+    // 附加参考文件（references/*.md 等）
+    if (generated.references) {
+        for (const ref of generated.references) {
+            const refPath = join(skillDir, ref.path);
+            mkdirSync(dirname(refPath), { recursive: true });
+            writeFileSync(refPath, ref.content, 'utf8');
+            refCount++;
+        }
+    }
     count++;
 }
 
-console.log(`已生成 ${count} 个技能到 skills/`);
+console.log(`已生成 ${count} 个技能到 skills/（含 ${refCount} 个参考文件）`);

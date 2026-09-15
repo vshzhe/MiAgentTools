@@ -56,6 +56,54 @@ describe('skills/ 静态快照与模板一致性', () => {
         }
     });
 
+    it('每个技能的参考文件（references）与模板声明一致且无多余', () => {
+        /** 递归收集目录下所有文件相对路径（相对该目录） */
+        const collectFiles = (dir: string, base = dir): string[] => {
+            if (!fs.existsSync(dir)) return [];
+            const out: string[] = [];
+            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                const full = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    out.push(...collectFiles(full, base));
+                } else {
+                    out.push(path.relative(base, full).split(path.sep).join('/'));
+                }
+            }
+            return out;
+        };
+
+        for (const { template } of templates) {
+            const skillDir = path.join(SKILLS_DIR, template.name);
+            const declaredRefs = template.references ?? [];
+            const declaredPaths = new Set(declaredRefs.map((r) => r.path));
+
+            // 1. 声明的参考文件必须存在且内容一致
+            for (const ref of declaredRefs) {
+                const refFile = path.join(skillDir, ref.path);
+                expect(
+                    fs.existsSync(refFile),
+                    `缺少参考文件：skills/${template.name}/${ref.path}（运行 pnpm build && pnpm generate:skills）`
+                ).toBe(true);
+                if (!fs.existsSync(refFile)) continue;
+                const snapshot = fs.readFileSync(refFile, 'utf8');
+                expect(
+                    snapshot === ref.content,
+                    `参考文件漂移：skills/${template.name}/${ref.path}（运行 pnpm build && pnpm generate:skills）`
+                ).toBe(true);
+            }
+
+            // 2. 技能目录下除 SKILL.md 外的文件必须都在声明内（无多余文件）
+            const actualFiles = collectFiles(skillDir);
+            for (const f of actualFiles) {
+                if (f === 'SKILL.md') continue;
+                expect(
+                    declaredPaths.has(f),
+                    `多余参考文件：skills/${template.name}/${f}（模板未声明，运行 pnpm generate:skills 清理）`
+                ).toBe(true);
+            }
+        }
+    });
+
     it('workflowId 派生不破坏命名/指令一致性（每个技能可被 workflowFilter 唯一命中）', () => {
         // workflow id = deriveCommandId(技能名)，逐个技能验证过滤唯一命中
         for (const { template, commandId } of templates) {

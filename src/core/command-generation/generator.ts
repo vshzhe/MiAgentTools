@@ -71,5 +71,6 @@ metadata:
 
 ${template.instructions}
 `,
+        references: template.references,
     };
 }
