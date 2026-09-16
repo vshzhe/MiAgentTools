@@ -1,53 +1,55 @@
 ---
 name: venus_tr_test_generate
-description: 生成测试。当用户要为新功能或已有代码编写测试用例、补充测试覆盖时使用。
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(pnpm:*), Bash(npm:*), Bash(node:*)
+description: 生成测试。当用户要为新功能或已有代码编写测试用例、补充测试覆盖时使用。多 schema 模式：自动检测 Java（Maven/Gradle）或 Node（Vitest/Jest/Mocha）项目，加载对应框架模板。Java 覆盖 JUnit4/5+Mockito/EasyMock/AssertJ，Node 覆盖 Vitest/Jest/Mocha。
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(pnpm:*), Bash(npm:*), Bash(node:*), Bash(mvn:*), Bash(gradle:*), Bash(mkdir:*), Bash(ls:*), Bash(find:*), Bash(cat:*), Bash(cp:*)
 license: MIT
-compatibility: 无特殊依赖，通用环境可用。自动适配 Vitest/Jest/Mocha 等测试框架。
+compatibility: 无特殊依赖，通用环境可用。多 schema 自动适配：Java（Maven/Gradle + JUnit4/5/Mockito/EasyMock/AssertJ）与 Node（Vitest/Jest/Mocha/Jasmine）。
 metadata:
   author: venus-agent-tools
-  version: "2.0"
+  version: "3.0"
   type: tr_test
   generatedBy: "0.1.0"
 ---
 
-生成测试 —— 结构化全流程：检测框架 → 设计场景 → 分层编写 → 运行验证。
+生成测试 —— 多 schema 模式：检测语言/框架 → 加载对应 schema → BCDE 场景矩阵 → 分层编写 → 运行验证。
 
 **目标驱动**：先把验收标准变成可执行的测试，再让它通过。"添加校验" → "先写非法输入的测试，再让它通过"；"修 bug" → "先写复现该 bug 的测试，再修复"。
 
 ---
 
-## 执行步骤
+## 阶段一：语言与框架检测（schema 路由）
 
-### 阶段一：项目测试框架检测
+本技能采用多 schema 模式：主 SKILL 承载语言无关的通用流程（场景设计、编写规范、反模式），语言/框架专属内容（检测细节、Mock API、代码模板、运行命令）拆分为 `references/schema-*.md`，按检测结果按需 Read 加载，避免单文件上下文膨胀。
 
-在编写任何测试前，先自动检测项目使用的测试框架与既有测试风格：
+### 1.1 检测项目语言与框架
 
 ```bash
-# 检测 Vitest（优先）
-grep -q "vitest" package.json 2>/dev/null && echo "vitest"
-# 检测 Jest
-grep -q "jest" package.json 2>/dev/null && echo "jest"
-# 检测 Mocha
-grep -q "mocha" package.json 2>/dev/null && echo "mocha"
-# 检测 Jasmine
-grep -q "jasmine" package.json 2>/dev/null && echo "jasmine"
+# Java 项目（Maven / Gradle）
+if [ -f "pom.xml" ] || [ -f "build.gradle" ]; then
+    echo "java"
+fi
+# Node 项目
+if [ -f "package.json" ]; then
+    grep -q "vitest" package.json 2>/dev/null && echo "node:vitest"
+    grep -q "jest" package.json 2>/dev/null && echo "node:jest"
+    grep -q "mocha" package.json 2>/dev/null && echo "node:mocha"
+fi
 ```
 
-**检测结果决定**：
-- **测试框架选择**：Vitest（`describe/it/expect`）、Jest（`describe/test/expect`）、Mocha（`describe/it/assert`）
-- **Mock 方式**：Vitest → `vi.mock()` / `vi.spyOn()`；Jest → `jest.mock()` / `jest.spyOn()`
-- **配置文件**：`vitest.config.ts`、`jest.config.js` 等
+### 1.2 schema 索引表（按检测结果 Read 对应子文件）
 
-**既有测试风格对齐**：
-- 读取 1-2 个已有测试文件，了解项目的命名风格、注释习惯、断言方式
-- 命名为：业务场景式（`getUserById_userNotFound_throwsException`）或行为驱动式（`should_throw_exception_when_user_not_exists`）
+| 子文件 | 适用项目 | 包含内容 | 何时 Read |
+|---|---|---|---|
+| `references/schema-java.md` | Java（Maven/Gradle，Spring Boot/MVC/传统Web/纯Java） | 框架类型判定、测试依赖分析报告、7 级测试位置扫描、模板 A-F（JUnit4/5+Mockito/EasyMock/@WebMvcTest/参数化/遗留 XML）、遗留代码测试策略、mvn/gradle 命令、Java 专属约束 | 检测到 `pom.xml` 或 `build.gradle` |
+| `references/schema-node.md` | Node/TS（Vitest/Jest/Mocha/Jasmine） | 框架检测细节、Mock 方式（vi.mock/jest.mock）、分层测试 TS 示例（Service/Controller/Utils）、pnpm/npm 命令、Node 专属约束 | 检测到 `package.json` |
 
-> **找不到测试框架时**：输出提示并建议用户指定框架，或默认输出 Vitest 风格代码。
+> 子文件路径相对技能目录（如 `.claude/skills/venus_tr_test_generate/references/schema-java.md`）。加载后结合本 SKILL 的通用流程执行后续阶段。
+
+**未识别语言**：输出检测结果并建议用户指定框架，或默认输出与项目最接近的风格代码。
 
 ---
 
-### 阶段二：场景设计（BCDE 场景矩阵法）
+## 阶段二：场景设计（BCDE 场景矩阵法）
 
 对每个被测方法，按 **BCDE（Basic/Boundary/Design/Exception）四象限矩阵** 设计场景：
 
@@ -65,7 +67,7 @@ grep -q "jasmine" package.json 2>/dev/null && echo "jasmine"
 | ID | 类型 | 输入条件 | 预期结果 |
 |----|------|---------|---------|
 | TC001 | B | 合法参数 | 正常返回正确结果 |
-| TC002 | B | 参数为 null | 抛出 TypeError |
+| TC002 | B | 参数为 null | 抛出参数校验异常 |
 | TC003 | B | 空集合入参 | 返回空结果 |
 | TC004 | D | 重复提交 | 幂等处理，返回已有结果 |
 | TC005 | E | 依赖服务超时 | 降级返回缓存/错误提示 |
@@ -79,139 +81,58 @@ grep -q "jasmine" package.json 2>/dev/null && echo "jasmine"
 
 ---
 
-### 阶段三：分层测试指导
+## 阶段三：分层测试策略（通用）
 
-根据被测对象的层次，采用不同的测试策略：
+根据被测对象的层次，采用不同的测试策略；具体框架的 Mock API 与代码示例见已加载的 schema-*.md。
 
 #### Service / 业务逻辑层
 - **测试目标**：验证业务规则、分支逻辑、异常处理
 - **Mock 范围**：DAO/Repository、外部服务、缓存、消息队列
 - **核心验证**：返回结果正确性、依赖调用次数与入参验证、异常分支覆盖
-- **技术**：ViTest 的 `vi.mock()` / `vi.spyOn()` 隔离外部依赖
-
-```typescript
-// TypeScript Service 测试示例 — AAA 结构
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-
-// Mock 外部依赖
-vi.mock('../repositories/user-repository');
-
-describe('UserService', () => {
-    it('should_return_user_when_query_by_valid_id', async () => {
-        // Given: 准备测试数据 + Mock 外部依赖
-        const mockUser = { id: 1, name: 'Alice', email: 'alice@example.com' };
-        vi.mocked(findById).mockResolvedValue(mockUser);
-
-        // When: 执行被测方法
-        const result = await userService.getUserById(1);
-
-        // Then: 断言返回结果 + 验证交互
-        expect(result).toBeDefined();
-        expect(result.name).toBe('Alice');
-        expect(findById).toHaveBeenCalledWith(1);
-    });
-
-    it('should_throw_exception_when_user_not_exists', async () => {
-        // Given
-        vi.mocked(findById).mockResolvedValue(null);
-
-        // When + Then
-        await expect(userService.getUserById(999))
-            .rejects.toThrow('用户不存在');
-    });
-});
-```
 
 #### Controller / 接口层
 - **测试目标**：验证请求映射、参数校验、响应格式、权限拦截
 - **Mock 范围**：所有 Service 依赖
-- **最佳实践**：使用 SuperTest（HTTP）或 mock 请求/响应对象
-
-```typescript
-// Controller 测试示例
-import { describe, it, expect } from 'vitest';
-import request from 'supertest'; // 如适用
-
-describe('UserController', () => {
-    it('should_return_200_when_get_user', async () => {
-        const res = await request(app).get('/api/user/1');
-        expect(res.status).toBe(200);
-        expect(res.body.data.name).toBeDefined();
-    });
-});
-```
+- **最佳实践**：HTTP 端到端测试（Java: MockMvc + @WebMvcTest；Node: SuperTest）或 mock 请求/响应对象
 
 #### 工具类 / Utils
 - **测试目标**：验证输入输出正确性，覆盖所有边界场景
 - **Mock 范围**：一般无需 Mock，直接测试
 - **最佳实践**：大量使用参数化测试减少重复代码
 
-```typescript
-// 工具类参数化测试示例
-import { describe, it, expect } from 'vitest';
-
-describe('StringUtils', () => {
-    it.each([
-        [null, true],
-        ['', true],
-        ['  ', true],
-        ['hello', false],
-    ])('should_judge_blank_correctly(%s, %s)', (input, expected) => {
-        expect(isBlank(input)).toBe(expected);
-    });
-});
-```
-
 ---
 
-### 阶段四：测试代码生成
-
-#### 通用编写规范
+## 阶段四：测试代码生成（通用规范）
 
 **命名规范**：
-```typescript
-// 测试类：被测类名 + Test
-UserService → UserServiceTest
-
-// 测试方法：业务场景式 或 行为驱动式（二选一，与项目现有风格一致）
-// 业务场景式
-getUserById_userNotExists_throwsException()
-// 行为驱动式（推荐）
-should_throw_exception_when_user_not_exists()
-```
+- 测试类：被测类名 + Test（`UserService → UserServiceTest`）
+- 测试方法：业务场景式 或 行为驱动式（二选一，与项目现有风格一致）
+  - 业务场景式：`getUserById_userNotExists_throwsException`
+  - 行为驱动式（推荐）：`should_throw_exception_when_user_not_exists`
 
 **AAA / Given-When-Then 结构**（强制）：
-```typescript
-it('should_throw_exception_when_user_not_exists', async () => {
-    // Given: 准备测试数据 + Mock 外部依赖
-    // When: 执行被测方法
-    // Then: 断言结果 + 验证依赖交互
-});
+```
+// Given: 准备测试数据 + Mock 外部依赖
+// When: 执行被测方法
+// Then: 断言结果 + 验证依赖交互
 ```
 
 **断言规范**：
-- **禁止** `console.log()` 替代断言
-- **禁止** 只写 `expect(result).toBeDefined()` 不做具体字段校验
+- **禁止** 日志输出（`console.log()` / `System.out.println()`）替代断言
+- **禁止** 只写"存在性"断言不做具体字段校验
 - **禁止** 在断言中使用循环、条件判断等逻辑
-- 异常断言使用 `expect(fn).rejects.toThrow()` 或 `expect(fn).toThrow()`
-- 推荐使用精确断言：`expect(result.name).toBe('Alice')` 而非 `expect(result).toBeDefined()`
+- 异常断言使用框架对应 API（见 schema）
+- 推荐使用精确断言：断言具体字段值而非仅判存在
 
 **一个测试只验证一个业务行为**，避免单个方法中断言多个不相关的场景。
 
+> 框架专属代码模板（Java 模板 A-F、Node vi.mock 示例）见已加载的 schema-*.md。Java 项目在生成代码前需执行测试计划确认门（见 schema-java.md J5.3）。
+
 ---
 
-### 阶段五：运行与验证
+## 阶段五：运行与验证
 
-```bash
-# 运行指定测试文件
-pnpm test -- <测试文件路径>
-
-# 运行所有测试
-pnpm test
-
-# 或项目对应的测试命令
-npm test
-```
+按项目构建工具运行测试（Java: `mvn test` / `gradle test`；Node: `pnpm test` / `npm test`，具体命令见 schema-*.md）。
 
 **结果验证**：
 - 全部通过后报告：`✅ N/M tests passed`
@@ -228,12 +149,12 @@ npm test
 | 反模式 | 危害 | 正确做法 |
 |--------|------|---------|
 | 无断言空转测试 | 执行即通过，无法发现逻辑错误 | 每个测试必须有明确断言 |
-| 测试间共享可变状态 | 执行顺序影响结果 | `beforeEach` 重置状态，每个用例自行构造数据 |
-| `console.log()` 替代断言 | 无法自动验证 | 所有预期结果使用断言自动验证 |
+| 测试间共享可变状态 | 执行顺序影响结果 | 每用例前重置状态，每个用例自行构造数据 |
+| 日志替代断言 | 无法自动验证 | 所有预期结果使用断言自动验证 |
 | 测试方法中写循环/条件 | 测试本身可能有 Bug | 用参数化测试替代 |
 | 命名模糊（`test1`） | 失败后无法快速定位 | 场景化命名，见名知意 |
 
-### 强制约束
+### 强制约束（语言无关）
 
 - 禁止修改被测代码来迁就测试
 - 禁止 Mock 值对象、实体类、简单工具类
@@ -242,5 +163,7 @@ npm test
 - 测试必须可重复：任意环境、任意次数执行结果稳定
 - 一个测试只验证一个业务行为
 - 外部依赖（数据库/Redis/MQ）使用 mock，不在单测中直连真实环境
-- 禁止使用 `@Disabled` / `it.skip` 长期跳过测试（临时跳过必须标注原因和修复时间）
+- 禁止长期跳过测试（`@Disabled` / `it.skip`，临时跳过必须标注原因和修复时间）
 - 测试代码与生产代码遵循同等质量标准（无魔法值、无重复代码、命名规范）
+
+> 语言专属约束（如 Java 禁止通配符导入 / `@Test(expected=...)`，Node `vi.mock()` hoisting 等）见 schema-*.md。

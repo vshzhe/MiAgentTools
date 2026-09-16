@@ -1,9 +1,9 @@
 ---
 name: venus_tr_impl_genfull
-description: "Guided full-pipeline orchestrator: explore→[frontend-design]→propose(+verify)→deep-review→requirement-doc→apply(+conditional frontend-impl/gentest)→archive, delegating stage SKILLs with bridge gates between stages to ensure each process completeness. Frontend design (Phase 1) is front-loaded to proposal stage; frontend impl (Phase 2) stays in apply. Triggers: 全流程编排 / genfull / 引导式全流程 / coupled stage workflow. Use when the user wants a guided end-to-end pipeline through archive with per-stage confirmation bridges (coupling explore/frontend/propose/apply/test/archive SKILLs). NOT for inline single-SKILL workflow (use venus_tr_impl_workflow), fully-automated no-gate pipeline (use venus_tr_impl_auto_workflow), or debugging (use venus_tr_impl_debug)."
+description: "Guided full-pipeline orchestrator: explore→[frontend-design]→propose(+verify)→deep-review→requirement-doc→apply(+conditional frontend-impl/test)→archive, delegating stage SKILLs with bridge gates between stages to ensure each process completeness. Frontend design (Phase 1) is front-loaded to proposal stage; frontend impl (Phase 2) stays in apply. Triggers: 全流程编排 / genfull / 引导式全流程 / coupled stage workflow. Use when the user wants a guided end-to-end pipeline through archive with per-stage confirmation bridges (coupling explore/frontend/propose/apply/test/archive SKILLs). NOT for inline single-SKILL workflow (use venus_tr_impl_workflow), fully-automated no-gate pipeline (use venus_tr_impl_auto_workflow), or debugging (use venus_tr_impl_debug)."
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*)
 license: MIT
-compatibility: 依赖 venus CLI（spec 命令组）与阶段技能（venus_spec_explore/propose/apply/archive + venus_tr_impl_review_proposal + venus_tr_docs_requirement_doc + venus_tr_impl_frontend + venus_tr_test_gentest_java）；CLI 缺失时各阶段技能各自降级。
+compatibility: 依赖 venus CLI（spec 命令组）与阶段技能（venus_spec_explore/propose/apply/archive + venus_tr_impl_review_proposal + venus_tr_docs_requirement_doc + venus_tr_impl_frontend + venus_tr_test_generate）；CLI 缺失时各阶段技能各自降级。
 metadata:
   author: venus-agent-tools
   version: "1.0"
@@ -24,7 +24,7 @@ This orchestrator guides you through:
 4. **Stage 1.5: 前端设计**（条件 has-frontend）- 委派 venus_tr_impl_frontend 仅设计，产出喂入 propose
 5. **Stage 2: 提案** - 委派 venus_spec_propose（内部自动 verify_proposal）→ 深度复查 → 需求文档
 6. **Bridge 2** - 就绪校验 + 确认门
-7. **Stage 3: 实现** - 委派 venus_spec_apply（auto-mode）+ 条件 frontend 实现/gentest
+7. **Stage 3: 实现** - 委派 venus_spec_apply（auto-mode）+ 条件 frontend 实现/test
 8. **Bridge 3** - 完整性校验 + 确认门
 9. **Stage 4: 归档** - 委派 venus_spec_archive（记忆闭环）
 
@@ -35,7 +35,7 @@ This orchestrator guides you through:
 **Input**: User's topic description (what they want to build).
 
 Use the **TodoWrite tool** to initialize tracking:
-`[{"content":"Phase 0: 初始化","status":"in_progress"},{"content":"Stage 1: 探索（venus_spec_explore）","status":"pending"},{"content":"Bridge 1: 探索→提案","status":"pending"},{"content":"Stage 1.5: 前端设计（条件 has-frontend）","status":"pending"},{"content":"Stage 2: 提案+深度复查+需求文档","status":"pending"},{"content":"Bridge 2: 提案→实现","status":"pending"},{"content":"Stage 3: 实现（含条件 frontend/gentest）","status":"pending"},{"content":"Bridge 3: 实现→归档","status":"pending"},{"content":"Stage 4: 归档","status":"pending"}]`
+`[{"content":"Phase 0: 初始化","status":"in_progress"},{"content":"Stage 1: 探索（venus_spec_explore）","status":"pending"},{"content":"Bridge 1: 探索→提案","status":"pending"},{"content":"Stage 1.5: 前端设计（条件 has-frontend）","status":"pending"},{"content":"Stage 2: 提案+深度复查+需求文档","status":"pending"},{"content":"Bridge 2: 提案→实现","status":"pending"},{"content":"Stage 3: 实现（含条件 frontend/test）","status":"pending"},{"content":"Bridge 3: 实现→归档","status":"pending"},{"content":"Stage 4: 归档","status":"pending"}]`
 
 ### 0.1 actionContext.mode 检测
 
@@ -188,15 +188,15 @@ Use the **TodoWrite tool** to initialize tracking:
 
 ### 3.3 条件子阶段 3b：Java 单元测试（has-java-test=true）
 
-- 委派 `venus_tr_test_gentest_java`（via Skill tool）
+- 委派 `venus_tr_test_generate`（via Skill tool，多 schema 自动检测 Java 并加载 schema-java.md）
 - 传入被测类 / 功能描述
-- **gentest 的 Phase 3 测试计划确认门 = 桥梁点**：用户确认计划后生成代码
+- **测试计划确认门 = 桥梁点**：用户确认计划后生成代码（schema-java.md J5.3）
 - 输出 `src/test/java/.../XxxTest.java` + 运行验证
 
 ### 3.4 实现错误处理
 
 - apply 编译失败（3 次自动修复后）：暂停等待用户，不进归档
-- frontend/gentest 确认门拒绝：回退到 Bridge 2 重新确认
+- frontend/test 确认门拒绝：回退到 Bridge 2 重新确认
 - 子代理失败：auto-retry 一次，仍失败暂停报告
 
 ---
@@ -207,7 +207,7 @@ Use the **TodoWrite tool** to initialize tracking:
 
 - tasks.md 全 `- [x]`（读 tasks.md 确认）
 - 编译检查通过（apply Step 8）
-- 条件子阶段完成（has-frontend → frontend 已完成；has-java-test → gentest 已完成）
+- 条件子阶段完成（has-frontend → frontend 已完成；has-java-test → test 已完成）
 
 ### ② 门决策（引导模式）
 
@@ -238,7 +238,7 @@ Use the **TodoWrite tool** to initialize tracking:
 
 ```
 ## Genfull 全流程完成 ✓
-Stage 1 探索 → Bridge 1 → [Stage 1.5 前端设计（条件）] → Stage 2 提案+深度复查+需求文档 → Bridge 2 → Stage 3 实现（含条件 frontend 实现/gentest）→ Bridge 3 → Stage 4 归档
+Stage 1 探索 → Bridge 1 → [Stage 1.5 前端设计（条件）] → Stage 2 提案+深度复查+需求文档 → Bridge 2 → Stage 3 实现（含条件 frontend 实现/test）→ Bridge 3 → Stage 4 归档
 变更: <change-name>
 产物: proposal/design/specs/tasks + 需求文档.md + 代码 + 测试 + 归档
 记忆: specs/<cap>/explorations.md 已更新
@@ -250,7 +250,7 @@ Stage 1 探索 → Bridge 1 → [Stage 1.5 前端设计（条件）] → Stage 2
 
 - **委派不内联** - 阶段执行委派对应 SKILL，genfull 只做编排与桥梁；不内联 explore/propose/apply 的逻辑（区别于 venus_tr_impl_workflow）
 - **桥梁保证完整性** - 每个桥梁执行 ①上下文交接 ②就绪检查 ③完整性校验 ④门决策，确保每个流程完整
-- **引导式门控** - Bridge 1/2/3 在引导模式下暂停确认；frontend 设计/实现确认门与 gentest 确认门作为桥梁点
+- **引导式门控** - Bridge 1/2/3 在引导模式下暂停确认；frontend 设计/实现确认门与 test 确认门作为桥梁点
 - **前端设计前置** - Stage 1.5 委派 venus_tr_impl_frontend 仅执行主 SKILL Phase 1 设计（产出喂入 propose design.md），Stage 3.2 仅执行 Phase 2 实现（读 references 生成 JSP）；设计与实现分离，避免 apply 阶段重做设计
 - **Don't skip questioning** - explore 阶段的 grill L1-L5 由 venus_spec_explore 承载，不跳过
 - **Do execute read-only operations directly** - 文件读取、CodeGraph、impact analysis 无需确认直接执行

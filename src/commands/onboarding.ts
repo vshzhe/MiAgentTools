@@ -64,13 +64,7 @@ const ONBOARDING_HINTS: OnboardingHint[] = [
         workflowId: 'tr-test-generate',
         name: '生成测试',
         command: '/venus:tr-test-generate <被测目标>',
-        hint: '为代码补充结构化测试：BCDE 场景矩阵、AAA 结构、框架自动检测',
-    },
-    {
-        workflowId: 'tr-test-gentest-java',
-        name: 'Java 测试',
-        command: '/venus:tr-test-gentest-java <被测类>',
-        hint: 'Java 项目单元测试：框架检测、BCDE 场景矩阵、多模板生成、运行验证',
+        hint: '多 schema 测试生成：自动检测 Java/Node 框架，BCDE 场景矩阵、AAA 结构、多模板生成',
     },
     // 非默认 workflow（需 venus config 启用后才在提示中出现）
     {

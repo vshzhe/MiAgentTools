@@ -1,6 +1,6 @@
 ---
 name: "Venus: 引导式全流程编排"
-description: 引导式全流程编排器：探索→[前端设计]→提案(+verify)→深度复查→需求文档→实现(+条件 frontend 实现/gentest)→归档，委派阶段 SKILL + 桥梁确认门
+description: 引导式全流程编排器：探索→[前端设计]→提案(+verify)→深度复查→需求文档→实现(+条件 frontend 实现/test)→归档，委派阶段 SKILL + 桥梁确认门
 allowed-tools: Bash(venus:*)
 category: Venus / 实现
 tags: [venus, tr_impl, genfull, orchestrator, full-pipeline]
@@ -40,7 +40,7 @@ via Skill tool 传入 topic。explore 内部完成探索文件创建、CONTEXT.m
 
 ## Stage 3: 实现（委派 venus_spec_apply + 条件子阶段）
 
-3.1 委派 venus_spec_apply（via Skill tool，传 change-name + `auto-mode=true` 跳过 Step 5.5，由 Bridge 2 承载确认）：分层代码生成（Entity/DTO → Mapper/DAO → Service → Controller → Frontend）、tasks.md 复选框更新、Step 8 编译检查；后端按 `openspec/rules/ai-coding.md` 架构规则自行处理。3.2 条件（has-frontend）：委派 venus_tr_impl_frontend **仅执行 Phase 2 实现**（基于 Stage 1.5 设计方案读 references 生成 JSP，不重做设计），实现确认门 = 桥梁点，输出 JSP + 安全加固。3.3 条件（has-java-test）：委派 venus_tr_test_gentest_java，Phase 3 测试计划确认门 = 桥梁点，输出 `src/test/java/.../XxxTest.java` + 运行验证。错误处理：编译失败（3 次后）暂停不归档；确认门拒绝回退 Bridge 2；子代理失败 retry 一次。
+3.1 委派 venus_spec_apply（via Skill tool，传 change-name + `auto-mode=true` 跳过 Step 5.5，由 Bridge 2 承载确认）：分层代码生成（Entity/DTO → Mapper/DAO → Service → Controller → Frontend）、tasks.md 复选框更新、Step 8 编译检查；后端按 `openspec/rules/ai-coding.md` 架构规则自行处理。3.2 条件（has-frontend）：委派 venus_tr_impl_frontend **仅执行 Phase 2 实现**（基于 Stage 1.5 设计方案读 references 生成 JSP，不重做设计），实现确认门 = 桥梁点，输出 JSP + 安全加固。3.3 条件（has-java-test）：委派 venus_tr_test_generate（多 schema 自动检测 Java 并加载 schema-java.md），测试计划确认门 = 桥梁点，输出 `src/test/java/.../XxxTest.java` + 运行验证。错误处理：编译失败（3 次后）暂停不归档；确认门拒绝回退 Bridge 2；子代理失败 retry 一次。
 
 ## Bridge 3: 实现→归档
 
@@ -54,4 +54,4 @@ via Skill tool 传 change-name（跳过选择）。archive 内部完成 delta sp
 
 ## Guardrails
 
-委派不内联（阶段执行委派对应 SKILL，genfull 只编排 + 桥梁，区别于 venus_tr_impl_workflow）；桥梁保证完整性（①上下文交接 ②就绪检查 ③完整性校验 ④门决策）；引导式门控（Bridge 1/2/3 暂停确认，frontend 设计/实现确认门与 gentest 确认门作桥梁点）；前端设计前置（Stage 1.5 仅设计喂入 propose design.md，Stage 3.2 仅实现读 references 生成 JSP，设计与实现分离）；don't skip questioning（grill L1-L5 由 explore 承载）；read-only operations（文件 / CodeGraph / impact）直接执行但桥梁确认门等待确认；auto-mode to apply（Stage 3 传 auto-mode=true，Bridge 2 承载确认避免 Step 5.5 重复）；pass change-name to archive；deep review + requirement doc after verify PASS（先复查再需求文档，FAIL 不生成）；impact analysis at Bridge 1（explore 只准备符号，Bridge 1 补跑 codegraph_impact）；exploration.md fallback（缺失补建最小版，verify 硬依赖）；actionContext.mode detection（workspace-planning 降级）；MUST preserve source on migration failure；do explore codebase before asking；do show quantified scores；don't lose exploration。Build all paths with `path.join()`.
+委派不内联（阶段执行委派对应 SKILL，genfull 只编排 + 桥梁，区别于 venus_tr_impl_workflow）；桥梁保证完整性（①上下文交接 ②就绪检查 ③完整性校验 ④门决策）；引导式门控（Bridge 1/2/3 暂停确认，frontend 设计/实现确认门与 test 确认门作桥梁点）；前端设计前置（Stage 1.5 仅设计喂入 propose design.md，Stage 3.2 仅实现读 references 生成 JSP，设计与实现分离）；don't skip questioning（grill L1-L5 由 explore 承载）；read-only operations（文件 / CodeGraph / impact）直接执行但桥梁确认门等待确认；auto-mode to apply（Stage 3 传 auto-mode=true，Bridge 2 承载确认避免 Step 5.5 重复）；pass change-name to archive；deep review + requirement doc after verify PASS（先复查再需求文档，FAIL 不生成）；impact analysis at Bridge 1（explore 只准备符号，Bridge 1 补跑 codegraph_impact）；exploration.md fallback（缺失补建最小版，verify 硬依赖）；actionContext.mode detection（workspace-planning 降级）；MUST preserve source on migration failure；do explore codebase before asking；do show quantified scores；don't lose exploration。Build all paths with `path.join()`.

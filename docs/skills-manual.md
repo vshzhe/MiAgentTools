@@ -1,8 +1,8 @@
 # Venus 技能使用说明书（完整版）
 
 > 适用版本：Unreleased（基于 v0.1.0 + spec 工作流扩展）
-> 文档日期：2026-09-15
-> 覆盖范围：全部 23 个技能
+> 文档日期：2026-09-16
+> 覆盖范围：全部 25 个技能
 > 技能快照来源：`skills/` 目录（由 `pnpm build && pnpm generate:skills` 生成，禁止手工编辑）
 
 ---
@@ -20,18 +20,20 @@
     - [3.2 venus_spec_verify 实现验证](#32-venus_spec_verify实现验证)
     - [3.3 venus_tr_impl_review_proposal 提案深度复查](#33-venus_tr_impl_review_proposal提案深度复查)
     - [3.4 venus_spec_bulk_archive 批量归档](#34-venus_spec_bulk_archive批量归档)
-- [第四部分：一站式工作流（3 个）](#第四部分一站式工作流3-个)
+- [第四部分：一站式工作流（4 个）](#第四部分一站式工作流4-个)
     - [4.1 venus_tr_impl_workflow 引导式工作流](#41-venus_tr_impl_workflow引导式工作流)
     - [4.2 venus_tr_impl_auto_workflow 全自动工作流](#42-venus_tr_impl_auto_workflow全自动工作流)
     - [4.3 venus_tr_impl_debug 调试工作流](#43-venus_tr_impl_debug调试工作流)
+    - [4.4 venus_tr_impl_genfull 引导式全流程编排](#44-venus_tr_impl_genfull引导式全流程编排)
 - [第五部分：迁移套件（3 个）](#第五部分迁移套件3-个)
     - [5.1 venus_tr_docs_feature_doc 功能地图生成](#51-venus_tr_docs_feature_doc功能地图生成)
     - [5.2 venus_tr_impl_migration_check 迁移一致性检查](#52-venus_tr_impl_migration_check迁移一致性检查)
     - [5.3 venus_tr_impl_auto_migration 一站式自动迁移](#53-venus_tr_impl_auto_migration一站式自动迁移)
 - [第六部分：文档交付（1 个）](#第六部分文档交付1-个)
     - [6.1 venus_tr_docs_requirement_doc 变更转需求文档](#61-venus_tr_docs_requirement_doc变更转需求文档)
-- [第七部分：直接实现（1 个）](#第七部分直接实现1-个)
+- [第七部分：直接实现（2 个）](#第七部分直接实现2-个)
     - [7.1 venus_tr_impl_feature 直接实现功能](#71-venus_tr_impl_feature直接实现功能)
+    - [7.2 venus_tr_impl_frontend 前端页面设计与生成](#72-venus_tr_impl_frontend前端页面设计与生成)
 - [第八部分：开发生命周期（5 个）](#第八部分开发生命周期5-个)
 - [第九部分：工具类（2 个）](#第九部分工具类2-个)
 - [第十部分：组合使用模式](#第十部分组合使用模式)
@@ -43,15 +45,15 @@
 # 第一部分：总览
 
 VenusAgentTools 是 AI Agent 技能生成与管理 CLI，按生命周期类型生成 `venus_` 前缀的 SKILL 与斜杠指令，
-安装到目标项目的 `.claude/` 目录。当前共 **23 个技能**，分为 **9 个生命周期类型**：
+安装到目标项目的 `.claude/` 目录。当前共 **25 个技能**，分为 **9 个生命周期类型**：
 
 | 类型 | 中文名 | 技能数 | 技能清单 |
 | :--- | :--- | :--- | :--- |
 | `spec` | 规格 | 7 | explore / propose / apply / archive / verify / verify_proposal / bulk_archive |
-| `tr_impl` | 实现 | 7 | feature / workflow / auto_workflow / debug / review_proposal / migration_check / auto_migration |
+| `tr_impl` | 实现 | 9 | feature / workflow / auto_workflow / debug / review_proposal / migration_check / auto_migration / frontend / genfull |
 | `tr_docs` | 文档 | 2 | feature_doc / requirement_doc |
 | `tr_init` | 初始化 | 1 | init_project |
-| `tr_test` | 测试 | 1 | test_generate |
+| `tr_test` | 测试 | 1 | test_generate（多 schema：Java/Node 自动适配） |
 | `tr_commit` | 提交 | 1 | commit_change |
 | `tr_review` | 审查 | 1 | review_code |
 | `tr_release` | 版本 | 1 | release_version |
@@ -66,6 +68,7 @@ VenusAgentTools 是 AI Agent 技能生成与管理 CLI，按生命周期类型�
                         ┌────────────────────────────────────────────────┐
                         │            一站式工作流（编排层）                │
                         │  workflow（引导式） / auto_workflow（全自动）    │
+                        │  genfull（全流程委派 + 桥梁门）                  │
                         │  debug（调试循环，逆向进入生命周期）              │
                         └───────────────┬────────────────────────────────┘
                                         │ 编排调用
@@ -710,7 +713,7 @@ Step 11: Batch CodeGraph Sync + Verification（条件：2.5 确认启用且 ≥1
 
 ---
 
-# 第四部分：一站式工作流（3 个）
+# 第四部分：一站式工作流（4 个）
 
 ## 4.1 venus_tr_impl_workflow（引导式工作流）
 
@@ -1052,6 +1055,143 @@ Phase 5: Auto-Archive（自动——archive 用 change-name 跳过选择提示�
 - **降级路径**：CodeGraph→Glob/Grep（仍按相同结构记录保可追溯性）；验证/复查/需求文档
   技能→AI 内联 + WARN；编译失败→maxRetries 后报告用户
 - **长循环**：≥5 bug 建议拆分但不强制终止
+
+---
+
+## 4.4 venus_tr_impl_genfull（引导式全流程编排）
+
+### 定位与触发
+
+- **斜杠命令**：`/venus:tr-impl-genfull`
+- **description**：引导式全流程编排器 explore→[frontend-design]→propose(+verify)→deep-review→requirement-doc→apply(+conditional frontend-impl/test)→archive，委派阶段 SKILL + 阶段间桥梁门
+- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*)`
+- **compatibility**：依赖 venus CLI（spec 命令组）与阶段技能（venus_spec_explore/propose/apply/archive + venus_tr_impl_review_proposal + venus_tr_docs_requirement_doc + venus_tr_impl_frontend + venus_tr_test_generate）；CLI 缺失时各阶段技能各自降级
+- **NOT-for**：inline 单 SKILL 工作流（用 venus_tr_impl_workflow）/ 全自动无门流水线（用 venus_tr_impl_auto_workflow）/ 调试（用 venus_tr_impl_debug）
+
+### 输入
+
+| 输入项 | 说明 |
+| :--- | :--- |
+| 话题描述 | 用户想构建的内容（Stage 1 起点，传入 venus_spec_explore） |
+| 前置条件 | 项目根有 `openspec/` 目录结构；先行阅读 `openspec/rules/ai-coding.md`（Stage 1 遵 Section 1、Stage 2 遵 Section 2、Stage 3 查 Sections 3-5） |
+
+### 输出
+
+全流程产物贯穿到归档：
+
+| 产物 | 路径 |
+| :--- | :--- |
+| 探索文件 | `openspec/explorations/`（explore 产出；缺失时 Bridge 1 补建最小版） |
+| 变更目录 | `openspec/changes/<change-name>/`（exploration + proposal + specs + design + tasks） |
+| 前端设计 | `exploration.md` 的 `## 前端设计` 段（条件 has-frontend，Stage 1.5 产出，供 propose 提取到 design.md） |
+| 需求文档 | `openspec/changes/<change-name>/需求文档.md`（Stage 2.3 非交互生成） |
+| 代码 | apply 分层生成 + 条件 frontend JSP（Stage 3） |
+| 测试 | 条件 `src/test/java/.../XxxTest.java`（Stage 3.3，has-java-test） |
+| 归档 | `openspec/changes/archive/YYYY-MM-DD-<change-name>/` + 全套同步（主 specs / CONTEXT.md / 探索记忆 / ARCHIVE-INDEX.md / CodeGraph） |
+
+**终点**："## Genfull 全流程完成 ✓"——全流程闭环到归档，记忆沉淀到 `specs/<cap>/explorations.md`。
+
+### 操作手册（Phase 0 + Stage 1-4 + Bridge 1-3）
+
+```
+Phase 0: 初始化
+  ├─ TodoWrite 全阶段跟踪（9 项 todo：Phase0/Stage1/Bridge1/Stage1.5/Stage2/Bridge2/Stage3/Bridge3/Stage4）
+  ├─ 0.1 actionContext.mode 检测（venus spec status --json；CLI 不可用 Glob 扫描 changes/）
+  │   workspace-planning → 降级为仅探索+提案+深度复查+需求文档（Bridge 2 前停止）
+  └─ 0.2 贯穿上下文初始化（change-name / has-frontend / has-java-test / tech-stack 待定）
+
+Stage 1: 探索 —— 委派 venus_spec_explore（Skill 工具）
+  ├─ 传入 topic；explore 内部完成：探索文件创建、CONTEXT.md 检查、能力记忆注入、
+  │   CodeGraph 基线扫描、多项目扫描、grill L1-L5 追问、关键词检测分析
+  └─ 完成信号：Decisions / 术语 / 边界场景已沉淀（需求澄清类追问由 explore 承载，genfull 不内联）
+
+Bridge 1: 探索 → 提案（桥梁统一模型：①上下文交接 ②就绪检查 ③完整性校验 ④门决策）
+  ① 就绪检查：exploration.md 兜底（硬依赖——verify_proposal 无 exploration.md 报错退出）
+     explore 不强制产出固定文件 → 缺失时补建最小版（Background/Decisions/术语/边界场景/Codebase Findings）
+  ② CONTEXT.md 存在性校验（缺失从 exploration 术语表补建）
+  ③ impact analysis（对齐 workflow Phase 1.5/2.0）：读 exploration 的 For Phase 2 Impact Analysis 符号清单；
+     多符号并行 codegraph_impact --direction upstream --maxDepth 3；结果回写 exploration 的 Analysis 段
+  ④ 上下文提取 + 信号判定：has-frontend（涉及前端/JSP）/ has-java-test（Java 项目需单测）/ tech-stack
+  ⑤ 完整性校验（Decisions 非空、L1-L5 至少到 L3）
+  ⑥ 门决策（引导模式）：暂停呈现探索摘要+信号+impact，等用户确认"进入提案"，可回退继续探索
+
+Stage 1.5: 前端设计（条件 has-frontend=true）—— 委派 venus_tr_impl_frontend（Skill 工具）仅设计
+  ├─ 传入探索期页面类型/功能模块/字段列表
+  ├─ 指令：仅执行主 SKILL Phase 1 设计决策，不读 references、不生成 JSP
+  ├─ 设计产出写入 exploration.md 的 ## 前端设计 段（供 Stage 2 propose 提取到 design.md）：
+  │   页面类型 / 组件选型 / 字段-组件映射矩阵 / jQuery 版本与引入顺序 / 4 种 UI 状态 / 前后端交互方式
+  └─ 设计确认门 = 桥梁点：用户确认设计方案后进入提案；references 实现模板留待 Stage 3
+
+Stage 2: 提案 + 深度复查 + 需求文档
+  2.1 委派 venus_spec_propose（Skill 工具）
+     ├─ 传入 change-name + 关联 exploration 文件
+     ├─ propose 内部完成：创建变更目录、按依赖序生成四制品、迁移 exploration.md、同步 CONTEXT.md
+     ├─ propose 内部自动调用 venus_spec_verify_proposal（D1-D9 评分，90% 阈值）
+     └─ verify FAIL：propose 内部 auto-fix 回路；仍 FAIL 暂停供用户决策（[手动编辑]/[返回探索]/[查看差异]）
+  2.2 深度复查 —— 委派 venus_tr_impl_review_proposal（Skill 工具）
+     ├─ 8 维度完整性只读复查（codebase 深度探索 + 合规性验证）
+     └─ fallback：技能不可用 → 编排器内联只读复查 + WARN（不静默跳过）；用户可打断跳过
+  2.3 需求文档 —— 委派 venus_tr_docs_requirement_doc（Skill 工具，非交互）
+     └─ 失败/打断 → WARN 记录原因并继续（用户可后续单独运行）
+
+Bridge 2: 提案 → 实现
+  ① 就绪检查：四制品齐全 + verify PASS + 深度复查完成 + 需求文档生成（或 WARN）+
+     apply instruction 状态 ready（venus spec instructions apply --json；CLI 不可用读 tasks.md 推断）
+  ② workspace-planning 降级（0.1 检测到则在此停止，输出"探索+提案+深度复查+需求文档完成"）
+  ③ 门决策：暂停呈现提案摘要+评分+复查结论+需求文档路径+条件子阶段预告，等用户确认"进入实现"
+
+Stage 3: 实现
+  3.1 委派 venus_spec_apply（Skill 工具，传 auto-mode=true）
+     ├─ auto-mode=true 跳过 apply 的 Step 5.5 设计确认门（由 Bridge 2 承载，避免重复）
+     ├─ apply 内部分层生成（Entity/DTO → Mapper/DAO → Service → Controller → Frontend）+ tasks.md 更新 + Step 8 编译检查
+     └─ 后端按 ai-coding.md 架构规则（apply 内部处理，genfull 不干预）
+  3.2 条件子阶段 3a：前端实现（has-frontend=true）—— 委派 venus_tr_impl_frontend（Skill 工具）仅实现
+     ├─ 传入前端设计方案（design.md / exploration.md 的 ## 前端设计 段，Stage 1.5 产出）
+     ├─ 指令：基于设计方案读 references 实现模板，执行 Phase 2 生成 JSP（不重做设计决策）
+     ├─ 读 references：page-templates / component-templates / popup-selectors / action-routing / style-and-security
+     └─ 实现确认门 = 桥梁点：用户确认生成代码后完成
+  3.3 条件子阶段 3b：Java 单元测试（has-java-test=true）—— 委派 venus_tr_test_generate（Skill 工具，多 schema 自动检测 Java 并加载 schema-java.md）
+     ├─ 测试计划确认门 = 桥梁点（schema-java.md J5.3）
+     └─ 输出 src/test/java/.../XxxTest.java + 运行验证
+  3.4 实现错误处理：apply 编译失败 3 次后暂停；frontend/test 确认门拒绝回退 Bridge 2；子代理失败 auto-retry 一次
+
+Bridge 3: 实现 → 归档
+  ① 就绪检查：tasks.md 全 [x] + 编译通过 + 条件子阶段完成（has-frontend → frontend 已完成；has-java-test → test 已完成）
+  ② 门决策：暂停呈现实现摘要+编译结果+测试通过率+条件子阶段产物，等用户确认"进入归档"
+
+Stage 4: 归档 —— 委派 venus_spec_archive（Skill 工具，传 change-name 跳过选择）
+  ├─ archive 内部完成：delta spec 合并主规格、CONTEXT.md 同步、探索记忆同步 specs/<cap>/explorations.md、
+  │   目录迁移 archive/、ARCHIVE-INDEX.md 更新、需求文档迁移 devdocs/、条件 CodeGraph sync
+  ├─ 所有 sync 检查点 non-blocking（失败 WARN 不阻断）
+  └─ 记忆闭环：archive 写 explorations.md 供下一轮 propose 读取
+```
+
+**交互点汇总**：Bridge 1/2/3 引导模式暂停确认；Stage 1.5 前端设计确认门；Stage 3.2 前端实现确认门；Stage 3.3 test 测试计划确认门。其余（CodeGraph、impact、只读复查、归档同步）自动执行。
+
+### 与 workflow / auto_workflow 的关键差异
+
+| 维度 | workflow | auto_workflow | genfull |
+| :--- | :--- | :--- | :--- |
+| 执行方式 | 单 SKILL 内联 explore/propose/verify | 单 SKILL 全自动 | **委派各阶段 SKILL + 桥梁门** |
+| 阶段门 | L1-L5 grill 门 | L1-L5 后全自动无门 | Bridge 1/2/3 + 子阶段确认门（引导式） |
+| 前端设计 | 无专门阶段 | 无 | **Stage 1.5 前端设计前置到 proposal（设计与实现分离）** |
+| 条件子阶段 | 无 | 无 | has-frontend → frontend 实现；has-java-test → test |
+| 终点 | 需求文档完毕，等手动 apply/archive | 全流程闭环到归档（无门） | 全流程闭环到归档（每阶段桥梁确认） |
+
+### 初步规范
+
+- **委派不内联**：阶段执行委派对应 SKILL，genfull 只做编排与桥梁（区别于 workflow 内联 explore/propose/verify）
+- **桥梁保证完整性**：每个桥梁执行 ①上下文交接 ②就绪检查 ③完整性校验 ④门决策
+- **前端设计前置**：Stage 1.5 仅设计（产出喂入 propose design.md），Stage 3.2 仅实现（读 references 生成 JSP）；设计与实现分离，避免 apply 阶段重做设计
+- **workspace-planning 降级**：Bridge 2 前停止
+- **路径跨平台**：所有路径用 `path.join()` 构建
+
+### 使用情况与问题
+
+- **依赖编排**：explore → propose(内含 verify) → review_proposal → requirement_doc → apply(auto-mode) → [frontend 实现] → [test] → archive，均 Skill 工具委派
+- **降级路径**：CLI 缺失各阶段技能各自降级；review_proposal 不可用 → 内联只读复查 + WARN；需求文档失败 → WARN 继续
+- **exploration.md 兜底**：explore 不强制产出固定文件，Bridge 1 缺失时补建最小版（verify 硬依赖）
+- **前端设计/实现分离**：Stage 1.5 设计产出喂入 propose，Stage 3.2 基于设计读 references 实现，避免 apply 阶段重做设计决策
 
 ---
 
@@ -1401,7 +1541,7 @@ Step 6 生成文档（八章节 + 路由输出）
 
 ---
 
-# 第七部分：直接实现（1 个）
+# 第七部分：直接实现（2 个）
 
 ## 7.1 venus_tr_impl_feature（直接实现功能）
 
@@ -1455,6 +1595,102 @@ Step 6 生成文档（八章节 + 路由输出）
 
 ---
 
+## 7.2 venus_tr_impl_frontend（前端页面设计与生成）
+
+### 定位与触发
+
+- **斜杠命令**：`/venus:tr-impl-frontend`
+- **description**：前端页面设计与生成。Venus4A 项目前端开发、创建 JSP 页面、设计页面组件、选择前端技术栈、修改现有页面或生成页面代码
+- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(*), Bash(pnpm:*), Bash(npm:*), Bash(node:*)`
+- **compatibility**：适用 Venus4A 系列（JSP + Struts2 + DWR 技术栈），基于 **1106 个 JSP 文件真实扫描统计**；依赖项目特有前端库路径（init.jsp、DWR、zTree、select2 等），非 Venus4A 项目需调整路径
+
+### 输入
+
+| 输入项 | 说明 |
+| :--- | :--- |
+| 页面类型 | list / add / edit / detail / tree |
+| 功能模块 | 所属业务模块 |
+| 字段列表 | 页面涉及的字段及类型 |
+| 组件需求 | 树/下拉/日期/图表/弹窗等组件诉求 |
+
+### 输出
+
+- **JSP 页面代码**：完整页面（含组件引入、标准 import 顺序、安全加固）
+- **实现后总结**：生成文件列表 + 使用组件 + 后续注意事项
+
+### 架构：设计/实现分离（重构后）
+
+主 SKILL 仅保留 **Phase 1 设计决策**，5 个 references 子文件承载 **Phase 2 实现模板**，按需 Read 避免上下文膨胀：
+
+- 供 `venus_tr_impl_genfull` Stage 1.5 委派**仅设计**（产出喂入 propose design.md）
+- 供 genfull Stage 3.2 委派**仅实现**（读 references 生成 JSP，不重做设计决策）
+
+### Phase 1: 设计决策
+
+#### 真实技术栈全景（TOP 10 前端库，按使用文件数）
+
+| 排名 | 技术 | 文件数 | 用途 |
+| :--- | :--- | :--- | :--- |
+| 1 | jQuery | 415 | DOM 操作、Ajax |
+| 2 | DWR | 165 | 后端异步调用（40+ Java 接口注册） |
+| 3 | calendar.js | 161 | 日期选择 |
+| 4 | zTree | 149 | 树形组件 |
+| 5 | ymPrompt | 123 | 弹窗提示 |
+| 6 | dTree | 69 | 自定义树形 |
+| 7 | ECharts | 18 | 图表可视化 |
+
+> 存在但**未使用**（避免引入）：jqGrid、Highcharts、Angular
+
+#### 组件选择决策表（核心选择原则）
+
+| 需求场景 | 推荐组件 | 决策依据 |
+| :--- | :--- | :--- |
+| 树形选择 | **zTree** > dTree | zTree 149 文件；dTree 69 且不支持异步 |
+| 下拉选择（简单） | **原生 select + util:Option** | 零依赖 |
+| 下拉选择（远程搜索） | **select2** | 14 文件，支持 Ajax 搜索 |
+| 日期选择 | **calendar.js** > My97DatePicker | calendar.js 161 vs My97 仅 5 |
+| 图表展示 | **ECharts** | 18 文件，Highcharts/jqGrid 0 |
+| 消息提示 | **ymPrompt** > layer | ymPrompt 123 文件 |
+| 数据表格/分页 | **html:vectorobject / html:page** | 自定义标签，0 额外依赖 |
+| 异步调用 | **DWR** > jQuery.ajax | 项目已注册 40+ Java 接口 |
+
+#### 其他设计约束
+
+- **jQuery 版本**：传统页面 v1.8.3（IE8 兼容）/ Ace 模板 v2.1.1 / zTree 页面用自带 / layui 用内置 / 现代浏览器 v3.6.0
+- **标准引入顺序**：init.jsp → meta/title → CSS（框架→字体→插件→主题→内联）→ JS（DWR→jQuery→插件→common.js→页面脚本）
+- **IE8 兼容约束**：禁止 ES6+（`const/let`/箭头函数/模板字符串/Promise/for...of/Map/Set/class），用 ES5 替代
+- **弹窗技术**：消息提示 `ymPrompt.alert` / 确认 `ymPrompt.confirm` / iframe 弹窗 `layer.open({type:2})` / 新窗口 `browser(url,w,h,name,1)`（第 5 参数必须传 1 启用滚动条）
+- **分页参数安全**：后端 pageSize 可能 Integer 或 String，JSP 必须做类型兼容处理
+
+### Phase 2: 页面生成
+
+**执行流程**（7 步）：理解需求 → 设计决策（Phase 1） → 用户确认 → 生成代码 → 配齐组件 → 安全防护 → 避坑检查
+
+**5 个 references 实现模板索引**（按页面类型与交互场景按需 Read，避免上下文膨胀）：
+
+| 子文件 | 包含内容 | 何时 Read |
+| :--- | :--- | :--- |
+| `references/page-templates.md` | 列表/添加/编辑/树形选择页面完整 JSP 模板 | 生成或修改上述页面类型时 |
+| `references/component-templates.md` | zTree/select2/ymPrompt/calendar/ECharts/DWR/layui 组件模板 | 页面需要某组件时 |
+| `references/popup-selectors.md` | 组织机构/主账号多选/资源选择弹窗 + 父子窗口回传 7 写法 | 实现选择器弹窗或数据回传时 |
+| `references/action-routing.md` | 前端-后端数据传递规范 + Action 路由机制 | 涉及前后端交互、路由配置时 |
+| `references/style-and-security.md` | XSS 安全 + 组件速查 + 先查已有实现 + 样式匹配换行规则 | 安全加固、选型前置、修改现有页面时 |
+
+### 约束与检查清单
+
+**避坑检查清单（列表/详情页创建前必查）**：Calendar.setup 在 `</body>` 前独立 script / browser() 传第 5 参数 1 / state_form.jsp 在 body 末尾 / sub() 用 document.form1 / 查询条件分行 + label/value 分列 / 详情弹窗用 browser() + 独立 JSP / 图片用 HTML width 属性 / 用 layer 则显式引入 layer.css / 所有用户输出 StringUtils.htmlEncode() / 分页参数 Integer/String 兼容 / DataStore 列名全小写 + rowCount() 非 size() / 权限检查传 request 参数 / init.jsp 顶部引入
+
+**JSP 规范**：权限检查 `LoginBo.isHaveControl(request, RightConstants.XXX)`；DataStore 用 `ds.rowCount()` 非 `ds.size()`、`obj.getInt("column")` 非 `getInteger`、列名小写；SQL 用小写别名。
+
+### 使用情况与问题
+
+- **NOT-for**：非 Venus4A 项目（技术栈全景与组件路径基于 Venus4A 扫描统计）
+- **references 按需加载**：执行时按页面类型 Read 对应子文件，不必全部加载（避免上下文膨胀）
+- **allowed-tools 含 `Bash(*)`**：宽授权，便于前端构建/预览命令（详见第十二部分 12.5）
+- **设计/实现分离**：供 genfull 委派——Stage 1.5 仅设计、Stage 3.2 仅实现，避免 apply 阶段重做设计
+
+---
+
 # 第八部分：开发生命周期（5 个）
 
 ## 8.1 venus_tr_init_project（初始化项目）
@@ -1468,19 +1704,76 @@ Step 6 生成文档（八章节 + 路由输出）
 - **规范**：最小可用原则（不引入未要求的功能与依赖）；**禁止覆盖既有文件**（发现同名停下询问）；
   每步可验证（创建后能直接构建运行）
 
-## 8.2 venus_tr_test_generate（生成测试）
+## 8.2 venus_tr_test_generate（生成测试，多 schema）
 
-- **命令**：`/venus:tr-test-generate`；**allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(pnpm:*), Bash(npm:*), Bash(node:*)`
-- **输入**：被测目标（方法/类/模块，必填）+ 测试范围（未指定时列方法清单请确认）
-- **输出**：测试源文件（遵循项目既有测试目录约定）+ 运行结果（通过数/总数）
-- **流程**：确定范围 → 设计用例（每方法至少四类：**正常路径/边界条件/异常分支/业务规则**）→
-  编写（given-when-then 结构；测试方法名描述场景；一个测试只验证一个行为；外部依赖
-  DB/Redis/MQ 用 mock 或测试容器）→ 运行修复（失败时先区分"测试写错"还是"代码有 bug"，
-  代码 bug 衔接 impl_feature）
-- **规范**：禁止无断言的"空转测试"；测试可重复（不依赖执行顺序/外部状态）；
-  不修改被测代码迁就测试（除非确有 bug 且说明）；框架跟随项目既有风格（JUnit5/Vitest/pytest）
-- **问题**：未显式声明覆盖率百分比目标（以四类场景完整性替代）；allowed-tools 只预授权
-  pnpm/npm/node，纯 Maven 项目 `mvn test` 需额外授权
+### 定位与触发
+
+- **斜杠命令**：`/venus:tr-test-generate`
+- **description**：生成测试。为新功能或已有代码编写测试用例、补充测试覆盖。多 schema 模式：自动检测 Java（Maven/Gradle）或 Node（Vitest/Jest/Mocha）项目，加载对应框架模板
+- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(pnpm:*), Bash(npm:*), Bash(node:*), Bash(mvn:*), Bash(gradle:*), Bash(mkdir:*), Bash(ls:*), Bash(find:*), Bash(cat:*), Bash(cp:*)`
+- **compatibility**：无特殊依赖，通用环境可用。多 schema 自动适配：Java（Maven/Gradle + JUnit4/5/Mockito/EasyMock/AssertJ）与 Node（Vitest/Jest/Mocha/Jasmine）
+- **metadata**：version 3.0，type `tr_test`
+- **架构**：多 schema 模式。主 SKILL 语言无关（检测路由 + BCDE 场景矩阵 + 通用编写规范 + 反模式清单）；语言/框架专属内容拆为 `references/schema-*.md` 按需 Read：
+  - `references/schema-java.md`：Java 项目类型判定、测试依赖分析报告、7 级测试位置扫描、模板 A-F（JUnit4/5+Mockito/EasyMock/@WebMvcTest/参数化/遗留 XML）、遗留代码测试策略、mvn/gradle 命令、Java 专属约束
+  - `references/schema-node.md`：Vitest/Jest/Mocha 检测、Mock 方式（vi.mock/jest.mock）、分层测试 TS 示例（Service/Controller/Utils）、pnpm/npm 命令、Node 专属约束
+  - 新语言扩展 = 新增一个 schema 文件 + 主 SKILL 路由表加一行
+
+### 输入
+
+被测目标（方法/类/模块，必填）+ 测试范围（未指定时列方法清单请确认）。
+
+### 输出
+
+测试源文件（遵循项目既有测试目录约定）+ 运行结果（`✅ N/M tests passed`）。
+
+### 操作手册（五阶段）
+
+```
+阶段一：语言与框架检测（schema 路由）
+  ├─ 检测 pom.xml/build.gradle → Java，Read references/schema-java.md
+  ├─ 检测 package.json → Node，Read references/schema-node.md
+  ├─ schema 索引表：子文件/适用项目/包含内容/何时 Read
+  └─ 未识别语言：提示用户指定或默认输出最接近风格
+
+阶段二：场景设计（BCDE 场景矩阵法）
+  ├─ 每个被测方法按 BCDE 四象限设计：
+  │   Basic（正常路径）/ Boundary（边界条件）/ Design（业务规则）/ Exception（异常路径）
+  ├─ 场景矩阵模板（ID/类型/输入条件/预期结果）
+  └─ 场景数量要求：1-2 正常 + 2-3 边界 + 1-2 业务规则 + 1-2 异常
+
+阶段三：分层测试策略（通用）
+  ├─ Service/业务逻辑层：验证业务规则/分支/异常；Mock DAO/外部服务/缓存/MQ；
+  │   验证返回结果 + 依赖调用次数入参
+  ├─ Controller/接口层：验证请求映射/参数校验/响应格式/权限；Mock 所有 Service；
+  │   HTTP 端到端（Java: MockMvc+@WebMvcTest；Node: SuperTest）或 mock 请求/响应对象
+  └─ 工具类/Utils：验证输入输出正确性，覆盖边界；一般无需 Mock；参数化测试减重复
+  （具体框架 Mock API 与代码示例见已加载的 schema-*.md）
+
+阶段四：测试代码生成（通用规范）
+  ├─ 命名：测试类 被测类名+Test；方法 业务场景式 或 行为驱动式（与项目一致）
+  ├─ AAA / Given-When-Then 结构（强制）
+  ├─ 断言规范：禁止日志替代断言；禁止只判存在不校验字段；
+  │   禁止断言中循环/条件；异常用框架对应 API；推荐精确断言
+  ├─ 一个测试只验证一个业务行为
+  └─ Java 项目生成前执行测试计划确认门（schema-java.md J5.3）
+  （框架专属模板：Java 模板 A-F、Node vi.mock 示例，见 schema-*.md）
+
+阶段五：运行与验证
+  ├─ Java: mvn test / gradle test；Node: pnpm test / npm test（命令见 schema）
+  ├─ 全部通过：✅ N/M tests passed
+  └─ 失败区分：测试代码写错→修正重跑；被测代码有 bug→说明+修复建议，衔接 /venus:tr-impl-feature
+```
+
+### 反模式清单与约束
+
+- **禁止反模式**：无断言空转测试 / 测试间共享可变状态 / 日志替代断言 / 测试方法中写循环条件 / 命名模糊
+- **强制约束（语言无关）**：禁止修改被测代码迁就测试 / 禁止 Mock 值对象实体类简单工具类 / 测试数据集中管理 / 不依赖执行顺序外部状态 / 测试可重复 / 一个测试一个行为 / 外部依赖用 mock / 禁止 `@Disabled`/`it.skip` 长期跳过 / 测试代码同等质量标准
+- **语言专属约束**：见 schema-*.md（Java：禁止通配符导入/`@Test(expected=...)`；Node：`vi.mock()` hoisting 等）
+
+### 使用情况与问题
+
+- 未显式声明覆盖率百分比目标（以 BCDE 四类场景完整性替代）
+- 历史：v3.0 由原 `venus_tr_test_generate`（TS 专属）与 `venus_tr_test_gentest_java`（Java 专属，独立 `tr_test_gentest` 类型）合并而来，合并后删除后者及其类型，Java/Node 统一为多 schema
 
 ## 8.3 venus_tr_commit_change（提交变更）
 
@@ -1613,6 +1906,16 @@ Step 6 生成文档（八章节 + 路由输出）
 → /venus:tr-review-code → /venus:tr-commit-change → /venus:tr-release-version
 ```
 
+## 模式 H：引导式全流程编排（委派 + 桥梁门）
+
+```
+/venus:tr-impl-genfull
+  Stage 1 探索（委派 spec_explore，grill L1-L5）→ Bridge 1（exploration 兜底 + impact + 信号判定）
+  → [Stage 1.5 前端设计（条件 has-frontend）] → Stage 2 提案+深度复查+需求文档
+  → Bridge 2 → Stage 3 实现（apply auto-mode + 条件 frontend 实现/test）→ Bridge 3 → Stage 4 归档
+（委派各阶段 SKILL + 阶段间桥梁确认门，贯穿到归档；前端设计前置到 proposal）
+```
+
 ---
 
 # 第十一部分：使用情况
@@ -1682,7 +1985,7 @@ apply / debug / auto_workflow 的 Step 8（或 Phase 5）编译检查逻辑支�
 Ant（`ant compile`）/ Gradle（`gradle compileJava`）/ Go（`go build`）/ Rust（`cargo build`），
 但 allowed-tools 均未预授权 `Bash(mvn:*)`、`Bash(ant:*)`、`Bash(gradle:*)`、`Bash(go:*)`、
 `Bash(cargo:*)`——纯 Java/Go/Rust 项目执行编译检查时需用户逐条授权。
-test_generate / release_version 同理（仅预授权 pnpm/npm/node）。
+release_version 同理（仅预授权 pnpm/npm/node）。frontend 例外用 `Bash(*)` 宽授权；test_generate（多 schema）预授权 `Bash(mvn:*)`/`Bash(gradle:*)`/`Bash(pnpm:*)`/`Bash(npm:*)`/`Bash(node:*)`——纯 Java 项目 `mvn test` 与 Node 项目 `pnpm test` 均无需逐条授权，与上述编译检查形成对比。
 
 ## 12.6 功能限制
 
@@ -1692,9 +1995,10 @@ test_generate / release_version 同理（仅预授权 pnpm/npm/node）。
 
 ## 12.7 文档与展示滞后
 
-- README.md 仍描述"7 类分类体系"，实际已 9 类（spec + tr_docs 未更新）
+- README.md 仍描述"7 类分类体系"，实际已 9 类（spec + tr_docs 等未更新）
 - tools_list 分组基于 CLI 返回，快照滞后时显示 7 类
 - 测试用例数描述滞后（README 记 57，AGENTS.md 记 71，持续增长中）
+- skills-manual.md 已于 2026-09-16 同步至 25 技能 / 9 类型（v3.0 合并 gentest_java 为 test_generate 多 schema，补齐 frontend/genfull 章节）；README/AGENTS.md 仍滞后
 
 ## 12.8 降级路径较多（设计取舍）
 

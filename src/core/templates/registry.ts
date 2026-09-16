@@ -35,10 +35,6 @@ import {
     getTrImplDebugCommandTemplate,
 } from './workflows/tr-impl-debug.js';
 import { getTrTestGenerateSkillTemplate, getTrTestGenerateCommandTemplate } from './workflows/tr-test.js';
-import {
-    getTrTestGentestJavaSkillTemplate,
-    getTrTestGentestJavaCommandTemplate,
-} from './workflows/tr-test-gentest-java.js';
 import { getTrCommitChangeSkillTemplate, getTrCommitChangeCommandTemplate } from './workflows/tr-commit.js';
 import { getTrReviewCodeSkillTemplate, getTrReviewCodeCommandTemplate } from './workflows/tr-review.js';
 import { getTrReleaseVersionSkillTemplate, getTrReleaseVersionCommandTemplate } from './workflows/tr-release.js';
@@ -118,7 +114,6 @@ const WORKFLOW_PAIRS: WorkflowPair[] = [
     // 前端套件（tr_impl）：前端页面设计与生成，组件设计决策 + 代码模板生成
     { skill: getTrImplFrontendSkillTemplate(), command: getTrImplFrontendCommandTemplate() },
     { skill: getTrTestGenerateSkillTemplate(), command: getTrTestGenerateCommandTemplate() },
-    { skill: getTrTestGentestJavaSkillTemplate(), command: getTrTestGentestJavaCommandTemplate() },
     { skill: getTrCommitChangeSkillTemplate(), command: getTrCommitChangeCommandTemplate() },
     { skill: getTrReviewCodeSkillTemplate(), command: getTrReviewCodeCommandTemplate() },
     { skill: getTrReleaseVersionSkillTemplate(), command: getTrReleaseVersionCommandTemplate() },

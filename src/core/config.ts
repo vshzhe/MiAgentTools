@@ -15,7 +15,6 @@ export type SkillType =
     | 'tr_init'
     | 'tr_impl'
     | 'tr_test'
-    | 'tr_test_gentest'
     | 'tr_commit'
     | 'tr_review'
     | 'tr_release'
@@ -34,12 +33,7 @@ export interface SkillTypeMeta {
 export const SKILL_TYPES: SkillTypeMeta[] = [
     { id: 'tr_init', name: '初始化', description: '项目与工作环境的初始化：目录结构、配置、脚手架' },
     { id: 'tr_impl', name: '实现', description: '功能开发与实现：编写代码、修改逻辑、接口对接' },
-    { id: 'tr_test', name: '测试', description: '测试相关：编写用例、运行测试、覆盖率检查' },
-    {
-        id: 'tr_test_gentest',
-        name: 'Java 测试',
-        description: '语言特定测试生成：Java 项目单元测试，JUnit/Mockito 框架适配',
-    },
+    { id: 'tr_test', name: '测试', description: '测试相关：编写用例、运行测试、覆盖率检查（多 schema：Java/Node 自动适配）' },
     { id: 'tr_commit', name: '提交', description: '代码提交：变更检查、提交信息规范、暂存管理' },
     { id: 'tr_review', name: '审查', description: '代码审查：质量检查、规范核对、问题发现' },
     { id: 'tr_release', name: '版本', description: '版本发布：版本号管理、变更日志、发布流程' },

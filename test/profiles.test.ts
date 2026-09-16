@@ -6,11 +6,11 @@ import { describe, it, expect } from 'vitest';
 import { resolveWorkflows, DEFAULT_WORKFLOWS, DEPS } from '../src/core/profiles.js';
 
 describe('resolveWorkflows', () => {
-    it('未配置（undefined）返回默认集 9 项，无注入', () => {
+    it('未配置（undefined）返回默认集 8 项，无注入', () => {
         const result = resolveWorkflows(undefined);
         expect(result.workflows).toEqual([...DEFAULT_WORKFLOWS]);
         expect(result.injected).toEqual([]);
-        expect(result.workflows.length).toBe(9);
+        expect(result.workflows.length).toBe(8);
     });
 
     it('空数组视为未配置，返回默认集', () => {
@@ -111,7 +111,7 @@ describe('resolveWorkflows', () => {
             'spec-apply',
             'spec-archive',
             'tr-impl-frontend',
-            'tr-test-gentest-java',
+            'tr-test-generate',
             'tr-impl-review-proposal',
             'tr-docs-requirement-doc',
         ]) {
@@ -127,7 +127,7 @@ describe('resolveWorkflows', () => {
             'spec-apply',
             'spec-archive',
             'tr-impl-frontend',
-            'tr-test-gentest-java',
+            'tr-test-generate',
             'tr-impl-review-proposal',
             'tr-docs-requirement-doc',
             'spec-verify-proposal',

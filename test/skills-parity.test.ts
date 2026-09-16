@@ -115,6 +115,6 @@ describe('skills/ 静态快照与模板一致性', () => {
         // 25 个 workflow id 无重复
         const allIds = templates.map((t) => t.commandId);
         expect(new Set(allIds).size).toBe(allIds.length);
-        expect(allIds.length).toBe(26);
+        expect(allIds.length).toBe(25);
     });
 });
