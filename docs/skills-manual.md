@@ -1932,7 +1932,8 @@ VenusAgentTools 项目自身使用 OpenSpec 工作流管理演进，已归档 **
 | 2026-09-14 | add-spec-workflow | 第 8 类 spec + 6 个 spec 技能 + venus CLI spec 命令组 |
 | 2026-09-14 | add-tr-workflow-suite | 5 个工作流编排技能 |
 
-进行中变更 1 个：`refactor-spec-workflow-template-single-source`（模板单一来源重构）。
+进行中变更 2 个：`refactor-spec-workflow-template-single-source`（模板单一来源重构）、
+`enhance-test-generate`（test_generate v3.0 多 schema 合并 gentest_java）。
 
 ## 11.2 测试覆盖
 
@@ -2008,5 +2009,5 @@ CLI-degraded 模式等），保证流程总能走通，但降级发生时的质�
 
 ---
 
-*本文档基于 `skills/` 全部 23 个 SKILL.md 静态快照与 `openspec/changes/` 演进记录编写；
+*本文档基于 `skills/` 全部 25 个 SKILL.md 静态快照与 `openspec/changes/` 演进记录编写；
 技能行为以 SKILL.md 实际内容为准。对比分析见 [openspec-comparison.md](openspec-comparison.md)。*
