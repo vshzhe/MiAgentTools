@@ -80,6 +80,20 @@
   作为后续功能集成的基础；已存在的依赖只检测不升级，
   安装失败仅警告不阻断主流程，`--no-deps` 可跳过
 
+- 新增技能 `venus_tr_commit_push`（指令 `tr-commit-push`，迁移自源 SKILL tr-commit-push 并新增
+  提案分类提交）：SVN 交互式提交——四环节强制确认（提交范围 → 内容清单与功能描述 →
+  知识库推送询问 → 最终确认，缺一不可）、提交范围排除（target/、*.class 等编译产物永不提交，
+  优先级最高）、UTF-8 无 BOM 注释落盘 + `--encoding UTF-8 -F`、SVN 证书/凭据处理
+  （E230001/E215004，密码仅内存与 stdin）、提交后双验证（svn status + svn log --xml）、
+  知识库推送（llm-wiki MCP 逐项确认，单次最多 5 个文件分批）；核心增量提案分类提交——
+  `/venus:tr-commit-push 提交 <提案名> 提案` 按提案将变更自动归类功能代码/测试代码/文档三类
+  （src/test/**、test/**、*Test.java、*Tests.java、*.test.* 归测试；已纳管 docs/**、其余 *.md、
+  已纳管 openspec/ 制品归文档；其余归功能代码），N 笔分类分批提交，每笔提交信息尾行标注
+  `提案: <变更名>` 溯源，提案关联校验不阻断由用户裁决，任一笔失败即停不回滚已成功笔。
+  现有 `venus_tr_commit_change`（Git 版）行为零变更，两技能按 VCS 划分职责（SVN 项目用
+  tr-commit-push、Git 项目用 tr-commit-change）；不入默认集，经 `.venus/config.yaml` 的
+  `workflows` 勾选 `tr-commit-push` 安装
+
 
 ## [0.1.0] - 2026-09-08
 
