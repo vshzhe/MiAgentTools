@@ -27,9 +27,9 @@ afterAll(() => {
 });
 
 describe('listAllWorkflowIds', () => {
-    it('返回全部 25 个 workflow id', () => {
+    it('返回全部 26 个 workflow id', () => {
         const ids = listAllWorkflowIds();
-        expect(ids.length).toBe(25);
+        expect(ids.length).toBe(26);
         expect(ids).toContain('tr-init-project');
         expect(ids).toContain('spec-explore');
         expect(ids).toContain('spec-verify-proposal');

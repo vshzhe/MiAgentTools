@@ -17,7 +17,7 @@ let tempRoot: string;
 
 beforeAll(() => {
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'venus-test-'));
-    // 配置全量 workflows，让 init 装全部 25 个技能（默认集仅 8 个）
+    // 配置全量 workflows，让 init 装全部 26 个技能（默认集仅 8 个）
     ensureProjectConfig(tempRoot);
     writeWorkflowsToConfig(tempRoot, getSkillTemplates().map((e) => e.commandId));
 });
@@ -27,10 +27,10 @@ afterAll(() => {
 });
 
 describe('venus init', () => {
-    it('生成 25 个 SKILL.md 与 25 个指令文件到 .claude/', () => {
+    it('生成 26 个 SKILL.md 与 26 个指令文件到 .claude/', () => {
         const result = runInit(tempRoot);
-        expect(result.skillsInstalled.length).toBe(25);
-        expect(result.commandsInstalled.length).toBe(25);
+        expect(result.skillsInstalled.length).toBe(26);
+        expect(result.commandsInstalled.length).toBe(26);
         expect(result.skipped.length).toBe(0);
 
         // 技能文件实际存在且内容合法
@@ -51,10 +51,10 @@ describe('venus init', () => {
     it('重复 init 跳过已存在文件，--force 覆盖', () => {
         const skipped = runInit(tempRoot);
         expect(skipped.skillsInstalled.length).toBe(0);
-        expect(skipped.skipped.length).toBe(50); // 25*2 已存在
+        expect(skipped.skipped.length).toBe(52); // 26*2 已存在
 
         const forced = runInit(tempRoot, { force: true });
-        expect(forced.skillsInstalled.length).toBe(25);
+        expect(forced.skillsInstalled.length).toBe(26);
         expect(forced.skipped.length).toBe(0);
     });
 
@@ -64,9 +64,9 @@ describe('venus init', () => {
 });
 
 describe('venus list', () => {
-    it('扫描结果包含 25 个技能且类型解析正确', () => {
+    it('扫描结果包含 26 个技能且类型解析正确', () => {
         const skills = scanInstalledSkills(tempRoot);
-        expect(skills.length).toBe(25);
+        expect(skills.length).toBe(26);
         const pwd = skills.find((s) => s.name === 'venus_tr_tools_pwd');
         expect(pwd?.type).toBe('tr_tools');
         expect(pwd?.description).toBeTruthy();
@@ -77,7 +77,7 @@ describe('venus list', () => {
             total: number;
             skills: { name: string; type: string | null }[];
         };
-        expect(json.total).toBe(25);
+        expect(json.total).toBe(26);
         expect(json.skills.filter((s) => s.type === 'tr_init').length).toBe(1);
     });
 
@@ -184,9 +184,9 @@ describe('workflows 过滤（profile 生效）', () => {
             writeWorkflowsToConfig(root, ['spec-explore']);
             const result = runInit(root, { force: true });
             expect(result.workflowsSource).toBe('user');
-            // 遗留 24 个技能 + 24 个指令（25 - spec-explore），保留未删
-            expect(result.reconcileOrphans.skills.length).toBe(24);
-            expect(result.reconcileOrphans.commands.length).toBe(24);
+            // 遗留 25 个技能 + 25 个指令（26 - spec-explore），保留未删
+            expect(result.reconcileOrphans.skills.length).toBe(25);
+            expect(result.reconcileOrphans.commands.length).toBe(25);
             expect(
                 result.reconcileOrphans.skills.some((s) => s.includes('venus_tr_impl_feature'))
             ).toBe(true);

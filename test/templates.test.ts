@@ -10,8 +10,8 @@ describe('模板注册表', () => {
     const skills = getSkillTemplates();
     const commands = getCommandTemplates();
 
-    it('内置 25 个技能（9 类：8 类 tr_* 共 17 技能 + spec 类 7 技能 + 1 类 tr_test）', () => {
-        expect(skills.length).toBe(25);
+    it('内置 26 个技能（9 类：8 类 tr_* 共 18 技能 + spec 类 7 技能 + 1 类 tr_test）', () => {
+        expect(skills.length).toBe(26);
     });
 
     it('全部技能名以 venus_ 开头', () => {
