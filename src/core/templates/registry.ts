@@ -36,6 +36,10 @@ import {
 } from './workflows/tr-impl-debug.js';
 import { getTrTestGenerateSkillTemplate, getTrTestGenerateCommandTemplate } from './workflows/tr-test.js';
 import { getTrCommitChangeSkillTemplate, getTrCommitChangeCommandTemplate } from './workflows/tr-commit.js';
+import {
+    getTrCommitPushSkillTemplate,
+    getTrCommitPushCommandTemplate,
+} from './workflows/tr-commit-push.js';
 import { getTrReviewCodeSkillTemplate, getTrReviewCodeCommandTemplate } from './workflows/tr-review.js';
 import { getTrReleaseVersionSkillTemplate, getTrReleaseVersionCommandTemplate } from './workflows/tr-release.js';
 import {
@@ -115,6 +119,7 @@ const WORKFLOW_PAIRS: WorkflowPair[] = [
     { skill: getTrImplFrontendSkillTemplate(), command: getTrImplFrontendCommandTemplate() },
     { skill: getTrTestGenerateSkillTemplate(), command: getTrTestGenerateCommandTemplate() },
     { skill: getTrCommitChangeSkillTemplate(), command: getTrCommitChangeCommandTemplate() },
+    { skill: getTrCommitPushSkillTemplate(), command: getTrCommitPushCommandTemplate() },
     { skill: getTrReviewCodeSkillTemplate(), command: getTrReviewCodeCommandTemplate() },
     { skill: getTrReleaseVersionSkillTemplate(), command: getTrReleaseVersionCommandTemplate() },
     { skill: getTrToolsPwdSkillTemplate(), command: getTrToolsPwdCommandTemplate() },
