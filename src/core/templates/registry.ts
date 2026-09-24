@@ -43,6 +43,10 @@ import {
 import { getTrReviewCodeSkillTemplate, getTrReviewCodeCommandTemplate } from './workflows/tr-review.js';
 import { getTrReleaseVersionSkillTemplate, getTrReleaseVersionCommandTemplate } from './workflows/tr-release.js';
 import {
+    getReleasePackageSkillTemplate,
+    getReleasePackageCommandTemplate,
+} from './workflows/release-package.js';
+import {
     getTrToolsPwdSkillTemplate,
     getTrToolsPwdCommandTemplate,
     getTrToolsListSkillTemplate,
@@ -122,6 +126,7 @@ const WORKFLOW_PAIRS: WorkflowPair[] = [
     { skill: getTrCommitPushSkillTemplate(), command: getTrCommitPushCommandTemplate() },
     { skill: getTrReviewCodeSkillTemplate(), command: getTrReviewCodeCommandTemplate() },
     { skill: getTrReleaseVersionSkillTemplate(), command: getTrReleaseVersionCommandTemplate() },
+    { skill: getReleasePackageSkillTemplate(), command: getReleasePackageCommandTemplate() },
     { skill: getTrToolsPwdSkillTemplate(), command: getTrToolsPwdCommandTemplate() },
     { skill: getTrToolsListSkillTemplate(), command: getTrToolsListCommandTemplate() },
     // 迁移套件（tr_docs）：源项目功能扫描与需求文档生成
