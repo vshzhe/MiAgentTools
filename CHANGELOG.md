@@ -7,6 +7,20 @@
 
 ## [Unreleased]
 
+（暂无）
+
+## [1.0.1] - 2026-09-24
+
+### Added
+
+- `AGENTS.md` 新增「修改守则」第 8 条：**版本号更新规则** —— 完成功能变更时按 SemVer
+  三段（BREAKING → major / 功能新增或变更 → minor / 修复·文档·重构·测试·构建 → patch）
+  递增 `package.json` 的 `version`，把 `[Unreleased]` 归档为对应版本小节并同步底部链接引用，
+  二者**随本次功能提交一并提交**（不再单独提交 `chore: 版本号`）
+- `README.md` 安装验证示例中的 `venus --version` 输出同步为当前版本号
+
+## [1.0.0] - 2026-09-24
+
 ### BREAKING
 
 - `venus init` 默认行为变化：从全量安装 14 个技能改为安装默认集 7 个
@@ -139,5 +153,7 @@
 - 项目配置从单文件 `venus.config.yaml` 重构为 `.venus/` 目录结构
   （`config.yaml` 显式引用 `rules/` 下规则文件），重复 init 保留用户全部修改
 
-[Unreleased]: https://github.com/venus-agent-tools/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/venus-agent-tools/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/venus-agent-tools/compare/v1.0.0...v1.0.1
+[1.0.0]: https://github.com/venus-agent-tools/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/venus-agent-tools/releases/tag/v0.1.0

@@ -71,6 +71,24 @@ node bin/venus.js <cmd> # 直接运行 CLI
    成对标记（仅 skill 版可见）；未标记段落默认进入 command 版（fail-safe：漏标
    只会让 command 更长，不会缺失防护语句）；Guardrails 段永不标记。改动模板后
    仍须依次 `pnpm build && pnpm generate:skills`（见第 1 条）
+8. **版本号更新**：完成功能变更时同步更新版本号与变更日志，二者**随本次功能提交一并提交**
+   （不再单独提交 `chore: 版本号`）。以 `package.json` 当前 `version` 为基线，按改动大小递增：
+
+   | 改动性质 | 典型情形 | 递增位 |
+   |---|---|---|
+   | BREAKING（不兼容） | 删技能、改注册结构、改 CLI 行为或参数、改 frontmatter 契约 | major |
+   | 功能新增或变更 | 新增技能或命令、改技能模板行为、改派生规则 | minor |
+   | 修复/文档/重构/测试/构建 | bug 修复、README/AGENTS 文档、纯重构、测试调整 | patch |
+
+   - `package.json` 的 `version` 字段按上表递增；判定有歧义时取**较大**的递增位
+   - `CHANGELOG.md` 把 `[Unreleased]` 中已累积的条目归档为 `## [<新版本>] - YYYY-MM-DD`
+     小节（Keep a Changelog 格式，沿用 `### BREAKING` / `### Added` / `### Changed` 子标题），
+     保留一个空的 `## [Unreleased]` 供后续累积，并同步文件底部的链接引用定义
+     （`[Unreleased]` 的比较基线改为新版本 tag，新增 `[<新版本>]` 的 compare/tag 链接）
+   - 其它出现版本号的位置同步更新（当前为 `README.md` 安装验证中的 `venus --version` 输出示例；
+     新增此类引用时一并纳入本规则）
+   - 版本号同时写入生成产物 frontmatter 的 `generatedBy`，该字段仅用于 `venus update`
+     的手改保护判定 —— **无需**为递增版本号单独刷新 `.claude/` dogfood 产物
 
 ## 项目约定
 
