@@ -1,7 +1,7 @@
 ---
 name: venus_spec_archive
 description: 归档变更。当用户要归档已实现完成的变更、结束变更工作流时使用。
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*), Bash(ls:*)
 license: MIT
 compatibility: 依赖 venus CLI（spec 命令组）与 CodeGraph CLI（可选）。
 metadata:

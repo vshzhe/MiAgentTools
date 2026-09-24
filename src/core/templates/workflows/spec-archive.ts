@@ -8,7 +8,7 @@ export function getSpecArchiveChangeSkillTemplate(): SkillTemplate {
     return {
         name: 'venus_spec_archive',
         description: '归档变更。当用户要归档已实现完成的变更、结束变更工作流时使用。',
-        allowedTools: 'Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*)',
+        allowedTools: 'Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*), Bash(ls:*)',
         type: 'spec',
         instructions: `**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.**
 

@@ -1,7 +1,7 @@
 ---
 name: venus_tr_impl_debug
 description: "一站式调试工作流 reproduce→investigate root cause with CodeGraph and capability memory→change association→fix with mandatory regression test→compile check→synchronize proposal→verify；触发词\"调试 / debug / 修复 bug / bug 报告 / 复现 / 根因\"；NOT-for：新功能开发用 venus_tr_impl_feature、工作流编排用 venus_tr_impl_workflow"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(codegraph:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(codegraph:*), Bash(tsc:*), Bash(mvn:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*)
 license: MIT
 compatibility: 依赖 venus CLI（spec 命令组）与 venus_spec_verify_proposal / venus_tr_docs_requirement_doc 技能；CodeGraph MCP 可选（不可用时降级 Glob/Grep）。
 metadata:

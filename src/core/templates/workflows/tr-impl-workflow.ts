@@ -1526,7 +1526,7 @@ All artifacts ready! Run \`/venus:spec-apply\` to implement.
 - **Do inject capability memory** - Phase 1 reads specs/<capability>/explorations.md when it exists
 - **Do scan other projects with CodeGraph** - When exploration context contains other project paths, spawn sub-agent to scan them using CodeGraph projectPath parameter; fall back to Glob/Grep on failure
 - **Do auto-generate requirement doc** - After full pass (D1-D5 + deep review), invoke venus_tr_docs_requirement_doc non-interactively; on FAIL do not generate; on generation failure WARN and continue`,
-        allowedTools: 'Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*)',
+        allowedTools: 'Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), Bash(ls:*)',
         type: 'tr_impl',
         license: 'MIT',
         compatibility: '依赖 venus CLI（spec 命令组）；CLI 缺失时降级为 AI 内联生成（CLI-degraded generation）。',
