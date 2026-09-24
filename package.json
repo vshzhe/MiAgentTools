@@ -1,6 +1,6 @@
 {
   "name": "venus-agent-tools",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "AI Agent 技能生成与管理 CLI —— 按生命周期类型（tr_*）分类生成 venus_ 前缀的 SKILL 与指令",
   "keywords": [
     "venus",
