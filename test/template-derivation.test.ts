@@ -53,4 +53,19 @@ describe('模板派生一致性（spec 工作流单一源）', () => {
             expect(commandById.get(commandId)?.content).toContain('Guardrails');
         }
     });
+
+    it('spec-explore 的功能流程图块不被 CMD:SKIP 裁掉（指令版同样需要本制品）', () => {
+        const explore = skillEntries.find((e) => e.template.name === 'venus_spec_explore');
+        expect(explore).toBeDefined();
+        const instructions = explore?.template.instructions ?? '';
+        const derived = commandById.get(explore?.commandId ?? '')?.content ?? '';
+
+        // 唯一源含本制品
+        expect(instructions).toContain('功能流程图（Functional Flowchart）');
+        // 派生输出必须保留：块若被 <!-- CMD:SKIP --> 包裹，此断言失败
+        expect(derived).toContain('功能流程图（Functional Flowchart）');
+        // 关键约束语句随块一并保留
+        expect(derived).toContain('流程最终确认门');
+        expect(derived).toContain('[新建]');
+    });
 });

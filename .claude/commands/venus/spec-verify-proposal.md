@@ -1,6 +1,6 @@
 ---
 name: "Venus: 提案验证门"
-description: Verify artifacts with quantified scoring - 9-dimension check with tech stack detection
+description: Verify artifacts with quantified scoring - 10-dimension check with tech stack detection
 allowed-tools: Bash(venus:*)
 category: Venus / 规格
 tags: [venus, spec, verify, proposal]
@@ -10,9 +10,9 @@ tags: [venus, spec, verify, proposal]
 
 Verify artifacts against exploration results before implementation.
 
-This skill performs enhanced 9-dimension verification with quantified scoring and tech stack detection.
+This skill performs enhanced 10-dimension verification with quantified scoring and tech stack detection.
 
-**Read-only verification steps execute without confirmation**: artifact reading, file scanning, CodeGraph queries, and D1-D9 scoring analysis run directly without mid-flow confirmation prompts. Only the verification report (and genuinely user-owned choices, e.g., choosing a fix path after a FAIL verdict) is surfaced to the user.
+**Read-only verification steps execute without confirmation**: artifact reading, file scanning, CodeGraph queries, and D1-D10 scoring analysis run directly without mid-flow confirmation prompts. Only the verification report (and genuinely user-owned choices, e.g., choosing a fix path after a FAIL verdict) is surfaced to the user.
 
 ---
 
@@ -71,7 +71,7 @@ If tech stack detected:
 
 ## Change Type Auto-Detection
 
-Before executing D6-D9, detect the change type by scanning design.md and specs:
+Before executing D6-D10, detect the change type by scanning design.md and specs:
 
 **Detection Rules** (scan design.md and specs/*.md for keywords):
 
@@ -81,18 +81,19 @@ Before executing D6-D9, detect the change type by scanning design.md and specs:
 | D7: API Contract | endpoint, route, handler, controller, POST, GET, PUT, DELETE, API, request, response | Execute D7 |
 | D8: Database Mapping | table, column, schema, DDL, migration, 表, 字段, 数据库, database, SQL | Execute D8 |
 | D9: Business Steps | 流程, 状态机, 多步骤, 条件分支, 事务, transaction, workflow, state machine, conditional | Execute D9 |
+| D10: Flowchart Node Coverage | 探索产物含 `## 功能流程图` 段 | Execute D10 |
 
 **Detection Output**:
 ```
 Detected Change Type: [Full-Stack / Backend-Only / Frontend-Only / DB-Schema]
-Enabled Dimensions: D6 [✓/✗], D7 [✓/✗], D8 [✓/✗], D9 [✓/✗]
+Enabled Dimensions: D6 [✓/✗], D7 [✓/✗], D8 [✓/✗], D9 [✓/✗], D10 [✓/✗]
 ```
 
 Non-triggered dimensions are marked "不适用" and skipped in scoring.
 
 ---
 
-## 9-Dimension Verification with Scoring
+## Dimension Verification with Scoring (D1-D10)
 
 ### Dimension 1: Requirement Coverage
 
@@ -293,16 +294,53 @@ D9 Score = (complex ops with decomposition / total complex ops) * 100%
 **FAIL examples**:
 - "D9 FAIL: 用户下单流程 (4步骤, 含事务) 未拆解 —— 需要标注执行层和异常路径"
 
+### Dimension 10: Flowchart Node Coverage (流程图节点覆盖度) [Auto-triggered by 功能流程图 段]
+
+**Trigger**: 探索产物 `exploration.md` 含 `## 功能流程图` 段时触发（该段由探索阶段产出并经流程最终确认门确认）。
+
+**Check**: `## 功能流程图` 段的**关键操作节点清单**中的每个节点，是否被 design.md（节点清单引用 / 关键操作节点描述）或 tasks.md（任务标注的节点 id）覆盖
+—— 检查提案与**外部流程基准**的偏差，而非提案自身的完整性。
+
+**Coverage calculation**:
+```
+D10 Score = (被 design/tasks 覆盖的节点数 / 流程图总节点数) * 100%
+```
+
+**覆盖判定（两级，优先显式标注）**:
+1. **显式标注匹配（优先，可复现）**：tasks 任务标注了对应节点 id（`[N4]` 形）即视为该节点被覆盖；design.md 显式引用该节点 id 或节点操作名亦计入
+2. **语义等价判定（补充）**：节点未被显式标注时，MAY 以 AI **语义等价判定**补充 —— 同一操作的**不同措辞**算命中（如节点"扣减库存"与任务"库存预占"视为同一操作）；
+   语义判定 MUST 能指出具体对应之处，MUST NOT 笼统放行
+
+**PASS condition**: 覆盖度 ≥ 90%（与统一阈值一致）。
+
+**纳入既有总分（triggered 集合）**: 本维度纳入既有总分公式的 `triggered` 集合，与 D1-D9 **同权重**参与平均分：
+`Overall Score = (D1 + … + D5 + sum(triggered)) / (5 + triggered_count)`。既有 D1-D9 的算法核心与公式本身 MUST NOT 被本维度改动。
+
+**与 D9 的职责分离（自证 vs 他证）**: D9（Business Steps）检查提案**自身**是否拆解复杂操作（**自证**，SHALL 保留不动，MUST NOT 被本维度替换或缩窄）；
+本维度检查提案与**外部流程基准**（经用户确认的功能流程图）的偏差（**他证**）。两者互补：D9 查"是否拆了"，本维度查"是否拆对 / 拆全"。
+
+**缺失处理（SKIP，向后兼容）**: 无 `## 功能流程图` 段（含该段存在但**未获用户确认**）时，本维度 SHALL 标 **SKIP** 并从总分**分母中排除**（不计入 `triggered_count`），
+MUST NOT 按 0 分拉低总分、MUST NOT 据此判 FAIL —— 保证归档期既有变更、纯文档 / 纯配置变更不被误伤。
+
+**FAIL 输出（偏差可定位）**: 本维度低于阈值时，报告 MUST **逐条列出未被 design/tasks 覆盖的节点标识与操作名**（如 `N5 分批查询 — 无对应任务`），
+使偏差定位到具体节点，MUST NOT 仅给出覆盖度百分比。
+
+**只读约束**: 本维度为**只读评分** —— 本技能 `allowedTools` 为 `Read, Glob, Grep, Bash(venus:*)`（无 Write/Edit），MUST NOT 要求本技能自行编辑 design.md / tasks.md 修复；
+修复建议仅呈现给调用方，由 propose 阶段或用户处置。
+
+**FAIL examples**:
+- "D10 FAIL: 节点 N5 分批查询 未被 design/tasks 覆盖（覆盖度 83% = 5/6）"
+
 ---
 
 ## Overall Score Calculation
 
 ```
 Core D1-D5 Score = (D1 + D2 + D3 + D4 + D5) / 5
-Interaction D6-D9 Score = average of triggered dimensions only
+Interaction D6-D10 Score = average of triggered dimensions only
 Non-triggered dimensions excluded from calculation
 
-Overall Score = (D1 + D2 + D3 + D4 + D5 + sum(triggered D6-D9)) / (5 + triggered_count)
+Overall Score = (D1 + D2 + D3 + D4 + D5 + sum(triggered D6-D10)) / (5 + triggered_count)
 
 Threshold interpretation (unified 90% — the previous 70%/90% dual-band is removed):
 - ≥90%: High quality, ready for implementation (PASS — auto-trigger inline deep review per "Pass Handling")

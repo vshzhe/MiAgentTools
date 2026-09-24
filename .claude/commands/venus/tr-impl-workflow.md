@@ -69,6 +69,18 @@ Write the initial file structure with enhanced sections:
 ## Background
 <User's initial description>
 
+## 功能流程图 (Functional Flowchart)
+
+<!-- 1.5.5 强制产出：Mermaid flowchart TD 承担顺序与分支骨架，节点 id N<序号> 在图中与表中 MUST 稳定一致 -->
+<!-- 初始为空；探索分析完成后由 1.5.5 填写并经流程最终确认门确认 -->
+
+| 节点 | 操作 | 触发条件 | 证据位置 | 异常路径 |
+| :--- | :--- | :--- | :--- | :--- |
+| N1 | <操作> | <前置条件，无则 "—"> | <文件:行 或 类.方法；新建功能标 [新建] + 预期产物> | <失败去向 → N<id>，无则 "—"> |
+
+> 确认后的流程图 = **流程基准**；未经用户确认的流程图 MUST NOT 作为提案的生成锚点。
+> 发现遗漏节点 MUST 回到 1.5.5 更新并重新确认，MUST NOT 在 tasks.md 中静默补节点。
+
 ## Analysis (optional - if analysis run)
 ### Security Findings
 <Security vulnerabilities from Semgrep>
@@ -414,6 +426,20 @@ Apply the full grill-with-docs discipline: grilling primitive (decision tree wal
 | Confirmed choices | Decisions |
 | Unresolved | Pending |
 
+### 1.5.5 Functional Flowchart & Flow Final Confirmation Gate (MANDATORY CHECKPOINT)
+
+**⚠️ MANDATORY: 探索分析完成后必须强制产出功能流程图，并经流程最终确认门确认后才进入 1.6。** 本制品不因"本次判定无流程"而跳过，也 MUST NOT 留空；用户确认前 MUST NOT 进入 1.6，MUST NOT 把未确认流程图当作提案锚点。
+
+**功能流程图（Functional Flowchart）**: 把探索发现的业务功能流程固化为探索产物 `## 功能流程图` 段（Mermaid `flowchart TD` + 关键操作节点清单表）。
+- **节点粒度** = 可独立验证的业务操作单元（用户操作 / 业务判定 / 数据写入 / 外部调用）；节点标识在图中与表中 MUST 一致，多流程时全局唯一递增
+- **清单列集**：节点 / 操作 / 触发条件 / 证据位置 / 异常路径
+- **证据追溯（硬约束）**：每节点 MUST 填 `文件:行` 或 类.方法；新建功能标 `[新建]` + 预期产物；无法追溯证据的节点 MUST NOT 进入清单
+- **流程最终确认门（阻塞）**：呈现流程图与清单并等待确认；出口四条：确认 / 修改 / 拒绝（记未确认状态，提案降级 + 验证该维度 SKIP）/ 显式授权按推断（推断节点标 `[推断]`）——不得陷入等待死锁
+- **回改规则**：发现遗漏节点 MUST 回探索更新并重新确认，MUST NOT 在任务清单静默补节点
+- 节点数超 50 时按子流程分节；本块 MUST NOT 含任何 Bash 命令示例
+
+**回改规则**：探索或提案阶段发现遗漏节点 MUST 回到本步骤（1.5.5）更新流程图与节点清单并**重新经用户确认**；MUST NOT 在 tasks.md 中静默补节点。确认后的流程图 = **流程基准**，随探索文件迁移（Phase 2.3）一并进入变更目录。
+
 ### 1.6 Completion Detection
 
 When all clear, apply consistency passthrough (replaces the confirmation prompt):
@@ -639,4 +665,7 @@ Ready for `/venus:spec-apply`
 - Do provide recommendations
 - Do update file real-time
 - Do use structured format
+- Must produce the functional flowchart - 1.5.5 强制产出探索文件 `## 功能流程图` 段并执行流程最终确认门；确认前不进入 1.6、不把未确认流程图当作提案锚点
+- Don't deadlock on the flowchart gate - 四条出口（确认 / 修改 / 拒绝后记录未确认状态并按原理解继续 / 显式授权按推断继续）
+- Don't silently add flowchart nodes in tasks - 遗漏节点 MUST 回到 1.5.5 更新并重新确认
 - Do show quantified scores

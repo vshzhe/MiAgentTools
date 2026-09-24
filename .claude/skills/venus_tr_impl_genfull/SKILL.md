@@ -8,7 +8,7 @@ metadata:
   author: venus-agent-tools
   version: "1.0"
   type: tr_impl
-  generatedBy: "0.1.0"
+  generatedBy: "1.1.0"
 ---
 
 **Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** In Stage 1 (Exploration), follow Section 1 (Zero-Assumption). In Stage 2 (Proposal), follow Section 2 (Design-First). In Stage 3 (Implementation), check Sections 3-5 for compliance.
@@ -130,6 +130,76 @@ Use the **TodoWrite tool** to initialize tracking:
 - **原因**：`venus_spec_verify_proposal` 无 exploration.md 则报错退出，这是硬依赖
 - 记录兜底动作到 TodoWrite
 
+### ①.1 功能流程图兜底补建与确认（硬依赖）
+
+- 检查 exploration.md 是否含 `## 功能流程图` 段——Stage 1 委派的 `venus_spec_explore` 走**条件触发**分支（纯概念探讨 / 未浮现明确业务功能流程）时可能未产出
+- **若缺失（强制补建）**：由 genfull 依据 exploration.md 的 **Decisions / 边界场景 / Codebase Findings** 强制补建流程图与节点清单并写入该段——规则与 tr-impl-workflow 1.5.5 完全一致（节点证据追溯、`[新建]` 标记 + 预期产物、异常路径）
+- **并入 ⑥ 门决策**：补建完成后随 Bridge 1 门决策一并请用户确认**流程基准**；用户确认前 MUST NOT 进入 Stage 1.5 / Stage 2，MUST NOT 把未确认流程图当作 propose 的生成锚点
+- **幂等**：exploration.md 已含**经用户确认**的 `## 功能流程图` 段时（Stage 1 的 explore 已产出并确认，或本次会话 Bridge 1 已确认）**直接通过本步骤**，MUST NOT 重复产出或再次要求用户确认
+- 记录补建 / 直通动作到 TodoWrite
+
+**补建规则（生成 → 用户最终确认 → 落盘）**：
+
+### 功能流程图（Functional Flowchart）
+
+**Step 1 — 生成流程图与节点清单**
+
+把探索发现的业务功能流程固化为探索产物的 `## 功能流程图` 段，由两部分组成：
+
+```mermaid
+flowchart TD
+  N1[录入申请单] --> N2{校验通过?}
+  N2 -- 否 --> N3[提示错误]
+  N2 -- 是 --> N4[扣减库存]
+  N4 --> N5[写入订单]
+  N5 --> N6[发送通知]
+```
+
+节点清单表（表头与列以本场景列集为准）：
+
+本场景列集（共 5 列）：节点 / 操作 / 触发条件 / 证据位置 / 异常路径
+
+| 节点 | 操作 | 触发条件 | 证据位置 | 异常路径 |
+| :--- | :--- | :--- | :--- | :--- |
+<节点 | 操作 | 触发条件 | 证据位置 | 异常路径>
+
+列定义：
+
+| 列名 | 填写要求 | 必填性 |
+| :--- | :--- | :--- |
+| 节点 | 节点标识，形如 N1 / N2，在流程图与清单表中 MUST 稳定一致 | 必填 |
+| 操作 | 该节点完成的操作，业务语义表述（如"扣减库存"） | 必填 |
+| 触发条件 | 执行本节点的前置条件；无前置条件时以 "—" 占位 | 可选 |
+| 证据位置 | 既有代码标 `文件:行` 或 类.方法；新建功能标 `[新建]` 并写明预期产物 | 必填 |
+| 异常路径 | 本节点失败时的去向，用 `→ N<id>` 指向目标节点；无异常分支时以 "—" 占位 | 可选 |
+
+**节点定义与准入规则**：
+
+- **节点粒度** MUST 为**可独立验证的业务操作单元**（一次用户操作 / 一次业务判定 / 一次数据写入 / 一次外部调用）；MUST NOT 细到代码行级，MUST NOT 粗到模块级
+- **节点标识** MUST 在 Mermaid 图与清单表中一致；一个功能含多条独立流程时 SHALL 按流程分小节组织（`### 流程 1` / `### 流程 2`），节点标识 SHALL **全局唯一递增**
+- **证据追溯是硬约束**：每个节点 MUST 填写证据位置（`文件:行` 或 类.方法）；**新建功能**节点 SHALL 标 `[新建]` 并写明预期产物（新增哪个类 / 页面 / 接口），MUST NOT 要求预测文件路径；**无法追溯证据的节点 MUST NOT 进入清单**——虚假节点会成为提案的生成锚点，把偏差结构化固化，比散文偏差更难发现
+- 节点数超过 50 时 SHALL 按子流程分节：主流程图以子流程节点聚合，子流程各自展开清单表
+
+**Step 2 — 流程最终确认门（阻塞）**
+
+向用户呈现流程图与节点清单并**停止等待确认**；用户确认前 MUST NOT 进入探索完成检测，MUST NOT 将流程图传递给提案阶段。
+
+出口有四条，不得只认一条：
+
+① 用户确认 → 以确认版为**流程基准**
+② 用户修改 → 以修改版为流程基准
+③ 用户拒绝 → 记录原始流程图与**未确认状态**：提案降级为仅凭探索产物生成，验证的节点覆盖度维度 SKIP
+④ 用户显式授权按推断继续 → 将推断节点标 `[推断]` 记入后继续
+
+**MUST NOT 反复要求确认或陷入等待死锁。**
+
+**Step 3 — 落盘与回改规则**
+
+- 流程图与节点清单落盘为探索产物的 `## 功能流程图` 段，随探索文件迁移一并进入变更目录
+- 确认后的流程图 = **流程基准**，是独立于提案自身的交叉验证锚点（区别于既有业务步骤维度的"自证"）
+- 探索或提案阶段发现**遗漏节点**时 MUST 回到本步骤更新流程图并**重新经用户确认**；MUST NOT 在任务清单中静默补节点——静默补全正是偏差的主要来源
+- 流程基准变更 MUST 回到本确认门重新确认
+
 ### ② CONTEXT.md 存在性校验
 
 - 检查 `openspec/CONTEXT.md` 存在；缺失则从 exploration.md 术语表补建
@@ -156,6 +226,7 @@ Use the **TodoWrite tool** to initialize tracking:
 ### ⑥ 门决策（引导模式）
 
 - 暂停并向用户呈现：探索摘要 + 信号判定结果 + impact 摘要
+- **流程基准确认**：若 ①.1 补建了 `## 功能流程图` 段，一并呈现流程图与节点清单请用户确认流程基准；已含经用户确认的流程图时不再重复确认（幂等）
 - 等待用户确认"进入提案"
 - 用户可回退继续探索
 
@@ -320,6 +391,8 @@ Stage 1 探索 → Bridge 1 → [Stage 1.5 前端设计（条件）] → Stage 2
 - **Do deep review + requirement doc after verify PASS** - verify PASS 后先深度复查再生成需求文档（对齐 workflow 3.5），FAIL 不生成
 - **Do impact analysis at Bridge 1** - explore 只准备符号，Bridge 1 补跑 codegraph_impact 传给 propose
 - **Do exploration.md fallback** - explore 不强制产出，Bridge 1 缺失时补建最小版（verify 硬依赖）
+- **Do flowchart fallback** - Bridge 1 ①.1 检查 exploration.md 是否含 `## 功能流程图` 段；**缺失时**依 Decisions / 边界场景 / Codebase Findings 强制补建流程图与节点清单（规则同 tr-impl-workflow 1.5.5：节点证据追溯、`[新建]` 标记、异常路径），并随 ⑥ 门决策请用户确认流程基准；确认前不进入 Stage 1.5 / Stage 2
+- **Do flowchart idempotency** - exploration.md 已含经用户确认的 `## 功能流程图` 段时**直接通过**，不重复产出流程图或再次要求用户确认
 - **Do actionContext.mode detection** - workspace-planning 降级，Bridge 2 前停止
 - **MUST preserve source on migration failure** - 探索文件迁移失败保留源文件
 - **Do explore codebase before asking** - 桥梁判定基于代码探索

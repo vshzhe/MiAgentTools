@@ -8,12 +8,23 @@ import {
     buildPromptGateCompact,
     REQUIREMENT_DIMENSIONS,
 } from '../prompt-gate.js';
+import {
+    buildFlowchartBlock,
+    buildFlowchartCompact,
+    REQUIREMENT_FLOW_COLUMNS,
+} from '../flowchart-gate.js';
 
 /** 需求维度的提示词校验门全文（唯一源渲染，见 prompt-gate.ts） */
 const PROMPT_GATE = buildPromptGateBlock(REQUIREMENT_DIMENSIONS);
 
 /** 需求维度的提示词校验门压缩版（斜杠指令正文复用） */
 const PROMPT_GATE_COMPACT = buildPromptGateCompact(REQUIREMENT_DIMENSIONS);
+
+/** 需求版功能流程图制品全文（唯一源渲染，见 flowchart-gate.ts） */
+const FLOWCHART = buildFlowchartBlock(REQUIREMENT_FLOW_COLUMNS);
+
+/** 需求版功能流程图压缩版（斜杠指令正文复用） */
+const FLOWCHART_COMPACT = buildFlowchartCompact(REQUIREMENT_FLOW_COLUMNS);
 
 export function getTrImplWorkflowSkillTemplate(): SkillTemplate {
     return {
@@ -131,6 +142,18 @@ Write the initial file structure with enhanced sections:
 **确认后的提示词基线**: <经 1.1.2 校验门确认的版本；清晰输入时即原始提示词本身>
 
 > 下游（提案 / 设计 / 规格 / 任务）以提示词基线为唯一语义来源；基线若变更 MUST 回到 1.1.2 重新确认。
+
+## 功能流程图 (Functional Flowchart)
+
+<!-- 1.5.5 强制产出：Mermaid flowchart TD 承担顺序与分支骨架，节点 id N<序号> 在图中与表中 MUST 稳定一致 -->
+<!-- 初始为空；探索分析完成后由 1.5.5 填写并经流程最终确认门确认 -->
+
+| 节点 | 操作 | 触发条件 | 证据位置 | 异常路径 |
+| :--- | :--- | :--- | :--- | :--- |
+| N1 | <操作> | <前置条件，无则 "—"> | <文件:行 或 类.方法；新建功能标 [新建] + 预期产物> | <失败去向 → N<id>，无则 "—"> |
+
+> 确认后的流程图 = **流程基准**（独立于提案自身的交叉验证锚点）；未经用户确认的流程图 MUST NOT 作为提案的生成锚点。
+> 提案 / 验证阶段发现遗漏节点 MUST 回到 1.5.5 更新并重新确认，MUST NOT 在 tasks.md 中静默补节点。
 
 ## Analysis (optional - if analysis run)
 
@@ -766,6 +789,24 @@ The entire section is conditionally shown — only when deep analysis is trigger
 | Unresolved items | Pending |
 
 Use markdown format with proper syntax.
+
+### 1.5.5 Functional Flowchart & Flow Final Confirmation Gate (MANDATORY CHECKPOINT)
+
+**⚠️ MANDATORY: 探索分析完成后必须强制产出功能流程图，并经流程最终确认门确认后才进入 1.6。**
+
+触发点：1.3 grill L1-L5 与 1.4 关键词分析均已执行、1.5 探索文件已更新之后。本制品是**强制产出**——不因"本次判定无流程"而跳过，也 MUST NOT 留空。
+
+${FLOWCHART}
+
+**本技能内的执行要求**：
+
+- **强制产出**：把探索发现的业务功能流程固化为探索文件 1.2 结构中的 \`## 功能流程图\` 段（该段已在 1.2 预留）；Mermaid 流程图与节点清单表的节点 id MUST 稳定一致
+- **节点证据追溯**：每节点 MUST 填证据位置——既有代码标 \`文件:行\` 或 类.方法，**新建功能**节点标 \`[新建]\` 并写明预期产物（新增哪个类 / 页面 / 接口）；**无法追溯证据的节点 MUST NOT 进入清单**
+- **四出口确认门**：呈现流程图与节点清单后停止等待确认，出口四条（确认 / 修改 / 拒绝后记录未确认状态并按原理解继续 / 显式授权按推断继续），**MUST NOT 反复要求确认或陷入等待死锁**
+- **回改规则**：探索或提案阶段发现**遗漏节点**时 MUST 回到本步骤（1.5.5）更新流程图与节点清单并**重新经用户确认**；MUST NOT 在 tasks.md 中静默补节点——静默补全正是偏差的主要来源
+- **节点数超 50**：按子流程分节，主流程图以子流程节点聚合、子流程各自展开清单表
+- **确认前不得推进**：用户确认前 MUST NOT 进入 1.6 探索完成检测，MUST NOT 向提案阶段传递流程基准
+- **流程基准用途**：确认后的流程图 = **流程基准**，随探索文件迁移（Phase 2.3）一并进入变更目录，由 1.6.6 聚合一致性门与下游 propose / verify 共同消费
 
 ### 1.6 Exploration Completion Detection
 
@@ -1549,6 +1590,9 @@ All artifacts ready! Run \`/venus:spec-apply\` to implement.
 - **MUST validate prompt before exploring** - 1.1.2 提示词校验门是强制 checkpoint：清晰输入一句话复述理解后直通（不输出校验表、不要求确认）；不明确输入须先做提示词优化并等待用户确认或修改，未确认前 MUST NOT 推进到 1.1.5 及之后的任何步骤
 - **Don't deadlock on the confirmation gate** - 1.1.2 确认门有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续），不得反复要求确认而陷入等待死循环
 - **Do persist the prompt baseline** - 原始提示词与确认后的基线一并写入探索文件 \`## 提示词基线\` 段；基线变更 MUST 回到 1.1.2 重新确认
+- **MUST produce the functional flowchart** - 1.5.5 是强制 checkpoint：探索分析完成后 MUST 产出探索文件 \`## 功能流程图\` 段（Mermaid + 节点清单）并执行流程最终确认门；用户确认前 MUST NOT 进入 1.6，MUST NOT 把未确认流程图当作提案锚点
+- **Don't deadlock on the flowchart gate** - 1.5.5 确认门有四条出口（确认 / 修改 / 拒绝后记录未确认状态并按原理解继续 / 显式授权按推断继续），拒绝时 propose 降级为仅凭 exploration.md、verify 节点覆盖度维度 SKIP，不得反复要求确认
+- **MUST NOT silently add nodes in tasks** - 发现遗漏节点 MUST 回到 1.5.5 更新流程图并重新经用户确认，MUST NOT 在 tasks.md 中静默补节点
 - **MUST verify file before migration** - Phase 2 checkpoint is mandatory
 - **MUST preserve source on migration failure** - Never lose user data
 - **MUST NOT offer method selection** - Phase 2 proceeds directly to inline propose-style generation (complexity evaluation and method selection removed)
@@ -1633,6 +1677,18 @@ Write the initial file structure with enhanced sections:
 \`\`\`markdown
 ## Background
 <User's initial description>
+
+## 功能流程图 (Functional Flowchart)
+
+<!-- 1.5.5 强制产出：Mermaid flowchart TD 承担顺序与分支骨架，节点 id N<序号> 在图中与表中 MUST 稳定一致 -->
+<!-- 初始为空；探索分析完成后由 1.5.5 填写并经流程最终确认门确认 -->
+
+| 节点 | 操作 | 触发条件 | 证据位置 | 异常路径 |
+| :--- | :--- | :--- | :--- | :--- |
+| N1 | <操作> | <前置条件，无则 "—"> | <文件:行 或 类.方法；新建功能标 [新建] + 预期产物> | <失败去向 → N<id>，无则 "—"> |
+
+> 确认后的流程图 = **流程基准**；未经用户确认的流程图 MUST NOT 作为提案的生成锚点。
+> 发现遗漏节点 MUST 回到 1.5.5 更新并重新确认，MUST NOT 在 tasks.md 中静默补节点。
 
 ## Analysis (optional - if analysis run)
 ### Security Findings
@@ -1979,6 +2035,14 @@ Apply the full grill-with-docs discipline: grilling primitive (decision tree wal
 | Confirmed choices | Decisions |
 | Unresolved | Pending |
 
+### 1.5.5 Functional Flowchart & Flow Final Confirmation Gate (MANDATORY CHECKPOINT)
+
+**⚠️ MANDATORY: 探索分析完成后必须强制产出功能流程图，并经流程最终确认门确认后才进入 1.6。** 本制品不因"本次判定无流程"而跳过，也 MUST NOT 留空；用户确认前 MUST NOT 进入 1.6，MUST NOT 把未确认流程图当作提案锚点。
+
+${FLOWCHART_COMPACT}
+
+**回改规则**：探索或提案阶段发现遗漏节点 MUST 回到本步骤（1.5.5）更新流程图与节点清单并**重新经用户确认**；MUST NOT 在 tasks.md 中静默补节点。确认后的流程图 = **流程基准**，随探索文件迁移（Phase 2.3）一并进入变更目录。
+
 ### 1.6 Completion Detection
 
 When all clear, apply consistency passthrough (replaces the confirmation prompt):
@@ -2204,6 +2268,9 @@ Ready for \`/venus:spec-apply\`
 - Do provide recommendations
 - Do update file real-time
 - Do use structured format
+- Must produce the functional flowchart - 1.5.5 强制产出探索文件 \`## 功能流程图\` 段并执行流程最终确认门；确认前不进入 1.6、不把未确认流程图当作提案锚点
+- Don't deadlock on the flowchart gate - 四条出口（确认 / 修改 / 拒绝后记录未确认状态并按原理解继续 / 显式授权按推断继续）
+- Don't silently add flowchart nodes in tasks - 遗漏节点 MUST 回到 1.5.5 更新并重新确认
 - Do show quantified scores`,
     };
 }

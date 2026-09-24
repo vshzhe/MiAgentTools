@@ -8,12 +8,23 @@ import {
     buildPromptGateCompact,
     BUG_DIMENSIONS,
 } from '../prompt-gate.js';
+import {
+    buildFlowchartBlock,
+    buildFlowchartCompact,
+    FAULT_CHAIN_FLOW_COLUMNS,
+} from '../flowchart-gate.js';
 
 /** 缺陷五维的提示词校验门全文（唯一源渲染，见 prompt-gate.ts） */
 const PROMPT_GATE_BUG = buildPromptGateBlock(BUG_DIMENSIONS);
 
 /** 缺陷五维的提示词校验门压缩版（斜杠指令正文复用） */
 const PROMPT_GATE_BUG_COMPACT = buildPromptGateCompact(BUG_DIMENSIONS);
+
+/** 缺陷链路版功能流程图制品全文（唯一源渲染，见 flowchart-gate.ts） */
+const FLOWCHART_FAULT = buildFlowchartBlock(FAULT_CHAIN_FLOW_COLUMNS);
+
+/** 缺陷链路版功能流程图压缩版（斜杠指令正文复用） */
+const FLOWCHART_FAULT_COMPACT = buildFlowchartCompact(FAULT_CHAIN_FLOW_COLUMNS);
 
 export function getTrImplDebugSkillTemplate(): SkillTemplate {
     return {
@@ -189,6 +200,23 @@ Apply the full discipline while narrowing down the root cause:
 - **Multiple candidates or insufficient confidence**: STOP. Present the candidate list with per-candidate evidence and your recommendation. No code is modified until the user selects a candidate
 - **Investigation concludes non-defect**: the reported behavior is intended — exit to the non-defect branch (Phase 3.5)
 
+### 2.5 缺陷链路图与流程最终确认门 (MANDATORY CHECKPOINT)
+
+**⚠️ MANDATORY: 根因确认门（2.4）通过后必须强制产出缺陷链路图，并经流程最终确认门确认后才进入 Phase 3。**
+
+触发点：2.4 根因确认门通过（单一高置信根因）之后、Phase 3 关联变更判定之前——异常与根因节点须待根因确认后方可知，故本步骤不得前移。经确认的缺陷链路是 Phase 3 / Phase 4 的**验证口径来源**。
+
+${FLOWCHART_FAULT}
+
+**本技能内的执行要求**：
+
+- **节点范围只覆盖缺陷链路**：前置条件 → 触发 → 异常 → 根因；**MUST NOT 展开被测功能的完整业务流程**（区别于需求版的全流程覆盖，避免与 Phase 1 复现步骤重复）
+- **标记**：异常现象节点 MUST 标 \`🔴异常\`、根因节点 MUST 标 \`🟠根因\`，其余节点以 "—" 占位
+- **证据追溯**：每节点 MUST 填证据位置（\`文件:行\` 或 类.方法）；无法追溯证据的节点 MUST NOT 进入清单
+- **落盘位置**：诊断记录新增的 \`## 功能流程（缺陷链路）\` 段，Phase 6 随根因分析一并持久化到变更 exploration.md
+- **四出口确认门**：呈现缺陷链路图与节点清单后停止等待确认，出口四条（确认 / 修改 / 拒绝后记录未确认状态并按原理解继续 / 显式授权按推断继续），**MUST NOT 反复要求确认或陷入等待死锁**
+- **验证口径**：修复方案与回归测试 MUST 覆盖该链路的「异常节点 + 根因节点」（见 4.1 / 4.2）；仅覆盖触发节点而未覆盖根因节点时，验证不通过
+
 ---
 
 ## Phase 3: Change Association Determination (关联变更判定)
@@ -235,6 +263,7 @@ Implement the fix following the venus_spec_apply skill's task execution norms.
 - Keep the change surgical: every changed line must trace to the root cause
 - If the fix requires database/schema changes, output the DDL separately and request explicit confirmation before applying (per guardrails)
 - If implementation reveals a design issue, pause and suggest updating the change's artifacts rather than silently deviating
+- **验证口径（2.5）**：修复方案 MUST 覆盖该缺陷链路的**「异常节点 + 根因节点」**；仅覆盖触发节点而未覆盖根因节点时，视为修复未完成
 
 ### 4.2 Mandatory regression test
 
@@ -243,6 +272,7 @@ Implement the fix following the venus_spec_apply skill's task execution norms.
   - PASSES after the fix
 - Add a corresponding task to the change's tasks.md if it is not yet listed
 - Run the reproduction from Phase 1 and confirm it now passes
+- **回归测试验证口径（2.5）**：回归测试 MUST 覆盖该缺陷链路的**「异常节点 + 根因节点」**；仅覆盖触发节点而未覆盖根因节点时，验证不通过
 
 ### 4.3 Debug Loop Confirmation (调试循环确认)
 
@@ -327,7 +357,7 @@ After each fix is complete, ask the user:
 
 ### 6.2 Persist root cause analysis
 
-- Write the full diagnosis records for ALL bugs (prompt baseline, reproduction, investigation path, evidence, root cause, chosen fix rationale) to the change directory's \`exploration.md\`, organized per bug — the \`## 提示词基线\` section is included so the change retains the user-confirmed semantics source
+- Write the full diagnosis records for ALL bugs (prompt baseline, reproduction, investigation path, evidence, root cause, chosen fix rationale) to the change directory's \`exploration.md\`, organized per bug — the \`## 提示词基线\` section is included so the change retains the user-confirmed semantics source, and the \`## 功能流程（缺陷链路）\` section (2.5) carries the confirmed fault chain and node list
 
 ### 6.3 Artifact format validation
 
@@ -423,6 +453,9 @@ Ready for \`/venus:spec-apply\` (fixes already applied) or archive.
 - **Validate the bug report before reproducing**: Startup 段的提示词校验门（缺陷五维）是强制前置——清晰描述一句话复述理解后直通；含糊描述须先做提示词优化并等待用户确认或修改，未确认前 MUST NOT 进入 Phase 1，不得凭猜测编写失败测试
 - **Don't deadlock on the confirmation gate**: 确认门有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续），不得反复要求确认
 - **Do persist the prompt baseline**: 原始提示词与确认后的基线写入诊断记录 \`## 提示词基线\` 段，Phase 6 随根因分析一并持久化
+- **MUST produce the fault chain diagram**: 2.5 在根因确认门（2.4）通过后强制产出诊断记录 \`## 功能流程（缺陷链路）\` 段（Mermaid + 节点清单表），节点**只覆盖缺陷链路**（前置条件 → 触发 → 异常 → 根因），异常节点标 \`🔴异常\`、根因节点标 \`🟠根因\`；MUST NOT 展开被测功能的完整业务流程
+- **Don't deadlock on the flowchart gate**: 2.5 确认门有四条出口（确认 / 修改 / 拒绝后记录未确认状态并按原理解继续 / 显式授权按推断继续），不得反复要求确认
+- **Fix and regression test cover the exception and root cause nodes**: 修复方案与回归测试 MUST 覆盖缺陷链路的「异常节点 + 根因节点」（4.1 / 4.2）；仅覆盖触发节点而未覆盖根因节点时，验证不通过
 - **Reproduce first**: no fix without a confirmed reproduction (failing test or user-confirmed procedure) — applies to EVERY bug in the loop
 - **Zero-assumption**: multiple candidate root causes → STOP and let the user choose; never guess
 - **Archives are read-only**: never modify \`openspec/changes/archive/\`
@@ -484,6 +517,14 @@ Reproduce the bug BEFORE any fix:
 3. **Grill-with-docs discipline**: one question at a time; resolved terms written to \`openspec/CONTEXT.md\` immediately; diagnosis record updated after every exchange.
 4. **Confirmation gate**: single high-confidence root cause → present evidence, get acknowledgment. Multiple candidates → STOP, present candidates + evidence + recommendation, user chooses. Non-defect → Phase 3.5.
 
+## 2.5 缺陷链路图与流程最终确认门 (MANDATORY)
+
+**⚠️ MANDATORY: 根因确认门（2.4）通过后强制产出缺陷链路图，并经流程最终确认门确认后才进入 Phase 3。** 异常与根因节点须待根因确认后方可知，故本步骤不得前移。
+
+${FLOWCHART_FAULT_COMPACT}
+
+**节点范围只覆盖缺陷链路**（前置条件 → 触发 → 异常 → 根因），MUST NOT 展开被测功能的完整业务流程；异常节点标 \`🔴异常\`、根因节点标 \`🟠根因\`；落盘为诊断记录新增的 \`## 功能流程（缺陷链路）\` 段，Phase 6 随根因分析一并持久化到变更 exploration.md。确认后的缺陷链路是 Phase 3 / Phase 4 的**验证口径来源**——修复方案与回归测试 MUST 覆盖「异常节点 + 根因节点」。确认门四出口不得死锁。
+
 ## Phase 3: Change Association (关联变更判定)
 
 - In-progress change (\`openspec/changes/\`) → fix updates that change
@@ -495,6 +536,7 @@ Reproduce the bug BEFORE any fix:
 
 - Follow ai-coding.md (zero-assumption, minimal changes); schema changes need separate DDL confirmation
 - **Mandatory regression test**: fails before the fix, passes after; add to tasks.md if missing; re-run the Phase 1 reproduction
+- **验证口径（2.5）**: 修复方案与回归测试 MUST 覆盖缺陷链路的「异常节点 + 根因节点」；仅覆盖触发节点而未覆盖根因节点时，验证不通过
 
 ## Debug Loop (调试循环确认)
 
@@ -528,6 +570,8 @@ After each fix, ask: "还有相关 bug 需要修复吗？" [有] [没有]
 
 - Validate the bug report first (Startup 的缺陷五维提示词校验门，含糊描述须优化并确认后才进入复现，不得凭猜测编写失败测试)；确认门四条出口不得死锁
 - Reproduce first (every bug in loop); zero-assumption on root causes; archives read-only
+- MUST produce the fault chain diagram (2.5 在根因确认门通过后强制产出诊断记录 \`## 功能流程（缺陷链路）\` 段；节点只覆盖前置条件 → 触发 → 异常 → 根因，异常节点标 \`🔴异常\`、根因节点标 \`🟠根因\`，MUST NOT 展开被测功能完整业务流程)；确认门四出口不得死锁
+- Fix and regression test MUST cover the exception and root cause nodes of the confirmed fault chain (仅覆盖触发节点时验证不通过)
 - Regression test mandatory (every bug in loop); proposal sync mandatory (all fixes); verification never skipped
 - Loop non-defect non-blocking; loop exit preserves completed work; independent change → finalize + prompt separate debug (\`/venus:tr-impl-debug\`)
 - Use \`path.join()\` for file paths (cross-platform)`,

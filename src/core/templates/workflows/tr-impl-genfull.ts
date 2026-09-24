@@ -12,12 +12,23 @@ import {
     buildPromptGateCompact,
     REQUIREMENT_DIMENSIONS,
 } from '../prompt-gate.js';
+import {
+    buildFlowchartBlock,
+    buildFlowchartCompact,
+    REQUIREMENT_FLOW_COLUMNS,
+} from '../flowchart-gate.js';
 
 /** 需求维度的提示词校验门全文（唯一源渲染，见 prompt-gate.ts） */
 const PROMPT_GATE = buildPromptGateBlock(REQUIREMENT_DIMENSIONS);
 
 /** 需求维度的提示词校验门压缩版（斜杠指令正文复用） */
 const PROMPT_GATE_COMPACT = buildPromptGateCompact(REQUIREMENT_DIMENSIONS);
+
+/** 需求版功能流程图制品全文（唯一源渲染，见 flowchart-gate.ts） */
+const FLOWCHART = buildFlowchartBlock(REQUIREMENT_FLOW_COLUMNS);
+
+/** 需求版功能流程图压缩版（斜杠指令正文复用） */
+const FLOWCHART_COMPACT = buildFlowchartCompact(REQUIREMENT_FLOW_COLUMNS);
 
 export function getTrImplGenfullSkillTemplate(): SkillTemplate {
     return {
@@ -101,6 +112,18 @@ ${PROMPT_GATE}
 - **原因**：\`venus_spec_verify_proposal\` 无 exploration.md 则报错退出，这是硬依赖
 - 记录兜底动作到 TodoWrite
 
+### ①.1 功能流程图兜底补建与确认（硬依赖）
+
+- 检查 exploration.md 是否含 \`## 功能流程图\` 段——Stage 1 委派的 \`venus_spec_explore\` 走**条件触发**分支（纯概念探讨 / 未浮现明确业务功能流程）时可能未产出
+- **若缺失（强制补建）**：由 genfull 依据 exploration.md 的 **Decisions / 边界场景 / Codebase Findings** 强制补建流程图与节点清单并写入该段——规则与 tr-impl-workflow 1.5.5 完全一致（节点证据追溯、\`[新建]\` 标记 + 预期产物、异常路径）
+- **并入 ⑥ 门决策**：补建完成后随 Bridge 1 门决策一并请用户确认**流程基准**；用户确认前 MUST NOT 进入 Stage 1.5 / Stage 2，MUST NOT 把未确认流程图当作 propose 的生成锚点
+- **幂等**：exploration.md 已含**经用户确认**的 \`## 功能流程图\` 段时（Stage 1 的 explore 已产出并确认，或本次会话 Bridge 1 已确认）**直接通过本步骤**，MUST NOT 重复产出或再次要求用户确认
+- 记录补建 / 直通动作到 TodoWrite
+
+**补建规则（生成 → 用户最终确认 → 落盘）**：
+
+${FLOWCHART}
+
 ### ② CONTEXT.md 存在性校验
 
 - 检查 \`openspec/CONTEXT.md\` 存在；缺失则从 exploration.md 术语表补建
@@ -127,6 +150,7 @@ ${PROMPT_GATE}
 ### ⑥ 门决策（引导模式）
 
 - 暂停并向用户呈现：探索摘要 + 信号判定结果 + impact 摘要
+- **流程基准确认**：若 ①.1 补建了 \`## 功能流程图\` 段，一并呈现流程图与节点清单请用户确认流程基准；已含经用户确认的流程图时不再重复确认（幂等）
 - 等待用户确认"进入提案"
 - 用户可回退继续探索
 
@@ -291,6 +315,8 @@ Stage 1 探索 → Bridge 1 → [Stage 1.5 前端设计（条件）] → Stage 2
 - **Do deep review + requirement doc after verify PASS** - verify PASS 后先深度复查再生成需求文档（对齐 workflow 3.5），FAIL 不生成
 - **Do impact analysis at Bridge 1** - explore 只准备符号，Bridge 1 补跑 codegraph_impact 传给 propose
 - **Do exploration.md fallback** - explore 不强制产出，Bridge 1 缺失时补建最小版（verify 硬依赖）
+- **Do flowchart fallback** - Bridge 1 ①.1 检查 exploration.md 是否含 \`## 功能流程图\` 段；**缺失时**依 Decisions / 边界场景 / Codebase Findings 强制补建流程图与节点清单（规则同 tr-impl-workflow 1.5.5：节点证据追溯、\`[新建]\` 标记、异常路径），并随 ⑥ 门决策请用户确认流程基准；确认前不进入 Stage 1.5 / Stage 2
+- **Do flowchart idempotency** - exploration.md 已含经用户确认的 \`## 功能流程图\` 段时**直接通过**，不重复产出流程图或再次要求用户确认
 - **Do actionContext.mode detection** - workspace-planning 降级，Bridge 2 前停止
 - **MUST preserve source on migration failure** - 探索文件迁移失败保留源文件
 - **Do explore codebase before asking** - 桥梁判定基于代码探索
@@ -333,7 +359,14 @@ via Skill tool 传入 topic + 0.0 确认的提示词基线（explore 检测到�
 
 ## Bridge 1: 探索→提案
 
-①就绪：exploration.md 兜底（explore 不强制产出；缺失则补建最小版汇总 Background/Decisions/术语/边界/Codebase Findings，因 verify_proposal 硬依赖）+ CONTEXT.md 存在性校验；②impact analysis：读 Pending 符号，多符号并行 \`mcp__codegraph__codegraph_impact --symbol <symbol> --direction upstream --maxDepth 3\`，结果回写 exploration.md；③上下文提取 + 信号判定（has-frontend / has-java-test / tech-stack）；④完整性校验（决策足够供提案）；⑤门：引导模式暂停确认"进入提案"。
+①就绪：exploration.md 兜底（explore 不强制产出；缺失则补建最小版汇总 Background/Decisions/术语/边界/Codebase Findings，因 verify_proposal 硬依赖）+ CONTEXT.md 存在性校验；②impact analysis：读 Pending 符号，多符号并行 \`mcp__codegraph__codegraph_impact --symbol <symbol> --direction upstream --maxDepth 3\`，结果回写 exploration.md；③上下文提取 + 信号判定（has-frontend / has-java-test / tech-stack）；④完整性校验（决策足够供提案）；⑤门：引导模式暂停确认"进入提案"。①.1 功能流程图兜底与确认（见下）在 ⑤ 门内一并确认。
+
+**①.1 功能流程图兜底补建与确认（MANDATORY）**:
+
+${FLOWCHART_COMPACT}
+
+- **兜底（强制补建）**：exploration.md 缺失 \`## 功能流程图\` 段时（Stage 1 的 explore 走条件触发分支未产出），由 genfull 依 Decisions / 边界场景 / Codebase Findings 强制补建流程图与节点清单（规则同 tr-impl-workflow 1.5.5：节点证据追溯、\`[新建]\` 标记 + 预期产物、异常路径），并随 ⑤ 门决策请用户确认流程基准；确认前 MUST NOT 进入 Stage 1.5 / Stage 2，MUST NOT 把未确认流程图当作 propose 的生成锚点
+- **幂等**：exploration.md 已含经用户确认的 \`## 功能流程图\` 段时**直接通过**，MUST NOT 重复产出或再次要求用户确认
 
 ## Stage 1.5: 前端设计（条件 has-frontend）
 
@@ -363,6 +396,6 @@ via Skill tool 传 change-name（跳过选择）。archive 内部完成 delta sp
 
 ## Guardrails
 
-委派不内联（阶段执行委派对应 SKILL，genfull 只编排 + 桥梁，区别于 venus_tr_impl_workflow）；MUST validate prompt before delegating（0.0 提示词校验门，清晰直通 / 不明确须优化并确认，未确认不委派 Stage 1）且幂等（检测到既有提示词基线直接通过，不重复确认）；确认门四条出口不得死锁；桥梁保证完整性（①上下文交接 ②就绪检查 ③完整性校验 ④门决策）；引导式门控（Bridge 1/2/3 暂停确认，frontend 设计/实现确认门与 test 确认门作桥梁点）；前端设计前置（Stage 1.5 仅设计喂入 propose design.md，Stage 3.2 仅实现读 references 生成 JSP，设计与实现分离）；don't skip questioning（grill L1-L5 由 explore 承载）；read-only operations（文件 / CodeGraph / impact）直接执行但桥梁确认门等待确认；auto-mode to apply（Stage 3 传 auto-mode=true，Bridge 2 承载确认避免 Step 5.5 重复）；pass change-name to archive；deep review + requirement doc after verify PASS（先复查再需求文档，FAIL 不生成）；impact analysis at Bridge 1（explore 只准备符号，Bridge 1 补跑 codegraph_impact）；exploration.md fallback（缺失补建最小版，verify 硬依赖）；actionContext.mode detection（workspace-planning 降级）；MUST preserve source on migration failure；do explore codebase before asking；do show quantified scores；don't lose exploration。Build all paths with \`path.join()\`.`,
+委派不内联（阶段执行委派对应 SKILL，genfull 只编排 + 桥梁，区别于 venus_tr_impl_workflow）；MUST validate prompt before delegating（0.0 提示词校验门，清晰直通 / 不明确须优化并确认，未确认不委派 Stage 1）且幂等（检测到既有提示词基线直接通过，不重复确认）；确认门四条出口不得死锁；桥梁保证完整性（①上下文交接 ②就绪检查 ③完整性校验 ④门决策）；引导式门控（Bridge 1/2/3 暂停确认，frontend 设计/实现确认门与 test 确认门作桥梁点）；前端设计前置（Stage 1.5 仅设计喂入 propose design.md，Stage 3.2 仅实现读 references 生成 JSP，设计与实现分离）；don't skip questioning（grill L1-L5 由 explore 承载）；read-only operations（文件 / CodeGraph / impact）直接执行但桥梁确认门等待确认；auto-mode to apply（Stage 3 传 auto-mode=true，Bridge 2 承载确认避免 Step 5.5 重复）；pass change-name to archive；deep review + requirement doc after verify PASS（先复查再需求文档，FAIL 不生成）；impact analysis at Bridge 1（explore 只准备符号，Bridge 1 补跑 codegraph_impact）；exploration.md fallback（缺失补建最小版，verify 硬依赖）；do flowchart fallback（Bridge 1 ①.1 缺失 \`## 功能流程图\` 段时依 Decisions / 边界场景 / Codebase Findings 强制补建并随门决策确认流程基准，确认前不进入 Stage 1.5 / Stage 2）；do flowchart idempotency（已含经用户确认的 \`## 功能流程图\` 段时直接通过，不重复产出或再次要求确认）；actionContext.mode detection（workspace-planning 降级）；MUST preserve source on migration failure；do explore codebase before asking；do show quantified scores；don't lose exploration。Build all paths with \`path.join()\`.`,
     };
 }

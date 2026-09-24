@@ -217,6 +217,7 @@ After completing all artifacts AND Phase 3 verification passes:
 - Change name and location
 - List of artifacts created with brief descriptions
 - Verification result: "Phase 3 verification passed (≥90%). Inline deep review completed."
+- **Downgrade note (if applicable)**: 流程基准缺失或未获用户确认时标注 "流程基准不可用：已降级为仅凭 exploration.md 生成（未确认的流程图未被当作既定前提）"
 - What's ready: "All artifacts created and verified! Ready for implementation."
 - Prompt: "告知我即可开始执行任务。"
 
@@ -235,6 +236,21 @@ After completing all artifacts AND Phase 3 verification passes:
 - Supplement tasks (non-\`[代码]\`) MUST include \`产出:\` field as indented content
 - Default output path: \`attachments/<filename>\` (relative to changeRoot)
 - See \`schemas/spec-driven/templates/tasks.md\` template for full label reference
+
+**流程基准消费规则（Flowchart Basis Consumption）**
+
+当关联的 \`exploration.md\` 含**经用户确认**的 \`## 功能流程图\` 段时，该流程图即**流程基准**，本技能 MUST 以其为**生成锚点**：
+
+- **design.md 引用而非重建**：design.md MUST 引用该流程图（Mermaid \`flowchart TD\`）与**关键操作节点清单**（节点 / 操作 / 触发条件 / 证据位置 / 异常路径）；
+  MUST NOT 在 design 中**重新发明一套流程**——重写流程即偏差引入点
+- **tasks.md 标注节点 id（节点 → 任务的可追溯映射）**：tasks.md 的**每个任务** MUST 标注其对应的节点标识（\`[N4]\` 形，节点标识与流程图 / 节点清单表保持一致），
+  使每个流程节点在任务清单中可被逐一核对
+  - 例：\`- [ ] [代码] 2.3 实现分批查询 [N4]\`
+- **MUST NOT 静默补节点**：任务拆解中发现流程图遗漏的节点时，MUST 回到探索阶段更新流程图并**重新经用户确认**；
+  MUST NOT 在本技能中静默补节点后继续——静默补全正是偏差的主要来源
+- **缺失或未确认时降级**：\`exploration.md\` 不含 \`## 功能流程图\` 段，或该段存在但**未获用户确认**（用户在流程最终确认门上拒绝或未表态）时，
+  本技能 SHALL 降级为**仅凭 exploration.md** 生成提案；MUST NOT 把未确认的流程图当作既定前提（不据此生成 design 的流程引用与 tasks 的节点标注），
+  并 SHALL 在**生成报告**中标注该降级
 
 **Guardrails**
 - Create ALL artifacts needed for implementation (as defined by schema's \`apply.requires\`)

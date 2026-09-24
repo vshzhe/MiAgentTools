@@ -34,7 +34,20 @@ via Skill tool 传入 topic + 0.0 确认的提示词基线（explore 检测到�
 
 ## Bridge 1: 探索→提案
 
-①就绪：exploration.md 兜底（explore 不强制产出；缺失则补建最小版汇总 Background/Decisions/术语/边界/Codebase Findings，因 verify_proposal 硬依赖）+ CONTEXT.md 存在性校验；②impact analysis：读 Pending 符号，多符号并行 `mcp__codegraph__codegraph_impact --symbol <symbol> --direction upstream --maxDepth 3`，结果回写 exploration.md；③上下文提取 + 信号判定（has-frontend / has-java-test / tech-stack）；④完整性校验（决策足够供提案）；⑤门：引导模式暂停确认"进入提案"。
+①就绪：exploration.md 兜底（explore 不强制产出；缺失则补建最小版汇总 Background/Decisions/术语/边界/Codebase Findings，因 verify_proposal 硬依赖）+ CONTEXT.md 存在性校验；②impact analysis：读 Pending 符号，多符号并行 `mcp__codegraph__codegraph_impact --symbol <symbol> --direction upstream --maxDepth 3`，结果回写 exploration.md；③上下文提取 + 信号判定（has-frontend / has-java-test / tech-stack）；④完整性校验（决策足够供提案）；⑤门：引导模式暂停确认"进入提案"。①.1 功能流程图兜底与确认（见下）在 ⑤ 门内一并确认。
+
+**①.1 功能流程图兜底补建与确认（MANDATORY）**:
+
+**功能流程图（Functional Flowchart）**: 把探索发现的业务功能流程固化为探索产物 `## 功能流程图` 段（Mermaid `flowchart TD` + 关键操作节点清单表）。
+- **节点粒度** = 可独立验证的业务操作单元（用户操作 / 业务判定 / 数据写入 / 外部调用）；节点标识在图中与表中 MUST 一致，多流程时全局唯一递增
+- **清单列集**：节点 / 操作 / 触发条件 / 证据位置 / 异常路径
+- **证据追溯（硬约束）**：每节点 MUST 填 `文件:行` 或 类.方法；新建功能标 `[新建]` + 预期产物；无法追溯证据的节点 MUST NOT 进入清单
+- **流程最终确认门（阻塞）**：呈现流程图与清单并等待确认；出口四条：确认 / 修改 / 拒绝（记未确认状态，提案降级 + 验证该维度 SKIP）/ 显式授权按推断（推断节点标 `[推断]`）——不得陷入等待死锁
+- **回改规则**：发现遗漏节点 MUST 回探索更新并重新确认，MUST NOT 在任务清单静默补节点
+- 节点数超 50 时按子流程分节；本块 MUST NOT 含任何 Bash 命令示例
+
+- **兜底（强制补建）**：exploration.md 缺失 `## 功能流程图` 段时（Stage 1 的 explore 走条件触发分支未产出），由 genfull 依 Decisions / 边界场景 / Codebase Findings 强制补建流程图与节点清单（规则同 tr-impl-workflow 1.5.5：节点证据追溯、`[新建]` 标记 + 预期产物、异常路径），并随 ⑤ 门决策请用户确认流程基准；确认前 MUST NOT 进入 Stage 1.5 / Stage 2，MUST NOT 把未确认流程图当作 propose 的生成锚点
+- **幂等**：exploration.md 已含经用户确认的 `## 功能流程图` 段时**直接通过**，MUST NOT 重复产出或再次要求用户确认
 
 ## Stage 1.5: 前端设计（条件 has-frontend）
 
@@ -64,4 +77,4 @@ via Skill tool 传 change-name（跳过选择）。archive 内部完成 delta sp
 
 ## Guardrails
 
-委派不内联（阶段执行委派对应 SKILL，genfull 只编排 + 桥梁，区别于 venus_tr_impl_workflow）；MUST validate prompt before delegating（0.0 提示词校验门，清晰直通 / 不明确须优化并确认，未确认不委派 Stage 1）且幂等（检测到既有提示词基线直接通过，不重复确认）；确认门四条出口不得死锁；桥梁保证完整性（①上下文交接 ②就绪检查 ③完整性校验 ④门决策）；引导式门控（Bridge 1/2/3 暂停确认，frontend 设计/实现确认门与 test 确认门作桥梁点）；前端设计前置（Stage 1.5 仅设计喂入 propose design.md，Stage 3.2 仅实现读 references 生成 JSP，设计与实现分离）；don't skip questioning（grill L1-L5 由 explore 承载）；read-only operations（文件 / CodeGraph / impact）直接执行但桥梁确认门等待确认；auto-mode to apply（Stage 3 传 auto-mode=true，Bridge 2 承载确认避免 Step 5.5 重复）；pass change-name to archive；deep review + requirement doc after verify PASS（先复查再需求文档，FAIL 不生成）；impact analysis at Bridge 1（explore 只准备符号，Bridge 1 补跑 codegraph_impact）；exploration.md fallback（缺失补建最小版，verify 硬依赖）；actionContext.mode detection（workspace-planning 降级）；MUST preserve source on migration failure；do explore codebase before asking；do show quantified scores；don't lose exploration。Build all paths with `path.join()`.
+委派不内联（阶段执行委派对应 SKILL，genfull 只编排 + 桥梁，区别于 venus_tr_impl_workflow）；MUST validate prompt before delegating（0.0 提示词校验门，清晰直通 / 不明确须优化并确认，未确认不委派 Stage 1）且幂等（检测到既有提示词基线直接通过，不重复确认）；确认门四条出口不得死锁；桥梁保证完整性（①上下文交接 ②就绪检查 ③完整性校验 ④门决策）；引导式门控（Bridge 1/2/3 暂停确认，frontend 设计/实现确认门与 test 确认门作桥梁点）；前端设计前置（Stage 1.5 仅设计喂入 propose design.md，Stage 3.2 仅实现读 references 生成 JSP，设计与实现分离）；don't skip questioning（grill L1-L5 由 explore 承载）；read-only operations（文件 / CodeGraph / impact）直接执行但桥梁确认门等待确认；auto-mode to apply（Stage 3 传 auto-mode=true，Bridge 2 承载确认避免 Step 5.5 重复）；pass change-name to archive；deep review + requirement doc after verify PASS（先复查再需求文档，FAIL 不生成）；impact analysis at Bridge 1（explore 只准备符号，Bridge 1 补跑 codegraph_impact）；exploration.md fallback（缺失补建最小版，verify 硬依赖）；do flowchart fallback（Bridge 1 ①.1 缺失 `## 功能流程图` 段时依 Decisions / 边界场景 / Codebase Findings 强制补建并随门决策确认流程基准，确认前不进入 Stage 1.5 / Stage 2）；do flowchart idempotency（已含经用户确认的 `## 功能流程图` 段时直接通过，不重复产出或再次要求确认）；actionContext.mode detection（workspace-planning 降级）；MUST preserve source on migration failure；do explore codebase before asking；do show quantified scores；don't lose exploration。Build all paths with `path.join()`.

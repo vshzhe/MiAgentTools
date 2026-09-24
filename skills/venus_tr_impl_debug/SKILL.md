@@ -222,6 +222,80 @@ _Avoid_: <synonyms>`
 - **Multiple candidates or insufficient confidence**: STOP. Present the candidate list with per-candidate evidence and your recommendation. No code is modified until the user selects a candidate
 - **Investigation concludes non-defect**: the reported behavior is intended — exit to the non-defect branch (Phase 3.5)
 
+### 2.5 缺陷链路图与流程最终确认门 (MANDATORY CHECKPOINT)
+
+**⚠️ MANDATORY: 根因确认门（2.4）通过后必须强制产出缺陷链路图，并经流程最终确认门确认后才进入 Phase 3。**
+
+触发点：2.4 根因确认门通过（单一高置信根因）之后、Phase 3 关联变更判定之前——异常与根因节点须待根因确认后方可知，故本步骤不得前移。经确认的缺陷链路是 Phase 3 / Phase 4 的**验证口径来源**。
+
+### 功能流程图（Functional Flowchart）
+
+**Step 1 — 生成流程图与节点清单**
+
+把探索发现的业务功能流程固化为探索产物的 `## 功能流程图` 段，由两部分组成：
+
+```mermaid
+flowchart TD
+  N1[录入申请单] --> N2{校验通过?}
+  N2 -- 否 --> N3[提示错误]
+  N2 -- 是 --> N4[扣减库存]
+  N4 --> N5[写入订单]
+  N5 --> N6[发送通知]
+```
+
+节点清单表（表头与列以本场景列集为准）：
+
+本场景列集（共 4 列）：节点 / 操作 / 证据位置 / 标记
+
+| 节点 | 操作 | 证据位置 | 标记 |
+| :--- | :--- | :--- | :--- |
+<节点 | 操作 | 证据位置 | 标记>
+
+列定义：
+
+| 列名 | 填写要求 | 必填性 |
+| :--- | :--- | :--- |
+| 节点 | 节点标识，形如 N1 / N2，在流程图与清单表中 MUST 稳定一致 | 必填 |
+| 操作 | 该节点完成的操作，业务语义表述（如"点击导出"） | 必填 |
+| 证据位置 | 既有代码标 `文件:行` 或 类.方法；无法追溯证据的节点 MUST NOT 进入清单 | 必填 |
+| 标记 | 缺陷链路角色：异常现象节点标 `🔴异常`，根因节点标 `🟠根因`，其余以 "—" 占位 | 可选 |
+
+**节点定义与准入规则**：
+
+- **节点粒度** MUST 为**可独立验证的业务操作单元**（一次用户操作 / 一次业务判定 / 一次数据写入 / 一次外部调用）；MUST NOT 细到代码行级，MUST NOT 粗到模块级
+- **节点标识** MUST 在 Mermaid 图与清单表中一致；一个功能含多条独立流程时 SHALL 按流程分小节组织（`### 流程 1` / `### 流程 2`），节点标识 SHALL **全局唯一递增**
+- **证据追溯是硬约束**：每个节点 MUST 填写证据位置（`文件:行` 或 类.方法）；**新建功能**节点 SHALL 标 `[新建]` 并写明预期产物（新增哪个类 / 页面 / 接口），MUST NOT 要求预测文件路径；**无法追溯证据的节点 MUST NOT 进入清单**——虚假节点会成为提案的生成锚点，把偏差结构化固化，比散文偏差更难发现
+- 节点数超过 50 时 SHALL 按子流程分节：主流程图以子流程节点聚合，子流程各自展开清单表
+
+**Step 2 — 流程最终确认门（阻塞）**
+
+向用户呈现流程图与节点清单并**停止等待确认**；用户确认前 MUST NOT 进入探索完成检测，MUST NOT 将流程图传递给提案阶段。
+
+出口有四条，不得只认一条：
+
+① 用户确认 → 以确认版为**流程基准**
+② 用户修改 → 以修改版为流程基准
+③ 用户拒绝 → 记录原始流程图与**未确认状态**：提案降级为仅凭探索产物生成，验证的节点覆盖度维度 SKIP
+④ 用户显式授权按推断继续 → 将推断节点标 `[推断]` 记入后继续
+
+**MUST NOT 反复要求确认或陷入等待死锁。**
+
+**Step 3 — 落盘与回改规则**
+
+- 流程图与节点清单落盘为探索产物的 `## 功能流程图` 段，随探索文件迁移一并进入变更目录
+- 确认后的流程图 = **流程基准**，是独立于提案自身的交叉验证锚点（区别于既有业务步骤维度的"自证"）
+- 探索或提案阶段发现**遗漏节点**时 MUST 回到本步骤更新流程图并**重新经用户确认**；MUST NOT 在任务清单中静默补节点——静默补全正是偏差的主要来源
+- 流程基准变更 MUST 回到本确认门重新确认
+
+**本技能内的执行要求**：
+
+- **节点范围只覆盖缺陷链路**：前置条件 → 触发 → 异常 → 根因；**MUST NOT 展开被测功能的完整业务流程**（区别于需求版的全流程覆盖，避免与 Phase 1 复现步骤重复）
+- **标记**：异常现象节点 MUST 标 `🔴异常`、根因节点 MUST 标 `🟠根因`，其余节点以 "—" 占位
+- **证据追溯**：每节点 MUST 填证据位置（`文件:行` 或 类.方法）；无法追溯证据的节点 MUST NOT 进入清单
+- **落盘位置**：诊断记录新增的 `## 功能流程（缺陷链路）` 段，Phase 6 随根因分析一并持久化到变更 exploration.md
+- **四出口确认门**：呈现缺陷链路图与节点清单后停止等待确认，出口四条（确认 / 修改 / 拒绝后记录未确认状态并按原理解继续 / 显式授权按推断继续），**MUST NOT 反复要求确认或陷入等待死锁**
+- **验证口径**：修复方案与回归测试 MUST 覆盖该链路的「异常节点 + 根因节点」（见 4.1 / 4.2）；仅覆盖触发节点而未覆盖根因节点时，验证不通过
+
 ---
 
 ## Phase 3: Change Association Determination (关联变更判定)
@@ -268,6 +342,7 @@ Implement the fix following the venus_spec_apply skill's task execution norms.
 - Keep the change surgical: every changed line must trace to the root cause
 - If the fix requires database/schema changes, output the DDL separately and request explicit confirmation before applying (per guardrails)
 - If implementation reveals a design issue, pause and suggest updating the change's artifacts rather than silently deviating
+- **验证口径（2.5）**：修复方案 MUST 覆盖该缺陷链路的**「异常节点 + 根因节点」**；仅覆盖触发节点而未覆盖根因节点时，视为修复未完成
 
 ### 4.2 Mandatory regression test
 
@@ -276,6 +351,7 @@ Implement the fix following the venus_spec_apply skill's task execution norms.
   - PASSES after the fix
 - Add a corresponding task to the change's tasks.md if it is not yet listed
 - Run the reproduction from Phase 1 and confirm it now passes
+- **回归测试验证口径（2.5）**：回归测试 MUST 覆盖该缺陷链路的**「异常节点 + 根因节点」**；仅覆盖触发节点而未覆盖根因节点时，验证不通过
 
 ### 4.3 Debug Loop Confirmation (调试循环确认)
 
@@ -360,7 +436,7 @@ After each fix is complete, ask the user:
 
 ### 6.2 Persist root cause analysis
 
-- Write the full diagnosis records for ALL bugs (prompt baseline, reproduction, investigation path, evidence, root cause, chosen fix rationale) to the change directory's `exploration.md`, organized per bug — the `## 提示词基线` section is included so the change retains the user-confirmed semantics source
+- Write the full diagnosis records for ALL bugs (prompt baseline, reproduction, investigation path, evidence, root cause, chosen fix rationale) to the change directory's `exploration.md`, organized per bug — the `## 提示词基线` section is included so the change retains the user-confirmed semantics source, and the `## 功能流程（缺陷链路）` section (2.5) carries the confirmed fault chain and node list
 
 ### 6.3 Artifact format validation
 
@@ -456,6 +532,9 @@ Ready for `/venus:spec-apply` (fixes already applied) or archive.
 - **Validate the bug report before reproducing**: Startup 段的提示词校验门（缺陷五维）是强制前置——清晰描述一句话复述理解后直通；含糊描述须先做提示词优化并等待用户确认或修改，未确认前 MUST NOT 进入 Phase 1，不得凭猜测编写失败测试
 - **Don't deadlock on the confirmation gate**: 确认门有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续），不得反复要求确认
 - **Do persist the prompt baseline**: 原始提示词与确认后的基线写入诊断记录 `## 提示词基线` 段，Phase 6 随根因分析一并持久化
+- **MUST produce the fault chain diagram**: 2.5 在根因确认门（2.4）通过后强制产出诊断记录 `## 功能流程（缺陷链路）` 段（Mermaid + 节点清单表），节点**只覆盖缺陷链路**（前置条件 → 触发 → 异常 → 根因），异常节点标 `🔴异常`、根因节点标 `🟠根因`；MUST NOT 展开被测功能的完整业务流程
+- **Don't deadlock on the flowchart gate**: 2.5 确认门有四条出口（确认 / 修改 / 拒绝后记录未确认状态并按原理解继续 / 显式授权按推断继续），不得反复要求确认
+- **Fix and regression test cover the exception and root cause nodes**: 修复方案与回归测试 MUST 覆盖缺陷链路的「异常节点 + 根因节点」（4.1 / 4.2）；仅覆盖触发节点而未覆盖根因节点时，验证不通过
 - **Reproduce first**: no fix without a confirmed reproduction (failing test or user-confirmed procedure) — applies to EVERY bug in the loop
 - **Zero-assumption**: multiple candidate root causes → STOP and let the user choose; never guess
 - **Archives are read-only**: never modify `openspec/changes/archive/`

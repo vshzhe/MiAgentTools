@@ -48,6 +48,20 @@ Reproduce the bug BEFORE any fix:
 3. **Grill-with-docs discipline**: one question at a time; resolved terms written to `openspec/CONTEXT.md` immediately; diagnosis record updated after every exchange.
 4. **Confirmation gate**: single high-confidence root cause → present evidence, get acknowledgment. Multiple candidates → STOP, present candidates + evidence + recommendation, user chooses. Non-defect → Phase 3.5.
 
+## 2.5 缺陷链路图与流程最终确认门 (MANDATORY)
+
+**⚠️ MANDATORY: 根因确认门（2.4）通过后强制产出缺陷链路图，并经流程最终确认门确认后才进入 Phase 3。** 异常与根因节点须待根因确认后方可知，故本步骤不得前移。
+
+**功能流程图（Functional Flowchart）**: 把探索发现的业务功能流程固化为探索产物 `## 功能流程图` 段（Mermaid `flowchart TD` + 关键操作节点清单表）。
+- **节点粒度** = 可独立验证的业务操作单元（用户操作 / 业务判定 / 数据写入 / 外部调用）；节点标识在图中与表中 MUST 一致，多流程时全局唯一递增
+- **清单列集**：节点 / 操作 / 证据位置 / 标记
+- **证据追溯（硬约束）**：每节点 MUST 填 `文件:行` 或 类.方法；新建功能标 `[新建]` + 预期产物；无法追溯证据的节点 MUST NOT 进入清单
+- **流程最终确认门（阻塞）**：呈现流程图与清单并等待确认；出口四条：确认 / 修改 / 拒绝（记未确认状态，提案降级 + 验证该维度 SKIP）/ 显式授权按推断（推断节点标 `[推断]`）——不得陷入等待死锁
+- **回改规则**：发现遗漏节点 MUST 回探索更新并重新确认，MUST NOT 在任务清单静默补节点
+- 节点数超 50 时按子流程分节；本块 MUST NOT 含任何 Bash 命令示例
+
+**节点范围只覆盖缺陷链路**（前置条件 → 触发 → 异常 → 根因），MUST NOT 展开被测功能的完整业务流程；异常节点标 `🔴异常`、根因节点标 `🟠根因`；落盘为诊断记录新增的 `## 功能流程（缺陷链路）` 段，Phase 6 随根因分析一并持久化到变更 exploration.md。确认后的缺陷链路是 Phase 3 / Phase 4 的**验证口径来源**——修复方案与回归测试 MUST 覆盖「异常节点 + 根因节点」。确认门四出口不得死锁。
+
 ## Phase 3: Change Association (关联变更判定)
 
 - In-progress change (`openspec/changes/`) → fix updates that change
@@ -59,6 +73,7 @@ Reproduce the bug BEFORE any fix:
 
 - Follow ai-coding.md (zero-assumption, minimal changes); schema changes need separate DDL confirmation
 - **Mandatory regression test**: fails before the fix, passes after; add to tasks.md if missing; re-run the Phase 1 reproduction
+- **验证口径（2.5）**: 修复方案与回归测试 MUST 覆盖缺陷链路的「异常节点 + 根因节点」；仅覆盖触发节点而未覆盖根因节点时，验证不通过
 
 ## Debug Loop (调试循环确认)
 
@@ -92,6 +107,8 @@ After each fix, ask: "还有相关 bug 需要修复吗？" [有] [没有]
 
 - Validate the bug report first (Startup 的缺陷五维提示词校验门，含糊描述须优化并确认后才进入复现，不得凭猜测编写失败测试)；确认门四条出口不得死锁
 - Reproduce first (every bug in loop); zero-assumption on root causes; archives read-only
+- MUST produce the fault chain diagram (2.5 在根因确认门通过后强制产出诊断记录 `## 功能流程（缺陷链路）` 段；节点只覆盖前置条件 → 触发 → 异常 → 根因，异常节点标 `🔴异常`、根因节点标 `🟠根因`，MUST NOT 展开被测功能完整业务流程)；确认门四出口不得死锁
+- Fix and regression test MUST cover the exception and root cause nodes of the confirmed fault chain (仅覆盖触发节点时验证不通过)
 - Regression test mandatory (every bug in loop); proposal sync mandatory (all fixes); verification never skipped
 - Loop non-defect non-blocking; loop exit preserves completed work; independent change → finalize + prompt separate debug (`/venus:tr-impl-debug`)
 - Use `path.join()` for file paths (cross-platform)

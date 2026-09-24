@@ -4,9 +4,13 @@
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
 import { buildPromptGateBlock, REQUIREMENT_DIMENSIONS } from '../prompt-gate.js';
+import { buildFlowchartBlock, REQUIREMENT_FLOW_COLUMNS } from '../flowchart-gate.js';
 
 /** 需求维度的提示词校验门全文（唯一源渲染，见 prompt-gate.ts） */
 const PROMPT_GATE = buildPromptGateBlock(REQUIREMENT_DIMENSIONS);
+
+/** 需求版功能流程图制品全文（唯一源渲染，见 flowchart-gate.ts） */
+const FLOWCHART = buildFlowchartBlock(REQUIREMENT_FLOW_COLUMNS);
 
 export function getSpecExploreSkillTemplate(): SkillTemplate {
     return {
@@ -128,6 +132,21 @@ When modifying existing code, go beyond surface analysis:
 - Identify what could go wrong
 - Find gaps in understanding
 - Suggest spikes or investigations
+
+---
+
+## Functional Flowchart (功能流程图)
+
+**Trigger: 探索中浮现明确的业务功能流程时产出本制品；纯概念探讨或无业务功能流程时不产出、不阻断。** 这不是固定流程步骤 —— explore 的立场（无固定步骤、无强制产出）不因本制品改变。
+
+${FLOWCHART}
+
+**本技能内的执行要求**：
+
+- **条件触发**：探索浮现明确的业务功能流程时（如探索导出功能时梳理出"选择范围 → 点击导出 → 数据量判定 → 分批查询 → 生成文件"的完整链路），产出 \`## 功能流程图\` 段并执行流程最终确认门；确认后的流程图成为 propose / verify 的**流程基准**
+- **无流程时直通**：纯概念探讨或无业务功能流程时（如"帮我想想这个模块该怎么分层"），在探索产物中记录「本次无功能流程」后**直接继续**，MUST NOT 因此阻塞、MUST NOT 为凑制品而虚构流程节点
+- **拒绝不阻断**：用户在流程最终确认门上拒绝确认或明确不表态时，记录原始流程图与**未确认状态**后继续探索，MUST NOT 反复要求确认、MUST NOT 陷入死锁；该未确认状态随探索产物传递（propose 降级为仅凭 exploration.md 生成、verify 的节点覆盖度维度 SKIP）
+- **落盘方式**：本技能不设强制产出文件，无探索文件时流程图保留在会话中，并在创建或关联探索文件时写入
 
 ---
 
@@ -352,7 +371,10 @@ But this summary is optional. Sometimes the thinking IS the value.
 - **Re-read files from disk** - Files the user may have edited during the session (CONTEXT.md, exploration.md, change artifacts such as proposal/design/specs/tasks) MUST be re-read from disk before each use. Never rely on session-cached content.
 - **Surface material ambiguities** - Ambiguities affecting scope, behavioral contracts, backward compatibility, or acceptance criteria MUST be surfaced to the user as **[待确认]** questions. Non-material detail-level ambiguities may be resolved with reasonable assumptions, documented alongside the assumption.
 - **Do validate the prompt before diving in** - 输入含糊或多义时先过提示词校验门（Step 1-5）：优化后 MUST 等用户确认或修改才继续；清晰输入一句话复述理解后直通（不输出校验表、不要求确认）；变更名输入以该变更既有制品为校验对象；无输入则跳过本门。上游已产出提示词基线时直接通过，不重复确认
-- **Don't deadlock on the prompt gate** - 确认门有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续），不得反复要求确认`,
+- **Don't deadlock on the prompt gate** - 确认门有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续），不得反复要求确认
+- **Do produce the flowchart when a flow emerges** - 探索浮现明确的业务功能流程时产出 \`## 功能流程图\` 段（Mermaid \`flowchart TD\` + 节点清单表）并执行流程最终确认门；节点粒度 = 可独立验证的业务操作单元，每节点 MUST 含证据位置（\`文件:行\` 或类.方法；新建功能标 \`[新建]\` + 预期产物），无法追溯证据的节点 MUST NOT 进入清单
+- **Don't force a flowchart** - 纯概念探讨或无业务功能流程时记录「本次无功能流程」后直接继续，不为凑制品虚构节点、不阻断探索；"无固定步骤、无强制产出"的定位不变
+- **Don't deadlock on the flowchart gate** - 流程最终确认门同样有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续）；用户拒绝时记录未确认状态后继续，不得反复要求确认`,
         license: 'MIT',
         compatibility: '依赖 venus CLI（spec 命令组）与 CodeGraph MCP（不可用时回退 Glob/Grep）。',
         metadata: { author: 'venus-agent-tools', version: '1.0' },

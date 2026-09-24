@@ -8,12 +8,23 @@ import {
     buildPromptGateCompact,
     REQUIREMENT_DIMENSIONS,
 } from '../prompt-gate.js';
+import {
+    buildFlowchartBlock,
+    buildFlowchartCompact,
+    REQUIREMENT_FLOW_COLUMNS,
+} from '../flowchart-gate.js';
 
 /** 需求维度的提示词校验门全文（唯一源渲染，见 prompt-gate.ts） */
 const PROMPT_GATE = buildPromptGateBlock(REQUIREMENT_DIMENSIONS);
 
 /** 需求维度的提示词校验门压缩版（斜杠指令正文复用） */
 const PROMPT_GATE_COMPACT = buildPromptGateCompact(REQUIREMENT_DIMENSIONS);
+
+/** 需求版功能流程图制品全文（唯一源渲染，见 flowchart-gate.ts） */
+const FLOWCHART = buildFlowchartBlock(REQUIREMENT_FLOW_COLUMNS);
+
+/** 需求版功能流程图压缩版（斜杠指令正文复用） */
+const FLOWCHART_COMPACT = buildFlowchartCompact(REQUIREMENT_FLOW_COLUMNS);
 
 export function getTrImplAutoWorkflowSkillTemplate(): SkillTemplate {
     return {
@@ -132,6 +143,18 @@ Write the initial file structure with enhanced sections:
 **确认后的提示词基线**: <经 1.1.2 校验门确认的版本；清晰输入时即原始提示词本身>
 
 > 下游（提案 / 设计 / 规格 / 任务）以提示词基线为唯一语义来源；基线若变更 MUST 回到 1.1.2 重新确认。
+
+## 功能流程图 (Functional Flowchart)
+
+<!-- 1.5.5 强制产出：Mermaid flowchart TD 承担顺序与分支骨架，节点 id N<序号> 在图中与表中 MUST 稳定一致 -->
+<!-- 初始为空；探索分析完成后由 1.5.5 填写并经流程最终确认门确认 -->
+
+| 节点 | 操作 | 触发条件 | 证据位置 | 异常路径 |
+| :--- | :--- | :--- | :--- | :--- |
+| N1 | <操作> | <前置条件，无则 "—"> | <文件:行 或 类.方法；新建功能标 [新建] + 预期产物> | <失败去向 → N<id>，无则 "—"> |
+
+> 确认后的流程图 = **流程基准**；未经用户确认的流程图 MUST NOT 作为提案的生成锚点。
+> 发现遗漏节点 MUST 回到 1.5.5 更新并重新确认，MUST NOT 在 tasks.md 中静默补节点。
 
 ## Codebase Findings
 
@@ -375,6 +398,24 @@ mcp__codegraph__codegraph_impact --symbol <symbol> --direction upstream --maxDep
 }
 \`\`\`
 
+### 1.5.5 Functional Flowchart & Flow Final Confirmation Gate (MANDATORY CHECKPOINT)
+
+**⚠️ MANDATORY: 探索分析完成后必须强制产出功能流程图，并经流程最终确认门确认后才进入 1.6。本确认门是确认门（确认流程基准）——管线虽为全自动，但流程基准的确认是自动化的前置条件，MUST NOT 因 auto 语义跳过或静默通过本门；未经用户确认的流程图 MUST NOT 作为 propose 的生成锚点。**
+
+触发点：1.3 grill L1-L5 与 1.4 关键词分析均已执行、1.5 影响分析之后。
+
+${FLOWCHART}
+
+**本技能内的执行要求**：
+
+- **强制产出**：把探索发现的业务功能流程固化为探索文件 1.2 结构中的 \`## 功能流程图\` 段（该段已在 1.2 预留）；Mermaid 流程图与节点清单表的节点 id MUST 稳定一致
+- **节点证据追溯**：每节点 MUST 填证据位置——既有代码标 \`文件:行\` 或 类.方法，**新建功能**节点标 \`[新建]\` 并写明预期产物；**无法追溯证据的节点 MUST NOT 进入清单**
+- **四出口确认门**：呈现流程图与节点清单后停止等待确认，出口四条（确认 / 修改 / 拒绝后记录未确认状态并按原理解继续 / 显式授权按推断继续），**MUST NOT 反复要求确认或陷入等待死锁**
+- **回改规则**：探索或提案阶段发现**遗漏节点**时 MUST 回到本步骤（1.5.5）更新流程图与节点清单并**重新经用户确认**；MUST NOT 在 tasks.md 中静默补节点
+- **节点数超 50**：按子流程分节，主流程图以子流程节点聚合、子流程各自展开清单表
+- **确认前不得推进**：用户确认前 MUST NOT 进入 1.6 完成检测，MUST NOT 向提案阶段传递流程基准
+- **流程基准用途**：确认后的流程图 = **流程基准**，随探索文件迁移（2.1）一并进入变更目录，由下游 propose / verify 共同消费
+
 ### 1.6 Completion Check
 
 Before declaring exploration complete, verify:
@@ -537,6 +578,10 @@ After auto-archive completes:
 - **Auto semantics never skip the clarification gate** - 1.1.2 是澄清门（确认 WHAT），管线为全自动不构成跳过理由；基线确认是自动化的起点
 - **Don't deadlock on the confirmation gate** - 1.1.2 确认门有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续），不得反复要求确认
 - **Do persist the prompt baseline** - 原始提示词与确认后的基线一并写入探索文件 \`## 提示词基线\` 段；基线变更 MUST 回到 1.1.2 重新确认
+- **MUST produce the functional flowchart** - 1.5.5 是强制 checkpoint：探索分析完成后 MUST 产出探索文件 \`## 功能流程图\` 段（Mermaid + 节点清单）并执行流程最终确认门；确认前 MUST NOT 进入 1.6，MUST NOT 把未确认流程图当作 propose 锚点
+- **Auto semantics never skip the flowchart confirmation gate** - 1.5.5 是确认门（确认流程基准），管线为全自动不构成跳过理由；流程基准的确认是自动化的前置条件
+- **Don't deadlock on the flowchart gate** - 1.5.5 确认门有四条出口（确认 / 修改 / 拒绝后记录未确认状态并按原理解继续 / 显式授权按推断继续），拒绝时 propose 降级为仅凭 exploration.md、verify 节点覆盖度维度 SKIP，不得反复要求确认
+- **MUST NOT silently add flowchart nodes in tasks** - 发现遗漏节点 MUST 回到 1.5.5 更新流程图并重新经用户确认，MUST NOT 在 tasks.md 中静默补节点
 - **Don't auto-proceed on conflict** - Phase transitions proceed automatically when the 1.6 consistency checks pass (consistency passthrough); ask the user only when a hard conflict is detected
 - **Do execute read-only operations directly** - File reading, CodeGraph queries, and analysis steps (impact analysis) run without asking the user for confirmation
 - **Read-only passthrough does not cover clarification gates** - grill L1-L5 requirement-clarification gates still wait for user confirmation
@@ -580,13 +625,19 @@ One-stop automated workflow from exploration to archive. **Trigger boundary**: f
 
 ## Phase 1: Exploration (L1-L5 user confirmation)
 
-Create exploration file at \`openspec/explorations/<keyword>-explore-<sequence>.md\` (kebab-case keyword, auto sequence; use \`path.join()\`). Run the mandatory **1.1.2 Prompt Validation Gate（澄清门，确认 WHAT；auto 语义不得跳过或静默通过）**、then the mandatory 1.1.5 CONTEXT.md startup check (load existing 术语表 or mark for creation), initialize the structured format (Background / 提示词基线 / Codebase Findings / Questions / 术语表 / 架构决策 / 边界场景 / Decision Process / Decisions / Scope Changes / Pending), then 1.2.0.5 capability memory injection (scan \`openspec/specs/<capability>/explorations.md\` and inject historical decisions). Run the mandatory 1.2.1 CodeGraph base scan (\`codegraph_status\` first; \`codegraph_files\` + \`codegraph_search\`; Glob/Grep fallback only after confirmed unavailable) and the conditional 1.2.1.5 multi-project agent scan (spawn sub-agent with \`projectPath\` for other project paths). Then grill-with-docs questioning (L1 Intent / L2 Solution / L3 Exception / L4 Consistency / L5 Boundary; one question at a time, each with AI recommendation; write answers to exploration.md real-time). Auto-execute keyword-detected analysis (Security / Architecture Flow / Impact Analysis — always run) and \`codegraph_impact\` (parallel for multiple symbols). Completion check: consistency, L1-L5 coverage, file completeness — if no hard conflicts, proceed to Phase 2 directly (consistency passthrough).
+Create exploration file at \`openspec/explorations/<keyword>-explore-<sequence>.md\` (kebab-case keyword, auto sequence; use \`path.join()\`). Run the mandatory **1.1.2 Prompt Validation Gate（澄清门，确认 WHAT；auto 语义不得跳过或静默通过）**、then the mandatory 1.1.5 CONTEXT.md startup check (load existing 术语表 or mark for creation), initialize the structured format (Background / 提示词基线 / 功能流程图 / Codebase Findings / Questions / 术语表 / 架构决策 / 边界场景 / Decision Process / Decisions / Scope Changes / Pending), then 1.2.0.5 capability memory injection (scan \`openspec/specs/<capability>/explorations.md\` and inject historical decisions). Run the mandatory 1.2.1 CodeGraph base scan (\`codegraph_status\` first; \`codegraph_files\` + \`codegraph_search\`; Glob/Grep fallback only after confirmed unavailable) and the conditional 1.2.1.5 multi-project agent scan (spawn sub-agent with \`projectPath\` for other project paths). Then grill-with-docs questioning (L1 Intent / L2 Solution / L3 Exception / L4 Consistency / L5 Boundary; one question at a time, each with AI recommendation; write answers to exploration.md real-time). Auto-execute keyword-detected analysis (Security / Architecture Flow / Impact Analysis — always run) and \`codegraph_impact\` (parallel for multiple symbols). Completion check: consistency, L1-L5 coverage, file completeness — if no hard conflicts, proceed to Phase 2 directly (consistency passthrough).
 
 **1.1.2 Prompt Validation Gate (MANDATORY, 澄清门)**:
 
 ${PROMPT_GATE_COMPACT}
 
 校验对象为用户最终提供的主题描述（未携带主题时先交互收集）；用户确认或修改前 MUST NOT 推进到 1.1.5 及之后的任何步骤。
+
+**1.5.5 Functional Flowchart & Flow Final Confirmation Gate (MANDATORY, 确认门)**:
+
+${FLOWCHART_COMPACT}
+
+探索文件 1.2 结构中 MUST 含 \`## 功能流程图\` 段（Mermaid \`flowchart TD\` + 节点清单表）。本门是**确认门（确认流程基准）**——管线虽为全自动，但流程基准的确认是自动化的前置条件，MUST NOT 因 auto 语义跳过或静默通过本门：用户确认前 MUST NOT 进入 1.6 Completion Check，MUST NOT 把未经用户确认的流程图作为 propose 的生成锚点。发现遗漏节点 MUST 回到本步骤更新并重新经用户确认，MUST NOT 在 tasks.md 中静默补节点。
 
 ## Phase 2: Proposal (automated, no mid-flow confirmation)
 
@@ -608,6 +659,6 @@ After apply completes and compile check passes: announce "## Auto-Archive Phase"
 
 ## Guardrails
 
-Don't skip questioning; don't auto-proceed on hard conflict (consistency passthrough only when no hard conflict); read-only operations (file reading, CodeGraph, analysis) run without confirmation but L1-L5 clarification gates still wait; MUST validate prompt before exploring (1.1.2 提示词校验门，清晰直通 / 不明确须优化并确认，未确认不推进); auto semantics never skip the clarification gate; don't deadlock on the confirmation gate (确认 / 修改 / 拒绝 / 授权按推断四条出口); do persist the prompt baseline into \`## 提示词基线\`; auto-verify after proposal; auto-apply after verification pass with auto-mode=true (venus_spec_apply Step 5.5 skipped); auto-archive after apply complete (venus_spec_archive skill); auto-generate requirement doc after full pass (venus_tr_impl_review_proposal deep review → venus_tr_docs_requirement_doc non-interactive; WARN+continue on failure); MUST create file before questioning; MUST verify file before migration; MUST preserve source on migration failure; MUST NOT offer method selection; do explore codebase before asking; do provide recommendations; do update file real-time; do use structured format; do show quantified scores; do inject capability memory; do scan other projects with CodeGraph; don't lose exploration (file persists). Build all paths with \`path.join()\`.`,
+Don't skip questioning; don't auto-proceed on hard conflict (consistency passthrough only when no hard conflict); read-only operations (file reading, CodeGraph, analysis) run without confirmation but L1-L5 clarification gates still wait; MUST validate prompt before exploring (1.1.2 提示词校验门，清晰直通 / 不明确须优化并确认，未确认不推进); auto semantics never skip the clarification gate; don't deadlock on the confirmation gate (确认 / 修改 / 拒绝 / 授权按推断四条出口); do persist the prompt baseline into \`## 提示词基线\`; MUST produce the functional flowchart (1.5.5 强制产出探索文件 \`## 功能流程图\` 段并执行流程最终确认门，确认前不进入 1.6、不把未确认流程图当作 propose 锚点); auto semantics never skip the flowchart confirmation gate; don't deadlock on the flowchart gate (确认 / 修改 / 拒绝记录未确认状态 / 授权按推断四条出口); don't silently add flowchart nodes in tasks (遗漏节点回 1.5.5 更新并重新确认); auto-verify after proposal; auto-apply after verification pass with auto-mode=true (venus_spec_apply Step 5.5 skipped); auto-archive after apply complete (venus_spec_archive skill); auto-generate requirement doc after full pass (venus_tr_impl_review_proposal deep review → venus_tr_docs_requirement_doc non-interactive; WARN+continue on failure); MUST create file before questioning; MUST verify file before migration; MUST preserve source on migration failure; MUST NOT offer method selection; do explore codebase before asking; do provide recommendations; do update file real-time; do use structured format; do show quantified scores; do inject capability memory; do scan other projects with CodeGraph; don't lose exploration (file persists). Build all paths with \`path.join()\`.`,
     };
 }

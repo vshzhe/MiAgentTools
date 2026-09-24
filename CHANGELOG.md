@@ -9,6 +9,44 @@
 
 （暂无）
 
+## [1.1.0] - 2026-09-24
+
+### Added
+
+- **功能流程图制品与提案交叉验证**：5 个工作流技能（explore / workflow /
+  auto-workflow / debug / genfull）在探索阶段产出结构化流程制品
+  （Mermaid 流程图 + 关键操作节点清单），经**流程最终确认门**确认后成为
+  propose / verify 的**流程基准** —— 独立于提案自身的交叉验证锚点
+- 新增模板层唯一源模块 `src/core/templates/flowchart-gate.ts`：承载制品文本与
+  两套场景列集（需求版 / 缺陷链路版），以 `buildFlowchartBlock(columns)` 参数化
+  渲染、`buildFlowchartCompact(columns)` 压缩渲染，构建期内联进各技能正文
+  （不新增技能，技能总数保持 27）
+- 产出强度分级：4 个流程类技能（workflow / auto-workflow / genfull / debug）
+  **强制产出**；`venus_spec_explore` **条件触发**（无业务功能流程时记录
+  「本次无功能流程」直通），不改变其「无固定步骤、无强制产出」定位
+- 节点准入规则：节点粒度 = 可独立验证的业务操作单元；每节点 MUST 可追溯代码
+  证据（`文件:行`），**新建功能**节点标 `[新建]` + 预期产物（不要求预测文件路径），
+  无法追溯证据的节点 MUST NOT 进入清单（反幻觉）
+- 调试技能缺陷链路变体：只覆盖缺陷相关节点（前置条件 → 触发 → 异常 → 根因），
+  新增 `🔴异常` / `🟠根因` 标记；Phase 4 验证口径改为覆盖「异常节点 + 根因节点」
+- 编排技能（genfull）Bridge 1 新增流程图**兜底补建 + 确认**步骤（探索阶段未产出时
+  依探索产物强制补建，并入桥梁门决策），并具备幂等性
+- 提案技能以流程基准为生成锚点：设计引用流程图与节点清单；任务逐个标注对应节点
+  标识（`[N4]` 形）；流程图缺失或未获确认时降级为仅凭探索产物生成并标注降级
+- 提案验证技能新增维度 **D10 流程图节点覆盖度**：`覆盖度 = 被覆盖节点数 ÷ 总节点数`，
+  与既有维度同权重纳入 90% 统一阈值；优先按节点标识显式标注匹配、未标注时辅以
+  语义等价判定；无 `## 功能流程图` 段时该维度 SKIP（不计入分母、不判 FAIL）；
+  评分不足时逐条列出未覆盖节点标识与操作名
+- 与既有 D9（Business Steps）职责分离互补：D9 检查提案自身是否拆解复杂操作
+  （自证），D10 与外部流程基准比对（他证）；D9 保留不动
+- `openspec/CONTEXT.md` 新增 6 条术语：功能流程图 / 关键操作节点 / 流程最终确认门 /
+  节点覆盖度 / 流程基准 / 缺陷链路，并与既有「提示词基线」「业务流程图」「D9」显式划界
+
+### Changed
+
+- `venus_spec_verify_proposal` 维度数由 9 增至 10（描述、章节标题、总分公式的
+  维度区间与触发维度表同步更新）
+
 ## [1.0.1] - 2026-09-24
 
 ### Added
@@ -153,7 +191,8 @@
 - 项目配置从单文件 `venus.config.yaml` 重构为 `.venus/` 目录结构
   （`config.yaml` 显式引用 `rules/` 下规则文件），重复 init 保留用户全部修改
 
-[Unreleased]: https://github.com/venus-agent-tools/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/venus-agent-tools/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/venus-agent-tools/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/venus-agent-tools/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/venus-agent-tools/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/venus-agent-tools/releases/tag/v0.1.0

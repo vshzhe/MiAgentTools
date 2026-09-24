@@ -5,6 +5,12 @@
 import { describe, it, expect } from 'vitest';
 import { getSkillTemplates, getCommandTemplates, deriveCommandId, countSkillsByType } from '../src/core/templates/index.js';
 import { SKILL_PREFIX, SKILL_TYPE_IDS, isSkillType } from '../src/core/config.js';
+import {
+    buildFlowchartBlock,
+    buildFlowchartCompact,
+    REQUIREMENT_FLOW_COLUMNS,
+    FAULT_CHAIN_FLOW_COLUMNS,
+} from '../src/core/templates/flowchart-gate.js';
 
 describe('模板注册表', () => {
     const skills = getSkillTemplates();
@@ -94,6 +100,57 @@ describe('模板注册表', () => {
     it('isSkillType 校验', () => {
         expect(isSkillType('tr_init')).toBe(true);
         expect(isSkillType('tr_unknown')).toBe(false);
+    });
+});
+
+describe('功能流程图制品内联', () => {
+    const skills = getSkillTemplates();
+
+    /** 5 个接入本制品的工作流技能 → 期望的场景列集特征 */
+    const FLOWCHART_SKILLS: ReadonlyArray<{ name: string; scenarioMark: string }> = [
+        { name: 'venus_spec_explore', scenarioMark: '异常路径' },
+        { name: 'venus_tr_impl_workflow', scenarioMark: '异常路径' },
+        { name: 'venus_tr_impl_auto_workflow', scenarioMark: '异常路径' },
+        { name: 'venus_tr_impl_genfull', scenarioMark: '异常路径' },
+        // 调试技能用缺陷链路变体：列集以「标记」+ 根因标记语义区分
+        { name: 'venus_tr_impl_debug', scenarioMark: '🟠根因' },
+    ];
+
+    it('5 个技能正文均内联来自 flowchart-gate.ts 的功能流程图文本', () => {
+        for (const { name } of FLOWCHART_SKILLS) {
+            const skill = skills.find((s) => s.template.name === name);
+            expect(skill, `技能 ${name} 未注册`).toBeDefined();
+            expect(skill?.template.instructions).toContain('功能流程图（Functional Flowchart）');
+        }
+    });
+
+    it('节点清单表列集按场景注入（需求版 vs 缺陷链路版）', () => {
+        for (const { name, scenarioMark } of FLOWCHART_SKILLS) {
+            const instructions = skills.find((s) => s.template.name === name)?.template.instructions ?? '';
+            expect(instructions, `${name} 缺少场景列集特征 ${scenarioMark}`).toContain(scenarioMark);
+        }
+        // 需求版必须含「触发条件 / 异常路径」两列，缺陷链路版不含「异常路径」列
+        const debugInstructions =
+            skills.find((s) => s.template.name === 'venus_tr_impl_debug')?.template.instructions ?? '';
+        const workflowInstructions =
+            skills.find((s) => s.template.name === 'venus_tr_impl_workflow')?.template.instructions ?? '';
+        expect(workflowInstructions).toContain('异常路径');
+        expect(debugInstructions).not.toContain('| 异常路径 |');
+    });
+
+    it('流程图文本不含 Bash 命令示例（防 allowed-tools 权限拦截）', () => {
+        // 直接断言唯一源渲染产物：块文本本身不得含命令，否则被内联进
+        // tr-impl-workflow / tr-impl-genfull（白名单无 pnpm）时会被权限拦截
+        const commandPattern = /\b(pnpm|npm|npx|yarn|tsc|mvn|gradle|cargo)\b/;
+        const blocks = [
+            buildFlowchartBlock(REQUIREMENT_FLOW_COLUMNS),
+            buildFlowchartBlock(FAULT_CHAIN_FLOW_COLUMNS),
+            buildFlowchartCompact(REQUIREMENT_FLOW_COLUMNS),
+            buildFlowchartCompact(FAULT_CHAIN_FLOW_COLUMNS),
+        ];
+        for (const block of blocks) {
+            expect(commandPattern.test(block)).toBe(false);
+        }
     });
 });
 

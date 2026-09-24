@@ -26,7 +26,7 @@ pnpm link --global
 验证安装：
 
 ```bash
-venus --version    # 输出 1.0.1
+venus --version    # 输出 1.1.0
 venus --help       # 查看全部命令
 ```
 
