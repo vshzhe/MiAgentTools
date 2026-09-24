@@ -1693,7 +1693,7 @@ svn log -r 66525 -v /e/WorkSpaces_ahdx/Venus4A
 javac -encoding UTF-8 -cp "<classpath>" /e/WorkSpaces_ahdx/Venus4A/src/foo/Bar.java
 
 # 看 auto-package.sh 的中间产物（变更清单）
-cat vendor/auto-package-svn/.openspec-tmp/apply-improve-auto-package-incremental-build/merged_files.txt
+cat <runtime_dir>/.openspec-tmp/<change>/merged_files.txt
 \`\`\`
 `;
 
