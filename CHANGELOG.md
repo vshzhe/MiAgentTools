@@ -9,6 +9,33 @@
 
 （暂无）
 
+## [1.1.1] - 2026-09-24
+
+### Added
+
+- 新增 `.gitattributes`：`* text=auto eol=lf` 统一仓库行尾为 LF。修复的环境问题：
+  `core.autocrlf=true` 且无 `.gitattributes` 时，checkout/merge 会把工作区中内容有变化的
+  文件转为 CRLF，而 `skills/**` 静态快照与模板生成结果恒为 LF（vite 转换 TS 时归一行尾），
+  `skills-parity` 的字节级比较随即误报漂移（实测 13 个快照失配）。显式声明后任何 clone /
+  checkout 都产出 LF，该测试与环境配置解耦
+- `.gitignore` 补充预防性条目：`coverage/`、`*.tsbuildinfo`、`.eslintcache`、
+  `.claude/settings.local.json`（当前仓库中均不存在）
+
+### Changed
+
+- `vitest.config.ts` 配置 `testTimeout: 20000`：默认 5s 对 shell 调用外部 CLI 的用例
+  （`spec-commands` 的 venus↔openspec 互认校验，单跑约 3.9s）余量不足，全量并发下会间歇性
+  超时失败（先例 commit `5ed5f20` 亦记录过同一现象）
+
+### 核验澄清
+
+- 本次**未改动任何已提交内容**：经 `git cat-file -p` 逐字节核实，仓库全部 blob 本就以 LF
+  存储（`vendor/auto-package-svn/*` 与 `skills/venus_release_package/scripts/*.sh` 的 CR 字节
+  数为 0），`git add --renormalize .` 亦无内容变更。此前观察到的 CRLF 仅存在于**工作区副本**
+  （checkout 经 `core.autocrlf=true` 转换所致）—— 故本次新增 `.gitattributes` 属**行为性声明**
+  （此后 checkout 产出 LF），非内容规范化。注意 `git show <rev>:<path>` 会应用行尾转换，
+  测量 blob 行尾须用 `git cat-file -p`
+
 ## [1.1.0] - 2026-09-24
 
 ### Added
@@ -191,7 +218,8 @@
 - 项目配置从单文件 `venus.config.yaml` 重构为 `.venus/` 目录结构
   （`config.yaml` 显式引用 `rules/` 下规则文件），重复 init 保留用户全部修改
 
-[Unreleased]: https://github.com/venus-agent-tools/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/venus-agent-tools/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/venus-agent-tools/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/venus-agent-tools/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/venus-agent-tools/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/venus-agent-tools/compare/v0.1.0...v1.0.0

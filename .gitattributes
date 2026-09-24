@@ -1,0 +1,14 @@
+# 行尾归一：仓库统一以 LF 存储并检出。
+#
+# 背景：本机 core.autocrlf=true 且此前无本文件 —— checkout/merge 会把内容有变化的
+# 文件在工作区转成 CRLF，而 skills/** 静态快照与模板生成结果恒为 LF（vite 转换 TS 时
+# 归一行尾）。skills-parity 测试做**字节级**比较，故工作区一旦被 CRLF 污染即误报漂移
+# （2026-09-24 实测 13 个快照失配）。显式声明 eol=lf 后，任何 clone / checkout 都产出
+# LF，使该测试与环境配置解耦。
+#
+# 注：*.sh 使用 LF 是正确形态（CRLF 的 shell 脚本会触发 "\r: command not found"）；
+# *.conf 由 bash source，*.ps1 在 PowerShell 5.1+ 下均以 LF 正常工作。
+* text=auto eol=lf
+
+# 二进制文件不参与行尾转换
+*.jar binary
