@@ -10,8 +10,8 @@ describe('模板注册表', () => {
     const skills = getSkillTemplates();
     const commands = getCommandTemplates();
 
-    it('内置 26 个技能（9 类：8 类 tr_* 共 18 技能 + spec 类 7 技能 + 1 类 tr_test）', () => {
-        expect(skills.length).toBe(26);
+    it('内置 27 个技能（9 类：8 类 tr_* 共 19 技能 + spec 类 7 技能 + 1 类 tr_test）', () => {
+        expect(skills.length).toBe(27);
     });
 
     it('全部技能名以 venus_ 开头', () => {
@@ -26,7 +26,13 @@ describe('模板注册表', () => {
     });
 
     it('技能名的类型段与其 type 字段一致（venus_<type>[_<sub>] 前缀）', () => {
+        // 命名约定豁免：venus_release_package 为用户裁决保留的短名（斜杠指令 /venus:release-package），
+        // 不含 tr_release 类型段，见 design D16「命名约定豁免」
+        const NAMING_EXEMPT = new Set(['venus_release_package']);
         for (const { template } of skills) {
+            if (NAMING_EXEMPT.has(template.name)) {
+                continue;
+            }
             // tr_* 类型名为 venus_<type>_<name>（三段），spec 类名为 venus_<type>_<name>（两段），
             // 统一校验：去掉 venus_ 前缀后以 "<type>_" 开头
             expect(template.name.startsWith(`${SKILL_PREFIX}${template.type}_`)).toBe(true);

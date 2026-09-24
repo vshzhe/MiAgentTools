@@ -17,7 +17,7 @@ let tempRoot: string;
 
 beforeAll(() => {
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'venus-uninst-'));
-    // 配置全量 workflows，让 init 装全部 26 个技能（默认集仅 7 个）
+    // 配置全量 workflows，让 init 装全部 27 个技能（默认集仅 7 个）
     ensureProjectConfig(tempRoot);
     writeWorkflowsToConfig(tempRoot, getSkillTemplates().map((e) => e.commandId));
 });
@@ -32,8 +32,8 @@ describe('venus uninstall', () => {
         runGenerate(tempRoot, { type: 'tr_tools', name: 'extra-one' });
 
         const preview = previewUninstall(tempRoot);
-        expect(preview.removedSkills.length).toBe(27); // 26 内置 + 1 生成
-        expect(preview.removedCommands.length).toBe(26); // 26 内置一一对应
+        expect(preview.removedSkills.length).toBe(28); // 27 内置 + 1 生成
+        expect(preview.removedCommands.length).toBe(27); // 27 内置一一对应
         // 未删除：文件仍在
         expect(fs.existsSync(path.join(tempRoot, '.claude', 'skills', 'venus_tr_tools_pwd', 'SKILL.md'))).toBe(true);
     });
@@ -44,7 +44,7 @@ describe('venus uninstall', () => {
         fs.writeFileSync(path.join(otherDir, 'SKILL.md'), 'other', 'utf8');
 
         const result = runUninstall(tempRoot, { yes: true });
-        expect(result.removedSkills.length).toBe(27);
+        expect(result.removedSkills.length).toBe(28);
         expect(result.skipped.some((s) => s.includes('other_tool_skill'))).toBe(true);
         // 其他技能保留
         expect(fs.existsSync(path.join(otherDir, 'SKILL.md'))).toBe(true);
