@@ -12,6 +12,18 @@ One-stop debugging workflow from reproduction to proposal synchronization, with 
 
 **Input**: The argument after this command is the bug description (symptom, error message, or failing behavior). If omitted, prompt the user to describe the bug before starting.
 
+**门 0 — Prompt Validation Gate（缺陷五维，MANDATORY）**: 记录 bug 描述之后、Phase 1 复现之前强制自检。用户未提供描述、由技能提示后补充的，以补充内容为原始提示词（不对空输入校验）。
+
+**Prompt Validation Gate (提示词校验门)**: 探索前强制自检用户输入，维度为 症状 Symptom / 复现步骤 Repro / 期望 vs 实际 Expected vs Actual / 环境 Environment / 歧义 Ambiguity。
+- **清晰**（症状 Symptom / 复现步骤 Repro / 期望 vs 实际 Expected vs Actual / 歧义 Ambiguity 均无 `❌` 与实质 `⚠️`）→ 一句话复述理解后直通，不输出校验表、不要求确认
+- **不明确**（任一维 `❌` 或实质 `⚠️`）→ 先做提示词优化，输出 `【优化后提示词】`（推断项标 `[推断]`、未知项标 `[待确认]`）与 `【优化说明】`，**阻塞等待用户确认或修改**后才继续；出口四条：确认 / 修改 / 拒绝（按原理解继续）/ 显式授权按推断（推断项记入基线后继续），**不得陷入等待死循环**
+- **软不明确**（仅细节级歧义）→ 记 `[假设]` 继续
+- 优化**不篡改原始意图**、不增加用户未提出的需求
+- 校验结论与基线写入探索产物 `## 提示词基线` 段，作为下游唯一语义来源
+- 空输入不校验；输入为变更名时以该变更既有制品为校验对象；上游已产出基线时直接通过
+
+用户确认或修改前 MUST NOT 进入 Phase 1，不得凭猜测编写失败测试。校验结论（原始提示词 + 确认后的基线）写入诊断记录 `## 提示词基线` 段，Phase 6 随根因分析持久化到变更 exploration.md。
+
 Use the **TodoWrite tool** to initialize tracking for each bug's phases. Append new Bug #N entries for each additional bug in the loop.
 
 ---
@@ -78,6 +90,7 @@ After each fix, ask: "还有相关 bug 需要修复吗？" [有] [没有]
 
 ## Guardrails
 
+- Validate the bug report first (Startup 的缺陷五维提示词校验门，含糊描述须优化并确认后才进入复现，不得凭猜测编写失败测试)；确认门四条出口不得死锁
 - Reproduce first (every bug in loop); zero-assumption on root causes; archives read-only
 - Regression test mandatory (every bug in loop); proposal sync mandatory (all fixes); verification never skipped
 - Loop non-defect non-blocking; loop exit preserves completed work; independent change → finalize + prompt separate debug (`/venus:tr-impl-debug`)

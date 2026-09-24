@@ -34,6 +34,20 @@ Create file at `openspec/explorations/<keyword>-explore-<sequence>.md`:
 
 Use `path.join()` for cross-platform compatibility.
 
+### 1.1.2 Prompt Validation Gate (MANDATORY CHECKPOINT)
+
+**⚠️ MANDATORY: 本门在任何探索动作之前执行，不得跳过。** 校验对象是用户最终提供的需求描述（未携带主题时先交互收集，再以收集后的描述执行本门，不对空输入校验）。
+
+**Prompt Validation Gate (提示词校验门)**: 探索前强制自检用户输入，维度为 目标 Goal / 对象 Object / 范围 Scope / 约束 Constraints / 验收 Acceptance / 歧义 Ambiguity。
+- **清晰**（目标 Goal / 对象 Object / 范围 Scope / 歧义 Ambiguity 均无 `❌` 与实质 `⚠️`）→ 一句话复述理解后直通，不输出校验表、不要求确认
+- **不明确**（任一维 `❌` 或实质 `⚠️`）→ 先做提示词优化，输出 `【优化后提示词】`（推断项标 `[推断]`、未知项标 `[待确认]`）与 `【优化说明】`，**阻塞等待用户确认或修改**后才继续；出口四条：确认 / 修改 / 拒绝（按原理解继续）/ 显式授权按推断（推断项记入基线后继续），**不得陷入等待死循环**
+- **软不明确**（仅细节级歧义）→ 记 `[假设]` 继续
+- 优化**不篡改原始意图**、不增加用户未提出的需求
+- 校验结论与基线写入探索产物 `## 提示词基线` 段，作为下游唯一语义来源
+- 空输入不校验；输入为变更名时以该变更既有制品为校验对象；上游已产出基线时直接通过
+
+不明确分支的确认门是**澄清门（确认 WHAT）**：用户确认或修改前 MUST NOT 推进到 1.1.5 及之后的任何步骤。校验结论（原始提示词 + 确认后的基线）写入探索文件的 `## 提示词基线` 段。
+
 ### 1.1.5 CONTEXT.md Startup Check (MANDATORY CHECKPOINT)
 
 **⚠️ MANDATORY: CONTEXT.md check at Phase 1 start — BEFORE questioning begins**

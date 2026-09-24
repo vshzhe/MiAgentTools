@@ -7,6 +7,17 @@
  * 填补"引导式全流程"空档。
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
+import {
+    buildPromptGateBlock,
+    buildPromptGateCompact,
+    REQUIREMENT_DIMENSIONS,
+} from '../prompt-gate.js';
+
+/** 需求维度的提示词校验门全文（唯一源渲染，见 prompt-gate.ts） */
+const PROMPT_GATE = buildPromptGateBlock(REQUIREMENT_DIMENSIONS);
+
+/** 需求维度的提示词校验门压缩版（斜杠指令正文复用） */
+const PROMPT_GATE_COMPACT = buildPromptGateCompact(REQUIREMENT_DIMENSIONS);
 
 export function getTrImplGenfullSkillTemplate(): SkillTemplate {
     return {
@@ -38,6 +49,21 @@ This orchestrator guides you through:
 Use the **TodoWrite tool** to initialize tracking:
 \`[{"content":"Phase 0: 初始化","status":"in_progress"},{"content":"Stage 1: 探索（venus_spec_explore）","status":"pending"},{"content":"Bridge 1: 探索→提案","status":"pending"},{"content":"Stage 1.5: 前端设计（条件 has-frontend）","status":"pending"},{"content":"Stage 2: 提案+深度复查+需求文档","status":"pending"},{"content":"Bridge 2: 提案→实现","status":"pending"},{"content":"Stage 3: 实现（含条件 frontend/test）","status":"pending"},{"content":"Bridge 3: 实现→归档","status":"pending"},{"content":"Stage 4: 归档","status":"pending"}]\`
 
+### 0.0 Prompt Validation Gate (MANDATORY)
+
+**⚠️ MANDATORY: 本门在 Stage 1 委派之前执行，不得跳过。**
+
+**门的校验对象是用户最终提供的需求描述**：调用未携带主题时，先交互收集主题描述，再以收集后的描述执行本门，MUST NOT 对空输入执行校验。
+
+${PROMPT_GATE}
+
+**本技能内的执行要求**：
+
+- 门的位置固定在此处：Phase 0 初始化内、Stage 1 委派 \`venus_spec_explore\` 之前
+- 不明确分支的确认门是**澄清门（确认 WHAT）**：用户确认或修改前 MUST NOT 委派 Stage 1，也不得进入 Stage 1.5 / Stage 2
+- **幂等**：若检测到上游已产出经用户确认的提示词基线（本次会话 Phase 0 已确认，或传入的探索产物中已存在 \`## 提示词基线\` 段），**直接通过，不重复校验或再次要求用户确认**——避免委派链上同一提示词被连续确认两次
+- 校验结论（原始提示词 + 确认后的提示词基线）随 Stage 1 委派一并交给 \`venus_spec_explore\`，由 explore 写入探索产物的 \`## 提示词基线\` 段
+
 ### 0.1 actionContext.mode 检测
 
 - 读取 \`openspec/config.yaml\` 与当前变更状态（\`venus spec status --json\`；CLI 不可用则 Glob 扫描 \`openspec/changes/\`）
@@ -55,7 +81,8 @@ Use the **TodoWrite tool** to initialize tracking:
 
 **委派 \`venus_spec_explore\` 技能**（via Skill tool）执行交互式探索：
 
-- 传入用户 topic
+- 传入用户 topic + 0.0 产出并经用户确认的**提示词基线**
+- explore 检测到既有基线后直接通过其提示词校验门，**不重复校验或再次要求确认**（幂等）
 - explore 技能内部完成：探索文件创建、CONTEXT.md 检查、能力记忆注入、CodeGraph 基线扫描、多项目扫描、grill L1-L5 追问、关键词检测分析
 - explore 是交互式思考伙伴，需求澄清类追问由 explore 承载（genfull 不内联）
 
@@ -250,6 +277,9 @@ Stage 1 探索 → Bridge 1 → [Stage 1.5 前端设计（条件）] → Stage 2
 ## Guardrails
 
 - **委派不内联** - 阶段执行委派对应 SKILL，genfull 只做编排与桥梁；不内联 explore/propose/apply 的逻辑（区别于 venus_tr_impl_workflow）
+- **MUST validate prompt before delegating** - 0.0 提示词校验门是强制 checkpoint：清晰输入一句话复述理解后直通；不明确输入须先做提示词优化并等待用户确认或修改，未确认前 MUST NOT 委派 Stage 1
+- **Do prompt-gate idempotency** - 检测到上游已产出提示词基线（本次会话已确认，或探索产物中已存在 \`## 提示词基线\` 段）时直接通过，不重复校验或再次要求确认
+- **Don't deadlock on the confirmation gate** - 0.0 确认门有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续），不得反复要求确认
 - **桥梁保证完整性** - 每个桥梁执行 ①上下文交接 ②就绪检查 ③完整性校验 ④门决策，确保每个流程完整
 - **引导式门控** - Bridge 1/2/3 在引导模式下暂停确认；frontend 设计/实现确认门与 test 确认门作为桥梁点
 - **前端设计前置** - Stage 1.5 委派 venus_tr_impl_frontend 仅执行主 SKILL Phase 1 设计（产出喂入 propose design.md），Stage 3.2 仅执行 Phase 2 实现（读 references 生成 JSP）；设计与实现分离，避免 apply 阶段重做设计
@@ -291,11 +321,15 @@ export function getTrImplGenfullCommandTemplate(): CommandTemplate {
 
 ## Phase 0: 初始化
 
-TodoWrite 全阶段+桥梁跟踪。检测 actionContext.mode（\`venus spec status --json\`，CLI 不可用则 Glob 扫描 \`openspec/changes/\`）：workspace-planning 模式 → 降级为仅探索+提案+深度复查+需求文档，Bridge 2 前停止。初始化贯穿上下文（change-name / changeRoot / has-frontend / has-java-test / tech-stack 待各阶段填充）。
+**0.0 Prompt Validation Gate（MANDATORY，澄清门）**: 在 Stage 1 委派之前强制自检用户主题描述（校验对象为用户最终提供的描述；未携带主题时先交互收集，不对空输入校验）。清晰 → 一句话复述理解后直通；不明确 → 先优化并阻塞等待确认或修改，未确认前不得委派 Stage 1。**幂等**：检测到上游已产出提示词基线（本次会话已确认，或探索产物中已存在 \`## 提示词基线\` 段）时直接通过，不重复确认。
+
+${PROMPT_GATE_COMPACT}
+
+TodoWrite 全阶段+桥梁跟踪。检测 actionContext.mode（\`venus spec status --json\`，CLI 不可用则 Glob 扫描 \`openspec/changes/\`）：workspace-planning 模式 → 降级为仅探索+提案+深度复查+需求文档，Bridge 2 前停止。初始化贯穿上下文（change-name / changeRoot / has-frontend / has-java-test / tech-stack / 提示词基线 待各阶段填充）。
 
 ## Stage 1: 探索（委派 venus_spec_explore）
 
-via Skill tool 传入 topic。explore 内部完成探索文件创建、CONTEXT.md 检查、能力记忆注入、CodeGraph 基线扫描、多项目扫描、grill L1-L5 追问、关键词检测分析。完成信号：用户获得清晰需求理解，Decisions / 术语 / 边界沉淀。
+via Skill tool 传入 topic + 0.0 确认的提示词基线（explore 检测到既有基线直接通过其校验门，不重复确认）。explore 内部完成探索文件创建、CONTEXT.md 检查、能力记忆注入、CodeGraph 基线扫描、多项目扫描、grill L1-L5 追问、关键词检测分析。完成信号：用户获得清晰需求理解，Decisions / 术语 / 边界沉淀。
 
 ## Bridge 1: 探索→提案
 
@@ -329,6 +363,6 @@ via Skill tool 传 change-name（跳过选择）。archive 内部完成 delta sp
 
 ## Guardrails
 
-委派不内联（阶段执行委派对应 SKILL，genfull 只编排 + 桥梁，区别于 venus_tr_impl_workflow）；桥梁保证完整性（①上下文交接 ②就绪检查 ③完整性校验 ④门决策）；引导式门控（Bridge 1/2/3 暂停确认，frontend 设计/实现确认门与 test 确认门作桥梁点）；前端设计前置（Stage 1.5 仅设计喂入 propose design.md，Stage 3.2 仅实现读 references 生成 JSP，设计与实现分离）；don't skip questioning（grill L1-L5 由 explore 承载）；read-only operations（文件 / CodeGraph / impact）直接执行但桥梁确认门等待确认；auto-mode to apply（Stage 3 传 auto-mode=true，Bridge 2 承载确认避免 Step 5.5 重复）；pass change-name to archive；deep review + requirement doc after verify PASS（先复查再需求文档，FAIL 不生成）；impact analysis at Bridge 1（explore 只准备符号，Bridge 1 补跑 codegraph_impact）；exploration.md fallback（缺失补建最小版，verify 硬依赖）；actionContext.mode detection（workspace-planning 降级）；MUST preserve source on migration failure；do explore codebase before asking；do show quantified scores；don't lose exploration。Build all paths with \`path.join()\`.`,
+委派不内联（阶段执行委派对应 SKILL，genfull 只编排 + 桥梁，区别于 venus_tr_impl_workflow）；MUST validate prompt before delegating（0.0 提示词校验门，清晰直通 / 不明确须优化并确认，未确认不委派 Stage 1）且幂等（检测到既有提示词基线直接通过，不重复确认）；确认门四条出口不得死锁；桥梁保证完整性（①上下文交接 ②就绪检查 ③完整性校验 ④门决策）；引导式门控（Bridge 1/2/3 暂停确认，frontend 设计/实现确认门与 test 确认门作桥梁点）；前端设计前置（Stage 1.5 仅设计喂入 propose design.md，Stage 3.2 仅实现读 references 生成 JSP，设计与实现分离）；don't skip questioning（grill L1-L5 由 explore 承载）；read-only operations（文件 / CodeGraph / impact）直接执行但桥梁确认门等待确认；auto-mode to apply（Stage 3 传 auto-mode=true，Bridge 2 承载确认避免 Step 5.5 重复）；pass change-name to archive；deep review + requirement doc after verify PASS（先复查再需求文档，FAIL 不生成）；impact analysis at Bridge 1（explore 只准备符号，Bridge 1 补跑 codegraph_impact）；exploration.md fallback（缺失补建最小版，verify 硬依赖）；actionContext.mode detection（workspace-planning 降级）；MUST preserve source on migration failure；do explore codebase before asking；do show quantified scores；don't lose exploration。Build all paths with \`path.join()\`.`,
     };
 }

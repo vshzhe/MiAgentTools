@@ -72,11 +72,67 @@ Use `path.join()` for cross-platform compatibility.
 **TodoWrite tracking**: Initialize TodoWrite with Phase 1 items:
 ```
 - [ ] Phase 1: 创建探索文件
+- [ ] Phase 1: 提示词校验门
 - [ ] Phase 1: CONTEXT.md 检查
 - [ ] Phase 1: 关键词检测与分析
 - [ ] Phase 1: Grill-with-docs 追问
 - [ ] Phase 1: 完成检测与确认
 ```
+
+### 1.1.2 Prompt Validation Gate (MANDATORY CHECKPOINT)
+
+**⚠️ MANDATORY: 本门在任何探索动作之前执行，不得跳过。**
+
+**门的校验对象是用户最终提供的需求描述**：调用未携带主题时，先交互收集主题描述，再以收集后的描述执行本门，MUST NOT 对空输入执行校验。
+
+### Prompt Validation Gate (提示词校验门)
+
+**Step 1 — 清晰度自检**: 逐维判定用户输入，标记 `✅ 清晰` / `⚠️ 歧义` / `❌ 缺失`
+
+| 维度 | 判定问题 | 升级为硬不明确的信号 |
+| :--- | :--- | :--- |
+| 目标 Goal | 要做什么、为什么做？ | 只有笼统动词（如"优化一下"）而无预期结果 |
+| 对象 Object | 落在哪个模块 / 文件 / 页面 / 接口 / 行为？ | 无法定位对象，或存在多个可能对象 |
+| 范围 Scope | 改动边界？明确不做什么？ | 边界开放且影响面不可控 |
+| 约束 Constraints | 不能破坏什么？兼容性 / 技术栈限制？ | 与既有实现存在互斥约束 |
+| 验收 Acceptance | 怎样算完成？ | 无任何可验证的完成判据 |
+| 歧义 Ambiguity | 有无多义说法、指代不清、前后矛盾？ | 影响范围 / 行为契约 / 验收的实质歧义 |
+
+**Step 2 — 分级判定**
+
+- **清晰**（目标 Goal / 对象 Object / 范围 Scope / 歧义 Ambiguity 均无 `❌` 与实质 `⚠️`）→ 用一句话复述你的理解，然后**直接进入探索**；不输出校验表格、不要求用户确认
+- **不明确**（任一维 `❌` 或存在实质 `⚠️`）→ 执行 Step 3，并**阻塞等待确认**
+- **软不明确**（仅细节级歧义，不涉及范围 / 行为契约 / 验收标准）→ 记为 `[假设]` 并继续，不进入 Step 3
+
+**Step 3 — 提示词优化**（仅不明确分支）
+
+- **不篡改用户原始意图**：只做结构化与约束补全，绝不擅自增加用户未提出的需求
+- 推断补齐的内容标 `[推断]`，无法推断的内容标 `[待确认]`；禁止把猜测写成既定事实
+- 输出两部分：`【优化后提示词】`（目标 / 对象 / 范围 / 约束 / 验收 / 已知歧义）+ `【优化说明】`（改了哪里、为什么）
+- 列出仍需用户补充的信息项
+
+**Step 4 — 确认门（阻塞）**
+
+- 呈现 `【优化后提示词】` 与 `【优化说明】` 后**停下来等待用户确认或修改**
+- 用户确认前 MUST NOT 进入探索、创建探索文件、扫描代码库或发起追问
+- 出口有四条，不得只认一条：① 用户确认 → 以优化版为基线；② 用户修改 → 以修改版为基线；③ 用户拒绝优化 → 记录原始提示词，按其原有理解继续；④ 用户显式授权按推断继续（如"你按你的判断来"）→ 将推断项标 `[推断]` 记入基线后继续。**MUST NOT 反复要求确认而陷入等待死循环。**
+
+**Step 5 — 落盘提示词基线**
+
+- 将「原始提示词」与「确认后的提示词基线」一并写入探索产物的 `## 提示词基线` 段（保留原始提示词供审计）
+- 下游（提案 / 设计 / 规格 / 任务）以**提示词基线**为唯一语义来源；基线变更 MUST 回到本门重新确认
+
+**入口形态适配**
+
+- 校验对象 = 用户**最终提供**的需求描述：调用未携带描述时，先交互收集，再以收集后的描述执行本门；**MUST NOT 对空输入执行校验**
+- 输入为**变更名**时，以该变更的既有制品为校验与探讨对象，MUST NOT 把变更名本身当作需求提示词评估清晰度
+- 已存在经用户确认的提示词基线时（尤其上游已完成本门），**直接通过，不重复校验或再次要求确认**
+
+**本技能内的执行要求**：
+
+- 门的位置固定在此处：探索文件已创建（1.1），而 CONTEXT.md 检查（1.1.5）、代码库扫描（1.2.1）与 grill 追问（1.3）均在其后
+- 不明确分支的确认门是**澄清门（确认 WHAT）**：用户确认或修改前 MUST NOT 推进到 1.1.5 及之后的任何步骤
+- 校验结论（原始提示词 + 确认后的提示词基线）写入探索文件 1.2 结构中的 `## 提示词基线` 段
 
 ### 1.1.5 CONTEXT.md Startup Check (MANDATORY CHECKPOINT)
 
@@ -100,6 +156,14 @@ Write the initial file structure with enhanced sections:
 ## Background
 
 <User's initial description and context>
+
+## 提示词基线 (Prompt Baseline)
+
+**原始提示词**: <用户最初提供的原文，未经改写>
+
+**确认后的提示词基线**: <经 1.1.2 校验门确认的版本；清晰输入时即原始提示词本身>
+
+> 下游（提案 / 设计 / 规格 / 任务）以提示词基线为唯一语义来源；基线若变更 MUST 回到 1.1.2 重新确认。
 
 ## Analysis (optional - if analysis run)
 
@@ -1515,6 +1579,9 @@ All artifacts ready! Run `/venus:spec-apply` to implement.
 - **Don't lose exploration** - File persists even on abandon (unless deleted)
 - **Don't force fixes** - Offer options on verification fail, user decides
 - **MUST create file before questioning** - Phase 1 checkpoint is mandatory
+- **MUST validate prompt before exploring** - 1.1.2 提示词校验门是强制 checkpoint：清晰输入一句话复述理解后直通（不输出校验表、不要求确认）；不明确输入须先做提示词优化并等待用户确认或修改，未确认前 MUST NOT 推进到 1.1.5 及之后的任何步骤
+- **Don't deadlock on the confirmation gate** - 1.1.2 确认门有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续），不得反复要求确认而陷入等待死循环
+- **Do persist the prompt baseline** - 原始提示词与确认后的基线一并写入探索文件 `## 提示词基线` 段；基线变更 MUST 回到 1.1.2 重新确认
 - **MUST verify file before migration** - Phase 2 checkpoint is mandatory
 - **MUST preserve source on migration failure** - Never lose user data
 - **MUST NOT offer method selection** - Phase 2 proceeds directly to inline propose-style generation (complexity evaluation and method selection removed)

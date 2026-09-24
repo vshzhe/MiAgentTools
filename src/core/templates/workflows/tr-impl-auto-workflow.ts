@@ -3,6 +3,17 @@
  * 编排层技能 —— 一站式全自动工作流，L1-L5 用户确认后全自动化。
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
+import {
+    buildPromptGateBlock,
+    buildPromptGateCompact,
+    REQUIREMENT_DIMENSIONS,
+} from '../prompt-gate.js';
+
+/** 需求维度的提示词校验门全文（唯一源渲染，见 prompt-gate.ts） */
+const PROMPT_GATE = buildPromptGateBlock(REQUIREMENT_DIMENSIONS);
+
+/** 需求维度的提示词校验门压缩版（斜杠指令正文复用） */
+const PROMPT_GATE_COMPACT = buildPromptGateCompact(REQUIREMENT_DIMENSIONS);
 
 export function getTrImplAutoWorkflowSkillTemplate(): SkillTemplate {
     return {
@@ -71,11 +82,26 @@ Use \`path.join()\` for cross-platform compatibility.
 **TodoWrite tracking**: Initialize TodoWrite with Phase 1 items:
 \`\`\`
 - [ ] Phase 1: 创建探索文件
+- [ ] Phase 1: 提示词校验门
 - [ ] Phase 1: CONTEXT.md 检查
 - [ ] Phase 1: 关键词检测与分析
 - [ ] Phase 1: Grill-with-docs 追问
 - [ ] Phase 1: 完成检测与确认
 \`\`\`
+
+### 1.1.2 Prompt Validation Gate (MANDATORY CHECKPOINT)
+
+**⚠️ MANDATORY: 本门在任何探索动作之前执行，不得跳过。本门是澄清门（确认 WHAT）——管线虽为全自动，但自动化的起点在基线确认之后，MUST NOT 因 auto 语义跳过或静默通过本门。**
+
+**门的校验对象是用户最终提供的需求描述**：调用未携带主题时，先交互收集主题描述，再以收集后的描述执行本门，MUST NOT 对空输入执行校验。
+
+${PROMPT_GATE}
+
+**本技能内的执行要求**：
+
+- 门的位置固定在此处：探索文件已创建（1.1），而 CONTEXT.md 检查（1.1.5）、代码库扫描（1.2.1）与 grill 追问（1.3）均在其后
+- 用户确认或修改前 MUST NOT 推进到 1.1.5 及之后的任何步骤，MUST NOT 以"稍后由 L1-L5 追问兜底"为由放行
+- 校验结论（原始提示词 + 确认后的提示词基线）写入探索文件 1.2 结构中的 \`## 提示词基线\` 段
 
 ### 1.1.5 CONTEXT.md Startup Check (MANDATORY CHECKPOINT)
 
@@ -98,6 +124,14 @@ Write the initial file structure with enhanced sections:
 \`\`\`markdown
 ## Background
 <User's initial description>
+
+## 提示词基线 (Prompt Baseline)
+
+**原始提示词**: <用户最初提供的原文，未经改写>
+
+**确认后的提示词基线**: <经 1.1.2 校验门确认的版本；清晰输入时即原始提示词本身>
+
+> 下游（提案 / 设计 / 规格 / 任务）以提示词基线为唯一语义来源；基线若变更 MUST 回到 1.1.2 重新确认。
 
 ## Codebase Findings
 
@@ -499,6 +533,10 @@ After auto-archive completes:
 ## Guardrails
 
 - **Don't skip questioning** - Keep asking until truly clear
+- **MUST validate prompt before exploring** - 1.1.2 提示词校验门是强制 checkpoint：清晰输入一句话复述理解后直通；不明确输入须先做提示词优化并等待用户确认或修改，未确认前 MUST NOT 推进到 1.1.5 及之后的任何步骤
+- **Auto semantics never skip the clarification gate** - 1.1.2 是澄清门（确认 WHAT），管线为全自动不构成跳过理由；基线确认是自动化的起点
+- **Don't deadlock on the confirmation gate** - 1.1.2 确认门有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续），不得反复要求确认
+- **Do persist the prompt baseline** - 原始提示词与确认后的基线一并写入探索文件 \`## 提示词基线\` 段；基线变更 MUST 回到 1.1.2 重新确认
 - **Don't auto-proceed on conflict** - Phase transitions proceed automatically when the 1.6 consistency checks pass (consistency passthrough); ask the user only when a hard conflict is detected
 - **Do execute read-only operations directly** - File reading, CodeGraph queries, and analysis steps (impact analysis) run without asking the user for confirmation
 - **Read-only passthrough does not cover clarification gates** - grill L1-L5 requirement-clarification gates still wait for user confirmation
@@ -542,7 +580,13 @@ One-stop automated workflow from exploration to archive. **Trigger boundary**: f
 
 ## Phase 1: Exploration (L1-L5 user confirmation)
 
-Create exploration file at \`openspec/explorations/<keyword>-explore-<sequence>.md\` (kebab-case keyword, auto sequence; use \`path.join()\`). Run the mandatory 1.1.5 CONTEXT.md startup check (load existing 术语表 or mark for creation), initialize the structured format (Background / Codebase Findings / Questions / 术语表 / 架构决策 / 边界场景 / Decision Process / Decisions / Scope Changes / Pending), then 1.2.0.5 capability memory injection (scan \`openspec/specs/<capability>/explorations.md\` and inject historical decisions). Run the mandatory 1.2.1 CodeGraph base scan (\`codegraph_status\` first; \`codegraph_files\` + \`codegraph_search\`; Glob/Grep fallback only after confirmed unavailable) and the conditional 1.2.1.5 multi-project agent scan (spawn sub-agent with \`projectPath\` for other project paths). Then grill-with-docs questioning (L1 Intent / L2 Solution / L3 Exception / L4 Consistency / L5 Boundary; one question at a time, each with AI recommendation; write answers to exploration.md real-time). Auto-execute keyword-detected analysis (Security / Architecture Flow / Impact Analysis — always run) and \`codegraph_impact\` (parallel for multiple symbols). Completion check: consistency, L1-L5 coverage, file completeness — if no hard conflicts, proceed to Phase 2 directly (consistency passthrough).
+Create exploration file at \`openspec/explorations/<keyword>-explore-<sequence>.md\` (kebab-case keyword, auto sequence; use \`path.join()\`). Run the mandatory **1.1.2 Prompt Validation Gate（澄清门，确认 WHAT；auto 语义不得跳过或静默通过）**、then the mandatory 1.1.5 CONTEXT.md startup check (load existing 术语表 or mark for creation), initialize the structured format (Background / 提示词基线 / Codebase Findings / Questions / 术语表 / 架构决策 / 边界场景 / Decision Process / Decisions / Scope Changes / Pending), then 1.2.0.5 capability memory injection (scan \`openspec/specs/<capability>/explorations.md\` and inject historical decisions). Run the mandatory 1.2.1 CodeGraph base scan (\`codegraph_status\` first; \`codegraph_files\` + \`codegraph_search\`; Glob/Grep fallback only after confirmed unavailable) and the conditional 1.2.1.5 multi-project agent scan (spawn sub-agent with \`projectPath\` for other project paths). Then grill-with-docs questioning (L1 Intent / L2 Solution / L3 Exception / L4 Consistency / L5 Boundary; one question at a time, each with AI recommendation; write answers to exploration.md real-time). Auto-execute keyword-detected analysis (Security / Architecture Flow / Impact Analysis — always run) and \`codegraph_impact\` (parallel for multiple symbols). Completion check: consistency, L1-L5 coverage, file completeness — if no hard conflicts, proceed to Phase 2 directly (consistency passthrough).
+
+**1.1.2 Prompt Validation Gate (MANDATORY, 澄清门)**:
+
+${PROMPT_GATE_COMPACT}
+
+校验对象为用户最终提供的主题描述（未携带主题时先交互收集）；用户确认或修改前 MUST NOT 推进到 1.1.5 及之后的任何步骤。
 
 ## Phase 2: Proposal (automated, no mid-flow confirmation)
 
@@ -564,6 +608,6 @@ After apply completes and compile check passes: announce "## Auto-Archive Phase"
 
 ## Guardrails
 
-Don't skip questioning; don't auto-proceed on hard conflict (consistency passthrough only when no hard conflict); read-only operations (file reading, CodeGraph, analysis) run without confirmation but L1-L5 clarification gates still wait; auto-verify after proposal; auto-apply after verification pass with auto-mode=true (venus_spec_apply Step 5.5 skipped); auto-archive after apply complete (venus_spec_archive skill); auto-generate requirement doc after full pass (venus_tr_impl_review_proposal deep review → venus_tr_docs_requirement_doc non-interactive; WARN+continue on failure); MUST create file before questioning; MUST verify file before migration; MUST preserve source on migration failure; MUST NOT offer method selection; do explore codebase before asking; do provide recommendations; do update file real-time; do use structured format; do show quantified scores; do inject capability memory; do scan other projects with CodeGraph; don't lose exploration (file persists). Build all paths with \`path.join()\`.`,
+Don't skip questioning; don't auto-proceed on hard conflict (consistency passthrough only when no hard conflict); read-only operations (file reading, CodeGraph, analysis) run without confirmation but L1-L5 clarification gates still wait; MUST validate prompt before exploring (1.1.2 提示词校验门，清晰直通 / 不明确须优化并确认，未确认不推进); auto semantics never skip the clarification gate; don't deadlock on the confirmation gate (确认 / 修改 / 拒绝 / 授权按推断四条出口); do persist the prompt baseline into \`## 提示词基线\`; auto-verify after proposal; auto-apply after verification pass with auto-mode=true (venus_spec_apply Step 5.5 skipped); auto-archive after apply complete (venus_spec_archive skill); auto-generate requirement doc after full pass (venus_tr_impl_review_proposal deep review → venus_tr_docs_requirement_doc non-interactive; WARN+continue on failure); MUST create file before questioning; MUST verify file before migration; MUST preserve source on migration failure; MUST NOT offer method selection; do explore codebase before asking; do provide recommendations; do update file real-time; do use structured format; do show quantified scores; do inject capability memory; do scan other projects with CodeGraph; don't lose exploration (file persists). Build all paths with \`path.join()\`.`,
     };
 }

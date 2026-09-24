@@ -3,6 +3,17 @@
  * 编排层技能 —— 从复现到提案同步的一站式调试工作流，含 P1-P4 调试循环。
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
+import {
+    buildPromptGateBlock,
+    buildPromptGateCompact,
+    BUG_DIMENSIONS,
+} from '../prompt-gate.js';
+
+/** 缺陷五维的提示词校验门全文（唯一源渲染，见 prompt-gate.ts） */
+const PROMPT_GATE_BUG = buildPromptGateBlock(BUG_DIMENSIONS);
+
+/** 缺陷五维的提示词校验门压缩版（斜杠指令正文复用） */
+const PROMPT_GATE_BUG_COMPACT = buildPromptGateCompact(BUG_DIMENSIONS);
 
 export function getTrImplDebugSkillTemplate(): SkillTemplate {
     return {
@@ -30,6 +41,21 @@ This workflow guides you through:
 
 - If a description is provided, record it and enter Phase 1
 - If no description is provided, prompt the user: "Describe the bug: symptom, error message, and reproduction steps if known" — start only after a description is received
+
+### 0. Prompt Validation Gate（缺陷五维，MANDATORY）
+
+**⚠️ MANDATORY: 本门在 Phase 1 强制复现之前执行，不得跳过。**
+
+**执行前置**：用户最初未提供 bug 描述、由本技能提示后补充的，以补充内容为原始提示词执行本门；**MUST NOT 对空输入执行校验**。
+
+${PROMPT_GATE_BUG}
+
+**本技能内的执行要求**：
+
+- 门的位置固定在此处：记录 bug 描述之后、TodoWrite 初始化与 Phase 1 复现之前
+- 缺陷版的「复现步骤」维与 Phase 1 的复现要求直接衔接：维度判定出的期望与实际在 Phase 1 成为复现的验收判据
+- 不明确分支的确认门是**澄清门（确认 WHAT）**：用户确认或修改前 MUST NOT 进入 Phase 1，**MUST NOT 凭猜测编写失败测试**
+- 校验结论（原始提示词 + 确认后的提示词基线）写入诊断记录的 \`## 提示词基线\` 段（Phase 6 随根因分析一并持久化到变更 exploration.md）
 
 Use the **TodoWrite tool** to initialize tracking:
 \`\`\`
@@ -301,7 +327,7 @@ After each fix is complete, ask the user:
 
 ### 6.2 Persist root cause analysis
 
-- Write the full diagnosis records for ALL bugs (reproduction, investigation path, evidence, root cause, chosen fix rationale) to the change directory's \`exploration.md\`, organized per bug
+- Write the full diagnosis records for ALL bugs (prompt baseline, reproduction, investigation path, evidence, root cause, chosen fix rationale) to the change directory's \`exploration.md\`, organized per bug — the \`## 提示词基线\` section is included so the change retains the user-confirmed semantics source
 
 ### 6.3 Artifact format validation
 
@@ -394,6 +420,9 @@ Ready for \`/venus:spec-apply\` (fixes already applied) or archive.
 
 ## Guardrails
 
+- **Validate the bug report before reproducing**: Startup 段的提示词校验门（缺陷五维）是强制前置——清晰描述一句话复述理解后直通；含糊描述须先做提示词优化并等待用户确认或修改，未确认前 MUST NOT 进入 Phase 1，不得凭猜测编写失败测试
+- **Don't deadlock on the confirmation gate**: 确认门有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续），不得反复要求确认
+- **Do persist the prompt baseline**: 原始提示词与确认后的基线写入诊断记录 \`## 提示词基线\` 段，Phase 6 随根因分析一并持久化
 - **Reproduce first**: no fix without a confirmed reproduction (failing test or user-confirmed procedure) — applies to EVERY bug in the loop
 - **Zero-assumption**: multiple candidate root causes → STOP and let the user choose; never guess
 - **Archives are read-only**: never modify \`openspec/changes/archive/\`
@@ -424,6 +453,12 @@ export function getTrImplDebugCommandTemplate(): CommandTemplate {
 One-stop debugging workflow from reproduction to proposal synchronization, with P1-P4 debug loop for multiple bug fixes.
 
 **Input**: The argument after this command is the bug description (symptom, error message, or failing behavior). If omitted, prompt the user to describe the bug before starting.
+
+**门 0 — Prompt Validation Gate（缺陷五维，MANDATORY）**: 记录 bug 描述之后、Phase 1 复现之前强制自检。用户未提供描述、由技能提示后补充的，以补充内容为原始提示词（不对空输入校验）。
+
+${PROMPT_GATE_BUG_COMPACT}
+
+用户确认或修改前 MUST NOT 进入 Phase 1，不得凭猜测编写失败测试。校验结论（原始提示词 + 确认后的基线）写入诊断记录 \`## 提示词基线\` 段，Phase 6 随根因分析持久化到变更 exploration.md。
 
 Use the **TodoWrite tool** to initialize tracking for each bug's phases. Append new Bug #N entries for each additional bug in the loop.
 
@@ -491,6 +526,7 @@ After each fix, ask: "还有相关 bug 需要修复吗？" [有] [没有]
 
 ## Guardrails
 
+- Validate the bug report first (Startup 的缺陷五维提示词校验门，含糊描述须优化并确认后才进入复现，不得凭猜测编写失败测试)；确认门四条出口不得死锁
 - Reproduce first (every bug in loop); zero-assumption on root causes; archives read-only
 - Regression test mandatory (every bug in loop); proposal sync mandatory (all fixes); verification never skipped
 - Loop non-defect non-blocking; loop exit preserves completed work; independent change → finalize + prompt separate debug (\`/venus:tr-impl-debug\`)

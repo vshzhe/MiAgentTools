@@ -3,6 +3,10 @@
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
+import { buildPromptGateBlock, REQUIREMENT_DIMENSIONS } from '../prompt-gate.js';
+
+/** 需求维度的提示词校验门全文（唯一源渲染，见 prompt-gate.ts） */
+const PROMPT_GATE = buildPromptGateBlock(REQUIREMENT_DIMENSIONS);
 
 export function getSpecExploreSkillTemplate(): SkillTemplate {
     return {
@@ -26,6 +30,27 @@ Enter explore mode. Think deeply. Visualize freely. Follow the conversation wher
 - A change name: "add-dark-mode" (to explore in context of that change)
 - A comparison: "postgres vs sqlite for this"
 - Nothing (just enter explore mode)
+
+---
+
+## Prompt Validation Gate (提示词校验门)
+
+**Trigger: 输入含糊或多义时激活本门；清晰输入直接进入思考伙伴模式。** 这不是固定流程步骤 —— explore 的立场（无固定步骤、无强制产出）不因本门改变。
+
+**入口形态适配**（对应上面的 Input 形态）：
+
+- 输入为**变更名**时，以该变更的既有制品（proposal / design / specs / tasks）为校验与探讨对象，MUST NOT 把变更名本身当作需求提示词评估清晰度
+- **不携带任何输入**时（仅进入探索模式）跳过本门，MUST NOT 要求用户先提供提示词
+- 输入为比较型或问题型表述时按需求六维正常判定
+
+${PROMPT_GATE}
+
+**本技能内的执行要求**：
+
+- 清晰输入：一句话复述理解后直接进入 The Stance，不输出六维校验表格、不要求确认
+- 含糊输入：先做提示词优化并阻塞等待用户确认或修改；确认前 MUST NOT 进行代码库扫描与需求澄清追问
+- 上游已产出经确认的提示词基线时（如被 genfull 的 Stage 1 委派调用）**直接通过，不重复校验或再次要求确认**
+- 基线落盘：写入探索产物的 \`## 提示词基线\` 段；本技能不设强制产出文件，无探索文件时基线保留在会话中，并在创建或关联探索文件时写入
 
 ---
 
@@ -325,7 +350,9 @@ But this summary is optional. Sometimes the thinking IS the value.
 - **Do understand design intent** - Before modifying existing code, analyze WHY it was built that way — not just WHAT it does. Check code comments, git history, and config files for constraints, trade-offs, and rationale. Mark inferences with confidence levels.
 - **Write confirmation is scoped and explicit** - When offering to save findings or update OpenSpec artifacts, confirmation scope is limited to the specifically named file(s). Blanket "yes to all" authorization is never accepted. Answering design questions (discussing approaches, clarifying requirements, explaining terminology) does NOT constitute consent to write operations — each write requires an independent yes/no confirmation.
 - **Re-read files from disk** - Files the user may have edited during the session (CONTEXT.md, exploration.md, change artifacts such as proposal/design/specs/tasks) MUST be re-read from disk before each use. Never rely on session-cached content.
-- **Surface material ambiguities** - Ambiguities affecting scope, behavioral contracts, backward compatibility, or acceptance criteria MUST be surfaced to the user as **[待确认]** questions. Non-material detail-level ambiguities may be resolved with reasonable assumptions, documented alongside the assumption.`,
+- **Surface material ambiguities** - Ambiguities affecting scope, behavioral contracts, backward compatibility, or acceptance criteria MUST be surfaced to the user as **[待确认]** questions. Non-material detail-level ambiguities may be resolved with reasonable assumptions, documented alongside the assumption.
+- **Do validate the prompt before diving in** - 输入含糊或多义时先过提示词校验门（Step 1-5）：优化后 MUST 等用户确认或修改才继续；清晰输入一句话复述理解后直通（不输出校验表、不要求确认）；变更名输入以该变更既有制品为校验对象；无输入则跳过本门。上游已产出提示词基线时直接通过，不重复确认
+- **Don't deadlock on the prompt gate** - 确认门有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续），不得反复要求确认`,
         license: 'MIT',
         compatibility: '依赖 venus CLI（spec 命令组）与 CodeGraph MCP（不可用时回退 Glob/Grep）。',
         metadata: { author: 'venus-agent-tools', version: '1.0' },
