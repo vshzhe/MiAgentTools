@@ -232,10 +232,19 @@ After completing all artifacts AND Phase 3 verification passes:
   - These guide what you write, but should never appear in the output
 
 **Task Type Labels (for tasks.md generation):**
-- Each task MUST include a type label: \`- [ ] [代码] N.M ...\` or \`- [ ] [DB脚本] N.M ...\` etc.
-- Supplement tasks (non-\`[代码]\`) MUST include \`产出:\` field as indented content
+- Each task MUST include a type label: \`- [ ] [代码] N.M ...\` / \`- [ ] [测试][单元][P0] N.M ...\` / \`- [ ] [DB脚本] N.M ...\` etc.
+- Four parallel label types: \`[代码]\` (implementation) / \`[测试]\` (test code) / \`[DB脚本]\` (database scripts) / \`[使用说明]\` (supplement docs)
+- \`[测试]\` tasks MUST carry sub-annotations: **level** (\`[单元]\` unit / \`[功能]\` functional) + **priority** (\`[P0]\`/\`[P1]\`/\`[P2]\`)
+- Supplement tasks (non-\`[代码]\` **and** non-\`[测试]\`) MUST include \`产出:\` field as indented content — \`[测试]\` tasks MUST NOT use the \`产出:\` → \`attachments/\` routing, because test code belongs in the project's test source tree
 - Default output path: \`attachments/<filename>\` (relative to changeRoot)
 - See \`schemas/spec-driven/templates/tasks.md\` template for full label reference
+
+**Test Planning (测试规划判定, for tasks.md generation):**
+- Walk the \`specs/*.md\` scenarios one by one and judge whether each is testable
+- **Testable scenario** → MUST produce a \`[测试]\` task carrying level + priority
+- **Untestable scenario** (pure documentation / configuration change with no verifiable behavior) → MUST STILL produce a \`[测试]\` task recording the verdict and its rationale, e.g. \`- [ ] [测试][单元][P2] 4.2 评估：纯文档变更，无需测试（依据：无可验证行为）\`
+  - Rationale: a recorded verdict makes "no tests written" distinguishable from "never evaluated" — the same principle as the no-test gate in \`venus_tr_test_generate\`
+- Test tasks depend on their implementation tasks — when a test task covers behavior implemented by another task, note the dependency in the task description so apply schedules them serially
 
 **流程基准消费规则（Flowchart Basis Consumption）**
 

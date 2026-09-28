@@ -311,6 +311,21 @@ Implement the fix following the venus_spec_apply skill's task execution norms.
 - Run the reproduction from Phase 1 and confirm it now passes
 - **回归测试验证口径（2.5）**：回归测试 MUST 覆盖该缺陷链路的**「异常节点 + 根因节点」**；仅覆盖触发节点而未覆盖根因节点时，验证不通过
 
+**编写动作委派（Regression Test Authoring Delegation）**
+
+回归测试的**编写动作** MUST 委派 \`venus_tr_test_generate\` 技能执行，MUST NOT 在 debug 内另立一套测试编写规则：
+
+- 委派时传入：测试层级与优先级、缺陷链路图（2.5 产出）作为**覆盖口径**
+- 委派动机：复用该技能的框架检测、既有测试风格对齐、BCDE 边界覆盖与反模式防护，使回归测试与项目其它测试**同源同风格**，而非每次临时重造
+- **委派不可用时的降级**：\`venus_tr_test_generate\` 未安装或调用失败时，降级为自行编写回归测试并记录 WARN；降级 MUST NOT 放松下列两条硬要求
+
+**两条硬要求（保留，不因委派而放松）**
+
+1. **覆盖口径**：回归测试 MUST 覆盖该缺陷链路的「异常节点 + 根因节点」——仅覆盖触发节点而未覆盖根因节点时，验证不通过（详见 2.5 与 Guardrails）
+2. **时序要求**：回归测试 MUST 修复前 FAIL、修复后 PASS
+
+委派完成后，本技能 MUST 自行校验上述两条仍然成立（委派产出不等于自动合规）。
+
 ### 4.3 Debug Loop Confirmation (调试循环确认)
 
 After each fix is complete, ask the user:
@@ -513,6 +528,8 @@ Ready for \`/venus:spec-apply\` (fixes already applied) or archive.
 - **Zero-assumption**: multiple candidate root causes → STOP and let the user choose; never guess
 - **Archives are read-only**: never modify \`openspec/changes/archive/\`
 - **Regression test mandatory**: every fix ships with a test that failed before and passes after — applies to EVERY bug in the loop
+- **Delegate regression test authoring**: the writing action MUST be delegated to \`venus_tr_test_generate\` (passing the test level/priority plus the fault chain as the coverage basis) so the regression test matches the project's existing framework and style; degrade to self-authored + WARN only when delegation is unavailable
+- **Delegation never relaxes the two hard requirements**: the regression test MUST still cover the fault chain's 「异常节点 + 根因节点」, and MUST still FAIL before / PASS after — self-verify both after delegation returns
 - **Proposal sync mandatory**: artifacts must reflect ALL implemented fixes before verification
 - **Verification never skipped**: skill → inline fallback with WARN; FAIL → auto-fix loop with no skip path; PASS → deep review (skill → inline fallback with WARN) then requirement document
 - **Loop non-defect non-blocking**: non-defect findings in the loop do NOT block other bugs — record diagnosis and continue
@@ -590,7 +607,9 @@ ${FLOWCHART_FAULT_COMPACT}
 
 - Follow ai-coding.md (zero-assumption, minimal changes); schema changes need separate DDL confirmation
 - **Mandatory regression test**: fails before the fix, passes after; add to tasks.md if missing; re-run the Phase 1 reproduction
+- **Delegate the authoring**: delegate the regression test's WRITING action to the \`venus_tr_test_generate\` skill (pass test level/priority + the fault chain as the coverage basis) so it matches the project's existing framework and style — do NOT invent a separate set of test rules inside debug; if the skill is unavailable, degrade to self-authored + WARN
 - **验证口径（2.5）**: 修复方案与回归测试 MUST 覆盖缺陷链路的「异常节点 + 根因节点」；仅覆盖触发节点而未覆盖根因节点时，验证不通过
+- **Delegation relaxes nothing**: after delegation returns, still self-verify that the regression test covers 「异常节点 + 根因节点」 and fails before / passes after
 
 ## Debug Loop (调试循环确认)
 
@@ -626,7 +645,7 @@ After each fix, ask: "还有相关 bug 需要修复吗？" [有] [没有]
 - Reproduce first (every bug in loop); zero-assumption on root causes; archives read-only
 - MUST produce the fault chain diagram (2.5 在根因确认门通过后强制产出诊断记录 \`## 功能流程（缺陷链路）\` 段；节点只覆盖前置条件 → 触发 → 异常 → 根因，异常节点标 \`🔴异常\`、根因节点标 \`🟠根因\`，MUST NOT 展开被测功能完整业务流程)；确认门四出口不得死锁
 - Fix and regression test MUST cover the exception and root cause nodes of the confirmed fault chain (仅覆盖触发节点时验证不通过)
-- Regression test mandatory (every bug in loop); proposal sync mandatory (all fixes); verification never skipped
+- Regression test mandatory (every bug in loop); its authoring MUST be delegated to venus_tr_test_generate (degrade to self-authored + WARN only when unavailable); delegation MUST NOT relax the 「异常节点 + 根因节点」 coverage basis or the fail-before / pass-after requirement; proposal sync mandatory (all fixes); verification never skipped
 - 分级按范围而非按便利（2.2.3.5）：信号取值 MUST 可追溯实测结果，MUST NOT 编造"半径小"走轻量路径；信号缺失或阈值边界 MUST 取深度路径；CodeGraph 不可用时分级仍生效并标注「信号降级」
 - 分级与 2.5 缺陷链路图解耦：轻量路径同样**强制产出**缺陷链路图并经确认门，MUST NOT 豁免；升级兜底是 2.2.4 的**触发条件**，MUST NOT 新建独立章节或编号
 - 需求文档分支强制（Phase 7.3）：判定范围仅 active 变更目录；已存在时 MUST 就地增量对齐并 MUST NOT 调 \`venus_tr_docs_requirement_doc\`；\`## 基本信息\` 与 \`## 八、评审记录\` 为人工域 MUST NOT 覆盖；MUST NOT 删除章节

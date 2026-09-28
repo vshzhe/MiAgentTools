@@ -100,6 +100,60 @@ describe('StringUtils', () => {
 });
 ```
 
+### N2.5 功能级测试（Functional）
+
+当主 SKILL 阶段一 1.3 判定为**功能级层级**时，使用本节写法。功能级测试验证跨组件的完整功能链路，仅 Mock 真正的外部系统。
+
+**工具链检测（先执行）**：
+
+```bash
+grep -q "supertest" package.json 2>/dev/null && echo "supertest" || echo "missing"
+```
+
+**降级规则**：检测不到 `supertest`（或等价 HTTP 测试工具）时 MUST 降级为单元测试层级并提示，MUST NOT 生成无法运行的测试代码。
+
+**模板：功能级测试（supertest）**
+
+```typescript
+// 功能级测试示例 — 从功能入口发起，断言可观测结果
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import request from 'supertest';
+import { app } from '../src/app';
+import { startTestDb, stopTestDb } from './helpers/test-db';
+
+describe('提交流程（功能级）', () => {
+    beforeAll(async () => {
+        await startTestDb();   // 仅准备真实外部依赖，不 Mock 内部组件
+    });
+
+    afterAll(async () => {
+        await stopTestDb();
+    });
+
+    it('should_create_order_and_deduct_stock_when_submit_valid_order', async () => {
+        // Given: 通过功能入口准备前置数据
+        const payload = { userId: 1, skuCode: 'SKU-001', quantity: 2 };
+
+        // When: 从功能入口发起完整链路
+        const res = await request(app).post('/api/orders').send(payload);
+
+        // Then: 断言可观测的最终结果
+        expect(res.status).toBe(201);
+        expect(res.body.orderNo).toBeTruthy();
+
+        const stockRes = await request(app).get('/api/stock/SKU-001');
+        expect(stockRes.body.quantity).toBe(8);
+    });
+});
+```
+
+**Node 功能级测试约束**：
+
+- MUST 断言**可观测的最终结果**（HTTP 状态、响应体、再次查询的数据），MUST NOT 断言内部函数的调用次数
+- 涉及数据写入的用例 MUST 在 `beforeAll`/`afterAll` 或 `beforeEach`/`afterEach` 中准备与清理数据，确保可重复（FIRST 的 R）
+- MUST NOT 在功能级测试中 Mock 内部模块（`vi.mock()` 内部 Service/Repository）——那会让测试退化为单元测试而失去层级价值
+- 用例命名 MUST 表达完整功能意图（如 `should_create_order_and_deduct_stock_when_submit_valid_order`）
+
 ### N3. 运行与验证
 
 ```bash
@@ -111,6 +165,14 @@ pnpm test
 
 # 或项目对应的测试命令
 npm test
+
+# 覆盖度实测（主 SKILL 5.1 方式 1）——项目已配置 c8 / vitest coverage 时
+pnpm test -- --coverage
+# 或：pnpm exec c8 pnpm test
+# 未配置覆盖度工具（package.json 无 c8 / @vitest/coverage-*）→ 走方式 2 静态矩阵并标注"未实测覆盖度"
+
+# 仅运行功能级测试（按文件名约定筛选）
+pnpm test -- <功能级测试文件路径>
 ```
 
 ### N4. Node 专属约束

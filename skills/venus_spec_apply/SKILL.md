@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:553b284049c0e1a79b056ddf43b6e18ec5616948e96bb8cbc39502b9edcf7fd4"
+  generatedFingerprint: "sha256:f6db49efd89ec2a41a06a2dc1757904d68f68d640b804b70799a2678e5b0bd63"
 ---
 
 **Before implementing, read openspec/rules/ai-coding.md for AI coding guardrails.** Never guess database fields, API params, or business rules — mark as **[待确认]** and ask the user.
@@ -185,13 +185,19 @@ Implement tasks from a change's artifacts (proposal/specs/design/tasks) under op
    **Serial fallback (no dependency info):**
    - If Step 5.5 could not infer a batch plan from design.md (no dependency annotations available): keep serial behavior: for each pending task — show which task is being worked on, make the code changes, mark complete in the tasks file (`- [ ]` → `- [x]`), continue to the next task
 
-   **Supplement Document Handling Rules:**
+   **Task Output Handling Rules:**
 
-   When implementing tasks, distinguish between two output types:
+   When implementing tasks, distinguish between **three** output types by task label:
 
    **Code Implementation** (tasks with `[代码]` label or unlabeled):
    - Create/modify files at the appropriate project source locations
    - Follow normal implementation flow
+
+   **Test Code** (tasks with `[测试]` label):
+   - **Delegate to the `venus_tr_test_generate` skill** (pass the task's test level and priority, plus the scenario/spec reference) — do NOT implement a separate set of test-writing rules inside apply
+   - Landing location is decided by the test-generation skill following the project's test directory structure (e.g. `src/test/java/...`, `test/...`) — `[测试]` tasks MUST NOT be routed through the `产出:` → `attachments/` rule, because test code placed under `attachments/` cannot be executed
+   - `[测试]` tasks MUST NOT be treated as supplement documents
+   - Test tasks depend on their implementation tasks: when a test task's subject behavior is implemented by another task, schedule the test task in a later batch — MUST NOT run it concurrently with its implementation task
 
    **Supplement Documents** (tasks with `[DB脚本]`, `[使用说明]`, `[API文档]`, `[配置示例]`, `[部署说明]`, `[测试数据]` labels):
    - Read the `产出:` field from the task to determine the output path
@@ -231,7 +237,7 @@ Implement tasks from a change's artifacts (proposal/specs/design/tasks) under op
 
    **8.1 Load compile check configuration**
    - Read `openspec/config.yaml` for `compileCheck` settings
-   - If `compileCheck.enabled: false`, skip to Step 8.10
+   - If `compileCheck.enabled: false`, skip to Step 9 (test execution gate)
 
    **8.2 Detect tech stack**
    - Parse `config.yaml` context for keywords (TypeScript, Java, Go, Rust)
@@ -279,16 +285,46 @@ Implement tasks from a change's artifacts (proposal/specs/design/tasks) under op
    - If failures remain after auto-fix:
      - Display failure options per `onFailure` config
      - Options: [1] View details, [2] Manual fix, [3] Skip with warning
-   - If all checks pass: proceed to archive suggestion
+   - If all checks pass: proceed to Step 9 (test execution gate)
 
-   **8.10 Unified temp workspace cleanup** ⚠️ MANDATORY
-   - After the compile check phase has finished — whether it passed, failed, or was skipped — delete the entire temp workspace in a single cleanup step
+9. **Test Execution Gate** ⚠️ MANDATORY (only the change scope)
+   - Runs AFTER the compile check (§8). Compile failure is a hard error; test failure is a different class of problem (pre-existing red tests, assertion mismatches, environment issues) — that is why the two gates are separate and MUST NOT be merged into one. §8 MUST keep its `-DskipTests`/`compile` semantics; this gate owns test execution.
+
+   **9.1 Detect the test command** — from the same tech stack detected in §8.2:
+   - Java-Maven: `mvn test` (scope by `-Dtest=...` when running selected classes)
+   - Java-Gradle: `gradle test`
+   - Java-Ant: `ant test`
+   - TypeScript/Node: `pnpm test` / `npm test`
+   - Go: `go test ./...`  |  Rust: `cargo test`
+   - No test framework detected in the project → log a WARN, skip the gate, continue (non-blocking)
+
+   **9.2 Determine the change scope** — the test set to run is:
+   - Test files produced by this change's `[测试]` tasks (read their `Spec Ref` / file paths from `tasks.md`)
+   - Existing test files that cover the files modified by this change (match by mirrored package path / naming convention, e.g. `UserServiceImpl` → `UserServiceImplTest`)
+
+   **9.3 Run the change-scope tests** — execute only the scope from §9.2. Do NOT run the full suite as a pass/fail criterion.
+
+   **9.4 Verdict**
+   - **All in-scope tests pass** → record and proceed to §10
+   - **Pre-existing failures OUTSIDE the change scope** → report as WARN only. These MUST NOT count as this change's failure and MUST NOT block the flow (projects with an already-red suite are common; a full-suite criterion would make this gate unusable and push users to bypass it)
+   - **Failures INSIDE the change scope** → enter the failure-handling branch (§9.5)
+
+   **9.5 In-scope failure handling**
+   - Auto-fix and re-run, up to 3 attempts (same retry budget as §8.7). Distinguish: test code wrong → fix the test; production code defective → fix the implementation (per `openspec/rules/ai-coding.md`)
+   - If failures remain after 3 attempts: pause and report to the user. MUST NOT mark the corresponding task `[x]`, MUST NOT proceed to archiving
+   - If a test's expected behavior must be narrowed or simplified to pass → apply the scope-creep guard: mark **[待确认]**, explain the difference, ask the user
+
+   **9.6 Test gate report** — summarize: scope covered, in-scope pass/fail counts, out-of-scope pre-existing failures (WARN), coverage figure if the coverage tool ran (see `venus_tr_test_generate` §5.1)
+
+10. **Unified temp workspace cleanup** ⚠️ MANDATORY
+   - After BOTH the compile check (§8) and the test execution gate (§9) have finished — whether they passed, failed, or were skipped — delete the entire temp workspace in a single cleanup step
    - If the cleanup fails (file locked, permission denied): log a WARN with the workspace path so the user can remove it manually, and continue the flow without blocking
 
-9. **Final status and archive suggestion**
+11. **Final status and archive suggestion**
 
    Display:
    - Compile check results summary
+   - Test execution gate results summary
    - All tasks complete status
    - Suggest archiving the change via venus spec archive "<name>" --yes (or the venus_spec_archive skill)
 
@@ -433,6 +469,8 @@ What would you like to do?
 - Before compile check, perform pre-delivery self-check: no guessed fields, API contract aligned, params validated, UI states covered
 - Read artifact files directly from the change directory — don't assume specific file names beyond the standard set
 - ⚠️ **MANDATORY**: Execute Step 8 Compile Check after all tasks complete
+- ⚠️ **MANDATORY**: Execute Step 9 Test Execution Gate after the compile check — scope limited to the change (in-scope failures block; pre-existing out-of-scope failures are WARN only and MUST NOT block)
+- ⚠️ **MANDATORY**: `[测试]` tasks MUST be delegated to `venus_tr_test_generate` and MUST NOT be routed through the supplement-document `产出:` → `attachments/` rule (test code under attachments/ cannot run)
 - ⚠️ **MANDATORY**: Parse compile errors and offer fix options before suggesting archive
 
 **Fluid Workflow Integration**

@@ -1,7 +1,7 @@
 ---
 name: venus_tr_impl_auto_workflow
 description: "One-stop automated workflow exploration→proposal→verification→auto-apply→auto-archive, L1-L5 user confirmation then full automation; triggers: 全自动工作流 / auto workflow / fully automated pipeline. Use when the user wants a fully automated pipeline without manual apply/archive steps. NOT for interactive guided workflow (use venus_tr_impl_workflow)."
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(codegraph:*), Bash(ls:*), Bash(mv:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(mvn:*), Bash(gradle:*), Bash(ant:*), Bash(go:*), Bash(cargo:*), Bash(git:*), Bash(codegraph:*), Bash(ls:*), Bash(mv:*)
 license: MIT
 compatibility: 依赖 venus CLI（spec 命令组）与 spec 系列技能（venus_spec_apply / venus_spec_archive）；CLI 缺失时降级为 AI 内联生成。
 metadata:
@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:3b5a4173db9654a5de7817eac605ecaefa6341d46a70eeddf4ee11545d5a65ef"
+  generatedFingerprint: "sha256:c9686f0153b846241f3a926bb5fb214f0355eaee25af49a481756448ef72e022"
 ---
 
 **Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** In Phase 1 (Exploration), follow Section 1 (Zero-Assumption). In Phase 2 (Proposal), follow Section 2 (Design-First). In Phase 3 (Verification), check Sections 3-5 for compliance.
@@ -560,9 +560,12 @@ Proceed directly to inline artifact generation (no complexity evaluation, no met
 
 ### 2.3 Task Type Labels (for tasks.md generation)
 
-- Each task MUST include a type label: `- [ ] [代码] N.M ...` or `- [ ] [DB脚本] N.M ...` etc.
-- Supplement tasks (non-`[代码]`) MUST include `产出:` field as indented content
+- Each task MUST include a type label: `- [ ] [代码] N.M ...` / `- [ ] [测试][单元][P0] N.M ...` / `- [ ] [DB脚本] N.M ...` etc.
+- Four parallel label types: `[代码]` / `[测试]` / `[DB脚本]` / `[使用说明]`
+- `[测试]` tasks MUST carry level (`[单元]`/`[功能]`) + priority (`[P0]`/`[P1]`/`[P2]`) sub-annotations, and MUST NOT be routed through the `产出:` → `attachments/` rule (test code belongs in the project's test source tree)
+- Supplement tasks (non-`[代码]` **and** non-`[测试]`) MUST include `产出:` field as indented content
 - Default output path: `attachments/<filename>` (relative to changeRoot)
+- Test planning: walk the specs scenarios; testable ones MUST produce a `[测试]` task, untestable ones MUST still produce a `[测试]` task recording the "已评估、判定无需测试" verdict — so "no tests written" stays distinguishable from "never evaluated"
 
 ---
 
@@ -620,6 +623,17 @@ After verification passes (≥90%) and the requirement document is generated:
 - **Sub-agent fails**: auto-retry once; if retry fails, pause and report
 - **User interrupts**: complete current batch, mark remaining tasks as incomplete, then pause
 
+### 4.3 Test Execution Gate (inherited from venus_spec_apply §9, auto-pass)
+
+Phase 4 inherits `venus_spec_apply`'s **test execution gate** and passes it **automatically** — the auto-pipeline MUST NOT skip the gate, and MUST NOT treat it as "no confirmation needed, therefore no test run":
+
+- Scope: **change scope only** — tests produced by this change's `[测试]` tasks plus existing tests covering the changed files
+- **In-scope tests pass** → auto-pass and continue to Phase 5
+- **Pre-existing failures outside the change scope** → report as WARN only; MUST NOT count as this change's failure, MUST NOT block
+- **In-scope tests fail** → auto-fix and re-run, up to 3 attempts (same budget as the compile check)
+- **Still failing after 3 attempts** → pause and report to the user. MUST NOT silently pass, MUST NOT proceed to archive
+- No test framework in the project → log a WARN, skip the gate, continue
+
 ---
 
 ## Phase 5: Auto-Archive
@@ -669,6 +683,8 @@ After auto-archive completes:
 - **Do auto-verify** - automatically verify after proposal without user prompt
 - **Do auto-apply after verification pass** - Phase 4 executes automatically with auto-mode=true (venus_spec_apply Step 5.5 gate skipped)
 - **Do auto-archive after apply complete** - Phase 5 executes automatically with change name passed from context (following the venus_spec_archive skill template)
+- **Do inherit and auto-pass the test execution gate** - Phase 4 runs venus_spec_apply §9 limited to the change scope; in-scope failures auto-retry up to 3 times, then pause and report; pre-existing out-of-scope failures are WARN only; no test framework → WARN and skip
+- **Don't silently pass a failing test gate** - a failing in-scope test gate MUST pause before archive; auto semantics never justify skipping the gate or the archive block
 - **Do auto-generate requirement doc** - After full pass, first invoke `venus_tr_impl_review_proposal` for deep review (fallback inline deep review + WARN), then non-interactively invoke `venus_tr_docs_requirement_doc`; on FAIL do not generate; on generation failure WARN and continue
 - **MUST create file before questioning** - Phase 1 checkpoint is mandatory
 - **MUST verify file before migration** - Phase 2 checkpoint is mandatory

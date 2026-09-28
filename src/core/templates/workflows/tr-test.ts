@@ -387,6 +387,65 @@ public class UserServiceTest {
 }
 \`\`\`
 
+### J6.5 功能级测试（Functional）
+
+当主 SKILL 阶段一 1.3 判定为**功能级层级**时，使用本节写法。功能级测试验证跨组件的完整功能链路，仅 Mock 真正的外部系统。
+
+**工具链检测（先执行）**：
+
+\`\`\`bash
+# Spring Boot 测试支持（提供 @SpringBootTest / @WebMvcTest / MockMvc）
+grep -q "spring-boot-starter-test" pom.xml 2>/dev/null && echo "spring-boot-test" || echo "missing"
+\`\`\`
+
+**降级规则**：检测不到 \`spring-boot-starter-test\` 时 MUST 降级为单元测试层级并提示，MUST NOT 生成无法运行的测试代码。
+
+**写法选择**：
+
+| 场景 | 注解 | 依赖处理 |
+|---|---|---|
+| 仅验证接口层（请求映射、参数校验、响应格式、权限拦截） | \`@WebMvcTest(XxxController.class)\` + MockMvc | \`@MockBean\` 替换 Service 依赖 |
+| 验证跨层协作（Service→DAO 连通、事务、数据一致性） | \`@SpringBootTest\` + \`@Transactional\`（用例后回滚） | 仅 Mock 外部系统（第三方接口、消息中间件） |
+
+**模板 G：功能级测试（@SpringBootTest）**
+
+\`\`\`java
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.transaction.annotation.Transactional;
+import static org.assertj.core.api.Assertions.*;
+
+@SpringBootTest
+@Transactional  // 用例结束自动回滚，保证可重复
+class OrderFlowFunctionalTest {
+
+    @Autowired
+    private OrderFacade orderFacade;
+
+    @Test
+    void should_create_order_and_deduct_stock_when_submit_valid_order() {
+        // Given: 通过功能入口构造前置数据（不做内部组件 Mock）
+        Long userId = 1L;
+        String skuCode = "SKU-001";
+
+        // When: 从功能入口发起完整链路
+        String orderNo = orderFacade.submit(userId, skuCode, 2);
+
+        // Then: 断言可观测结果（而非内部方法调用）
+        assertThat(orderNo).isNotBlank();
+        assertThat(orderFacade.queryStock(skuCode)).isEqualTo(8);
+    }
+}
+\`\`\`
+
+**Java 功能级测试约束**：
+
+- MUST 断言**可观测的最终结果**（返回值、落库数据、外部可见状态），MUST NOT 断言内部组件的调用次数
+- 涉及写库的用例 MUST 使用 \`@Transactional\` 保证回滚，或显式清理数据，确保可重复（FIRST 的 R）
+- MUST NOT 在功能级测试中 Mock 内部协作组件（Service/DAO）——那会让测试退化为单元测试而失去层级价值
+- 用例命名 MUST 表达完整功能意图（如 \`should_create_order_and_deduct_stock_when_submit_valid_order\`）
+
 ### J7. 遗留 Java 代码测试策略
 
 当被测代码存在以下可测试性障碍时，采用对应策略：
@@ -412,6 +471,14 @@ gradle test --tests "*UserServiceTest*"
 
 # 运行全部测试
 mvn test -DfailIfNoTests=false
+
+# 覆盖度实测（主 SKILL 5.1 方式 1）——项目已配置 JaCoCo 时
+mvn test jacoco:report
+# 报告位置：target/site/jacoco/index.html（行覆盖 / 分支覆盖）
+# 未配置 JaCoCo（pom.xml 无 jacoco-maven-plugin）→ 走方式 2 静态矩阵并标注"未实测覆盖度"
+
+# 仅运行功能级测试（按命名约定筛选）
+mvn test -Dtest="*FunctionalTest" -DfailIfNoTests=false
 \`\`\`
 
 #### 常见问题排查
@@ -558,6 +625,60 @@ describe('StringUtils', () => {
 });
 \`\`\`
 
+### N2.5 功能级测试（Functional）
+
+当主 SKILL 阶段一 1.3 判定为**功能级层级**时，使用本节写法。功能级测试验证跨组件的完整功能链路，仅 Mock 真正的外部系统。
+
+**工具链检测（先执行）**：
+
+\`\`\`bash
+grep -q "supertest" package.json 2>/dev/null && echo "supertest" || echo "missing"
+\`\`\`
+
+**降级规则**：检测不到 \`supertest\`（或等价 HTTP 测试工具）时 MUST 降级为单元测试层级并提示，MUST NOT 生成无法运行的测试代码。
+
+**模板：功能级测试（supertest）**
+
+\`\`\`typescript
+// 功能级测试示例 — 从功能入口发起，断言可观测结果
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import request from 'supertest';
+import { app } from '../src/app';
+import { startTestDb, stopTestDb } from './helpers/test-db';
+
+describe('提交流程（功能级）', () => {
+    beforeAll(async () => {
+        await startTestDb();   // 仅准备真实外部依赖，不 Mock 内部组件
+    });
+
+    afterAll(async () => {
+        await stopTestDb();
+    });
+
+    it('should_create_order_and_deduct_stock_when_submit_valid_order', async () => {
+        // Given: 通过功能入口准备前置数据
+        const payload = { userId: 1, skuCode: 'SKU-001', quantity: 2 };
+
+        // When: 从功能入口发起完整链路
+        const res = await request(app).post('/api/orders').send(payload);
+
+        // Then: 断言可观测的最终结果
+        expect(res.status).toBe(201);
+        expect(res.body.orderNo).toBeTruthy();
+
+        const stockRes = await request(app).get('/api/stock/SKU-001');
+        expect(stockRes.body.quantity).toBe(8);
+    });
+});
+\`\`\`
+
+**Node 功能级测试约束**：
+
+- MUST 断言**可观测的最终结果**（HTTP 状态、响应体、再次查询的数据），MUST NOT 断言内部函数的调用次数
+- 涉及数据写入的用例 MUST 在 \`beforeAll\`/\`afterAll\` 或 \`beforeEach\`/\`afterEach\` 中准备与清理数据，确保可重复（FIRST 的 R）
+- MUST NOT 在功能级测试中 Mock 内部模块（\`vi.mock()\` 内部 Service/Repository）——那会让测试退化为单元测试而失去层级价值
+- 用例命名 MUST 表达完整功能意图（如 \`should_create_order_and_deduct_stock_when_submit_valid_order\`）
+
 ### N3. 运行与验证
 
 \`\`\`bash
@@ -569,6 +690,14 @@ pnpm test
 
 # 或项目对应的测试命令
 npm test
+
+# 覆盖度实测（主 SKILL 5.1 方式 1）——项目已配置 c8 / vitest coverage 时
+pnpm test -- --coverage
+# 或：pnpm exec c8 pnpm test
+# 未配置覆盖度工具（package.json 无 c8 / @vitest/coverage-*）→ 走方式 2 静态矩阵并标注"未实测覆盖度"
+
+# 仅运行功能级测试（按文件名约定筛选）
+pnpm test -- <功能级测试文件路径>
 \`\`\`
 
 ### N4. Node 专属约束
@@ -622,18 +751,57 @@ fi
 
 **未识别语言**：输出检测结果并建议用户指定框架，或默认输出与项目最接近的风格代码。
 
+### 1.3 测试层级路由（与语言维度正交）
+
+语言/框架维度决定**用什么框架写**，测试层级维度决定**测到哪一层**。二者正交，MUST 分别判定：
+
+| 层级 | 被测对象 | 断言点 | 依赖策略 |
+|---|---|---|---|
+| **单元测试（Unit）** | 单个类或函数（Service、工具类、独立业务方法） | 返回值与依赖交互 | Mock 全部外部依赖 |
+| **功能级测试（Functional）** | 跨组件的完整功能链路（接口端到端、多服务协作的业务流程） | 功能入口到可观测结果 | 仅 Mock 真正的外部系统（第三方、消息中间件），不 Mock 内部协作组件 |
+
+**层级判定依据**（按顺序判定，命中即采用）：
+
+1. 被测目标为**功能入口**（请求处理入口、对外接口端点）→ 功能级测试
+2. 被测流程**跨 ≥2 个组件**且需验证协作结果 → 功能级测试
+3. 其余情形（单个类/函数/方法）→ 单元测试
+
+**降级规则（MUST）**：项目依赖中不存在功能级测试所需框架时（Java 无 \`spring-boot-starter-test\`、Node 无 \`supertest\`），MUST **降级为单元测试层级**并输出明确提示，MUST NOT 生成无法运行的测试代码。
+
+> 各语言的功能级测试写法（Java 的 \`@SpringBootTest\`/\`@WebMvcTest\`、Node 的 supertest）见已加载的 \`references/schema-*.md\`。
+
 ---
 
 ## 阶段二：场景设计（BCDE 场景矩阵法）
 
-对每个被测方法，按 **BCDE（Basic/Boundary/Design/Exception）四象限矩阵** 设计场景：
+### 2.1 该不该测闸门（前置判定）
+
+在进入场景设计之前，MUST 先判定被测目标是否值得测试。落入**不测清单**的目标 MUST NOT 进入 2.2 场景设计，且 MUST 输出"已评估、判定不生成测试"的结论与判定依据（见 2.5 结论留痕）——**不得静默跳过**，使"没写测试"与"没评估过"可区分。
+
+**不测清单**（MANUAL：无业务分支、无输入校验、无状态变化的目标）：
+
+| 不测目标 | 判定依据 |
+|---|---|
+| 纯数据类（DTO/VO/Entity）的取值读写方法 | 无逻辑，编译器与语言运行时已保证 |
+| 无分支的转发方法 | 方法体仅委托调用，无业务判定 |
+| 私有方法 | 由被测的公开方法间接覆盖，单独测试会耦合实现细节 |
+| 框架生命周期回调 | 由框架驱动，行为不属于被测业务逻辑 |
+| 自动生成的代码 | 非人工维护，变更风险不由本团队承担 |
+
+**边界情形**：目标落入清单但其调用方为 P0 核心链路时，测试应由**调用方**（公开方法/功能入口）覆盖，MUST NOT 直接测该目标本身。
+
+### 2.2 BCDE 场景矩阵
+
+对通过 2.1 闸门的被测方法，按 **BCDE（Basic/Boundary/Design/Exception）四象限矩阵** 设计场景：
 
 | 场景类型 | 测试目标 | 示例 |
 |---------|---------|------|
 | **B**asic（正常路径） | 核心业务逻辑按预期工作 | 合法输入返回正确结果 |
-| **B**oundary（边界条件） | 临界值/极限条件下的表现 | Null、空值、0、负数、极大值 |
+| **B**oundary（边界条件） | 临界值/极限条件下的表现 | Null、空集合、空字符串、0、负数、极大值、临界值 |
 | **D**esign（业务规则） | 业务约束和规则被遵守 | 状态机流转、幂等性、并发控制 |
 | **E**xception（异常路径） | 非法输入/依赖故障的处理 | 参数校验失败、依赖服务不可用 |
+
+**标注自洽约束（MUST）**：入参为 null、空集合、空字符串、零值、极值、临界值的场景 MUST 标注为 \`Boundary\`，MUST NOT 标注为 \`Basic\`。仅当输入合法、路径为正常业务流转时才标 \`Basic\`。
 
 **场景矩阵模板**：
 
@@ -642,23 +810,54 @@ fi
 | ID | 类型 | 输入条件 | 预期结果 |
 |----|------|---------|---------|
 | TC001 | B | 合法参数 | 正常返回正确结果 |
-| TC002 | B | 参数为 null | 抛出参数校验异常 |
-| TC003 | B | 空集合入参 | 返回空结果 |
+| TC002 | Boundary | 参数为 null | 抛出参数校验异常 |
+| TC003 | Boundary | 空集合入参 | 返回空结果 |
 | TC004 | D | 重复提交 | 幂等处理，返回已有结果 |
 | TC005 | E | 依赖服务超时 | 降级返回缓存/错误提示 |
 \`\`\`
 
-**场景数量要求**：每个方法至少覆盖：
-- 1-2 个正常路径（Happy Path）
-- 2-3 个边界条件（Null、空值、极值、临界值）
-- 1-2 个业务规则（如涉及状态机/幂等/并发）
-- 1-2 个异常路径（非法入参、依赖失败）
+### 2.3 场景数量（由复杂度与优先级决定，无固定配额）
+
+**本技能不设固定的场景数量配额**。场景数量 SHALL 由被测方法的**分支复杂度**与**用例优先级分级**共同决定：
+
+- **分支驱动**：被测方法有多少条独立可执行路径（含异常分支），就设计多少个场景——无分支的方法通常只需 1 个场景，多分支方法可能需 5 个以上
+- **分级驱动**：P0 目标需覆盖其全部 BCDE 象限；P1 目标覆盖正常路径 + 关键边界；P2 目标仅设计正常路径，且需显式确认才生成（见 2.4）
+- **禁止凑数**：MUST NOT 为满足数量而生成低价值用例（重复断言、无业务含义的入参组合、仅验证框架行为的用例）
+
+### 2.4 用例优先级分级（影响生成决策）
+
+为每条设计的用例标注优先级，**分级 MUST 影响生成决策**，而非仅作标注：
+
+| 级别 | 定义 | 生成决策 |
+|---|---|---|
+| **P0** | 覆盖核心业务链路的正常路径与关键异常分支 | MUST 生成，无需额外确认 |
+| **P1** | 覆盖常规业务与关键边界条件 | 默认生成 |
+| **P2** | 边界补充、非核心分支、极端入参组合 | MUST 经显式确认后才生成；未确认时记入报告但不生成 |
+
+**判定依据**：用例所覆盖的路径是否属于业务主流程、失败后是否影响用户可感知的功能、是否构成数据正确性风险。
+
+### 2.5 用例去重与合并
+
+设计完成后 MUST 执行去重与合并，避免为凑数产生冗余用例：
+
+- **同构输入合并**：同一被测方法的同构输入（仅数据不同、执行路径与断言结构相同）MUST 合并为 1 个**参数化用例**，MUST NOT 生成多个独立用例
+- **跨方法重复归并**：多个被测方法对同一返回结构做相同字段断言时，MUST 提取为共享断言或工厂方法
+- **重复检测口径**：两条用例的"输入维度 + 执行路径 + 断言集合"均相同时视为重复，后者 MUST 合并或删除
+
+### 2.6 结论留痕（生成报告要求）
+
+生成报告 MUST 同时包含两类清单，使减少可见且可追溯：
+
+1. **已生成用例的目标**：目标名 + 用例数 + 各级别分布
+2. **判定不生成的目标及依据**：落入 2.1 不测清单的目标 + 依据；未获确认的 P2 用例 + 原因
 
 ---
 
 ## 阶段三：分层测试策略（通用）
 
-根据被测对象的层次，采用不同的测试策略；具体框架的 Mock API 与代码示例见已加载的 schema-*.md。
+本节按**代码层次**给出测试策略；**测试层级**（单元 / 功能级）的判定见阶段一 1.3。两者关系：代码层次决定"测什么"，测试层级决定"用多重的隔离"。例如 Service 层在单元层级下 Mock 全部数据访问依赖，在功能级层级下则连通数据访问层验证协作结果。
+
+**语言无关约束（MUST）**：本节 MUST NOT 绑定单一语言的 Mock 或参数化 API——具体 API 按检测到的语言从已加载的 \`schema-*.md\` 取用（Java: Mockito/EasyMock 与 \`@ParameterizedTest\`；Node: \`vi.mock()\`/\`jest.mock()\` 与 \`it.each\`）。
 
 #### Service / 业务逻辑层
 - **测试目标**：验证业务规则、分支逻辑、异常处理
@@ -667,13 +866,13 @@ fi
 
 #### Controller / 接口层
 - **测试目标**：验证请求映射、参数校验、响应格式、权限拦截
-- **Mock 范围**：所有 Service 依赖
-- **最佳实践**：HTTP 端到端测试（Java: MockMvc + @WebMvcTest；Node: SuperTest）或 mock 请求/响应对象
+- **Mock 范围**：单元层级 Mock 全部 Service 依赖；功能级层级连通至业务层，仅 Mock 外部系统
+- **最佳实践**：HTTP 端到端测试（Java: MockMvc + \`@WebMvcTest\`；Node: supertest）或 mock 请求/响应对象
 
 #### 工具类 / Utils
 - **测试目标**：验证输入输出正确性，覆盖所有边界场景
 - **Mock 范围**：一般无需 Mock，直接测试
-- **最佳实践**：大量使用参数化测试减少重复代码
+- **最佳实践**：大量使用参数化测试减少重复代码（参数化 API 按语言分流）
 
 ---
 
@@ -715,6 +914,21 @@ fi
   1. **测试代码写错** → 修正后重新运行
   2. **被测代码有 bug** → 说明具体情况，给出修复建议，衔接 \`/venus:tr-impl-feature\`
 
+### 5.1 覆盖度度量
+
+运行验证通过后 MUST 输出覆盖度度量。度量按以下优先级选择，MUST NOT 把降级结果表述为实测覆盖度：
+
+| 优先级 | 方式 | 触发条件 | 输出 |
+|---|---|---|---|
+| 1（优先） | **实测覆盖度** | 项目已配置覆盖度工具（Java: JaCoCo；Node: c8 或 coverage） | 行覆盖与分支覆盖数据 |
+| 2（降级） | **静态场景→用例映射矩阵** | 无可用覆盖度工具链 | 每个规格场景是否被用例覆盖的映射表 |
+
+**降级标注（MUST）**：采用方式 2 时 MUST 显式标注"**未实测覆盖度**"，MUST NOT 让读者误认为已有实测数据。
+
+**未覆盖清单（MUST）**：无论采用哪种方式，报告 MUST 包含明确列出的未覆盖项——未覆盖的规格场景、或未被任何用例引用的场景；MUST NOT 仅给出覆盖度百分比。
+
+**实测命令**（具体写法见 schema-*.md）：Java 走 JaCoCo，Node 走 c8 或 \`--coverage\`。
+
 ---
 
 ## 反模式清单与约束
@@ -728,6 +942,18 @@ fi
 | 日志替代断言 | 无法自动验证 | 所有预期结果使用断言自动验证 |
 | 测试方法中写循环/条件 | 测试本身可能有 Bug | 用参数化测试替代 |
 | 命名模糊（\`test1\`） | 失败后无法快速定位 | 场景化命名，见名知意 |
+
+### FIRST 原则（用例质量五要素）
+
+每一条用例 MUST 同时满足以下五项，缺一即需返工：
+
+| 要素 | 要求 | 违例特征 |
+|---|---|---|
+| **F**ast（快） | 单条用例毫秒级完成，整个测试套件秒级 | 用例中做真实网络/磁盘/数据库等待 |
+| **I**ndependent（独立） | 用例之间无顺序依赖，单独运行与全量运行结果一致 | 依赖前一条用例写入的数据 |
+| **R**epeatable（可重复） | 任意环境、任意次数执行结果稳定 | 依赖当前时间、随机数、机器时区而未注入 |
+| **S**elf-validating（自验证） | 预期结果由断言自动判定，无需人工比对输出 | 用日志打印结果供人眼看 |
+| **T**imely（及时） | 测试与生产代码同步编写或先于实现 | 功能上线后补测，或长期搁置 |
 
 ### 强制约束（语言无关）
 
@@ -757,10 +983,10 @@ export function getTrTestGenerateCommandTemplate(): CommandTemplate {
     return {
         name: 'Venus: 生成测试',
         description:
-            '生成测试 —— 多 schema 模式：检测 Java/Node 框架、BCDE 场景矩阵、分层编写、运行验证',
+            '生成测试 —— 多 schema 模式：检测 Java/Node 框架、测试层级路由（单元/功能级）、不测闸门、用例分级、BCDE 场景矩阵、覆盖度度量',
         category: 'Venus / 测试',
-        tags: ['venus', 'tr_test', 'test', 'tdd', 'java', 'node'],
-        content: `生成测试 —— 多 schema 模式：检测语言/框架 → 加载对应 schema → 设计场景 → 分层编写 → 运行验证。
+        tags: ['venus', 'tr_test', 'test', 'tdd', 'java', 'node', 'unit', 'functional'],
+        content: `生成测试 —— 多 schema 模式：检测语言/框架 → 测试层级路由 → 该不该测闸门 → 设计场景与分级 → 去重合并 → 编写 → 运行验证 → 覆盖度度量。
 
 **目标驱动**：先把验收标准变成可执行的测试，再让它通过。
 
@@ -769,17 +995,23 @@ export function getTrTestGenerateCommandTemplate(): CommandTemplate {
 ## 执行步骤
 
 1. **语言/框架检测（schema 路由）**：检测 \`pom.xml\`/\`build.gradle\`（Java）或 \`package.json\`（Node），Read 对应 \`references/schema-*.md\` 加载框架专属内容。
-2. **BCDE 场景矩阵**：按正常(Basic)/边界(Boundary)/业务规则(Design)/异常(Exception) 四象限设计场景。
-3. **分层编写**：Service 层 Mock 外部依赖 + 验证交互；Controller 层 HTTP 端到端（Java MockMvc / Node SuperTest）；工具类参数化测试。具体 Mock API 与模板见 schema。
-4. **生成代码**：AAA 结构（Given/When/Then）、一测一行为、精确断言。Java 项目生成前执行测试计划确认门。
-5. **运行验证**：\`mvn test\` / \`gradle test\` / \`pnpm test\` / \`npm test\`，全部通过后报告结果。
+2. **测试层级路由**：判定单元层级或功能级层级——功能入口或跨 ≥2 组件协作走功能级，其余走单元；缺功能级工具链时降级为单元并提示。
+3. **该不该测闸门**：先判目标是否落入不测清单（纯数据类的取值读写、无分支转发方法、私有方法、框架回调、自动生成代码）；落入则不设计场景，输出"已评估、判定不生成"的依据，不得静默跳过。
+4. **BCDE 场景矩阵 + 优先级分级**：按正常(Basic)/边界(Boundary)/业务规则(Design)/异常(Exception) 四象限设计；边界输入（null/空集/空串/零值/极值）必须标 Boundary 不得标 Basic；**无固定场景数量配额**，数量由复杂度与优先级决定。
+5. **用例优先级分级**：P0 核心链路必生成 / P1 默认生成 / P2 需显式确认才生成——分级影响生成决策，不是仅作标注。
+6. **去重与合并**：同构输入合并为参数化用例，跨方法重复断言提取为共享断言。
+7. **生成代码**：AAA 结构（Given/When/Then）、一测一行为、精确断言、满足 FIRST 五要素。分层编写：Service 层 Mock 外部依赖；Controller 层 HTTP 端到端（Java MockMvc / Node supertest）；工具类参数化。Mock API 按语言从 schema 取用。Java 项目生成前执行测试计划确认门。
+8. **运行验证**：\`mvn test\` / \`gradle test\` / \`pnpm test\` / \`npm test\`，全部通过后报告结果。
+9. **覆盖度度量**：优先实测（Java JaCoCo / Node c8 或 --coverage）；无工具链时降级为"规格场景→用例"静态映射矩阵并**标注"未实测覆盖度"**；两种方式都必须列出未覆盖清单。
+10. **结论留痕**：报告同时含"已生成用例的目标"与"判定不生成的目标及依据"两类清单。
 
 ## 约束
 
 - 禁止无断言空转、禁止共享可变状态、禁止日志替代断言
-- 一个测试只验证一个行为
-- 测试必须可重复，不依赖执行顺序
+- 一个测试只验证一个行为；用例必须满足 FIRST（快/独立/可重复/自验证/及时）
+- 禁止为凑数量生成低价值用例；边界输入不得标注为正常路径
 - 不修改被测代码来迁就测试
+- 功能级测试禁止 Mock 内部协作组件（会退化为单元测试）
 - 语言专属约束见 schema-*.md（Java：禁止通配符导入/@Test(expected)；Node：vi.mock hoisting）`,
     };
 }

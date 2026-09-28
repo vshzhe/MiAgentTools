@@ -9,6 +9,74 @@
 
 （暂无）
 
+## [1.5.0] - 2026-09-28
+
+### Added
+
+- **测试用例生成能力优化与四模式接入**（变更 `improve-tr-test-generate-case-rationalize`）：
+  `venus_tr_test_generate` 从"独立可用"升级为"被编排链路消费"。
+- **测试层级路由**（`tr-test.ts` 阶段一 1.3）：在语言/框架 schema 路由之外新增**测试层级**
+  维度（单元测试 / 功能级测试），二者正交；按被测对象粒度与变更性质自动判定；项目缺功能级
+  工具链时降级为单元测试并提示（MUST NOT 生成无法运行的测试代码）。`SCHEMA_JAVA` 新增
+  J6.5 功能级小节（`@SpringBootTest` / `@WebMvcTest` + 模板 G），`SCHEMA_NODE` 新增 N2.5
+  功能级小节（supertest）。
+- **该不该测闸门与不测清单**（阶段二 2.1）：纯数据类的取值读写方法、无分支的转发方法、
+  私有方法、框架生命周期回调、自动生成的代码不进入场景设计；落入清单必须输出"已评估、
+  判定不生成"的结论与依据，**不得静默跳过**——使"没写测试"与"没评估过"可区分。
+- **用例优先级分级**（阶段二 2.4）：P0 核心业务链路必生成 / P1 默认生成 / P2 边界补充
+  需显式确认才生成；分级**影响生成决策**，而非仅作标注。
+- **用例去重与合并规则**（阶段二 2.5）：同构输入强制合并为参数化用例，跨方法重复断言
+  提取为共享断言。
+- **FIRST 原则补回**（「强制约束」区）：Fast / Independent / Repeatable / Self-validating /
+  Timely 五要素及违例特征。该约束在能力 spec 中已声明为 SHALL，但 v3.0 重构时实现丢失
+  （`grep -c FIRST` 结果为 0），本次补回实现。
+- **覆盖度度量**（阶段五 5.1）：优先实测（Java JaCoCo / Node c8 或 `--coverage`），
+  无工具链时降级为「规格场景 → 用例」静态映射矩阵并**强制标注"未实测覆盖度"**；
+  两种方式都必须列出未覆盖清单，不得仅给百分比。
+- **`[测试]` 任务类型标签**（并列第五类）：`TASKS_TEMPLATE` 与 tasks artifact 生成指令
+  扩为并列四类（`[代码]` / `[测试]` / `[DB脚本]` / `[使用说明]`），`[测试]` 带层级
+  （`[单元]`/`[功能]`）与优先级（`[P0]`/`[P1]`/`[P2]`）子标注。`tr-commit-push` 早已按
+  该标签工作，但此前没有任何模板会产出它——三处口径不齐本次拉通。
+- **apply 测试执行关卡**（`spec-apply.ts` 新增 Step 9）：编译检查之后独立运行，**仅限
+  变更范围**（`[测试]` 任务产出 + 变更文件的既有测试）；范围内失败自动修复重试上限 3 次后
+  暂停且不进入归档；**范围外存量失败仅 WARN 不阻塞**（存量测试已红的项目很常见，全量判定
+  会让关卡不可用而促使用户绕过）；项目无测试框架时降级 WARN 跳过。
+- **任务输出类型扩为三类**（apply）：代码实现 / **测试代码** / 补充文档。`[测试]` 任务
+  委派 `venus_tr_test_generate`，且 **MUST NOT 走补充文档的 `产出:` → `attachments/`
+  路由**（测试代码落在 attachments/ 下无法执行）。
+- **propose 测试规划判定**：逐个 specs Scenario 评估可测性——可测者产出带层级与优先级的
+  `[测试]` 任务；不可测者仍产出 `[测试]` 任务记录"已评估、判定无需测试"的依据。
+- **auto-workflow 自动通关测试关卡**（Phase 4.3）：继承 apply 的 §9 并 auto-pass；
+  3 次修复后仍失败则暂停报告，**不得静默通过、不得进入归档**。
+- **debug 回归测试委派**（4.2）：编写动作改为委派 `venus_tr_test_generate`（复用框架检测与
+  既有风格对齐），同时**保留** debug 的两条硬要求——回归测试 MUST 覆盖缺陷链路的
+  「异常节点 + 根因节点」，且 MUST 修复前 FAIL、修复后 PASS；委派不可用时降级自研并 WARN。
+- **能力规格漂移修订**（`specs/tr-test-generate/spec.md`）：分层测试编写指南原以
+  Vitest `vi.mock()` / `test.each` 写死单一语言，与 v3.0 多 schema 定位冲突，改为语言无关表述。
+
+### Changed
+
+- **BCDE 场景矩阵标注自洽修正**（`tr-test.ts` 阶段二）：示例原把「参数为 null → 抛异常」、
+  「空集合入参」标为 `B`（正常路径），但按 BCDE 自身定义（Boundary：Null、空值）应为
+  `Boundary`。示例是 AI 生成用例时的模仿对象，错误标注会使覆盖度评估失真。同步新增
+  **标注自洽硬约束**：null/空集合/空字符串/零值/极值/临界值 MUST 标 `Boundary`。
+- **废除固定场景数量配额**（阶段二 2.3）：原「每个方法至少 1-2 正常 + 2-3 边界 + 1-2 业务
+  规则 + 1-2 异常」对每个方法一律适用，**无"该方法是否值得测"的前置判定**，直接驱动为凑配额
+  生成低价值用例。改为场景数量由**分支复杂度**与**用例优先级分级**共同决定，并明确禁止凑数。
+- **分层测试策略语言无关化**（阶段三）：移除绑定单一语言的表述，Mock 与参数化 API 一律按
+  检测到的语言从 `schema-*.md` 取用；补充代码层次与测试层级的关系说明。
+- **归档摘要补充标注改为标签白名单识别**（`spec-archive.ts` / `spec-bulk-archive.ts`）：
+  原逻辑为"收集**所有非 `[代码]`** 的类型"，会把 `[测试][单元][P0]` 中的 `单元`、`P0`
+  误收为任务类型（产出 `[含测试/单元/P0]`）。改为只识别白名单 `[测试]`/`[DB脚本]`/
+  `[使用说明]`，白名单外忽略并可 WARN。
+- **`tr-impl-workflow` 职责边界显式化**：实现期核实该技能为 explore → propose → verify
+  三阶段、**不含代码实现**，故测试执行关卡不由其承担。正文新增声明"测试关卡由 apply 承担，
+  本技能只规划 `[测试]` 任务"，避免误读。skill 版与 command 版双份正文同步。
+- `tr-impl-auto-workflow` 的 `allowedTools` 补录 `mvn` / `gradle` / `ant` / `go` / `cargo`
+  ——该技能继承测试关卡后会在 Java/Go/Rust 项目执行测试命令，原白名单只有 `npm`/`pnpm`/
+  `node`，会被权限拦截。
+- 版本号 1.3.1 → 1.5.0
+
 ## [1.3.1] - 2026-09-28
 
 ### Changed
@@ -321,7 +389,8 @@
 - 项目配置从单文件 `venus.config.yaml` 重构为 `.venus/` 目录结构
   （`config.yaml` 显式引用 `rules/` 下规则文件），重复 init 保留用户全部修改
 
-[Unreleased]: https://github.com/venus-agent-tools/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/venus-agent-tools/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/venus-agent-tools/compare/v1.3.1...v1.5.0
 [1.3.1]: https://github.com/venus-agent-tools/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/venus-agent-tools/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/venus-agent-tools/compare/v1.1.1...v1.2.0

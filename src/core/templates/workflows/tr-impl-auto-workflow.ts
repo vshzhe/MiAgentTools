@@ -479,9 +479,12 @@ Proceed directly to inline artifact generation (no complexity evaluation, no met
 
 ### 2.3 Task Type Labels (for tasks.md generation)
 
-- Each task MUST include a type label: \`- [ ] [代码] N.M ...\` or \`- [ ] [DB脚本] N.M ...\` etc.
-- Supplement tasks (non-\`[代码]\`) MUST include \`产出:\` field as indented content
+- Each task MUST include a type label: \`- [ ] [代码] N.M ...\` / \`- [ ] [测试][单元][P0] N.M ...\` / \`- [ ] [DB脚本] N.M ...\` etc.
+- Four parallel label types: \`[代码]\` / \`[测试]\` / \`[DB脚本]\` / \`[使用说明]\`
+- \`[测试]\` tasks MUST carry level (\`[单元]\`/\`[功能]\`) + priority (\`[P0]\`/\`[P1]\`/\`[P2]\`) sub-annotations, and MUST NOT be routed through the \`产出:\` → \`attachments/\` rule (test code belongs in the project's test source tree)
+- Supplement tasks (non-\`[代码]\` **and** non-\`[测试]\`) MUST include \`产出:\` field as indented content
 - Default output path: \`attachments/<filename>\` (relative to changeRoot)
+- Test planning: walk the specs scenarios; testable ones MUST produce a \`[测试]\` task, untestable ones MUST still produce a \`[测试]\` task recording the "已评估、判定无需测试" verdict — so "no tests written" stays distinguishable from "never evaluated"
 
 ---
 
@@ -539,6 +542,17 @@ After verification passes (≥90%) and the requirement document is generated:
 - **Sub-agent fails**: auto-retry once; if retry fails, pause and report
 - **User interrupts**: complete current batch, mark remaining tasks as incomplete, then pause
 
+### 4.3 Test Execution Gate (inherited from venus_spec_apply §9, auto-pass)
+
+Phase 4 inherits \`venus_spec_apply\`'s **test execution gate** and passes it **automatically** — the auto-pipeline MUST NOT skip the gate, and MUST NOT treat it as "no confirmation needed, therefore no test run":
+
+- Scope: **change scope only** — tests produced by this change's \`[测试]\` tasks plus existing tests covering the changed files
+- **In-scope tests pass** → auto-pass and continue to Phase 5
+- **Pre-existing failures outside the change scope** → report as WARN only; MUST NOT count as this change's failure, MUST NOT block
+- **In-scope tests fail** → auto-fix and re-run, up to 3 attempts (same budget as the compile check)
+- **Still failing after 3 attempts** → pause and report to the user. MUST NOT silently pass, MUST NOT proceed to archive
+- No test framework in the project → log a WARN, skip the gate, continue
+
 ---
 
 ## Phase 5: Auto-Archive
@@ -588,6 +602,8 @@ After auto-archive completes:
 - **Do auto-verify** - automatically verify after proposal without user prompt
 - **Do auto-apply after verification pass** - Phase 4 executes automatically with auto-mode=true (venus_spec_apply Step 5.5 gate skipped)
 - **Do auto-archive after apply complete** - Phase 5 executes automatically with change name passed from context (following the venus_spec_archive skill template)
+- **Do inherit and auto-pass the test execution gate** - Phase 4 runs venus_spec_apply §9 limited to the change scope; in-scope failures auto-retry up to 3 times, then pause and report; pre-existing out-of-scope failures are WARN only; no test framework → WARN and skip
+- **Don't silently pass a failing test gate** - a failing in-scope test gate MUST pause before archive; auto semantics never justify skipping the gate or the archive block
 - **Do auto-generate requirement doc** - After full pass, first invoke \`venus_tr_impl_review_proposal\` for deep review (fallback inline deep review + WARN), then non-interactively invoke \`venus_tr_docs_requirement_doc\`; on FAIL do not generate; on generation failure WARN and continue
 - **MUST create file before questioning** - Phase 1 checkpoint is mandatory
 - **MUST verify file before migration** - Phase 2 checkpoint is mandatory
@@ -601,7 +617,7 @@ After auto-archive completes:
 - **Do inject capability memory** - Phase 1 reads specs/<capability>/explorations.md when it exists
 - **Do scan other projects with CodeGraph** - When exploration context contains other project paths, spawn sub-agent to scan them using CodeGraph projectPath parameter; fall back to Glob/Grep on failure
 - **Don't lose exploration** - File persists even on abandon (unless deleted)`,
-        allowedTools: 'Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(codegraph:*), Bash(ls:*), Bash(mv:*)',
+        allowedTools: 'Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(mvn:*), Bash(gradle:*), Bash(ant:*), Bash(go:*), Bash(cargo:*), Bash(git:*), Bash(codegraph:*), Bash(ls:*), Bash(mv:*)',
         type: 'tr_impl',
         license: 'MIT',
         compatibility: '依赖 venus CLI（spec 命令组）与 spec 系列技能（venus_spec_apply / venus_spec_archive）；CLI 缺失时降级为 AI 内联生成。',
@@ -649,7 +665,7 @@ Auto-execute D1-D5 verification: invoke the \`venus_spec_verify_proposal\` skill
 
 ## Phase 4: Auto-Apply (automated, auto-mode=true)
 
-After verification passes and requirement document is generated: announce "## Auto-Apply Phase"; construct apply context with \`auto-mode=true\` (skip design confirmation gate — consistent with venus_spec_apply: Step 5.5 gate skipped in auto-mode, directly Step 6 batch scheduling) and \`change-name\`; execute apply workflow logic following the venus_spec_apply skill's Step 6+ batch scheduling behavior with auto-mode=true; all tasks implemented automatically with existing batch scheduling. Error handling: compile check fails (after 3 auto-fix attempts) → pause and wait for user, do NOT proceed to archive; sub-agent fails → auto-retry once, then pause and report; user interrupts → complete current batch, mark remaining as incomplete, then pause.
+After verification passes and requirement document is generated: announce "## Auto-Apply Phase"; construct apply context with \`auto-mode=true\` (skip design confirmation gate — consistent with venus_spec_apply: Step 5.5 gate skipped in auto-mode, directly Step 6 batch scheduling) and \`change-name\`; execute apply workflow logic following the venus_spec_apply skill's Step 6+ batch scheduling behavior with auto-mode=true; all tasks implemented automatically with existing batch scheduling. **Test execution gate inherited from venus_spec_apply §9 and auto-passed**: change-scope tests only; in-scope failures auto-retry up to 3 times then pause and report; pre-existing out-of-scope failures are WARN only and must not block; no test framework → WARN and skip; a failing in-scope gate MUST pause before archive. Error handling: compile check fails (after 3 auto-fix attempts) → pause and wait for user, do NOT proceed to archive; in-scope test gate still failing after 3 attempts → pause and report, MUST NOT silently pass, MUST NOT proceed to archive; sub-agent fails → auto-retry once, then pause and report; user interrupts → complete current batch, mark remaining as incomplete, then pause.
 
 ## Phase 5: Auto-Archive (automated)
 
@@ -659,6 +675,6 @@ After apply completes and compile check passes: announce "## Auto-Archive Phase"
 
 ## Guardrails
 
-Don't skip questioning; don't auto-proceed on hard conflict (consistency passthrough only when no hard conflict); read-only operations (file reading, CodeGraph, analysis) run without confirmation but L1-L5 clarification gates still wait; MUST validate prompt before exploring (1.1.2 提示词校验门，清晰直通 / 不明确须优化并确认，未确认不推进); auto semantics never skip the clarification gate; don't deadlock on the confirmation gate (确认 / 修改 / 拒绝 / 授权按推断四条出口); do persist the prompt baseline into \`## 提示词基线\`; MUST produce the functional flowchart (1.5.5 强制产出探索文件 \`## 功能流程图\` 段并执行流程最终确认门，确认前不进入 1.6、不把未确认流程图当作 propose 锚点); auto semantics never skip the flowchart confirmation gate; don't deadlock on the flowchart gate (确认 / 修改 / 拒绝记录未确认状态 / 授权按推断四条出口); don't silently add flowchart nodes in tasks (遗漏节点回 1.5.5 更新并重新确认); auto-verify after proposal; auto-apply after verification pass with auto-mode=true (venus_spec_apply Step 5.5 skipped); auto-archive after apply complete (venus_spec_archive skill); auto-generate requirement doc after full pass (venus_tr_impl_review_proposal deep review → venus_tr_docs_requirement_doc non-interactive; WARN+continue on failure); MUST create file before questioning; MUST verify file before migration; MUST preserve source on migration failure; MUST NOT offer method selection; do explore codebase before asking; do provide recommendations; do update file real-time; do use structured format; do show quantified scores; do inject capability memory; do scan other projects with CodeGraph; don't lose exploration (file persists). Build all paths with \`path.join()\`.`,
+Don't skip questioning; don't auto-proceed on hard conflict (consistency passthrough only when no hard conflict); read-only operations (file reading, CodeGraph, analysis) run without confirmation but L1-L5 clarification gates still wait; MUST validate prompt before exploring (1.1.2 提示词校验门，清晰直通 / 不明确须优化并确认，未确认不推进); auto semantics never skip the clarification gate; don't deadlock on the confirmation gate (确认 / 修改 / 拒绝 / 授权按推断四条出口); do persist the prompt baseline into \`## 提示词基线\`; MUST produce the functional flowchart (1.5.5 强制产出探索文件 \`## 功能流程图\` 段并执行流程最终确认门，确认前不进入 1.6、不把未确认流程图当作 propose 锚点); auto semantics never skip the flowchart confirmation gate; don't deadlock on the flowchart gate (确认 / 修改 / 拒绝记录未确认状态 / 授权按推断四条出口); don't silently add flowchart nodes in tasks (遗漏节点回 1.5.5 更新并重新确认); auto-verify after proposal; auto-apply after verification pass with auto-mode=true (venus_spec_apply Step 5.5 skipped); auto-archive after apply complete (venus_spec_archive skill); auto-inherit the test execution gate from venus_spec_apply §9 with auto-pass (in-scope failures auto-retry 3 times then pause and report; pre-existing out-of-scope failures WARN only; no test framework → WARN and skip); never silently pass a failing in-scope test gate (pause before archive); auto-generate requirement doc after full pass (venus_tr_impl_review_proposal deep review → venus_tr_docs_requirement_doc non-interactive; WARN+continue on failure); MUST create file before questioning; MUST verify file before migration; MUST preserve source on migration failure; MUST NOT offer method selection; do explore codebase before asking; do provide recommendations; do update file real-time; do use structured format; do show quantified scores; do inject capability memory; do scan other projects with CodeGraph; don't lose exploration (file persists). Build all paths with \`path.join()\`.`,
     };
 }

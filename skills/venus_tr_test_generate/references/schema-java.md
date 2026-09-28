@@ -370,6 +370,65 @@ public class UserServiceTest {
 }
 ```
 
+### J6.5 功能级测试（Functional）
+
+当主 SKILL 阶段一 1.3 判定为**功能级层级**时，使用本节写法。功能级测试验证跨组件的完整功能链路，仅 Mock 真正的外部系统。
+
+**工具链检测（先执行）**：
+
+```bash
+# Spring Boot 测试支持（提供 @SpringBootTest / @WebMvcTest / MockMvc）
+grep -q "spring-boot-starter-test" pom.xml 2>/dev/null && echo "spring-boot-test" || echo "missing"
+```
+
+**降级规则**：检测不到 `spring-boot-starter-test` 时 MUST 降级为单元测试层级并提示，MUST NOT 生成无法运行的测试代码。
+
+**写法选择**：
+
+| 场景 | 注解 | 依赖处理 |
+|---|---|---|
+| 仅验证接口层（请求映射、参数校验、响应格式、权限拦截） | `@WebMvcTest(XxxController.class)` + MockMvc | `@MockBean` 替换 Service 依赖 |
+| 验证跨层协作（Service→DAO 连通、事务、数据一致性） | `@SpringBootTest` + `@Transactional`（用例后回滚） | 仅 Mock 外部系统（第三方接口、消息中间件） |
+
+**模板 G：功能级测试（@SpringBootTest）**
+
+```java
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.transaction.annotation.Transactional;
+import static org.assertj.core.api.Assertions.*;
+
+@SpringBootTest
+@Transactional  // 用例结束自动回滚，保证可重复
+class OrderFlowFunctionalTest {
+
+    @Autowired
+    private OrderFacade orderFacade;
+
+    @Test
+    void should_create_order_and_deduct_stock_when_submit_valid_order() {
+        // Given: 通过功能入口构造前置数据（不做内部组件 Mock）
+        Long userId = 1L;
+        String skuCode = "SKU-001";
+
+        // When: 从功能入口发起完整链路
+        String orderNo = orderFacade.submit(userId, skuCode, 2);
+
+        // Then: 断言可观测结果（而非内部方法调用）
+        assertThat(orderNo).isNotBlank();
+        assertThat(orderFacade.queryStock(skuCode)).isEqualTo(8);
+    }
+}
+```
+
+**Java 功能级测试约束**：
+
+- MUST 断言**可观测的最终结果**（返回值、落库数据、外部可见状态），MUST NOT 断言内部组件的调用次数
+- 涉及写库的用例 MUST 使用 `@Transactional` 保证回滚，或显式清理数据，确保可重复（FIRST 的 R）
+- MUST NOT 在功能级测试中 Mock 内部协作组件（Service/DAO）——那会让测试退化为单元测试而失去层级价值
+- 用例命名 MUST 表达完整功能意图（如 `should_create_order_and_deduct_stock_when_submit_valid_order`）
+
 ### J7. 遗留 Java 代码测试策略
 
 当被测代码存在以下可测试性障碍时，采用对应策略：
@@ -395,6 +454,14 @@ gradle test --tests "*UserServiceTest*"
 
 # 运行全部测试
 mvn test -DfailIfNoTests=false
+
+# 覆盖度实测（主 SKILL 5.1 方式 1）——项目已配置 JaCoCo 时
+mvn test jacoco:report
+# 报告位置：target/site/jacoco/index.html（行覆盖 / 分支覆盖）
+# 未配置 JaCoCo（pom.xml 无 jacoco-maven-plugin）→ 走方式 2 静态矩阵并标注"未实测覆盖度"
+
+# 仅运行功能级测试（按命名约定筛选）
+mvn test -Dtest="*FunctionalTest" -DfailIfNoTests=false
 ```
 
 #### 常见问题排查

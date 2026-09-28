@@ -243,7 +243,7 @@ Archive a completed change in the change workflow.
       - **Change name**: from directory name (after date prefix)
       - **Module**: extract from change name pattern \`{prefix}-{module}-{feature}\`, or use "general" if unknown
       - **Summary**: first paragraph of \`proposal.md\` (max 50 chars), or proposal title if empty
-      - **Supplement annotation**: read \`tasks.md\` in the change directory, scan for task type labels, collect all non-\`[代码]\` types, and append \`[含<type1>/<type2>/...]\` to the summary (e.g., \`[含DB脚本/使用说明]\`). If no supplement tasks found, skip annotation.
+      - **Supplement annotation**: read \`tasks.md\` in the change directory, collect **supplement task types by matching a fixed label whitelist** \`[测试]\` / \`[DB脚本]\` / \`[使用说明]\` (\`[代码]\` excluded), and append \`[含<type1>/<type2>/...]\` to the summary (e.g., \`[含测试/DB脚本]\`). Match on the whitelist ONLY — do NOT collect "all bracketed content": \`[测试]\` tasks carry level/priority sub-annotations (\`[测试][单元][P0]\`) whose \`[单元]\`/\`[P0]\` are NOT task types, and collecting them would produce \`[含测试/单元/P0]\` noise. Labels outside the whitelist are ignored (non-blocking; a WARN MAY be logged). If no supplement task found, skip annotation.
 
    b. Add new row to "归档变更列表" table:
       \`| {date} | {change-name} | {module} | {summary} |\`

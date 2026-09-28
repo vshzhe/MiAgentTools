@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:ea78cf64a8ce47e1f02644c6d6d3c5494f8ed2b1005b7c3157dc5f1d0ea4d74c"
+  generatedFingerprint: "sha256:fccd79f902c6c0d13903238078f26831efe0dc249cfd603cf832449fb3d5ab42"
 ---
 
 **Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** In Phase 1 (Reproduce), follow Section 1 (Zero-Assumption). In Phase 4 (Fix), follow Section 3 (Data & Storage) when schema changes are involved. In Phase 6 (Synchronization), check Sections 2 (Design-First) for the confirmation gate.
@@ -391,6 +391,21 @@ Implement the fix following the venus_spec_apply skill's task execution norms.
 - Run the reproduction from Phase 1 and confirm it now passes
 - **回归测试验证口径（2.5）**：回归测试 MUST 覆盖该缺陷链路的**「异常节点 + 根因节点」**；仅覆盖触发节点而未覆盖根因节点时，验证不通过
 
+**编写动作委派（Regression Test Authoring Delegation）**
+
+回归测试的**编写动作** MUST 委派 `venus_tr_test_generate` 技能执行，MUST NOT 在 debug 内另立一套测试编写规则：
+
+- 委派时传入：测试层级与优先级、缺陷链路图（2.5 产出）作为**覆盖口径**
+- 委派动机：复用该技能的框架检测、既有测试风格对齐、BCDE 边界覆盖与反模式防护，使回归测试与项目其它测试**同源同风格**，而非每次临时重造
+- **委派不可用时的降级**：`venus_tr_test_generate` 未安装或调用失败时，降级为自行编写回归测试并记录 WARN；降级 MUST NOT 放松下列两条硬要求
+
+**两条硬要求（保留，不因委派而放松）**
+
+1. **覆盖口径**：回归测试 MUST 覆盖该缺陷链路的「异常节点 + 根因节点」——仅覆盖触发节点而未覆盖根因节点时，验证不通过（详见 2.5 与 Guardrails）
+2. **时序要求**：回归测试 MUST 修复前 FAIL、修复后 PASS
+
+委派完成后，本技能 MUST 自行校验上述两条仍然成立（委派产出不等于自动合规）。
+
 ### 4.3 Debug Loop Confirmation (调试循环确认)
 
 After each fix is complete, ask the user:
@@ -593,6 +608,8 @@ Ready for `/venus:spec-apply` (fixes already applied) or archive.
 - **Zero-assumption**: multiple candidate root causes → STOP and let the user choose; never guess
 - **Archives are read-only**: never modify `openspec/changes/archive/`
 - **Regression test mandatory**: every fix ships with a test that failed before and passes after — applies to EVERY bug in the loop
+- **Delegate regression test authoring**: the writing action MUST be delegated to `venus_tr_test_generate` (passing the test level/priority plus the fault chain as the coverage basis) so the regression test matches the project's existing framework and style; degrade to self-authored + WARN only when delegation is unavailable
+- **Delegation never relaxes the two hard requirements**: the regression test MUST still cover the fault chain's 「异常节点 + 根因节点」, and MUST still FAIL before / PASS after — self-verify both after delegation returns
 - **Proposal sync mandatory**: artifacts must reflect ALL implemented fixes before verification
 - **Verification never skipped**: skill → inline fallback with WARN; FAIL → auto-fix loop with no skip path; PASS → deep review (skill → inline fallback with WARN) then requirement document
 - **Loop non-defect non-blocking**: non-defect findings in the loop do NOT block other bugs — record diagnosis and continue

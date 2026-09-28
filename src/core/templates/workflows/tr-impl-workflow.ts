@@ -1217,10 +1217,15 @@ The following guidelines are automatically enforced by inline generation:
 \`\`\`
 
 **Task Type Labels (for tasks.md generation):**
-- Each task MUST include a type label: \`- [ ] [代码] N.M ...\` or \`- [ ] [DB脚本] N.M ...\` etc.
-- Supplement tasks (non-\`[代码]\`) MUST include \`产出:\` field as indented content
+- Each task MUST include a type label: \`- [ ] [代码] N.M ...\` / \`- [ ] [测试][单元][P0] N.M ...\` / \`- [ ] [DB脚本] N.M ...\` etc.
+- Four parallel label types: \`[代码]\` / \`[测试]\` / \`[DB脚本]\` / \`[使用说明]\`; \`[测试]\` tasks MUST carry level (\`[单元]\`/\`[功能]\`) + priority (\`[P0]\`/\`[P1]\`/\`[P2]\`) sub-annotations
+- Test planning: walk the specs scenarios — testable ones MUST produce a \`[测试]\` task; untestable ones MUST still produce a \`[测试]\` task recording the "已评估、判定无需测试" verdict, so "no tests written" stays distinguishable from "never evaluated"
+- \`[测试]\` tasks MUST NOT be routed through the \`产出:\` → \`attachments/\` rule (test code belongs in the project's test source tree)
+- Supplement tasks (non-\`[代码]\` **and** non-\`[测试]\`) MUST include \`产出:\` field as indented content
 - Default output path: \`attachments/<filename>\` (relative to changeRoot)
 - See \`schemas/spec-driven/templates/tasks.md\` template for full label reference
+
+> **测试执行关卡不在本技能内**：本技能止于 Phase 3 验证，不执行代码实现；任务清单交由 \`venus_spec_apply\` 实现时，其测试执行关卡（仅变更范围、存量红不阻塞）由 apply 自身承担。本技能只负责把 \`[测试]\` 任务**规划**出来。
 
 ### 2.6 Validate Artifacts (MANDATORY)
 
@@ -2159,10 +2164,15 @@ During inline generation, handle CLI failures:
 - If business run → add Business Steps tasks
 
 **Task Type Labels (for tasks.md generation):**
-- Each task MUST include a type label: \`- [ ] [代码] N.M ...\` or \`- [ ] [DB脚本] N.M ...\` etc.
-- Supplement tasks (non-\`[代码]\`) MUST include \`产出:\` field as indented content
+- Each task MUST include a type label: \`- [ ] [代码] N.M ...\` / \`- [ ] [测试][单元][P0] N.M ...\` / \`- [ ] [DB脚本] N.M ...\` etc.
+- Four parallel label types: \`[代码]\` / \`[测试]\` / \`[DB脚本]\` / \`[使用说明]\`; \`[测试]\` tasks MUST carry level (\`[单元]\`/\`[功能]\`) + priority (\`[P0]\`/\`[P1]\`/\`[P2]\`) sub-annotations
+- Test planning: walk the specs scenarios — testable ones MUST produce a \`[测试]\` task; untestable ones MUST still produce a \`[测试]\` task recording the "已评估、判定无需测试" verdict, so "no tests written" stays distinguishable from "never evaluated"
+- \`[测试]\` tasks MUST NOT be routed through the \`产出:\` → \`attachments/\` rule (test code belongs in the project's test source tree)
+- Supplement tasks (non-\`[代码]\` **and** non-\`[测试]\`) MUST include \`产出:\` field as indented content
 - Default output path: \`attachments/<filename>\` (relative to changeRoot)
 - See \`schemas/spec-driven/templates/tasks.md\` template for full label reference
+
+> **测试执行关卡不在本技能内**：本技能止于 Phase 3 验证，不执行代码实现；任务清单交由 \`venus_spec_apply\` 实现时，其测试执行关卡（仅变更范围、存量红不阻塞）由 apply 自身承担。本技能只负责把 \`[测试]\` 任务**规划**出来。
 
 ---
 
