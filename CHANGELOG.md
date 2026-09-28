@@ -9,6 +9,26 @@
 
 （暂无）
 
+## [1.3.1] - 2026-09-28
+
+### Changed
+
+- **本机产物统一改为不入库**：`.gitignore` 的 `.venus/` 条目扩展为覆盖 `.claude/`
+  （dogfood 产物）—— 原规则只忽略 `.claude/` 下 openspec 相关部分，venus 产物入库
+  65 个文件，与 `AGENTS.md` 项目约定「`.venus/` 与 `.claude/` 都提交到 git」一致，
+  但该约定与 `.gitignore` 实际行为**互相矛盾**（`.venus/` 被忽略且历史上从未纳管）
+- 本次按「本机状态不入库」统一：`.venus/`（本项目配置）、`.claude/`（dogfood 产物）、
+  `openspec/`（本地产物）、`.codegraph/`（索引）全部由 `.gitignore` 排除；
+  **可提交的模板真源是 `skills/` 静态快照**（CI 的 `skills-parity` 漂移检查只针对它，
+  实测不依赖 `.claude/`；`test/` 亦只用临时目录中的 `.claude/`）
+- `git rm -r --cached .claude` 移除已跟踪的 65 个文件（工作区文件保留不动）
+- `.gitignore` 随之清理三个被 `.claude/` 整目录条目涵盖的冗余条目：
+  `.claude/skills/openspec-*/`、`.claude/commands/opsx/`、`.claude/settings.local.json`
+- 影响面：本仓库不再有「模板 → 快照 → dogfood」三层一致性中的 dogfood 入库层。
+  `AGENTS.md` 守则 8 与项目约定、`README.md` 工程保障段同步改写（明确"不入库"与
+  可提交真源）。本机刷新约定不变：`pnpm generate:skills` 刷快照、`venus update` 刷 dogfood
+- 版本号 1.3.0 → 1.3.1
+
 ## [1.3.0] - 2026-09-28
 
 ### Changed
@@ -301,7 +321,8 @@
 - 项目配置从单文件 `venus.config.yaml` 重构为 `.venus/` 目录结构
   （`config.yaml` 显式引用 `rules/` 下规则文件），重复 init 保留用户全部修改
 
-[Unreleased]: https://github.com/venus-agent-tools/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/venus-agent-tools/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/venus-agent-tools/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/venus-agent-tools/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/venus-agent-tools/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/venus-agent-tools/compare/v1.1.0...v1.1.1

@@ -90,12 +90,11 @@ node bin/venus.js <cmd> # 直接运行 CLI
      新增此类引用时一并纳入本规则）
    - 版本号写入生成产物 frontmatter 的 `generatedBy`（供 `venus show` 展示），
      **不参与**手改保护判定 —— 保护由 `generatedFingerprint`（内容指纹，见
-     `src/core/command-generation/fingerprint.ts`）承担，故**无需**为递增版本号
-     单独刷新 `.claude/` dogfood 产物
-   - **刷新 dogfood 无操作顺序要求**：旧实现只用 `generatedBy` 版本号推断手改，
-     导致"模板正文变更但版本号未递增"时产物被误判手改、只能 `--force`（而 `--force`
-     会连带覆盖**真正手改过**的产物）；改用内容指纹后，未被改动的产物无论版本号是否
-     递增都能安全升级（2026-09-28 修复）
+     `src/core/command-generation/fingerprint.ts`）承担
+   - `.claude/` dogfood 产物**不入库**（见「项目约定」）—— 刷新与否不影响提交，
+     故递增版本号无需同步刷新它；本机需要刷新时也没有操作顺序要求（旧实现只用
+     `generatedBy` 推断手改，导致"模板正文变更但版本号未递增"时产物被误判手改、
+     只能 `--force`；改用内容指纹后，未被改动的产物无论版本号是否递增都能安全升级）
 
 ## 项目约定
 
@@ -104,5 +103,7 @@ node bin/venus.js <cmd> # 直接运行 CLI
 - `update` 的手改保护依赖 frontmatter `generatedFingerprint`（内容指纹）—— 生成路径必须写全该字段；
   无该字段的存量产物回退到 `generatedBy` 版本号判定
 - 指令 id 派生：`venus_tr_tools_pwd` → `tr-tools-pwd`（下划线转连字符，去前缀）
-- `.venus/`（本项目配置）与 `.claude/`（dogfood 产物）都提交到 git
+- 本机产物均**不入库**（`.gitignore` 忽略）：`.venus/`（本项目配置）、`.claude/`（dogfood 产物）、
+  `openspec/`（本地产物）、`.codegraph/`。模板的可提交真源是 `skills/` 静态快照；
+  `.claude/` 仅供本机 Claude Code 使用，其旧内容曾入库、现由 `.gitignore` 整体排除
 - 提交信息：Conventional Commits 一行式，中文描述

@@ -4,14 +4,16 @@ dist/
 .DS_Store
 Thumbs.db
 
-# venus 本地项目配置与 codegraph 索引（本机生成，不入库）
+# venus 本机产物与 codegraph 索引（不入库）
+# .venus/ = 本项目配置（config.yaml + rules/），.claude/ = dogfood 产物（venus init / update 生成）。
+# 二者均为本机状态而非仓库分发内容；模板的提交源是 skills/ 静态快照，
+# 本机刷新用 `pnpm generate:skills`（快照）与 `venus update`（.claude/ dogfood）。
 .venus/
+.claude/
 .codegraph/
 
-# openspec 本地产物（init 生成，不入库；.claude/ 下仅忽略非 venus 部分）
+# openspec 本地产物（init 生成，不入库）
 openspec/
-.claude/skills/openspec-*/
-.claude/commands/opsx/
 .openspec-tmp/
 
 # gentest-java 运行临时工作区（本机生成，不入库）
@@ -21,5 +23,3 @@ venus_java_unit_test-workspace/
 coverage/
 *.tsbuildinfo
 .eslintcache
-.claude/settings.local.json
-

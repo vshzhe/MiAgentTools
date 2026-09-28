@@ -26,7 +26,7 @@ pnpm link --global
 验证安装：
 
 ```bash
-venus --version    # 输出 1.3.0
+venus --version    # 输出 1.3.1
 venus --help       # 查看全部命令
 ```
 
@@ -274,7 +274,9 @@ pnpm dev            # 监听模式编译
 
 - **CI**（GitHub Actions）：Ubuntu + Windows 双平台跑 build → lint → test → 快照 parity 检查
 - **快照防漂移**：`test/skills-parity.test.ts` 保证 `skills/` 提交内容与模板一致
-- 项目自身已 dogfood：`.claude/` 目录下的技能即由 `venus init` 生成
+- 项目自身已 dogfood：`.claude/` 目录下的技能即由 `venus init` 生成（**本机产物，不入库** ——
+  `.venus/` / `.claude/` / `openspec/` / `.codegraph/` 均由 `.gitignore` 整体排除；
+  可提交的模板真源是 `skills/` 静态快照）
 
 ## 约束与规范
 
