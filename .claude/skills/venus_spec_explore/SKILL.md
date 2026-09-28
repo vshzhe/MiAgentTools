@@ -8,7 +8,7 @@ metadata:
   author: venus-agent-tools
   version: "1.0"
   type: spec
-  generatedBy: "1.1.0"
+  generatedBy: "1.2.0"
 ---
 
 **Before exploring, read openspec/rules/ai-coding.md for AI coding guardrails.** When encountering undefined database fields, business logic, or API parameters, mark them as **[待确认]** and ask the user rather than guessing.

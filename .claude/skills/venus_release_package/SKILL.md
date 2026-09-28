@@ -8,7 +8,7 @@ metadata:
   author: venus-agent-tools
   version: "1.0"
   type: tr_release
-  generatedBy: "0.1.0"
+  generatedBy: "1.2.0"
 ---
 
 

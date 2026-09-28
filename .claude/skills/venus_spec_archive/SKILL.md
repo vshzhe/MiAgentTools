@@ -8,7 +8,7 @@ metadata:
   author: venus-agent-tools
   version: "1.0"
   type: spec
-  generatedBy: "0.1.0"
+  generatedBy: "1.2.0"
 ---
 
 **Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.**

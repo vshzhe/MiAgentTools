@@ -17,13 +17,13 @@ One-stop debugging workflow from reproduction to proposal synchronization.
 
 This workflow guides you through:
 1. **Reproduction phase** - Failing test or explicit reproduction procedure as acceptance criterion
-2. **Investigation phase** - Capability memory injection + CodeGraph root cause analysis + grill-with-docs discipline
+2. **Investigation phase** - Capability memory injection + CodeGraph root cause analysis + depth triage (2.2.3.5: lightweight vs deep path by blast radius / cross-module / root-cause clarity) + grill-with-docs discipline
 3. **Change association phase** - Determine which change owns the bug (in-progress / new fix change / archived origin / non-defect)
 4. **Fix phase** - Implement the fix with a mandatory regression test
 5. **Debug Loop** - After each fix, ask user if there are more related bugs; if yes, repeat P1-P4; if no, proceed to unified P5-P7
 6. **Compile check phase** - Reuse the venus_spec_apply skill's compile check conventions (covers all loop fixes)
 7. **Synchronization phase** - Update the change's artifacts and persist all root cause analyses (covers all loop fixes)
-8. **Verification phase** - Auto-fix loop on failure; on pass, deep review then requirement document generation (covers all loop fixes)
+8. **Verification phase** - Auto-fix loop on failure; on pass, deep review then requirement document branch (regenerate when absent / in-place align when present) (covers all loop fixes)
 
 ---
 
@@ -157,7 +157,7 @@ Update the diagnosis record (a scratch section in your working notes, later pers
 
 ### 2.2 CodeGraph 排查（分层结构）
 
-Adapt the workflow's CodeGraph query system (status check → file scan → symbol + context → call chain + impact → explore + deep-dive) to the debug investigation context. Record all findings to the diagnosis record in real time (after EACH query step, not batched at the end) so Phase 6 can persist the full investigation path.
+Adapt the workflow's CodeGraph query system (status check → file scan → symbol + context → call chain + impact → **triage** → explore + deep-dive) to the debug investigation context. Record all findings to the diagnosis record in real time (after EACH query step, not batched at the end) so Phase 6 can persist the full investigation path.
 
 #### 2.2.0 Status 预检（强制首动作与硬回退）
 
@@ -187,9 +187,45 @@ Grep/Glob is a **last resort**, permitted ONLY after `codegraph_status` confirms
 - `codegraph_impact` — assess the blast radius of the suspected defect AND of the candidate fix
 - Record call chains (ASCII diagrams when helpful) and affected symbols in the diagnosis record for root cause confirmation
 
+#### 2.2.3.5 排查深度分级（Triage · 事前选定排查路径）
+
+**⚠️ MANDATORY: 本步在常规查询（2.2.1–2.2.3）之后、深度探索（2.2.4）之前执行。** 三条分级信号全部产自常规查询，故本步不得前移；编号采用**十进制插入**（`2.2.3.5`）以**不重排既有编号**（2.2.0–2.2.4 的编号与语义均不变）。
+
+**分级信号（三条客观信号，任一命中即深度路径）**：
+
+- **(a) 爆炸半径**：`codegraph_impact` 在 depth ≤ 2 的受影响符号数 **≥ 5**，或受影响文件数 **≥ 3**
+- **(b) 跨模块**：受影响范围跨 **≥ 2** 个模块 / 目录
+- **(c) 根因清晰度**：2.2.2（`codegraph_search` + `codegraph_context`）**未能**一步定位单一高置信根因
+
+**分级结果（两条路径）**：
+
+- **轻量路径（路径 A）**：止步于 2.2.1–2.2.3，**不执行** 6 维根因深度分析
+- **深度路径（路径 B）**：进入 2.2.4 执行 `codegraph_explore` + 6 维根因深度分析
+
+**保守取值**：信号缺失或落在阈值边界（无法判定是否超阈）时**取深度路径** —— 误走深度路径的代价是查询成本，误走轻量路径的代价是**漏检根因**（不可逆），宁可多查不漏。
+
+**信号降级（CodeGraph 不可用时分级仍生效）**：
+
+- 信号 **(a)** 降级为 **Grep 代理指标**（以 2.2.1 的文件结构扫描结果计受影响文件数，阈值同 3）
+- 信号 **(b)(c)** 不依赖 CodeGraph，照常判定
+- 诊断记录 MUST 标注「信号降级」；**MUST NOT 因 CodeGraph 不可用而跳过分级**
+
+**信号可追溯（反幻觉硬约束）**：信号取值 MUST 可追溯至 `codegraph_impact` / `codegraph_files`（降级时为 Grep）的**实测查询结果**并在诊断记录留痕；MUST NOT 以"半径小"等未经实测的结论支撑轻量路径判定（违反 Zero-Assumption）。
+
+**与 2.5 解耦**：分级结果**只**影响 2.2.4 是否执行；2.5 缺陷链路图与流程最终确认门对两条路径**均强制**产出，轻量路径 MUST NOT 豁免。
+
+**记录规范**：分级结论（三条信号取值 + 所选路径 + 是否降级）随 Step 2.2 的记录规范一并实时写入诊断记录，供 Phase 6 随根因分析持久化到变更 `exploration.md`。
+
 #### 2.2.4 深度探索与根因深度分析（条件触发）
 
-**Trigger**: when the regular CodeGraph queries above (2.2.1–2.2.3) cannot locate a single high-confidence root cause (multiple candidates or insufficient confidence). When a high-confidence root cause is already located, SKIP this section to keep simple bugs on a lightweight path.
+**Trigger**: 满足以下任一条件时执行本节 ——
+
+1. **分级为深度路径（2.2.3.5 路径 B）** —— 即便已一步定位到单一高置信根因，大范围 / 跨模块缺陷仍须经 6 维分析确认是否存在未检视的系统性根因（设计意图 / 约束 / 权衡 / 模式 / 历史边界 / 隐式假设）
+2. **升级兜底**：轻量路径（路径 A）下 2.2.1–2.2.3 **未能**定位单一高置信根因（多候选或置信不足）
+
+**仅当**分级为轻量路径 **且** 已定位单一高置信根因时，SKIP 本节以让简单缺陷走轻量路径。
+
+**⚠️ 兜底是触发条件，不是独立步骤**：本节的内容与编号（2.2.4）**保持不变**；升级兜底即上述条件 2，MUST NOT 为其新建独立章节或编号。
 
 When triggered:
 - `codegraph_explore` — deep exploration of the suspected code area
@@ -293,6 +329,7 @@ flowchart TD
 - **标记**：异常现象节点 MUST 标 `🔴异常`、根因节点 MUST 标 `🟠根因`，其余节点以 "—" 占位
 - **证据追溯**：每节点 MUST 填证据位置（`文件:行` 或 类.方法）；无法追溯证据的节点 MUST NOT 进入清单
 - **落盘位置**：诊断记录新增的 `## 功能流程（缺陷链路）` 段，Phase 6 随根因分析一并持久化到变更 exploration.md
+- **与分级解耦**：2.2.3.5 的排查深度分级结果 MUST NOT 影响本步产出 —— **轻量路径（路径 A）同样强制产出**缺陷链路图并经本门确认；分级只决定 2.2.4 是否执行，不决定是否产出缺陷链路（轻量 ≠ 不验证）
 - **四出口确认门**：呈现缺陷链路图与节点清单后停止等待确认，出口四条（确认 / 修改 / 拒绝后记录未确认状态并按原理解继续 / 显式授权按推断继续），**MUST NOT 反复要求确认或陷入等待死锁**
 - **验证口径**：修复方案与回归测试 MUST 覆盖该链路的「异常节点 + 根因节点」（见 4.1 / 4.2）；仅覆盖触发节点而未覆盖根因节点时，验证不通过
 
@@ -437,6 +474,7 @@ After each fix is complete, ask the user:
 ### 6.2 Persist root cause analysis
 
 - Write the full diagnosis records for ALL bugs (prompt baseline, reproduction, investigation path, evidence, root cause, chosen fix rationale) to the change directory's `exploration.md`, organized per bug — the `## 提示词基线` section is included so the change retains the user-confirmed semantics source, and the `## 功能流程（缺陷链路）` section (2.5) carries the confirmed fault chain and node list
+- **分级判定结果**（2.2.3.5）：每个 bug 的排查深度分级结论 MUST 一并持久化 —— 三条信号取值、所选路径（轻量 A / 深度 B）、是否信号降级；即"为什么这个缺陷走了这条排查路径"须可追溯，避免事后无法复盘排查深度是否合理
 
 ### 6.3 Artifact format validation
 
@@ -480,12 +518,21 @@ After verification passes:
 
 1. **Auto-invoke the `venus_tr_impl_review_proposal` skill** (via Skill tool) for a deep read-only review of the proposal (a deep consistency and coverage audit beyond the D1–D9 scoring). The review runs automatically (no [Yes/No] prompt). User MAY interrupt to skip; otherwise it runs.
    - **Fallback (skill unavailable)**: If the skill is not installed or its invocation fails, fall back to AI inline read-only deep review with a WARN: "venus_tr_impl_review_proposal skill unavailable, degraded to inline review". Do NOT silently skip the deep review.
-2. **Auto-invoke the `venus_tr_docs_requirement_doc` skill** (via Skill tool) in **non-interactive mode**:
+2. **Determine whether the requirement document already exists** (⚠️ MANDATORY branch point — sits AFTER the deep review and BEFORE any generation):
+   - Target path: `openspec/changes/<change-name>/需求文档.md` (build with `path.join()`)
+   - Scope is **ONLY** the active change directory — debug only operates on in-progress changes; a bug originating from an archived change creates a **NEW** change (Phase 3.3), whose directory necessarily has no such file
+   - If the directory cannot be read (IO failure): log WARN and treat it as "does not exist"
+3. **Branch A — the document does NOT exist**: **Auto-invoke the `venus_tr_docs_requirement_doc` skill** (via Skill tool) in **non-interactive mode**:
    - Markdown format, placeholder basic information (需求编号/需求名称/交付时间 as placeholders)
    - Do NOT ask the user any questions
    - Output: `openspec/changes/<change-name>/需求文档.md`
    - Display the generated document path to the user
-3. **Failure handling**: if requirement document generation fails or is interrupted, log WARN with the reason and CONTINUE — the user can re-run the skill standalone later
+4. **Branch B — the document ALREADY exists** (e.g. produced by an earlier `venus_tr_impl_workflow` / `venus_tr_impl_auto_workflow` pass): perform an **in-place incremental alignment update** on that file. **Do NOT invoke `venus_tr_docs_requirement_doc`** — its own rule is "when the target file already exists, overwrite it silently", which would erase human-authored review content.
+   - **人工域白名单（MUST NOT overwrite, preserve verbatim）**: `## 基本信息` (需求编号 / 需求名称 / 交付时间, including placeholder state) and `## 八、评审记录`
+   - **重新派生域**: `一、原始需求` through `七、影响分析` are re-derived from the artifacts as synchronized in Phase 6
+   - **MUST NOT delete any section** (only content removed from the artifacts may be dropped); when the existing document is missing a section (malformed), MUST recreate that section and log a WARN — never pass silently
+   - Display the updated document path to the user
+5. **Failure handling**: if generation or the in-place alignment fails or is interrupted, log WARN with the reason and CONTINUE — the user can re-run the skill standalone later
 
 ---
 
@@ -502,7 +549,7 @@ After verification passes:
 
 #### Bug #1: <one-line summary>
 - Phase 1: Reproduction: <failing test / procedure> — confirmed ✗/✓
-- Phase 2: Root cause: <one-line summary>, Evidence: <call chain / symbols>
+- Phase 2: Triage: <lightweight A / deep B — signals (a)(b)(c) values, degraded yes/no>; Root cause: <one-line summary>, Evidence: <call chain / symbols>
 - Phase 3: Association: <in-progress change / new fix-{module}-<topic> / archived origin (traced)>
 - Phase 4: Fix: <summary>, Regression test: <test reference> — passes ✓
 
@@ -520,7 +567,7 @@ After verification passes:
 ### Phase 7: Verification (覆盖所有修复)
 - Score: XX% — PASS/FAIL
 - Deep review: completed ✓ / WARN (reason)
-- Requirement document: openspec/changes/<change-name>/需求文档.md ✓ / WARN (reason)
+- Requirement document: branch <A: generated / B: in-place aligned> → openspec/changes/<change-name>/需求文档.md ✓ / WARN (reason)
 
 Ready for `/venus:spec-apply` (fixes already applied) or archive.
 ```
@@ -536,6 +583,12 @@ Ready for `/venus:spec-apply` (fixes already applied) or archive.
 - **Don't deadlock on the flowchart gate**: 2.5 确认门有四条出口（确认 / 修改 / 拒绝后记录未确认状态并按原理解继续 / 显式授权按推断继续），不得反复要求确认
 - **Fix and regression test cover the exception and root cause nodes**: 修复方案与回归测试 MUST 覆盖缺陷链路的「异常节点 + 根因节点」（4.1 / 4.2）；仅覆盖触发节点而未覆盖根因节点时，验证不通过
 - **Reproduce first**: no fix without a confirmed reproduction (failing test or user-confirmed procedure) — applies to EVERY bug in the loop
+- **Triage by blast radius, not by convenience**: 2.2.3.5 的分级信号取值 MUST 可追溯至实测查询结果（`codegraph_impact` / `codegraph_files`，降级时为 Grep）；MUST NOT 编造"半径小"以走轻量路径；信号缺失或阈值边界 MUST 取深度路径
+- **Triage decoupled from the fault chain diagram**: 分级只决定 2.2.4 是否执行，2.5 缺陷链路图与流程最终确认门对轻量路径同样**强制产出**，MUST NOT 豁免
+- **Upgrade fallback is a trigger, not a step**: 升级兜底即 2.2.4 扩展后的触发条件之一，MUST NOT 为其新建独立章节或编号（2.2.4 的内容与编号不变）
+- **Triage survives CodeGraph degradation**: CodeGraph 不可用时分级仍生效（信号 (a) 降级为文件数代理指标，(b)(c) 照常）；MUST NOT 因降级跳过分级，诊断记录 MUST 标注「信号降级」
+- **Requirement document branch is mandatory**: Phase 7.3 判定需求文档是否已存在（范围仅 active 变更目录）；已存在时 MUST 走就地增量对齐更新，MUST NOT 调 `venus_tr_docs_requirement_doc`（其"静默覆盖"规则会抹掉人工内容）
+- **Human-authored fields are protected**: 就地增量对齐时 `## 基本信息`（需求编号/需求名称/交付时间，含占位符状态）与 `## 八、评审记录` MUST NOT 覆盖；MUST NOT 删除章节（仅制品已移除的内容可删）
 - **Zero-assumption**: multiple candidate root causes → STOP and let the user choose; never guess
 - **Archives are read-only**: never modify `openspec/changes/archive/`
 - **Regression test mandatory**: every fix ships with a test that failed before and passes after — applies to EVERY bug in the loop

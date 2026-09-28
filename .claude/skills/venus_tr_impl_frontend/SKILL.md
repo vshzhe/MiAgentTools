@@ -8,7 +8,7 @@ metadata:
   author: venus-agent-tools
   version: "1.0"
   type: tr_impl
-  generatedBy: "0.1.0"
+  generatedBy: "1.2.0"
 ---
 
 # 前端页面设计与生成 Skill

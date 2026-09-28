@@ -8,7 +8,7 @@ metadata:
   author: venus-agent-tools
   version: "1.0"
   type: tr_init
-  generatedBy: "0.1.0"
+  generatedBy: "1.2.0"
 ---
 
 初始化项目 —— 按步骤搭建项目骨架，确保每个决定都得到用户确认。

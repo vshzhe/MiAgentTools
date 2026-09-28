@@ -8,7 +8,7 @@ metadata:
   author: venus-agent-tools
   version: "1.0"
   type: spec
-  generatedBy: "1.1.0"
+  generatedBy: "1.2.0"
 ---
 
 **Before verifying, read openspec/rules/ai-coding.md for verification criteria.**

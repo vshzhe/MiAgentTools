@@ -8,7 +8,7 @@ metadata:
   author: venus-agent-tools
   version: "1.0"
   type: tr_tools
-  generatedBy: "0.1.0"
+  generatedBy: "1.2.0"
 ---
 
 查看当前路径 —— 给出当前工作目录的绝对路径。

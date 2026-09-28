@@ -89,6 +89,11 @@ node bin/venus.js <cmd> # 直接运行 CLI
      新增此类引用时一并纳入本规则）
    - 版本号同时写入生成产物 frontmatter 的 `generatedBy`，该字段仅用于 `venus update`
      的手改保护判定 —— **无需**为递增版本号单独刷新 `.claude/` dogfood 产物
+   - **需要刷新 dogfood 时的执行顺序：先递增版本号、再执行 `venus update`**。
+     `update` 的升级判定是「已装 `generatedBy` 版本**早于**当前包版本」——版本号未变时
+     该判定为否，产物被当作"用户手改"跳过；此时只能加 `--force` 覆盖，而 `--force`
+     会连带覆盖**真正手改过**的产物，失去手改保护。改了模板正文（须刷新 `.claude/`）时
+     按此顺序可让 `update` 正常识别为旧版本并安全升级
 
 ## 项目约定
 

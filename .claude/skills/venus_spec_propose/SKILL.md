@@ -8,7 +8,7 @@ metadata:
   author: venus-agent-tools
   version: "1.0"
   type: spec
-  generatedBy: "1.1.0"
+  generatedBy: "1.2.0"
 ---
 
 Propose a new change - create the change and generate all artifacts in one step.
