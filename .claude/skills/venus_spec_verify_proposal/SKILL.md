@@ -8,7 +8,8 @@ metadata:
   author: venus-agent-tools
   version: "1.0"
   type: spec
-  generatedBy: "1.2.0"
+  generatedBy: "1.3.0"
+  generatedFingerprint: "sha256:a14aa0b7012fdcb6bea1afd96dbb09724a6a73956f16ca4cb4a127f346a434ad"
 ---
 
 **Before verifying, read openspec/rules/ai-coding.md for verification criteria.**

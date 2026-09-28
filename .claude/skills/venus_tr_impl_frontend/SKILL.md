@@ -8,7 +8,8 @@ metadata:
   author: venus-agent-tools
   version: "1.0"
   type: tr_impl
-  generatedBy: "1.2.0"
+  generatedBy: "1.3.0"
+  generatedFingerprint: "sha256:b4af9e382f5f65e81b512b5aa12b1c3c99671a4b0cd34162b1683a37b1821eca"
 ---
 
 # 前端页面设计与生成 Skill

@@ -9,6 +9,7 @@ metadata:
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
+  generatedFingerprint: "sha256:01bda0e99a7f612a449386915973415d45ced0897f8db8eea18fb23f795b50da"
 ---
 
 **Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** In Stage 1 (Exploration), follow Section 1 (Zero-Assumption). In Stage 2 (Proposal), follow Section 2 (Design-First). In Stage 3 (Implementation), check Sections 3-5 for compliance.

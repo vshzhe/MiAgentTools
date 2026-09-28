@@ -9,6 +9,7 @@ metadata:
   version: "1.0"
   type: tr_tools
   generatedBy: "snapshot"
+  generatedFingerprint: "sha256:f56d1458b65b92464f8cc1743d26cd31c76c2802afe4fbb6d2193b287d59226b"
 ---
 
 查看当前路径 —— 给出当前工作目录的绝对路径。

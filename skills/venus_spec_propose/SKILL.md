@@ -9,6 +9,7 @@ metadata:
   version: "1.0"
   type: spec
   generatedBy: "snapshot"
+  generatedFingerprint: "sha256:78295da646e2cf675d433c8e92bfd2d44064a584231c6c50d1d0a34f284c9b3a"
 ---
 
 Propose a new change - create the change and generate all artifacts in one step.

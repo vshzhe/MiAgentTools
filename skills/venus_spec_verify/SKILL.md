@@ -9,6 +9,7 @@ metadata:
   version: "1.0"
   type: spec
   generatedBy: "snapshot"
+  generatedFingerprint: "sha256:0eb1b24576079589291627c7d3748130b4c3e62a71cec913b94cca150b355759"
 ---
 
 **验证前先阅读 openspec/rules/ai-coding.md 中的验证标准。** 重点检查未定义数据字段、架构分层违规、前端 UI 状态覆盖。

@@ -9,6 +9,7 @@ metadata:
   version: "1.0"
   type: tr_docs
   generatedBy: "snapshot"
+  generatedFingerprint: "sha256:5ac7c67ec84287bc6d95411617b98a916c886310a7d77c3772d8a07f01a392e2"
 ---
 
 **Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** Mark undefined items as **[待确认]** and ask the user rather than guessing.

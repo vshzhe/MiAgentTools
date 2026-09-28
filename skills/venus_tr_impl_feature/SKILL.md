@@ -9,6 +9,7 @@ metadata:
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
+  generatedFingerprint: "sha256:bfd334fce7d944aa8c66a87ac0241422d1b640605e05c1756e360edd66e02f1b"
 ---
 
 实现功能 —— 严格遵循四阶段流程与分层架构规范。

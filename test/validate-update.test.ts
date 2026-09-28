@@ -11,6 +11,11 @@ import { runValidate, runValidateCommand } from '../src/commands/validate.js';
 import { runUpdate } from '../src/commands/update.js';
 import { getSkillTemplates } from '../src/core/templates/index.js';
 import { ensureProjectConfig, writeWorkflowsToConfig } from '../src/core/project-config.js';
+import {
+    generateSkillContent,
+    fingerprintOf,
+    readGeneratedFingerprint,
+} from '../src/core/command-generation/index.js';
 
 let tempRoot: string;
 
@@ -125,6 +130,122 @@ describe('venus update', () => {
         expect(after).toContain(template.instructions.slice(0, 30));
         expect(after).not.toContain('用户自定义补充');
 
+        // 恢复一致性
+        runUpdate(tempRoot, { force: true });
+    });
+});
+
+/**
+ * 手改保护判定的回归用例。
+ *
+ * 背景：原实现只用 `generatedBy` 版本号推断是否手改，导致两个方向的错误 ——
+ *   (1) 模板正文变更而版本号未递增时，产物被误判为"手改"而无法升级（须 --force）；
+ *   (2) 包版本号一旦递增，被手改的旧版本产物反被当作"可升级"而静默覆盖。
+ * 改用内容指纹后两个方向都应正确。
+ */
+describe('venus update 手改保护判定（内容指纹）', () => {
+    const SKILL = 'venus_tr_review_code';
+
+    /** 读取目标技能的已装产物路径 */
+    function skillFile(): string {
+        return path.join(tempRoot, '.claude', 'skills', SKILL, 'SKILL.md');
+    }
+
+    /** 把给定内容写成"指纹与自身自洽"的形态（模拟 venus 曾写入该内容） */
+    function stampSelfConsistent(content: string): string {
+        return content.replace(
+            /^  generatedFingerprint: ".*"$/m,
+            `  generatedFingerprint: "${fingerprintOf(content)}"`
+        );
+    }
+
+    it('指纹确定性：同一 (template, version) 恒得同一产物与同一指纹', () => {
+        const [{ template }] = getSkillTemplates('tr_review');
+        const first = generateSkillContent(template, 'snapshot').fileContent;
+        const second = generateSkillContent(template, 'snapshot').fileContent;
+        // 快照防漂移（test/skills-parity.test.ts 的字节级比较）依赖此确定性
+        expect(first).toBe(second);
+        // 新生成产物的指纹必须自洽，否则下次 update 会把自己写的内容判为手改
+        expect(readGeneratedFingerprint(first)).toBe(fingerprintOf(first));
+    });
+
+    it('模板正文变更而版本号未递增时仍能升级（本题核心）', () => {
+        const file = skillFile();
+        const installed = fs.readFileSync(file, 'utf8');
+        const [{ template }] = getSkillTemplates('tr_review');
+        // 模拟"venus 曾用旧模板写入的产物"：正文与当前模板不同，
+        // 但指纹与自身自洽（即未被用户改动）；generatedBy 保持当前版本
+        // 用函数式替换：模板正文可能含 `$`，作为替换串会被当特殊模式解析
+        const stale = stampSelfConsistent(
+            installed.replace(template.instructions, () => `${template.instructions}\n（旧版正文）\n`)
+        );
+        fs.writeFileSync(file, stale, 'utf8');
+
+        const result = runUpdate(tempRoot);
+        expect(result.skippedModified).toHaveLength(0);
+        expect(result.updated.map((p) => path.basename(path.dirname(p)))).toContain(SKILL);
+        expect(fs.readFileSync(file, 'utf8')).not.toContain('（旧版正文）');
+        // 恢复一致性
+        runUpdate(tempRoot, { force: true });
+    });
+
+    it('被手改的旧版本产物不再被静默覆盖（修反向缺陷）', () => {
+        const file = skillFile();
+        const installed = fs.readFileSync(file, 'utf8');
+        // 手改内容，并把 generatedBy 改成旧版本号 —— 原实现会因此判为"可升级"而覆盖
+        const modified = installed
+            .replace(/^  generatedBy: ".*"$/m, '  generatedBy: "0.0.1"')
+            .concat('\n<!-- 用户自定义补充 -->\n');
+        fs.writeFileSync(file, modified, 'utf8');
+
+        const result = runUpdate(tempRoot);
+        expect(result.updated).toHaveLength(0);
+        expect(result.skippedModified.map((p) => path.basename(path.dirname(p)))).toContain(SKILL);
+        // 手改内容必须原样保留
+        expect(fs.readFileSync(file, 'utf8')).toContain('用户自定义补充');
+        // 恢复一致性
+        runUpdate(tempRoot, { force: true });
+        expect(fs.readFileSync(file, 'utf8')).not.toContain('用户自定义补充');
+    });
+
+    it('存量产物（无指纹）回退到版本号判定：版本不一致则升级', () => {
+        const file = skillFile();
+        const legacy = fs
+            .readFileSync(file, 'utf8')
+            .replace(/^  generatedFingerprint: ".*"\n/m, '')
+            .replace(/^  generatedBy: ".*"$/m, '  generatedBy: "0.0.1"');
+        fs.writeFileSync(file, legacy, 'utf8');
+
+        const result = runUpdate(tempRoot);
+        expect(result.skippedModified).toHaveLength(0);
+        expect(result.updated.map((p) => path.basename(path.dirname(p)))).toContain(SKILL);
+        // 升级后即带上指纹，保护转为精确判定
+        expect(readGeneratedFingerprint(fs.readFileSync(file, 'utf8'))).toBeDefined();
+    });
+
+    it('存量产物（无指纹）回退到版本号判定：版本一致且内容不同则跳过保护', () => {
+        const file = skillFile();
+        const legacy = fs
+            .readFileSync(file, 'utf8')
+            .replace(/^  generatedFingerprint: ".*"\n/m, '')
+            .concat('\n<!-- 用户自定义补充 -->\n');
+        fs.writeFileSync(file, legacy, 'utf8');
+
+        const result = runUpdate(tempRoot);
+        expect(result.updated).toHaveLength(0);
+        expect(result.skippedModified.map((p) => path.basename(path.dirname(p)))).toContain(SKILL);
+        // 恢复一致性
+        runUpdate(tempRoot, { force: true });
+    });
+
+    it('CRLF 行尾污染不应被误判为手改', () => {
+        const file = skillFile();
+        // 行尾全部转为 CRLF —— 内容语义未变，不应触发手改保护
+        const crlf = fs.readFileSync(file, 'utf8').replaceAll('\n', '\r\n');
+        fs.writeFileSync(file, crlf, 'utf8');
+
+        const result = runUpdate(tempRoot);
+        expect(result.skippedModified).toHaveLength(0);
         // 恢复一致性
         runUpdate(tempRoot, { force: true });
     });

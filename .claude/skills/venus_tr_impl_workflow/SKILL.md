@@ -8,7 +8,8 @@ metadata:
   author: venus-agent-tools
   version: "1.0"
   type: tr_impl
-  generatedBy: "1.2.0"
+  generatedBy: "1.3.0"
+  generatedFingerprint: "sha256:34ae5e272b53aaff30791398b0877ea380216d697ee3e05384188141ac517863"
 ---
 
 **Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** In Phase 1 (Exploration), follow Section 1 (Zero-Assumption). In Phase 2 (Proposal), follow Section 2 (Design-First). In Phase 3 (Verification), check Sections 3-5 for compliance.

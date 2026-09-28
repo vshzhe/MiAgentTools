@@ -9,6 +9,7 @@ metadata:
   version: "3.0"
   type: tr_test
   generatedBy: "snapshot"
+  generatedFingerprint: "sha256:8281e6b41fe7ad3d493a9bf7f50d000ae3b0a2a4b590b7f4163a34bda09a1cbe"
 ---
 
 生成测试 —— 多 schema 模式：检测语言/框架 → 加载对应 schema → BCDE 场景矩阵 → 分层编写 → 运行验证。

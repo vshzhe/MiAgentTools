@@ -26,7 +26,7 @@ pnpm link --global
 验证安装：
 
 ```bash
-venus --version    # 输出 1.2.0
+venus --version    # 输出 1.3.0
 venus --help       # 查看全部命令
 ```
 
@@ -147,7 +147,9 @@ your-project/
 
 `validate` 校验项：`venus_` 前缀、frontmatter `name` = 目录名、`description` / `allowed-tools` / `metadata.type` 必填、`type` 为 7 类之一；存在 CRITICAL 时退出码 1（可接入 CI）。
 
-`update` 保护策略：内容与内置一致 → 跳过（幂等）；来自旧版本 → 自动升级；检测到用户手改 → 跳过并列出（`--force` 才覆盖）。
+`update` 保护策略：内容与内置一致 → 跳过（幂等）；产物未被改动（`generatedFingerprint`
+内容指纹自洽）→ 自动升级；检测到用户手改 → 跳过并列出（`--force` 才覆盖）。
+无指纹字段的存量产物回退到 `generatedBy` 版本号判定，行为与旧版一致。
 
 ## 依赖自检（codegraph / openspec）
 

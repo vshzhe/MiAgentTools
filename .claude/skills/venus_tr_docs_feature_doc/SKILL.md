@@ -8,7 +8,8 @@ metadata:
   author: venus-agent-tools
   version: "1.0"
   type: tr_docs
-  generatedBy: "1.2.0"
+  generatedBy: "1.3.0"
+  generatedFingerprint: "sha256:9f2d578435d8794f97afa88edf83437d40d2dd61b0579193b7059cde3d333256"
 ---
 
 **Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** Mark undefined items as **[待确认]** and ask the user rather than guessing.

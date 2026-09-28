@@ -13,6 +13,7 @@ import {
     SKILL_TYPES,
 } from '../core/config.js';
 import { readFileIfExists } from '../utils/file-system.js';
+import { readGeneratedBy } from '../core/command-generation/index.js';
 import { scanInstalledSkills } from './list.js';
 
 /** show 命令选项 */
@@ -81,9 +82,11 @@ function parseFrontmatter(content: string): {
     if (typeMatch) {
         result.type = typeMatch[1];
     }
-    const versionMatch = frontmatter.match(/^  generatedBy: "(.+)"$/m);
-    if (versionMatch) {
-        result.generatedBy = versionMatch[1];
+    // 与 update 的手改保护判定共用同一解析（见 core/command-generation/fingerprint.ts），
+    // 避免格式漂移导致两处行为静默分叉
+    const generatedBy = readGeneratedBy(frontmatter);
+    if (generatedBy !== undefined) {
+        result.generatedBy = generatedBy;
     }
     return result;
 }

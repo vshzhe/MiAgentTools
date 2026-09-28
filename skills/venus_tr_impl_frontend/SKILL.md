@@ -9,6 +9,7 @@ metadata:
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
+  generatedFingerprint: "sha256:cfdbe570883f31214bf4fd90b97dae4eb12c57dee5427955032b9da819d94e61"
 ---
 
 # 前端页面设计与生成 Skill

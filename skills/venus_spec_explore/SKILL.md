@@ -9,6 +9,7 @@ metadata:
   version: "1.0"
   type: spec
   generatedBy: "snapshot"
+  generatedFingerprint: "sha256:1b9280a00d1c58029796ec3a13f0cb2940f7a4ee8510152b7671a75cd6cbc704"
 ---
 
 **Before exploring, read openspec/rules/ai-coding.md for AI coding guardrails.** When encountering undefined database fields, business logic, or API parameters, mark them as **[待确认]** and ask the user rather than guessing.

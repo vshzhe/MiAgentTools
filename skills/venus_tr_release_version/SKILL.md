@@ -9,6 +9,7 @@ metadata:
   version: "1.0"
   type: tr_release
   generatedBy: "snapshot"
+  generatedFingerprint: "sha256:45cd0cab45cb5f520dd9c96abfdabeb472e8dd72250f1edb3d2a5115c9bb82ca"
 ---
 
 发布版本 —— 版本号变更、变更日志、发布产物三件事，每步确认后执行。

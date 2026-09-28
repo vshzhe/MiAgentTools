@@ -8,7 +8,8 @@ metadata:
   author: venus-agent-tools
   version: "1.0"
   type: spec
-  generatedBy: "1.2.0"
+  generatedBy: "1.3.0"
+  generatedFingerprint: "sha256:919cf669d473cdf293ea0329da7f96233960d66bb7b13446d4311912c39f25a3"
 ---
 
 Propose a new change - create the change and generate all artifacts in one step.

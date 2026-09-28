@@ -9,6 +9,43 @@
 
 （暂无）
 
+## [1.3.0] - 2026-09-28
+
+### Changed
+
+- **`venus update` 手改保护判定改用内容指纹**：原实现只用 frontmatter `generatedBy`
+  版本号一个信号推断产物是否被手改，存在两个方向的错误 ——
+  (1) **模板正文变更而版本号未递增时**，产物被误判为"用户手改"而无法升级，只能加
+  `--force`，而 `--force` 会连带覆盖**真正手改过**的产物、失去保护（该顺序依赖曾于
+  1.2.0 作为操作约束写入 `AGENTS.md` 守则 8）；
+  (2) **包版本号一旦递增**，被手改的旧版本产物反被判为"可升级"而**静默覆盖**
+  （`isFromEarlierVersion` 实现为 `!==` 而非"早于"，名实不符），`skippedModified`
+  完全不触发。
+  根因是判定信号不足：版本号未递增时，"未改动的旧产物"与"被手改的产物"在信息上
+  不可区分。修复为在产物 frontmatter 记录 `metadata.generatedFingerprint`
+  （新增模块 `src/core/command-generation/fingerprint.ts`）：指纹由产物内容派生
+  （先置空指纹行打断自引用、归一化行尾为 LF 后取 sha256），生成时两趟拼装回填。
+  判定改为「指纹自洽 ⇒ 自上次由 venus 写入后未被改动 ⇒ 安全升级」，**独立于版本号**
+- 判定分支与归入：未安装 → 安装；内容与内置一致 → 幂等跳过（不重写）；
+  **指纹自洽 → 升级**（核心修复）；**无指纹字段的存量产物 → 回退原版本号判定**
+  （行为与旧版完全一致，零回归；一经升级即带上指纹，保护转为精确）；`--force` → 覆盖；
+  其余（指纹失配 ⇒ 被改动）→ 跳过并列出。`isFromEarlierVersion` 更名为
+  `isLegacyVersionMismatched` 并订正注释，明示"版本号不一致"而非"早于"，且仅供存量回退
+- `generatedBy`（版本号）**不再参与**手改保护判定，仅保留供 `venus show` 展示；
+  `AGENTS.md` 守则 8 的"先递增版本号再 update"约束随之**整条删除**
+- 连带修复：CRLF 行尾污染不再被误判为手改（指纹计算归一化行尾，`show` / `update`
+  的 frontmatter 解析容忍 `\r`）；`update` 与 `show` 各自复制的 `generatedBy` 正则
+  收敛到指纹模块的 `readGeneratedBy`，消除格式漂移导致两处行为静默分叉的隐患
+- 版本号 1.2.0 → 1.3.0；全部生成产物随指纹字段重生成（`skills/` 快照与 `.claude/`
+  dogfood 产物）
+
+### Added
+
+- `test/validate-update.test.ts` 新增 6 条用例，覆盖此前**零覆盖**的"旧版本自动升级"
+  分支：指纹确定性、模板变更而版本号未递增仍能升级（本题核心）、被手改的旧版本产物
+  不再被静默覆盖（反向缺陷）、存量产物回退（无指纹 × 版本不一致 / 版本一致）、
+  CRLF 行尾污染不误判 —— 其中 5 条已在旧实现上验证为失败（真回归测试）
+
 ## [1.2.0] - 2026-09-28
 
 ### Changed
@@ -47,6 +84,7 @@
   版本**早于**当前包版本」，版本号未变时该判定为否、产物被当作"用户手改"跳过，
   此时只能加 `--force` 覆盖，而 `--force` 会连带覆盖**真正手改过**的产物、失去手改保护
   （该顺序在本次交付中由遗漏发现并验证）
+  —— **本条已于 1.3.0 消除**：手改保护改用内容指纹，不再依赖版本号与操作顺序
 
 ### 已知落差
 
@@ -263,7 +301,8 @@
 - 项目配置从单文件 `venus.config.yaml` 重构为 `.venus/` 目录结构
   （`config.yaml` 显式引用 `rules/` 下规则文件），重复 init 保留用户全部修改
 
-[Unreleased]: https://github.com/venus-agent-tools/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/venus-agent-tools/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/venus-agent-tools/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/venus-agent-tools/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/venus-agent-tools/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/venus-agent-tools/compare/v1.0.1...v1.1.0

@@ -9,6 +9,7 @@ metadata:
   version: "1.0"
   type: tr_tools
   generatedBy: "snapshot"
+  generatedFingerprint: "sha256:9fc2a4abdfb43b76f41999db2735921f20104672f24ebdac5abe86716372b88d"
 ---
 
 列出可用技能 —— 展示已安装的 venus 技能与分类体系。

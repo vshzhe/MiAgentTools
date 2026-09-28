@@ -8,7 +8,8 @@ metadata:
   author: venus-agent-tools
   version: "3.0"
   type: tr_test
-  generatedBy: "1.2.0"
+  generatedBy: "1.3.0"
+  generatedFingerprint: "sha256:deabc85514d2c7326f78d9582d6315de6b6b5a717db894aba2ffbb6171399c84"
 ---
 
 生成测试 —— 多 schema 模式：检测语言/框架 → 加载对应 schema → BCDE 场景矩阵 → 分层编写 → 运行验证。

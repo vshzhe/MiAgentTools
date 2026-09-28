@@ -13,6 +13,7 @@ import type {
 } from './types.js';
 import type { SkillTemplate } from '../templates/types.js';
 import { escapeYamlValue } from './yaml.js';
+import { fingerprintOf, FINGERPRINT_FIELD } from './fingerprint.js';
 import { SKILL_PREFIX } from '../config.js';
 
 /**
@@ -41,8 +42,15 @@ export function generateCommands(
     return contents.map((content) => generateCommand(content, adapter));
 }
 
+/** frontmatter 中指纹行的空占位形态（两趟拼装的中间态） */
+const EMPTY_FINGERPRINT_LINE = `  ${FINGERPRINT_FIELD}: ""`;
+
 /**
  * 生成 SKILL.md 完整内容（YAML frontmatter + 正文）。
+ *
+ * 两趟拼装：先以空指纹占位生成全文，再算得指纹回填 —— 指纹由内容派生
+ * （见 fingerprint.ts），故同一 (template, generatedByVersion) 恒得同一产物，
+ * `test/skills-parity.test.ts` 的字节级比较得以成立。
  *
  * @param template - 技能模板
  * @param generatedByVersion - 生成器版本号（写入 metadata.generatedBy）
@@ -54,9 +62,7 @@ export function generateSkillContent(
     if (!template.name.startsWith(SKILL_PREFIX)) {
         throw new Error(`技能名必须以 ${SKILL_PREFIX} 开头：${template.name}`);
     }
-    return {
-        dirName: template.name,
-        fileContent: `---
+    const placeholder = `---
 name: ${template.name}
 description: ${escapeYamlValue(template.description)}
 allowed-tools: ${template.allowedTools}
@@ -67,10 +73,17 @@ metadata:
   version: "${template.metadata?.version || '1.0'}"
   type: ${template.type}
   generatedBy: "${generatedByVersion}"
+${EMPTY_FINGERPRINT_LINE}
 ---
 
 ${template.instructions}
-`,
+`;
+    return {
+        dirName: template.name,
+        fileContent: placeholder.replace(
+            EMPTY_FINGERPRINT_LINE,
+            `  ${FINGERPRINT_FIELD}: "${fingerprintOf(placeholder)}"`
+        ),
         references: template.references,
     };
 }

@@ -9,6 +9,7 @@ metadata:
   version: "1.0"
   type: tr_commit
   generatedBy: "snapshot"
+  generatedFingerprint: "sha256:31c00210dfd2dd677a0584bb17f785ea25a153837716b3fc74e296a7c5ddd3e4"
 ---
 
 提交变更 —— 提交前必须核对变更内容，提交信息必须符合规范。

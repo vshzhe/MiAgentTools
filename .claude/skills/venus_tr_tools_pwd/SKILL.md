@@ -8,7 +8,8 @@ metadata:
   author: venus-agent-tools
   version: "1.0"
   type: tr_tools
-  generatedBy: "1.2.0"
+  generatedBy: "1.3.0"
+  generatedFingerprint: "sha256:b0692b88e661eb44a708f9bade848366d153b26665b795a70d639f5adec51cc8"
 ---
 
 查看当前路径 —— 给出当前工作目录的绝对路径。

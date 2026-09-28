@@ -8,7 +8,8 @@ metadata:
   author: venus-agent-tools
   version: "1.0"
   type: tr_release
-  generatedBy: "1.2.0"
+  generatedBy: "1.3.0"
+  generatedFingerprint: "sha256:d9dd7a350aa0ebb7e5f92b8180daf54661980ba493f171820fe899f782b848e2"
 ---
 
 

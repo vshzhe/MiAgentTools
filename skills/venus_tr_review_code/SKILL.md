@@ -9,6 +9,7 @@ metadata:
   version: "1.0"
   type: tr_review
   generatedBy: "snapshot"
+  generatedFingerprint: "sha256:3b1281ee7673eeeadb804f3dadca3cf18aa76177e7f1f9783afa9d56b05b20a2"
 ---
 
 审查代码 —— 按维度检查，只报告经过验证的问题，严重程度分级呈现。

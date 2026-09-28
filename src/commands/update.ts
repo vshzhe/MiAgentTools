@@ -1,11 +1,15 @@
 /**
  * venus update 命令。
  *
- * 将内置模板的最新版本刷新到目标工具目录，按内容对比保护用户手改：
+ * 将内置模板的最新版本刷新到目标工具目录，按内容指纹保护用户手改：
  *   - 未安装        → 安装（新增技能）
  *   - 与内置一致     → 无动作（幂等，不重写避免 mtime 抖动）
- *   - 来自旧版本     → 升级（generatedBy 对比判定，未手改才升级）
+ *   - 指纹自洽       → 升级（自上次由 venus 写入后未被改动）
+ *   - 存量无指纹     → 回退到原版本号判定（保持既有行为）
  *   - 用户手改过     → 跳过并列出，提示人工确认（--force 才覆盖）
+ *
+ * 指纹判定（见 core/command-generation/fingerprint.ts）独立于版本号，
+ * 因此"模板正文变更但版本号未递增"也能被正确识别为可升级。
  */
 
 import path from 'path';
@@ -15,6 +19,9 @@ import {
     generateSkillContent,
     generateCommand,
     CommandAdapterRegistry,
+    fingerprintOf,
+    readGeneratedBy,
+    readGeneratedFingerprint,
     type CommandContent,
 } from '../core/command-generation/index.js';
 import {
@@ -91,7 +98,7 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
         const skillsRoot = path.join(projectRoot, tool.skillsDir, TOOL_SKILLS_SUBDIR);
         ensureDir(skillsRoot);
 
-        // 1. 技能：按内容与版本对比决策
+        // 1. 技能：按内容指纹决策（存量无指纹时回退到版本号判定）
         // 写入 SKILL.md 时同步重写 references（先清空 references/ 子目录避免旧文件残留）。
         // SKILL.md 跳过的技能，references 也一并跳过（跟随手改保护决策）。
         const syncReferences = (skillDir: string, references: Array<{ path: string; content: string }> | undefined): void => {
@@ -112,7 +119,12 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
                 installed.push(relativeSkill);
             } else if (existing === generated.fileContent) {
                 continue;
-            } else if (isFromEarlierVersion(existing, packageVersion)) {
+            } else if (isUnmodified(existing)) {
+                ensureDir(skillDir);
+                writeFile(skillFile, generated.fileContent, { force: true });
+                syncReferences(skillDir, generated.references);
+                updated.push(relativeSkill);
+            } else if (isLegacyVersionMismatched(existing, packageVersion)) {
                 ensureDir(skillDir);
                 writeFile(skillFile, generated.fileContent, { force: true });
                 syncReferences(skillDir, generated.references);
@@ -165,17 +177,33 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
 }
 
 /**
- * 判断已安装技能是否"来自旧版本"（从而允许升级覆盖）。
+ * 判断已安装产物是否**未被改动过** —— 即记录的指纹与其内容自洽。
  *
- * 读 frontmatter 的 metadata.generatedBy：
- *   - 为当前版本 → 内容差异意味着手改
- *   - 为旧版本   → 视为可升级
- *   - 无法解析   → 保守视为手改，跳过
+ * 指纹由 venus 写入产物时按内容算出；用户任何改动都会让内容与记录的指纹
+ * 失配，从而被识别为手改。该判定**独立于版本号**：模板正文变更而版本号
+ * 未递增时，指纹仍自洽，故能正确升级（原先只能靠 `--force`）。
+ *
+ * @returns 指纹自洽返回 true；无指纹字段（存量产物）或指纹失配返回 false
  */
-function isFromEarlierVersion(existing: string, currentVersion: string): boolean {
-    const match = existing.match(/^  generatedBy: "(.+)"$/m);
-    if (!match) {
+function isUnmodified(existing: string): boolean {
+    const recorded = readGeneratedFingerprint(existing);
+    return recorded !== undefined && recorded === fingerprintOf(existing);
+}
+
+/**
+ * 存量回退：产物**无指纹字段**时，沿用原版本号判定（版本号与当前包版本
+ * 不一致即视为可升级）。仅用于本版之前安装的历史产物；一旦被本版覆盖写入
+ * 即带上指纹，后续一律走精确的指纹判定。
+ *
+ * 注意语义是"**不一致**"而非"早于"：升级方向无法从版本号推断，故不比较大小。
+ *
+ * @returns 无指纹且版本号不一致返回 true；有指纹（走指纹判定）或版本号
+ *          缺失/与当前一致返回 false
+ */
+function isLegacyVersionMismatched(existing: string, currentVersion: string): boolean {
+    if (readGeneratedFingerprint(existing) !== undefined) {
         return false;
     }
-    return match[1] !== currentVersion;
+    const generatedBy = readGeneratedBy(existing);
+    return generatedBy !== undefined && generatedBy !== currentVersion;
 }

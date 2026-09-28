@@ -8,7 +8,8 @@ metadata:
   author: venus-agent-tools
   version: "1.0"
   type: tr_commit
-  generatedBy: "1.2.0"
+  generatedBy: "1.3.0"
+  generatedFingerprint: "sha256:a565b66c449cf9f175e3ff18ad37ef250810284d16f221c6b32ea0fc5a34cf07"
 ---
 
 SVN 提交注释生成与执行（venus_tr_commit_push）—— 四环节确认提交 + 提案分类提交。

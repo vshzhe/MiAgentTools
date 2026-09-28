@@ -9,6 +9,7 @@ metadata:
   version: "1.0"
   type: tr_init
   generatedBy: "snapshot"
+  generatedFingerprint: "sha256:4b2b420d4ec219c3901a4deefbac4d83099b0ad799cd02f428911afc34574312"
 ---
 
 初始化项目 —— 按步骤搭建项目骨架，确保每个决定都得到用户确认。

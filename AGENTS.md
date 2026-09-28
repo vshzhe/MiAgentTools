@@ -15,7 +15,7 @@ src/
 │   ├── init.ts                       venus init
 │   ├── list.ts                       venus list（scanInstalledSkills 被 show 复用）
 │   ├── validate.ts                   venus validate
-│   ├── update.ts                     venus update（generatedBy 版本对比 + 手改保护）
+│   ├── update.ts                     venus update（内容指纹 + 手改保护）
 │   ├── generate.ts                   venus generate（骨架 + .venus 配置注入）
 │   ├── uninstall.ts                  venus uninstall（dry-run 预览 + 安全边界）
 │   ├── show.ts                       venus show（模糊匹配 + 详情）
@@ -33,6 +33,7 @@ src/
 │   └── command-generation/
 │       ├── types.ts                  ToolCommandAdapter 接口（多工具扩展点）
 │       ├── generator.ts              generateSkillContent / generateCommand
+│       ├── fingerprint.ts            产物内容指纹（手改保护判定信号）
 │       ├── yaml.ts                   YAML 转义
 │       └── adapters/claude.ts         Claude Code 适配器
 └── utils/file-system.ts              文件系统工具
@@ -87,19 +88,21 @@ node bin/venus.js <cmd> # 直接运行 CLI
      （`[Unreleased]` 的比较基线改为新版本 tag，新增 `[<新版本>]` 的 compare/tag 链接）
    - 其它出现版本号的位置同步更新（当前为 `README.md` 安装验证中的 `venus --version` 输出示例；
      新增此类引用时一并纳入本规则）
-   - 版本号同时写入生成产物 frontmatter 的 `generatedBy`，该字段仅用于 `venus update`
-     的手改保护判定 —— **无需**为递增版本号单独刷新 `.claude/` dogfood 产物
-   - **需要刷新 dogfood 时的执行顺序：先递增版本号、再执行 `venus update`**。
-     `update` 的升级判定是「已装 `generatedBy` 版本**早于**当前包版本」——版本号未变时
-     该判定为否，产物被当作"用户手改"跳过；此时只能加 `--force` 覆盖，而 `--force`
-     会连带覆盖**真正手改过**的产物，失去手改保护。改了模板正文（须刷新 `.claude/`）时
-     按此顺序可让 `update` 正常识别为旧版本并安全升级
+   - 版本号写入生成产物 frontmatter 的 `generatedBy`（供 `venus show` 展示），
+     **不参与**手改保护判定 —— 保护由 `generatedFingerprint`（内容指纹，见
+     `src/core/command-generation/fingerprint.ts`）承担，故**无需**为递增版本号
+     单独刷新 `.claude/` dogfood 产物
+   - **刷新 dogfood 无操作顺序要求**：旧实现只用 `generatedBy` 版本号推断手改，
+     导致"模板正文变更但版本号未递增"时产物被误判手改、只能 `--force`（而 `--force`
+     会连带覆盖**真正手改过**的产物）；改用内容指纹后，未被改动的产物无论版本号是否
+     递增都能安全升级（2026-09-28 修复）
 
 ## 项目约定
 
 - 技能名强制 `venus_` 前缀；frontmatter `metadata.type` 必须是 `SKILL_TYPES` 之一
 - SKILL 正文中文；代码注释中文；标识符英文
-- `update` 的手改保护依赖 frontmatter `generatedBy` —— 生成路径必须写全该字段
+- `update` 的手改保护依赖 frontmatter `generatedFingerprint`（内容指纹）—— 生成路径必须写全该字段；
+  无该字段的存量产物回退到 `generatedBy` 版本号判定
 - 指令 id 派生：`venus_tr_tools_pwd` → `tr-tools-pwd`（下划线转连字符，去前缀）
 - `.venus/`（本项目配置）与 `.claude/`（dogfood 产物）都提交到 git
 - 提交信息：Conventional Commits 一行式，中文描述

@@ -9,6 +9,7 @@ metadata:
   version: "1.0"
   type: tr_release
   generatedBy: "snapshot"
+  generatedFingerprint: "sha256:6ead4ea20122b724e1930fd540954a7b155089e84e4cb60d89049aa3386c58fc"
 ---
 
 

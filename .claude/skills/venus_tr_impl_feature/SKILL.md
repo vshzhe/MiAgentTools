@@ -8,7 +8,8 @@ metadata:
   author: venus-agent-tools
   version: "1.0"
   type: tr_impl
-  generatedBy: "1.2.0"
+  generatedBy: "1.3.0"
+  generatedFingerprint: "sha256:f9e725891c3a11575c5dced19760df1364babf0c20679ebe08ffe39f59b59e3f"
 ---
 
 实现功能 —— 严格遵循四阶段流程与分层架构规范。

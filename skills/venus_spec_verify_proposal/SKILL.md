@@ -9,6 +9,7 @@ metadata:
   version: "1.0"
   type: spec
   generatedBy: "snapshot"
+  generatedFingerprint: "sha256:d03d2d7182c4afe074cb9d8734a9b54a3463f94892095e4c344a479fba87a1fe"
 ---
 
 **Before verifying, read openspec/rules/ai-coding.md for verification criteria.**
