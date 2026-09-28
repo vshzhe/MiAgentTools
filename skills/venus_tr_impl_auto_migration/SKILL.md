@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:1a429f38abec0580e2f277837f9cc2d384c48252d637057bdb38087089818a39"
+  generatedFingerprint: "sha256:0adc86a3a07be283d318ffea3fb91240c61cbd8f5cc7a0a52e2e4593c4ad16b6"
 ---
 
 **Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** Mark undefined items as **[待确认]** and ask the user rather than guessing.
@@ -57,7 +57,11 @@ All paths MUST be built with `path.join()` (cross-platform: Windows drive letter
 
 1. Present the unified implementation plan: change name, task groups / concurrent batches, affected files, and the migration scope.
 2. Ask ONE question (AskUserQuestion): 是否需要调整 (adjust the plan / artifacts)?
-   - **不调整 (proceed)** → implement immediately by the apply protocol: batch scheduling loop, one sub-agent per dispatch unit, concurrency limit from `openspec/config.yaml` (`apply.concurrency`, default 3); task checkboxes updated centrally by the coordinator. Every sub-agent dispatch instruction MUST inject the target coding-spec essentials (`exploration.md` → `## 目标项目规范要点`) as binding constraints, so the migrated code conforms to the TARGET project's conventions.
+   - **不调整 (proceed)** → implement immediately by the apply protocol: batch scheduling loop, one sub-agent per dispatch unit, concurrency limit from `openspec/config.yaml` (`apply.concurrency`, default 3); task checkboxes updated centrally by the coordinator. On entering the implementation stage, FIRST determine whether the shared context pack (`context-pack.md`, per the apply protocol) is available:
+     - **Pack available** → the target coding-spec essentials (`exploration.md` → `## 目标项目规范要点`) MUST be written into the context pack's `## 规范要点` section, merged with the `openspec/rules/ai-coding.md` essentials as an additional source; the target-project essentials remain BINDING constraints, so the migrated code conforms to the TARGET project's conventions.
+     - **Pack unavailable** → degrade to per-sub-agent inline injection (the pre-existing behavior: every dispatch instruction inlines the essentials) + a WARN; the migration implementation MUST NOT be blocked.
+     - **No target-project spec essentials** (the target project has no spec files AND Phase 2 distilled nothing) → record `no target-project spec essentials` in the pack's `## 规范要点` section + a WARN, and continue — never block the flow.
+     - Every sub-agent dispatch instruction MUST NOT inline the spec essentials in full — it references the pack's `## 规范要点` section instead.
    - **需要调整 (adjust)** → present the artifacts for editing; after the user's edits, re-enter this gate (one question again).
 3. Failed tasks follow the apply retry rules (serial retry once → pause and report). Implementation failures pause the flow; they never silently skip a task.
 

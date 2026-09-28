@@ -9,6 +9,61 @@
 
 （暂无）
 
+## [1.6.0] - 2026-09-28
+
+### Changed
+
+- **多子代理派发的共享资源协议**（变更 `improve-workflow-subagent-resource-sharing`）：
+  派发多子代理时的 token 消耗从「随派发单元数成倍放大」改为「与单元数解耦」——
+  协调者一次性产出共享制品，子代理只读共享制品而非各自重读全量变更制品。
+- **共享上下文包**（`spec-apply.ts` Steps 6，单一源）：首次派发前**一次性**产出
+  `context-pack.md` 于流程级临时工作区，含六节 —— `## 变更摘要` / `## 契约` /
+  `## 规范要点` / `## 文件归属表` / `## Codebase 摘要` / `## 已产出（跨单元可见）`；
+  此后每批**只追加**产出登记，不重产整包。包是子代理的**唯一必读制品**。
+- **产出登记表**：每批完成后协调者把该批产出文件与公开签名追加进包，使后续批次子代理
+  无需重扫代码库即可获知前序产出（消除跨波次重复探索）。
+- **回执最小化**：子代理回执固定四列 `<任务 id> | <状态> | <产出文件> | <公开签名>`，
+  **MUST NOT 粘贴代码正文**（失败任务仍须含失败原因摘要）；「公开签名」定义为该单元产出中
+  可被其他单元引用的符号签名，无则记「无」（不留空、不编造）。
+- **共享指令前缀**：调度指令固定为「共享前缀（包路径 / 规范要点引用 / 回执格式 / 禁止项）
+  → 单元差异（本单元任务清单）」，同一流程内前缀**字节一致**。
+- **调度指令瘦身**：`ai-coding.md` 规范摘要从指令内联**移出**（改引用包 `## 规范要点` 节）；
+  任务细节**保持内联**（使子代理无需读 tasks.md）。分界为「跨单元不变量共享、单元变量内联」。
+- **禁止项与包缺口回执**：子代理 MUST NOT 重读 proposal/specs/design、MUST NOT 重跑包已覆盖的
+  CodeGraph 查询；MAY 对包未覆盖内容补查，但回执 MUST 附**包缺口回执**，协调者据此回填。
+  包是制品的**蒸馏视图而非替代品** —— 缺项时须补查制品本身，MUST NOT 凭包猜测字段或契约。
+- **派发协议规格化**（补齐既有规格缺口）：派发单元 / 并发上限（缺省 3、非法值回退）/ 滑动窗口
+  派发 / 跨单元同文件拆出并发组 / 任务勾选与失败重试由协调者集中管理 / 无子代理能力时全串行降级 ——
+  首次写入规格。
+- **批次形态豁免与 auto-mode**：批次含 <2 派发单元时协调者直接实现且**不产出包**；
+  `auto-mode=true` 只跳过设计确认门，共享资源协议**不豁免**。
+- **fail-safe 降级**：工作区不可写 → 回退系统临时目录；包产出失败或项目无
+  `openspec/rules/ai-coding.md` → **退化为既有内联注入 + WARN，绝不阻断实现**。
+- **多项目扫描单代理化**：`venus_tr_impl_auto_workflow` 与 `venus_tr_impl_workflow` 的 1.2.1.5
+  由「每项目一个子代理」改为「**单个子代理内串行扫描全部待查项目**」——原实现为顺序派发
+  （无并行收益却有 N 次子代理冷启动），合并为 1 次为严格改进；降级仍保持**项目粒度**。
+- **auto-workflow 显式继承声明**：Phase 4 明文声明继承 `venus_spec_apply` 的派发与共享资源
+  协议四载体，MUST NOT 另立派发指令格式或重复协议文本。
+- **debug 流程级探查摘要**（`venus_tr_impl_debug`）：新增
+  `.openspec-tmp/debug-<keyword>/investigation-digest.md`（keyword 为调试主题的 kebab-case
+  关键词，与探索文件同规则）；Phase 2 起始**先读复用**、仅做**增量查询**、逐步骤**增量写入**；
+  新增**失效规则**（修复改动代码后受影响范围标记失效并重新查询）；调试循环回边同样先读；
+  Phase 7 收尾**统一清理**（含非缺陷与中途退出路径）。摘要**仅为流程内缓存**，不替代诊断记录
+  与 Phase 6 对 `exploration.md` 的持久化。
+- **auto-migration 规范要点改写入包**（`venus_tr_impl_auto_migration`）：Phase 3 由「每个子代理
+  指令内联注入目标项目规范要点」改为「**写入包的 `## 规范要点` 节**」（BINDING 约束地位不变）；
+  包不可用时退化为内联注入 + WARN。
+- **结构指标断言**：新增 `test/subagent-resource-sharing.test.ts`（18 用例）锁定 A1–A8 —— 包六节
+  与路径、一次性产出与追加规则、规范摘要移出、禁止项与缺口回执、共享前缀字节一致、两技能
+  四处单代理化、debug 七串两处、auto-migration 三串两处；并含反向断言（旧内联表述与
+  「每项目一个子代理」残留不得回归）。
+
+### 已知落差
+
+- `venus_spec_propose`（按能力派发子代理生成 delta spec）与 `venus_spec_bulk_archive`
+  （按变更派发子代理）存在同类冗余，但派发粒度不同，**本次未同步**，待后续单独变更处理。
+- 真实 token 计量无法在自动化测试中复现，本次以**可断言的结构指标**替代，未追加实测比对。
+
 ## [1.5.0] - 2026-09-28
 
 ### Added
@@ -389,7 +444,8 @@
 - 项目配置从单文件 `venus.config.yaml` 重构为 `.venus/` 目录结构
   （`config.yaml` 显式引用 `rules/` 下规则文件），重复 init 保留用户全部修改
 
-[Unreleased]: https://github.com/venus-agent-tools/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/venus-agent-tools/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/venus-agent-tools/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/venus-agent-tools/compare/v1.3.1...v1.5.0
 [1.3.1]: https://github.com/venus-agent-tools/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/venus-agent-tools/compare/v1.2.0...v1.3.0

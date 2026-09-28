@@ -134,6 +134,28 @@ Update the diagnosis record (a scratch section in your working notes, later pers
    - Historical boundary scenarios are frequent root-cause leads: the bug may be a known edge case that was consciously accepted
 4. If no memory file exists: log "无能力级探索记忆 — 全新排查" and proceed
 
+#### 2.1.5 流程级探查摘要（investigation-digest）
+
+**⚠️ MANDATORY: 本步在 2.1 能力记忆注入之后、2.2 CodeGraph 排查之前执行。**
+
+**载体**：\`.openspec-tmp/debug-<keyword>/investigation-digest.md\` —— 以 \`path.join()\` 构造（跨平台）。
+
+**\`<keyword>\` 规则**：为该次调试主题的 **kebab-case 关键词**，与 \`openspec/explorations/<keyword>-explore-<sequence>.md\` 的关键词**同源同规则**（小写、连字符分隔、剔除非法字符，上限 50 字符）；**MUST NOT 直接使用 bug 描述原文**（避免空格与非法字符导致路径不可用）。
+
+**三分支（先做存在性判定，再决定查询与写入策略）**：
+
+1. **摘要存在** → **read the digest first**（先读摘要），复用其中**命中范围**的结论，**仅在摘要未覆盖的范围执行查询**（增量查询）；MUST NOT 重跑已覆盖区域
+2. **摘要不存在** → 初始化空摘要，按常规流程执行 2.2.1–2.2.3，并在每步完成后**逐步骤增量写入**结论
+3. **工作区不可写（落盘失败）** → 降级为「仅会话内复用」+ WARN（记录失败原因与目标路径）；排查与修复流程 **MUST NOT 被阻断**
+
+**非交付物划界（MANDATORY）**：摘要**仅为流程内缓存**，MUST NOT 替代诊断记录，MUST NOT 替代 Phase 6 对变更 \`exploration.md\` 的持久化；清理摘要 MUST NOT 影响任何交付物。
+
+**失效规则**：某 bug 的修复改动了代码后，摘要中**受影响范围**的结论 SHALL 标记为失效，标记格式逐字如下：
+
+> 已失效（由 <bug 标识> 修复改动代码）
+
+并在**下次进入 Phase 2 时重新查询**该范围；MUST NOT 复用已失效结论。
+
 ### 2.2 CodeGraph 排查（分层结构）
 
 Adapt the workflow's CodeGraph query system (status check → file scan → symbol + context → call chain + impact → **triage** → explore + deep-dive) to the debug investigation context. Record all findings to the diagnosis record in real time (after EACH query step, not batched at the end) so Phase 6 can persist the full investigation path.
@@ -153,18 +175,21 @@ Grep/Glob is a **last resort**, permitted ONLY after \`codegraph_status\` confir
 - Write findings to the diagnosis record Codebase Findings > Discovered Files as "<file-path>: <relevance-reason>"
 - All file paths MUST be constructed with \`path.join()\` for cross-platform compatibility (Windows/macOS/Linux) — never hardcode slashes
 - Fallback (when CodeGraph unavailable): Glob for file structure discovery
+- **仅增量（摘要命中范围跳过）**: MUST NOT re-run CodeGraph queries already covered — **incremental queries only**（仅执行增量查询，见 2.1.5）；摘要未覆盖的范围照常扫描
 
 #### 2.2.2 符号定位与任务级上下文（codegraph_search + codegraph_context）
 
 - \`codegraph_search\` — locate the symbols involved in the failing behavior; record "<symbol-name> (<file-path>:<line>): <reason>" to Codebase Findings > Identified Symbols
 - \`codegraph_context --task <bug-description>\` — build comprehensive task-level context around the bug (aggregating entry points, related symbols, key code), turning the bug description into a scoped investigation context
 - Fallback (when CodeGraph unavailable): Grep for symbol search
+- **仅增量（摘要命中范围跳过）**: MUST NOT re-run CodeGraph queries already covered — **incremental queries only**（仅执行增量查询，见 2.1.5）；摘要未覆盖的符号与上下文照常定位
 
 #### 2.2.3 调用链追踪与爆炸半径（codegraph_callers / codegraph_callees / codegraph_impact）
 
 - \`codegraph_callers\` / \`codegraph_callees\` — trace the call chain around the suspected code (upstream callers and downstream callees)
 - \`codegraph_impact\` — assess the blast radius of the suspected defect AND of the candidate fix
 - Record call chains (ASCII diagrams when helpful) and affected symbols in the diagnosis record for root cause confirmation
+- **仅增量（摘要命中范围跳过）**: MUST NOT re-run CodeGraph queries already covered — **incremental queries only**（仅执行增量查询，见 2.1.5）；摘要未覆盖的调用链与爆炸半径照常追踪
 
 #### 2.2.3.5 排查深度分级（Triage · 事前选定排查路径）
 
@@ -217,6 +242,12 @@ When triggered:
   - **Implicit Assumptions** — undocumented assumptions (type guards, default values, missing null checks) — root cause frequently hides here
 - Write findings to the diagnosis record Implementation Deep-Dive section; dimensions with no findings are marked "<!-- No findings -->"
 - Connects to the 2.4 root cause confirmation gate: multiple candidates → STOP and let the user choose; deep-dive insights assist confirmation
+
+#### 2.2.4.5 摘要增量写入（与诊断记录并行）
+
+**⚠️ MANDATORY: 2.2.1–2.2.4 每步完成后执行。** 每一步的结论 MUST 以 **incrementally appended** 方式写入 \`.openspec-tmp/debug-<keyword>/investigation-digest.md\` —— 按步骤顺序追加，不批量补写、不重写已有段落。
+
+**并行写入、互不替代**：本步与「实时写诊断记录」（见下节 记录规范）**并行执行** —— 摘要写入 MUST NOT 替代诊断记录，诊断记录写入也 MUST NOT 替代摘要，两者各自独立完整。
 
 #### 记录规范（所有子节共用）
 
@@ -337,6 +368,7 @@ After each fix is complete, ask the user:
 - Record the current bug as completed in TodoWrite
 - Ask the user to describe the next bug
 - Re-enter Phase 1 for the new bug (independent reproduction, investigation, and fix)
+- **回边复用（重入 Phase 2）**: 进入 Phase 2 时先读摘要（**read the digest first**，见 2.1.5），仅做**增量查询**（**incremental queries only**），MUST NOT 重跑已覆盖区域
 - Update TodoWrite: append new Bug #N entries for the new bug's P1-P4 phases
 
 **P3 Simplified for subsequent bugs**:
@@ -470,6 +502,16 @@ After verification passes:
    - Display the updated document path to the user
 5. **Failure handling**: if generation or the in-place alignment fails or is interrupted, log WARN with the reason and CONTINUE — the user can re-run the skill standalone later
 
+### 7.4 清理流程级调试工作区（MANDATORY）
+
+验证收尾后 MUST **clean up the debug workspace** —— 统一清理 \`.openspec-tmp/debug-<keyword>/\`（以 \`path.join()\` 构造），覆盖**所有退出路径**：
+
+- **正常收尾**：Phase 7 验证（含需求文档分支）完成后清理
+- **非缺陷退出路径（3.5）**：诊断报告输出、工作流结束后同样清理
+- **中途退出路径**：用户中途退出调试循环（Phase 5-7 收尾）时同样清理
+
+**容错**：清理失败（目录不可删 / 权限不足）→ 记 WARN 并**提示残留路径**，**MUST NOT 阻断流程**（清理为收尾动作，不得使已完成的修复与验证失效）。
+
 ---
 
 ## Output
@@ -577,14 +619,19 @@ Reproduce the bug BEFORE any fix:
 ## Phase 2: Investigate Root Cause (排查定位)
 
 1. **Capability memory injection**: infer the capability from the affected code; read \`openspec/specs/<capability>/explorations.md\` if it exists and inject historical Decisions/terminology/boundary scenarios (superseded sections are historical reference only). No file → log and proceed.
+   **2.1.5 流程级探查摘要（investigation-digest）**: 载体 \`.openspec-tmp/debug-<keyword>/investigation-digest.md\`（\`path.join()\`；\`<keyword>\` 为该次调试主题的 kebab-case 关键词，与 \`openspec/explorations/<keyword>-explore-<sequence>.md\` 的关键词同源同规则，MUST NOT 直接使用 bug 描述原文）。**三分支**：**存在** → **read the digest first**，复用命中范围结论、仅在未覆盖范围查询；**不存在** → 初始化空摘要，按常规流程执行 2.2.1–2.2.3 并逐步骤增量写入；**工作区不可写** → 降级「仅会话内复用」+ WARN，排查与修复 MUST NOT 被阻断。摘要**仅为流程内缓存**，MUST NOT 替代诊断记录，MUST NOT 替代 Phase 6 对变更 \`exploration.md\` 的持久化；清理摘要 MUST NOT 影响交付物。**失效规则**：某 bug 修复改动代码后，受影响范围结论标 \`> 已失效（由 <bug 标识> 修复改动代码）\`，下次进入 Phase 2 重新查询，MUST NOT 复用已失效结论
 2. **CodeGraph investigation (layered, adapted from workflow)**:
    - \`codegraph_status\` 预检（**强制首动作**）— MUST run FIRST; until it returns unavailable, MUST NOT use Grep/Glob for symbol/file investigation; only after it confirms unavailable → fall back to Glob/Grep + record "CodeGraph unavailable" (last resort, not a shortcut to skip CodeGraph)
    - \`codegraph_files\` scan file structure → Discovered Files (paths via \`path.join()\` for cross-platform)
+     - **仅增量**: MUST NOT re-run CodeGraph queries already covered — **incremental queries only**（仅执行增量查询，见 2.1.5）
    - \`codegraph_search\` + \`codegraph_context --task <bug>\` — locate symbols + task-level context → Identified Symbols (file:line)
+     - **仅增量**: MUST NOT re-run CodeGraph queries already covered — **incremental queries only**（仅执行增量查询，见 2.1.5）
    - \`codegraph_callers\`/\`codegraph_callees\` + \`codegraph_impact\` — call chain + blast radius of defect and candidate fix
+     - **仅增量**: MUST NOT re-run CodeGraph queries already covered — **incremental queries only**（仅执行增量查询，见 2.1.5）
    - **2.2.3.5 排查深度分级（新增·事前选路径）**: 三条客观信号任一命中即深度路径 —— (a) 爆炸半径：depth ≤ 2 受影响符号数 ≥ 5 **或** 受影响文件数 ≥ 3；(b) 跨 ≥ 2 个模块 / 目录；(c) 2.2.2 未能一步定位单一高置信根因。**轻量路径 A** 止步不做 6 维；**深度路径 B** 进 \`codegraph_explore\`。信号取值 MUST 可追溯实测结果；信号缺失或阈值边界 MUST 取深度路径。CodeGraph 不可用时信号 (a) 降级为 Grep 文件数代理指标、(b)(c) 照常，分级仍生效并标注「信号降级」。分级与 2.5 缺陷链路图解耦（后者恒强制）
    - \`codegraph_explore\` + 6-dim root cause deep analysis (Design Rationale/Constraints/Trade-offs/Pattern/Historical Context/Implicit Assumptions) — **触发条件**：分级为深度路径 **或** 轻量路径未定位单一高置信根因（升级兜底）；**仅当**轻量路径且已定位根因时 SKIP。Historical Context uses \`git log --follow\`/\`git blame\`. 兜底是**触发条件**不是独立步骤（2.2.4 内容与编号不变）
    - All findings recorded to diagnosis record in real time (Codebase Findings / Implementation Deep-Dive); Glob/Grep fallback keeps the same structure with fallback noted
+   - **摘要增量写入**: 2.2.1–2.2.4 每步结论 **incrementally appended** 至摘要（与实时写诊断记录**并行写入、不互相替代**）
 3. **Grill-with-docs discipline**: one question at a time; resolved terms written to \`openspec/CONTEXT.md\` immediately; diagnosis record updated after every exchange.
 4. **Confirmation gate**: single high-confidence root cause → present evidence, get acknowledgment. Multiple candidates → STOP, present candidates + evidence + recommendation, user chooses. Non-defect → Phase 3.5.
 
@@ -615,7 +662,7 @@ ${FLOWCHART_FAULT_COMPACT}
 
 After each fix, ask: "还有相关 bug 需要修复吗？" [有] [没有]
 
-- **有**: record completed bug, describe next bug, re-enter P1-P4. P3 simplified: default to current change, user may declare independent change (→ finalize current change, prompt separate debug). Non-defect in loop → record diagnosis, continue loop. Mid-loop exit → preserve completed fixes, discard incomplete, proceed to P5-P7. After 5+ iterations, advise checking whether to split changes (do NOT force).
+- **有**: record completed bug, describe next bug, re-enter P1-P4. **回边复用**: 重入 Phase 2 时先读摘要（**read the digest first**）、**incremental queries only**，MUST NOT 重跑已覆盖区域. P3 simplified: default to current change, user may declare independent change (→ finalize current change, prompt separate debug). Non-defect in loop → record diagnosis, continue loop. Mid-loop exit → preserve completed fixes, discard incomplete, proceed to P5-P7. After 5+ iterations, advise checking whether to split changes (do NOT force).
 - **没有**: proceed to P5 — unified compile check, synchronization, and verification cover ALL accumulated fixes
 
 ## Phase 5: Compile Check (编译检查) — 汇总所有修复
@@ -636,6 +683,7 @@ After each fix, ask: "还有相关 bug 需要修复吗？" [有] [没有]
 - Invoke the \`venus_spec_verify_proposal\` **skill** (Skill tool — it is a skill name, not a valid \`venus spec instructions\` artifact ID). The skill performs D1–D9 scoring. Fallback: inline D1–D9 scoring + WARN, never silently skipped
 - **FAIL**: do NOT generate the requirement document; auto-fix artifacts and re-run; still failing → [1] Manual edit [2] Return to exploration [3] View diff — no skip path
 - **PASS**: auto-invoke the \`venus_tr_impl_review_proposal\` **skill** for a deep read-only review (fallback: inline review + WARN), then **判定需求文档是否已存在**（范围仅 \`openspec/changes/<change-name>/需求文档.md\`，\`path.join()\`；目录不可读记 WARN 按不存在处理）：**不存在** → 调 \`venus_tr_docs_requirement_doc\` **skill** 非交互生成（既有行为）；**已存在** → **就地增量对齐更新**（\`## 基本信息\` 与 \`## 八、评审记录\` 为人工域 MUST NOT 覆盖、含占位符状态；\`一~七\` 按 Phase 6 后的制品重新派生；MUST NOT 删除章节，格式破损补建 + WARN；**MUST NOT 调该 skill** —— 其"静默覆盖"规则会抹掉人工内容）。两条分支失败均记 WARN 继续
+- **收尾清理**: MUST **clean up the debug workspace** —— 统一清理 \`.openspec-tmp/debug-<keyword>/\`（\`path.join()\`），覆盖**所有退出路径**（正常收尾 / **非缺陷退出 3.5** / **中途退出**）；清理失败记 WARN + 提示残留路径，**MUST NOT 阻断流程**
 
 ---
 

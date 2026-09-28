@@ -53,7 +53,11 @@ All paths MUST be built with \`path.join()\` (cross-platform: Windows drive lett
 
 1. Present the unified implementation plan: change name, task groups / concurrent batches, affected files, and the migration scope.
 2. Ask ONE question (AskUserQuestion): 是否需要调整 (adjust the plan / artifacts)?
-   - **不调整 (proceed)** → implement immediately by the apply protocol: batch scheduling loop, one sub-agent per dispatch unit, concurrency limit from \`openspec/config.yaml\` (\`apply.concurrency\`, default 3); task checkboxes updated centrally by the coordinator. Every sub-agent dispatch instruction MUST inject the target coding-spec essentials (\`exploration.md\` → \`## 目标项目规范要点\`) as binding constraints, so the migrated code conforms to the TARGET project's conventions.
+   - **不调整 (proceed)** → implement immediately by the apply protocol: batch scheduling loop, one sub-agent per dispatch unit, concurrency limit from \`openspec/config.yaml\` (\`apply.concurrency\`, default 3); task checkboxes updated centrally by the coordinator. On entering the implementation stage, FIRST determine whether the shared context pack (\`context-pack.md\`, per the apply protocol) is available:
+     - **Pack available** → the target coding-spec essentials (\`exploration.md\` → \`## 目标项目规范要点\`) MUST be written into the context pack's \`## 规范要点\` section, merged with the \`openspec/rules/ai-coding.md\` essentials as an additional source; the target-project essentials remain BINDING constraints, so the migrated code conforms to the TARGET project's conventions.
+     - **Pack unavailable** → degrade to per-sub-agent inline injection (the pre-existing behavior: every dispatch instruction inlines the essentials) + a WARN; the migration implementation MUST NOT be blocked.
+     - **No target-project spec essentials** (the target project has no spec files AND Phase 2 distilled nothing) → record \`no target-project spec essentials\` in the pack's \`## 规范要点\` section + a WARN, and continue — never block the flow.
+     - Every sub-agent dispatch instruction MUST NOT inline the spec essentials in full — it references the pack's \`## 规范要点\` section instead.
    - **需要调整 (adjust)** → present the artifacts for editing; after the user's edits, re-enter this gate (one question again).
 3. Failed tasks follow the apply retry rules (serial retry once → pause and report). Implementation failures pause the flow; they never silently skip a task.
 
@@ -138,7 +142,7 @@ Explore the target project (read-only, auto CodeGraph→Glob/Grep fallback), loa
 ## Phase 3: Implementation confirmation gate (flow gate)
 
 Present the unified implementation plan (change name, task batches, affected files) and ask 是否需要调整:
-- 不调整 → implement immediately by the apply protocol (concurrent batches, centrally-managed checkboxes; every dispatch instruction injects the target spec essentials as binding constraints)
+- 不调整 → implement immediately by the apply protocol (concurrent batches, centrally-managed checkboxes). First determine whether the shared context pack (\`context-pack.md\`) is available: available → the target spec essentials (\`exploration.md\` → \`## 目标项目规范要点\`) MUST be written into the context pack's \`## 规范要点\` section, merged with \`openspec/rules/ai-coding.md\` essentials as an additional source (the target essentials stay BINDING); unavailable → degrade to per-sub-agent inline injection + a WARN (the migration implementation MUST NOT be blocked); no spec files and nothing distilled → record \`no target-project spec essentials\` in that section + a WARN and continue. Every dispatch instruction MUST NOT inline the spec essentials — reference the pack's \`## 规范要点\` section instead.
 - 需要调整 → present artifacts for editing, then re-enter the gate
 
 (Phase 1 distill confirmation is the requirement-clarification gate — two confirmation points in total.)

@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:22ffc85d5a0998356df6319ae675401250a2dc045ca97b7746295c37cb43a310"
+  generatedFingerprint: "sha256:c3419be75b2d66c1245e22f484aa30df7a7b223414a80d6d5d7bfd2a14317ab8"
 ---
 
 **Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** In Phase 1 (Exploration), follow Section 1 (Zero-Assumption). In Phase 2 (Proposal), follow Section 2 (Design-First). In Phase 3 (Verification), check Sections 3-5 for compliance.
@@ -383,16 +383,19 @@ After the 1.2.1 base scan (current project), system MUST check if the exploratio
    - If initialized (ls succeeds): proceed with Agent scan
    - If not initialized (ls fails — directory does not exist): log WARN "Other project <path> does not have CodeGraph initialized — falling back to Glob/Grep" and fall back to Glob/Grep
 
-2. **Spawn sub-agent** for each other project with CodeGraph initialized:
-   - Use the `Agent` tool to spawn a sub-agent
-   - The sub-agent SHALL use CodeGraph MCP tools with `projectPath` parameter pointing to the other project
-   - Execute `codegraph_files` for file structure, `codegraph_search` for symbol search, `codegraph_context` for context understanding
+2. **Single sub-agent serial scan across all detected projects**:
+   - Spawn **ONE** sub-agent that scans ALL detected projects **serially** inside itself; the system MUST NOT spawn a separate sub-agent for each project path (this removes the N repeated cold starts)
+   - The sub-agent SHALL call the CodeGraph MCP tools once for each project, switching the `projectPath` parameter to that project's path on every call
+   - For each project, execute `codegraph_files` for file structure, `codegraph_search` for symbol search, `codegraph_context` for context understanding
    - Limit scan depth: `maxDepth: 3`, `maxNodes: 20` to prevent excessive results
-   - Set sub-agent timeout: 120s (timeout → WARN fallback to Glob/Grep)
+   - The sub-agent MUST NOT modify any files
+   - Apply a 120s budget for each project (budget exceeded → per-project WARN fallback to Glob/Grep)
 
-3. **Handle multiple project paths**:
-   - Spawn sub-agents sequentially (one per project)
-   - Each project's scan is independent — failure on one does NOT affect others
+3. **Per-project degradation (project granularity)**:
+   - If one project's CodeGraph is not initialized, its scan fails, or it exceeds the 120s budget: **only that project** falls back to Glob/Grep with a WARN log — the other projects continue their scan normally
+   - One project's failure MUST NOT affect other projects
+   - If an other-project path is identical to the current project path, the sub-agent SHALL skip that project
+   - If the runtime provides no sub-agent capability at all: ALL projects fall back to Glob/Grep with a WARN log
 
 4. **Merge results** into exploration.md:
    - Write to `## Codebase Findings > ### Other Project Findings` subsection

@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:c9686f0153b846241f3a926bb5fb214f0355eaee25af49a481756448ef72e022"
+  generatedFingerprint: "sha256:fbc550b8d37245a02331596d2ce6ca173b954f7e62f11863c8ad58b68a4121c0"
 ---
 
 **Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** In Phase 1 (Exploration), follow Section 1 (Zero-Assumption). In Phase 2 (Proposal), follow Section 2 (Design-First). In Phase 3 (Verification), check Sections 3-5 for compliance.
@@ -332,10 +332,13 @@ After the 1.2.1 base scan (current project), system MUST check if the exploratio
    - If initialized (ls succeeds): proceed with Agent scan
    - If not initialized (ls fails — directory does not exist): log WARN "Other project <path> does not have CodeGraph initialized — falling back to Glob/Grep" and fall back to Glob/Grep
 
-2. **Spawn sub-agent** for each other project with CodeGraph initialized:
-   - Use the `Agent` tool to spawn a sub-agent
-   - Sub-agent prompt: "Scan the project at <path> using CodeGraph tools (codegraph_files + codegraph_search + codegraph_context). Limit scanning depth (maxDepth: 3, maxNodes: 20). Report findings in structured format."
-   - **Sub-agent instructions**: The sub-agent MUST use the `projectPath` parameter on codegraph tools to target the other project. The sub-agent MUST NOT modify any files.
+2. **Spawn ONE sub-agent that scans ALL detected projects serially inside itself**:
+   - Use the `Agent` tool to spawn a **single** sub-agent covering every other project with CodeGraph initialized — **MUST NOT spawn one sub-agent per project**
+   - Sub-agent prompt: "Scan each of the following projects serially, in turn: <path-1>, <path-2>, ... For **each project separately**, call the codegraph tools (codegraph_files + codegraph_search + codegraph_context) with the `projectPath` parameter switched to that project's path. Limit scanning depth (maxDepth: 3, maxNodes: 20). Report findings in structured format, grouped per project."
+   - **Sub-agent instructions**: The sub-agent MUST call the codegraph tools **per project**, switching the `projectPath` argument to each project's own path in turn (never one global path for all projects). The sub-agent MUST NOT modify any files.
+   - **Per-project degradation (project granularity)**: a project whose CodeGraph is not initialized (per step 1's check), or whose scan fails or times out (>120s), falls back to Glob/Grep + WARN **for that project only**; the remaining projects continue normally. **One project's failure MUST NOT affect any other project.**
+   - If a pending project path is the same as the current project, SHALL skip it (the 1.2.1 base scan already covers it)
+   - If the runtime does not provide sub-agent capability, all projects fall back to Glob/Grep + WARN (the existing fallback semantics are preserved)
 
 3. **Merge results**: Write sub-agent findings into exploration.md under:
    ```markdown
@@ -615,6 +618,13 @@ After verification passes (≥90%) and the requirement document is generated:
   - `auto-mode=true` — to skip the design confirmation gate (consistent with venus_spec_apply: Input passes auto-mode=true; Step 5.5 confirmation gate is skipped in auto-mode, directly entering Step 6 batch scheduling)
   - `change-name` — the current change name from the workflow context
 - Execute the apply workflow logic (following the venus_spec_apply skill's Step 6+ batch scheduling behavior with auto-mode=true)
+- **Inherit the dispatch protocol and shared-resource protocol of `venus_spec_apply`** — Phase 4 inherits both protocols in full and reuses the same four carriers:
+  - **shared context pack**（共享上下文包）— the single must-read artifact `context-pack.md` (six sections), produced once and appended per batch
+  - **output ledger**（产出登记表）— the pack's `## 已产出（跨单元可见）` section, appended by the coordinator after each batch
+  - **minimal receipt**（回执最小化）— the fixed four-column receipt `<task id> | <status> | <output file> | <public signature>`, with no code body pasted
+  - **shared instruction prefix**（共享指令前缀）— the fixed order "shared prefix (pack path / spec-points reference / receipt format / prohibitions) → unit delta (task list)"
+- Phase 4 **MUST NOT define a separate dispatch-instruction format or re-declare the protocol text** — the protocol's single source stays in `venus_spec_apply`; this skill only references it
+- `auto-mode=true` **only** skips the design confirmation gate — the shared-resource protocol stays in effect (auto semantics MUST NOT waive it)
 - All apply tasks are implemented automatically with the existing batch scheduling
 
 ### 4.2 Auto-Apply Error Handling
