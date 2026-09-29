@@ -15,7 +15,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { getSkillTemplates } from '../src/core/templates/index.js';
+import { getSkillTemplates, getCommandTemplates } from '../src/core/templates/index.js';
 
 describe('allowed-tools 白名单覆盖', () => {
     const skills = getSkillTemplates();
@@ -208,5 +208,180 @@ describe('allowed-tools 白名单覆盖', () => {
         expect([...extractCommands('```bash\nsvn info -r HEAD\n```')]).toContain('svn');
         expect([...extractCommands('先用 `javac -encoding UTF-8 foo.java` 复现')]).toContain('javac');
         expect([...extractCommands('```java\npublic class Foo {}\n```')]).toHaveLength(0);
+    });
+});
+
+describe('调用类白名单条目（MCP / Skill 委派 / 子代理派发）', () => {
+    const skills = getSkillTemplates();
+    const registeredSkillNames = new Set(skills.map((s) => s.template.name));
+
+    /** CodeGraph MCP 期望条目：裸服务器形式 + 9 个具名工具（共 10 条） */
+    const CODEGRAPH_MCP_ENTRIES = [
+        'mcp__codegraph',
+        'mcp__codegraph__codegraph_status',
+        'mcp__codegraph__codegraph_files',
+        'mcp__codegraph__codegraph_search',
+        'mcp__codegraph__codegraph_context',
+        'mcp__codegraph__codegraph_node',
+        'mcp__codegraph__codegraph_callers',
+        'mcp__codegraph__codegraph_callees',
+        'mcp__codegraph__codegraph_impact',
+        'mcp__codegraph__codegraph_explore',
+    ];
+
+    /** 抽取白名单条目（逗号分隔 + trim），供精确的整条目断言 */
+    function parseEntries(allowedTools: string): string[] {
+        return allowedTools
+            .split(',')
+            .map((entry) => entry.trim())
+            .filter((entry) => entry.length > 0);
+    }
+
+    /** 断言判据：白名单含全部 CodeGraph MCP 条目 */
+    function expectCodegraphEntries(skill: { name: string; allowedTools: string }): void {
+        const entries = parseEntries(skill.allowedTools);
+        for (const required of CODEGRAPH_MCP_ENTRIES) {
+            expect(entries, `${skill.name} 缺少 CodeGraph MCP 条目 ${required}`).toContain(required);
+        }
+    }
+
+    /** 断言判据：子代理派发条目双写（Agent 与 Task 必须成对出现） */
+    function expectSubagentDispatchPaired(skill: { name: string; allowedTools: string }): void {
+        const entries = parseEntries(skill.allowedTools);
+        expect(
+            entries.includes('Agent'),
+            `${skill.name} 的 Agent / Task 派发条目未成对写入`
+        ).toBe(entries.includes('Task'));
+    }
+
+    it('正文用 CodeGraph 或白名单含 Bash(codegraph:*) 的技能，均含裸服务器与 9 个具名工具', () => {
+        const derived = skills.filter(
+            ({ template }) => /codegraph_/.test(template.instructions) || template.allowedTools.includes('Bash(codegraph:')
+        );
+        // 判据自检：命中数不得为 0，否则断言静默空转
+        expect(derived.length).toBe(10);
+        for (const { template } of derived) {
+            expectCodegraphEntries(template);
+        }
+        // 反向：含 MCP 条目的技能集合与判据集合完全一致（无未经正文核准的授权）
+        const declared = skills.filter(({ template }) =>
+            parseEntries(template.allowedTools).includes('mcp__codegraph')
+        );
+        expect(declared.map((s) => s.commandId).sort()).toEqual(derived.map((s) => s.commandId).sort());
+    });
+
+    it('判据拦截力：白名单缺失任一 CodeGraph 条目即判定失败', () => {
+        // 缺失具名工具条目（仅保留 CLI 形态）→ 判据必须失败
+        expect(() =>
+            expectCodegraphEntries({ name: 'venus_fake', allowedTools: 'Read, Bash(codegraph:*)' })
+        ).toThrow();
+        // 缺失裸服务器条目 → 判据必须失败
+        expect(() =>
+            expectCodegraphEntries({
+                name: 'venus_fake',
+                allowedTools: CODEGRAPH_MCP_ENTRIES.slice(1).join(', '),
+            })
+        ).toThrow();
+    });
+
+    it('经 Skill 工具委派的技能，白名单含对应 Skill(venus_xxx) 条目且正文确有提及', () => {
+        const delegating = skills.filter(({ template }) =>
+            parseEntries(template.allowedTools).some((entry) => entry.startsWith('Skill('))
+        );
+        // 委派技能集合（回归锁）：白名单声明委派即意味着该技能正文存在委派动作
+        expect(delegating.map((s) => s.commandId).sort()).toEqual([
+            'spec-apply',
+            'spec-propose',
+            'tr-impl-auto-migration',
+            'tr-impl-auto-workflow',
+            'tr-impl-debug',
+            'tr-impl-genfull',
+            'tr-impl-workflow',
+        ]);
+
+        for (const { template } of delegating) {
+            const delegated = parseEntries(template.allowedTools)
+                .filter((entry) => entry.startsWith('Skill('))
+                .map((entry) => entry.slice('Skill('.length, -1));
+            expect(delegated.length).toBeGreaterThan(0);
+            for (const name of delegated) {
+                // 委派目标必须是已注册技能（拼错技能名会产生永不放行的死条目）
+                expect(registeredSkillNames, `${template.name} 委派了未注册技能 ${name}`).toContain(
+                    `venus_${name}`
+                );
+                // 且正文必须提及该技能，避免幽灵授权（授权面过宽属安全问题）
+                expect(template.instructions, `${template.name} 正文未提及被委派技能 ${name}`).toContain(
+                    `venus_${name}`
+                );
+            }
+            // 不得使用星号通配——授权面过宽
+            expect(template.allowedTools).not.toContain('Skill(*)');
+        }
+    });
+
+    it('正文确有派发的技能含 Agent 与 Task（双写兼容新旧运行时）', () => {
+        const dispatching = skills.filter(({ template }) =>
+            parseEntries(template.allowedTools).includes('Agent')
+        );
+        // 派发技能集合（回归锁）
+        expect(dispatching.map((s) => s.commandId).sort()).toEqual([
+            'spec-apply',
+            'spec-bulk-archive',
+            'spec-propose',
+            'tr-impl-auto-migration',
+            'tr-impl-auto-workflow',
+            'tr-impl-workflow',
+        ]);
+        for (const { template } of dispatching) {
+            expectSubagentDispatchPaired(template);
+            // 授权派发的前提是正文确有子代理派发动作
+            expect(template.instructions).toMatch(/sub-?agent|子代理/i);
+        }
+    });
+
+    it('判据拦截力：派发条目单写（仅 Agent 或仅 Task）即判定失败', () => {
+        expect(() => expectSubagentDispatchPaired({ name: 'venus_fake', allowedTools: 'Read, Agent' })).toThrow();
+        expect(() => expectSubagentDispatchPaired({ name: 'venus_fake', allowedTools: 'Read, Task' })).toThrow();
+    });
+
+    it('全部技能不存在 Skill(*) 星号通配', () => {
+        for (const { template } of skills) {
+            expect(template.allowedTools, `${template.name} 使用了 Skill(*) 通配`).not.toContain('Skill(*)');
+        }
+    });
+
+    it('只读技能白名单不含 Write / Edit（只读语义约束维持）', () => {
+        for (const name of ['venus_spec_verify_proposal', 'venus_spec_verify']) {
+            const skill = skills.find((s) => s.template.name === name);
+            expect(skill, `只读技能 ${name} 未注册`).toBeDefined();
+            const entries = parseEntries(skill?.template.allowedTools ?? '');
+            expect(entries, `${name} 不应含 Write`).not.toContain('Write');
+            expect(entries, `${name} 不应含 Edit`).not.toContain('Edit');
+        }
+    });
+
+    it('指令白名单与配对技能的白名单全等', () => {
+        const commands = getCommandTemplates();
+        const skillWhitelist = new Map(skills.map((s) => [s.commandId, s.template.allowedTools]));
+        expect(commands.length).toBe(skills.length);
+        for (const { template, id } of commands) {
+            expect(skillWhitelist.get(id), `指令 ${id} 无配对技能`).toBeDefined();
+            // 指令侧回填值 = 配对技能白名单 = 其他技能名（防止回填错位或残留硬编码）
+            expect(template.allowedTools).toBe(skillWhitelist.get(id));
+            expect(template.allowedTools).not.toBe('Bash(venus:*)');
+        }
+    });
+
+    it('全部条目为合法规则串：无空条目、无首尾空白、无重复', () => {
+        for (const { template, commandId } of skills) {
+            const raw = template.allowedTools;
+            expect(raw, `${commandId} 整串带首尾空白`).toBe(raw.trim());
+            expect(raw.endsWith(','), `${commandId} 以分隔符结尾`).toBe(false);
+            expect(/,\s*,/.test(raw), `${commandId} 存在连续分隔符`).toBe(false);
+            const entries = raw.split(',').map((entry) => entry.trim());
+            expect(entries.every((entry) => entry.length > 0), `${commandId} 存在空条目`).toBe(true);
+            expect(entries.join(', '), `${commandId} 分隔符非规范「逗号 + 空格」`).toBe(raw);
+            expect(new Set(entries).size, `${commandId} 存在重复条目`).toBe(entries.length);
+        }
     });
 });

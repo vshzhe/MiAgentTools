@@ -9,6 +9,55 @@
 
 （暂无）
 
+## [1.7.0] - 2026-09-28
+
+### Added
+
+- **工具调用白名单的调用类扩展**（变更 `improve-skills-tool-whitelist`）：技能与指令在
+  Claude Code 中运行时，除对话级确认门之外的调用不再逐次弹权限窗 —— 补齐了三类此前完全
+  缺失的放行条目，管线可连续自动执行。
+- **CodeGraph MCP 条目双写**：使用 CodeGraph 的 10 个技能同时写入裸服务器形式
+  `mcp__codegraph` 与 9 个具名工具条目。此前白名单只有 CLI 形态 `Bash(codegraph:*)`，
+  而正文实际调用的是 MCP 工具 —— **两者是两套工具名，互不覆盖**。整服务器形式存在
+  「不自动放行」的失效报告，双写使任一路径生效。
+- **技能间委派条目**：7 个技能写入 `Skill(venus_xxx)` 精确条目（genfull 8 个、debug 4 个、
+  auto-workflow / workflow 各 3 个、auto-migration 2 个、spec-propose / spec-apply 各 1 个）。
+  **禁用 `Skill(*)` 通配**（不可靠且会一次性放行全部技能）。
+- **子代理派发条目**：6 个确有派发动作的技能写入 `Agent, Task`（新旧工具名双写，兼容
+  派发工具更名）。授权面向子代理传递，故**不整类放行** —— 仅错误处理段落提及「子代理失败」
+  不构成派发。
+- **会话级权限载体**（`src/core/permissions.ts`）：`venus init` / `venus update` 额外把本工具集
+  条目**非破坏合并**进 `.claude/settings.json` 的 `permissions.allow`。存在的理由：frontmatter
+  的授权**仅覆盖调用当轮**、用户下一条消息即释放，跨轮次长管线需要会话级放行。语义为
+  「不删既有条目、不碰 `deny`、过滤 `Bash(*)` 一类全量放行条目、既有文件非法 JSON 时保留原文件
+  仅告警、幂等」；写入失败不阻断安装。
+- **白名单共享常量模块**（`src/core/templates/tool-whitelist.ts`）：`CODEGRAPH_MCP` /
+  `SUBAGENT_DISPATCH` / `skillDelegation()`，供模板以拼接方式引用，避免 27 份手写漂移。
+
+### Changed
+
+- **指令白名单由硬编码改为派生自配对技能**（**核心修复**）：适配器此前对全部 27 个斜杠指令
+  一律写死 `allowed-tools: Bash(venus:*)`，无视配对技能已有的完整白名单 —— 经 `/venus:*`
+  执行时文件读取、检索、图谱查询、技能委派全部弹窗。现由 `getCommandTemplates()` 单点回填
+  配对技能的白名单（`CommandTemplate.allowedTools` 为**可选**，因 27 个指令模板工厂彼此不知道
+  配对技能、设必填会迫使白名单复制 27 份；`CommandContent.allowedTools` 为**必填**，作为
+  「白名单必须存在」的强制点）。删除 `VENUS_CLI_ALLOWED_TOOLS` 常量。
+- **存量漂移修复**：`venus_tr_impl_auto_workflow` 正文的 1.2.1.5 多项目扫描与 Phase 4 批调度
+  均要求派发子代理，白名单却无对应条目（历史决策已与实际产物脱节）—— 随本版修复。
+- **`venus_spec_bulk_archive`**：由仅 `Task` 改为 `Agent, Task` 双写。
+- **术语修正**：`openspec/CONTEXT.md` 的 workflow 计数 23 → 27（实测值）；补入「工具调用白名单」
+  与「会话级权限载体」两条术语，并与「归档标签白名单」明确区分。
+- **文档同步**：`docs/skills-manual.md`（25 处白名单列举 + 新增白名单组合规则小节）、
+  `docs/genfull-guide.md`、`docs/migration-suite-guide.md`、`AGENTS.md` 修改守则与仓库地图。
+
+### 说明
+
+- **非破坏性，无迁移动作**：frontmatter 字段名与语法格式完全沿用，仅值域扩大；下游消费方
+  （`show` 详情展示、`validate` 字段校验）不受影响。存量项目执行一次 `venus update` 即可获得
+  新白名单，**无需 `--force`**（手改保护由「文件内记录指纹 vs 文件内容指纹」判定，模板变更不触发误判）。
+- **明确不做**：`src/commands/generate.ts` 骨架技能的裸 `Bash` 白名单（等价全量放行）维持现状，
+  属存量行为，留作后续单独评估；本次**不扩大**任何技能的 `Write` / `Edit` / `Bash(...)` 授权面。
+
 ## [1.6.0] - 2026-09-28
 
 ### Changed
@@ -444,7 +493,8 @@
 - 项目配置从单文件 `venus.config.yaml` 重构为 `.venus/` 目录结构
   （`config.yaml` 显式引用 `rules/` 下规则文件），重复 init 保留用户全部修改
 
-[Unreleased]: https://github.com/venus-agent-tools/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/venus-agent-tools/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/venus-agent-tools/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/venus-agent-tools/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/venus-agent-tools/compare/v1.3.1...v1.5.0
 [1.3.1]: https://github.com/venus-agent-tools/compare/v1.3.0...v1.3.1

@@ -1,7 +1,7 @@
 ---
 name: venus_tr_docs_feature_doc
 description: Scan a source project's feature modules and generate a feature requirement implementation document (feature map) covering frontend implementation, backend methods, field-level API contracts, database call chains, and cross-module interactions, driven by a framework profile (built-in Venus4A / Spring MVC / Struts or auto-detected with confirmation). Use when the user wants to scan feature modules of a source project, analyze feature implementation from code, build a project feature map (项目功能地图 / 功能地图), or generate a migration requirement document (迁移需求文档) for framework migration or refactoring. NOT for converting an OpenSpec change proposal into a review requirement document — that is venus_tr_docs_requirement_doc.
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(codegraph:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore
 license: MIT
 compatibility: CodeGraph MCP 可选；无索引时自动降级为 Glob/Grep/Read 手动扫描。
 metadata:
@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: tr_docs
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:5ac7c67ec84287bc6d95411617b98a916c886310a7d77c3772d8a07f01a392e2"
+  generatedFingerprint: "sha256:825932b03cdcc9089dec54254368cb949eec14e25db1122c24c73ccfcc471f9f"
 ---
 
 **Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** Mark undefined items as **[待确认]** and ask the user rather than guessing.

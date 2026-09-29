@@ -1,7 +1,7 @@
 ---
 name: venus_tr_impl_genfull
 description: "Guided full-pipeline orchestrator: explore→[frontend-design]→propose(+verify)→deep-review→requirement-doc→apply(+conditional frontend-impl/test)→archive, delegating stage SKILLs with bridge gates between stages to ensure each process completeness. Frontend design (Phase 1) is front-loaded to proposal stage; frontend impl (Phase 2) stays in apply. Triggers: 全流程编排 / genfull / 引导式全流程 / coupled stage workflow. Use when the user wants a guided end-to-end pipeline through archive with per-stage confirmation bridges (coupling explore/frontend/propose/apply/test/archive SKILLs). NOT for inline single-SKILL workflow (use venus_tr_impl_workflow), fully-automated no-gate pipeline (use venus_tr_impl_auto_workflow), or debugging (use venus_tr_impl_debug)."
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_explore), Skill(tr_impl_frontend), Skill(spec_propose), Skill(tr_impl_review_proposal), Skill(tr_docs_requirement_doc), Skill(spec_apply), Skill(tr_test_generate), Skill(spec_archive)
 license: MIT
 compatibility: 依赖 venus CLI（spec 命令组）与阶段技能（venus_spec_explore/propose/apply/archive + venus_tr_impl_review_proposal + venus_tr_docs_requirement_doc + venus_tr_impl_frontend + venus_tr_test_generate）；CLI 缺失时各阶段技能各自降级。
 metadata:
@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:01bda0e99a7f612a449386915973415d45ced0897f8db8eea18fb23f795b50da"
+  generatedFingerprint: "sha256:902b672e8e92518039692bf97b37f32f269c427a761f57c071d79ac626942a42"
 ---
 
 **Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** In Stage 1 (Exploration), follow Section 1 (Zero-Assumption). In Stage 2 (Proposal), follow Section 2 (Design-First). In Stage 3 (Implementation), check Sections 3-5 for compliance.

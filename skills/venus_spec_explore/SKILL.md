@@ -1,7 +1,7 @@
 ---
 name: venus_spec_explore
 description: 进入探索模式。当用户想要在变更前或变更中思考问题、调研代码库、明确需求时使用。
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore
 license: MIT
 compatibility: 依赖 venus CLI（spec 命令组）与 CodeGraph MCP（不可用时回退 Glob/Grep）。
 metadata:
@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:1b9280a00d1c58029796ec3a13f0cb2940f7a4ee8510152b7671a75cd6cbc704"
+  generatedFingerprint: "sha256:8757e8610ae9cfffb0d6e4beec9a8a117db22e9662a63d37cf9c1cb7a0d3f16c"
 ---
 
 **Before exploring, read openspec/rules/ai-coding.md for AI coding guardrails.** When encountering undefined database fields, business logic, or API parameters, mark them as **[待确认]** and ask the user rather than guessing.

@@ -65,7 +65,7 @@
 - **description**：一站式自动功能迁移——源项目蒸馏（feature_doc + 用户确认的核心功能清单）、
   加载目标项目编码规范、创建标准 OpenSpec 变更提案、实现门后按规范实现、独立评审子代理
   跨检查源/目标功能并生成带 P0/P1 修复循环的报告
-- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*)`
+- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(tr_docs_feature_doc), Skill(tr_impl_migration_check), Agent, Task`
 - **依赖**：venus CLI（spec 命令组）；CLI 缺失时降级为 AI 内联生成（CLI-degraded generation）
 
 ## 2.2 四阶段流程
@@ -369,7 +369,7 @@ Ready for /venus:spec-archive (after review)
 
 ## 3.1 定位与参数
 
-- **命令**：`/venus:tr-docs-feature-doc`；**allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(codegraph:*)`
+- **命令**：`/venus:tr-docs-feature-doc`；**allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore`
 - **NOT-for**：把 OpenSpec 变更提案转成评审需求文档（那是 requirement_doc）
 
 **双执行模式**：
@@ -433,7 +433,7 @@ Step 0 确定执行模式 → Step 1 收集参数 → Step 2 收集框架档案�
 
 ## 4.1 定位与参数
 
-- **命令**：`/venus:tr-impl-migration-check`；**allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(codegraph:*)`
+- **命令**：`/venus:tr-impl-migration-check`；**allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore`
 - **NOT-for**：独立源项目扫描（用 feature_doc）；本技能做迁移后对比或被 auto_migration 编排调用
 
 **双执行模式与参数**：

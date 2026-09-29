@@ -1,7 +1,7 @@
 ---
 name: venus_tr_impl_auto_migration
 description: One-stop automated feature migration — distill the source project (via venus_tr_docs_feature_doc + user-confirmed core-feature list), load the target project coding specs, create a standard OpenSpec change proposal and implement it under those specs after the implementation gate, then an independent review agent cross-checks source vs target functionality and generates a report with a P0/P1 fix loop (via venus_tr_impl_migration_check). Use when the user wants to migrate a feature or module from a source project into the current (target) project automatically (自动迁移 / 功能迁移 / auto migration / migrate feature to this project). NOT for standalone source-project scanning (use venus_tr_docs_feature_doc) or standalone post-migration comparison (use venus_tr_impl_migration_check).
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(tr_docs_feature_doc), Skill(tr_impl_migration_check), Agent, Task
 license: MIT
 compatibility: 依赖 venus CLI（spec 命令组）；CLI 缺失时降级为 AI 内联生成（CLI-degraded generation）。
 metadata:
@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:0adc86a3a07be283d318ffea3fb91240c61cbd8f5cc7a0a52e2e4593c4ad16b6"
+  generatedFingerprint: "sha256:facb7c8495d879c5cf22f75c77bb3816a05eed3642f88c72a107176e753bf153"
 ---
 
 **Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** Mark undefined items as **[待确认]** and ask the user rather than guessing.

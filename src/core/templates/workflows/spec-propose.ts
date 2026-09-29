@@ -3,12 +3,13 @@
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
+import { SUBAGENT_DISPATCH, skillDelegation } from '../tool-whitelist.js';
 
 export function getSpecProposeSkillTemplate(): SkillTemplate {
     return {
         name: 'venus_spec_propose',
         description: '创建变更提案。当用户要快速描述想构建的内容并一步生成包含设计、规格和任务的完整提案时使用。',
-        allowedTools: 'Read, Write, Edit, Glob, Grep, Bash(venus:*)',
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), ${skillDelegation(['spec_verify_proposal'])}, ${SUBAGENT_DISPATCH}`,
         type: 'spec',
         instructions: `Propose a new change - create the change and generate all artifacts in one step.
 

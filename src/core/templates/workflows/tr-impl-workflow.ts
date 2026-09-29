@@ -13,6 +13,7 @@ import {
     buildFlowchartCompact,
     REQUIREMENT_FLOW_COLUMNS,
 } from '../flowchart-gate.js';
+import { CODEGRAPH_MCP, SUBAGENT_DISPATCH, skillDelegation } from '../tool-whitelist.js';
 
 /** 需求维度的提示词校验门全文（唯一源渲染，见 prompt-gate.ts） */
 const PROMPT_GATE = buildPromptGateBlock(REQUIREMENT_DIMENSIONS);
@@ -1615,7 +1616,7 @@ All artifacts ready! Run \`/venus:spec-apply\` to implement.
 - **Do inject capability memory** - Phase 1 reads specs/<capability>/explorations.md when it exists
 - **Do scan other projects with CodeGraph** - When exploration context contains other project paths, spawn sub-agent to scan them using CodeGraph projectPath parameter; fall back to Glob/Grep on failure
 - **Do auto-generate requirement doc** - After full pass (D1-D5 + deep review), invoke venus_tr_docs_requirement_doc non-interactively; on FAIL do not generate; on generation failure WARN and continue`,
-        allowedTools: 'Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), Bash(ls:*)',
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), Bash(ls:*), ${CODEGRAPH_MCP}, ${skillDelegation(['spec_verify_proposal', 'tr_impl_review_proposal', 'tr_docs_requirement_doc'])}, ${SUBAGENT_DISPATCH}`,
         type: 'tr_impl',
         license: 'MIT',
         compatibility: '依赖 venus CLI（spec 命令组）；CLI 缺失时降级为 AI 内联生成（CLI-degraded generation）。',

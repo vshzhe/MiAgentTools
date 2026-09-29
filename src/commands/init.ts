@@ -25,7 +25,15 @@ import {
 import { ensureProjectConfig, readProjectConfig } from '../core/project-config.js';
 import { resolveWorkflows } from '../core/profiles.js';
 import { scanReconcileOrphans, type ReconcileOrphans } from '../core/reconcile.js';
+import {
+    buildPermissionEntries,
+    mergePermissions,
+    type MergeResult,
+} from '../core/permissions.js';
 import { ensureDir, writeFile, pathExists, writeSkillReferences } from '../utils/file-system.js';
+
+/** 目标工具设置文件的相对路径（会话级权限载体） */
+const SETTINGS_FILE = 'settings.json';
 
 /** init 命令选项 */
 export interface InitOptions {
@@ -52,6 +60,8 @@ export interface InitResult {
     injectedDeps: string[];
     /** 已装但不在生效集内的 venus 产物（保留不删，供输出提示） */
     reconcileOrphans: ReconcileOrphans;
+    /** 会话级权限载体（.claude/settings.json）的合并结果，每个目标工具一项 */
+    permissionSettings: MergeResult[];
 }
 
 /** 读取当前包版本（供 metadata.generatedBy） */
@@ -81,7 +91,14 @@ function resolveTools(toolsArg?: string): AIToolOption[] {
 
 /** 由指令模板 + 适配器生成 GeneratedCommand */
 function buildCommand(
-    template: { name: string; description: string; category: string; tags: string[]; content: string },
+    template: {
+        name: string;
+        description: string;
+        category: string;
+        tags: string[];
+        content: string;
+        allowedTools: string;
+    },
     id: string,
     adapter: ToolCommandAdapter
 ): GeneratedCommand {
@@ -92,6 +109,7 @@ function buildCommand(
         category: template.category,
         tags: template.tags,
         body: template.content,
+        allowedTools: template.allowedTools,
     };
     return generateCommand(content, adapter);
 }
@@ -108,11 +126,17 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
     const skillsInstalled: string[] = [];
     const commandsInstalled: string[] = [];
     const skipped: string[] = [];
+    const permissionSettings: MergeResult[] = [];
 
     // 读项目配置，解析生效 workflow 集（未配置用默认集 + 依赖注入补全）
     const projectConfig = readProjectConfig(projectRoot);
     const resolved = resolveWorkflows(projectConfig?.workflows);
     const workflowsSource = projectConfig && projectConfig.workflows.length > 0 ? 'user' : 'default';
+
+    // 会话级放行条目：源自生效集技能模板的白名单（与 frontmatter 同源，避免第二份真源）
+    const permissionEntries = buildPermissionEntries(
+        getSkillTemplates(undefined, resolved.workflows).map((entry) => entry.template.allowedTools)
+    );
 
     for (const tool of tools) {
         const adapter = CommandAdapterRegistry.get(tool.value);
@@ -149,12 +173,26 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
             writeFile(commandFile, generated.fileContent, { force: true });
             commandsInstalled.push(path.relative(projectRoot, commandFile));
         }
+
+        // 3. 会话级权限载体（.claude/settings.json）：非破坏合并，失败仅告警不阻断安装
+        try {
+            permissionSettings.push(
+                mergePermissions(projectRoot, path.join(tool.skillsDir, SETTINGS_FILE), permissionEntries)
+            );
+        } catch (error) {
+            permissionSettings.push({
+                path: path.join(tool.skillsDir, SETTINGS_FILE).replaceAll('\\', '/'),
+                state: 'preserved-invalid',
+                added: 0,
+                note: `写入失败（已跳过，不影响技能与指令安装）：${(error as Error).message}`,
+            });
+        }
     }
 
-    // 3. 项目级配置（.venus/config.yaml + .venus/rules/，已存在则跳过）
+    // 4. 项目级配置（.venus/config.yaml + .venus/rules/，已存在则跳过）
     const config = ensureProjectConfig(projectRoot);
 
-    // 4. reconcile 扫描：已装但不在生效集内的 venus 产物（保留不删，供输出提示）
+    // 5. reconcile 扫描：已装但不在生效集内的 venus 产物（保留不删，供输出提示）
     const reconcileOrphans = scanReconcileOrphans(projectRoot, resolved.workflows);
 
     return {
@@ -168,5 +206,6 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
         workflowsSource,
         injectedDeps: resolved.injected,
         reconcileOrphans,
+        permissionSettings,
     };
 }

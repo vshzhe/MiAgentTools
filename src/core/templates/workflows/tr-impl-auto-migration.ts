@@ -3,6 +3,7 @@
  * 编排层技能 —— 一站式自动迁移源项目功能到目标项目（四阶段编排）。
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
+import { CODEGRAPH_MCP, SUBAGENT_DISPATCH, skillDelegation } from '../tool-whitelist.js';
 
 export function getTrImplAutoMigrationSkillTemplate(): SkillTemplate {
     return {
@@ -109,7 +110,7 @@ Ready for /venus:spec-archive (after review)
   - Adversarial check reports → \`attachments/migration-check/07_对抗检查/\`
   - Other supplement documents → \`attachments/\`
   Build every path with \`path.join()\` (cross-platform).`,
-        allowedTools: 'Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*)',
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*), ${CODEGRAPH_MCP}, ${skillDelegation(['tr_docs_feature_doc', 'tr_impl_migration_check'])}, ${SUBAGENT_DISPATCH}`,
         type: 'tr_impl',
         license: 'MIT',
         compatibility: '依赖 venus CLI（spec 命令组）；CLI 缺失时降级为 AI 内联生成（CLI-degraded generation）。',

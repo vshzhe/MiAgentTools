@@ -3,12 +3,13 @@
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
+import { CODEGRAPH_MCP, SUBAGENT_DISPATCH } from '../tool-whitelist.js';
 
 export function getSpecBulkArchiveSkillTemplate(): SkillTemplate {
     return {
         name: 'venus_spec_bulk_archive',
         description: '批量归档变更。当用户要一次归档多个已完成变更时使用。',
-        allowedTools: 'Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*), Task',
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*), ${CODEGRAPH_MCP}, ${SUBAGENT_DISPATCH}`,
         type: 'spec',
         instructions: `**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.**
 

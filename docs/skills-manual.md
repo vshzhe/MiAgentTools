@@ -96,6 +96,26 @@ VenusAgentTools 是 AI Agent 技能生成与管理 CLI，按生命周期类型�
 | **CLI-degraded 降级** | 首次 `venus spec` 命令未找到 → 切换 AI 内联模板生成，不再中途重试 CLI |
 | **评分阈值** | verify_proposal / workflow / debug 统一 90%（≥90% PASS，<90% FAIL，无 skip 路径） |
 | **中文正文** | 技能正文、注释使用中文，标识符保留英文 |
+| **白名单只免工具级弹窗** | allowed-tools 白名单**只消除工具调用权限弹窗**，不改变任何**对话级确认门**（提示词校验门、功能流程图门、设计确认门、L1-L5 追问门）——确认门仍照常等待用户 |
+
+### 工具调用白名单（allowed-tools）组合规则
+
+技能与斜杠指令的 frontmatter `allowed-tools` 是**权限放行清单**，按三层组合：
+
+| 层 | 内容 | 本次变更 |
+| :--- | :--- | :--- |
+| 只读检索工具 | `Read` / `Glob` / `Grep`，按该技能正文实际使用 | 维持现状 |
+| **调用类扩展** | CodeGraph MCP 条目、经 Skill 工具委派的子技能条目、子代理派发条目 | **本次新增** |
+| 技能专有条目 | 该技能既有的 `Bash(...)`、`Write`、`Edit` | 维持现状，MUST NOT 扩大 |
+
+四条硬规则：
+
+1. **MCP 双写**：使用 CodeGraph 的技能同时写入裸服务器形式 `mcp__codegraph` 与 9 个具名工具条目——服务器级形式存在失效报告，双写使任一路径生效即达成免弹窗。
+2. **委派逐技能枚举**：技能间委派写 `Skill(venus_xxx)` 精确条目，**禁用** `Skill(*)` 通配（不可靠且一次性放行全部技能）。
+3. **派发按实放行**：仅**正文确有派发子代理**的技能写 `Agent, Task`（新旧工具名双写）——授权面向子代理传递，不整类放行。
+4. **指令白名单派生自配对技能**：斜杠指令的白名单与其配对技能**完全一致**（指令正文是技能正文的压缩派生版），不再硬编码。
+
+**会话级载体**：技能 frontmatter 的授权**仅覆盖调用当轮**，用户下一条消息即释放。故 `venus init` / `venus update` 会额外把本工具集所需的放行条目**非破坏合并**写入项目 `.claude/settings.json` 的 `permissions.allow`——不删除用户既有条目、不触碰 `deny` 段、过滤 `Bash(*)` 一类全量放行条目、既有文件非法 JSON 时保留原文件仅告警。该操作幂等，重复执行不产生重复条目。
 
 ---
 
@@ -107,7 +127,7 @@ VenusAgentTools 是 AI Agent 技能生成与管理 CLI，按生命周期类型�
 
 - **斜杠命令**：`/venus:spec-explore`
 - **description**：进入探索模式。当用户想要在变更前或变更中思考问题、调研代码库、明确需求时使用
-- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*)`
+- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore`
 - **核心立场**："This is a stance, not a workflow"——无固定步骤、无必需序列、无强制输出
 
 ### 输入
@@ -178,7 +198,7 @@ VenusAgentTools 是 AI Agent 技能生成与管理 CLI，按生命周期类型�
 
 - **斜杠命令**：`/venus:spec-propose`
 - **description**：创建变更提案。当用户要快速描述想构建的内容并一步生成包含设计、规格和任务的完整提案时使用
-- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*)`
+- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Skill(spec_verify_proposal), Agent, Task`
 
 ### 输入
 
@@ -270,7 +290,7 @@ Step 6: Phase 3 验证（auto — MANDATORY，不可跳过）
 - **斜杠命令**：`/venus:spec-apply`
 - **description**：实现变更。当 `openspec/changes/` 下已有变更制品（proposal/specs/design/tasks），
   需要基于规格驱动实现任务清单时使用；**用户直接描述需求而无变更制品时，应使用 venus_tr_impl_feature 直接实现**
-- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*)`
+- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(ant:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), Skill(tr_test_generate), Agent, Task`
 
 ### 输入
 
@@ -374,7 +394,7 @@ Step 9: 最终状态 + 归档建议
 
 - **斜杠命令**：`/venus:spec-archive`
 - **description**：归档变更。当用户要归档已实现完成的变更、结束变更工作流时使用
-- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*)`
+- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*), Bash(ls:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore`
 
 ### 输入
 
@@ -654,7 +674,7 @@ DataNotFoundException）；F. JSP 前端 IE 兼容（禁 ES6+）；G. Oracle 11g
 
 - **斜杠命令**：`/venus:spec-bulk-archive`
 - **description**：批量归档变更。当用户要一次归档多个已完成变更时使用
-- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*), Task`
+- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Agent, Task`
 
 ### 输入
 
@@ -722,7 +742,7 @@ Step 11: Batch CodeGraph Sync + Verification（条件：2.5 确认启用且 ≥1
 - **斜杠命令**：`/venus:tr-impl-workflow`
 - **description**：一站式引导工作流：结构化探索（grill 追问 L1-L5 逐级确认）→ 提案内联生成 →
   自动验证门 → 深度复查与需求文档联动
-- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*)`
+- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), Bash(ls:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_verify_proposal), Skill(tr_impl_review_proposal), Skill(tr_docs_requirement_doc), Agent, Task`
 - **NOT-for**：全自动流水线（用 auto_workflow）；单阶段探索（用 venus_spec_explore）；
   调试（用 venus_tr_impl_debug）
 
@@ -853,7 +873,7 @@ Step 11: Batch CodeGraph Sync + Verification（条件：2.5 确认启用且 ≥1
 - **斜杠命令**：`/venus:tr-impl-auto-workflow`
 - **description**：一站式全自动工作流 exploration→proposal→verification→auto-apply→auto-archive，
   L1-L5 用户确认后全自动化
-- **allowed-tools**：比 workflow 多 `Bash(npm:*), Bash(pnpm:*), Bash(node:*)`（Phase 4 编译检查需要）
+- **allowed-tools**：比 workflow 多 `Bash(npm:*)` 等多语言构建命令与 `Bash(mv:*)`（Phase 4 编译检查与产物搬运需要）；两者均含 CodeGraph MCP 双写条目、`Skill(...)` 委派条目与 `Agent, Task` 派发条目
 - **NOT-for**：交互式引导工作流（用 venus_tr_impl_workflow）
 
 ### 输入
@@ -934,8 +954,7 @@ Phase 5: Auto-Archive（自动——archive 用 change-name 跳过选择提示�
   capability memory→change association→fix with mandatory regression test→compile check→
   synchronize proposal→verify
 - **触发词**：调试 / debug / 修复 bug / bug 报告 / 复现 / 根因
-- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(npm:*), Bash(pnpm:*),
-  Bash(node:*), Bash(git:*), Bash(codegraph:*)`
+- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(codegraph:*), Bash(tsc:*), Bash(mvn:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(tr_test_generate), Skill(spec_verify_proposal), Skill(tr_impl_review_proposal), Skill(tr_docs_requirement_doc)`
 - **NOT-for**：新功能开发（用 venus_tr_impl_feature）；工作流编排（用 venus_tr_impl_workflow）
 
 ### 输入
@@ -1064,7 +1083,7 @@ Phase 5: Auto-Archive（自动——archive 用 change-name 跳过选择提示�
 
 - **斜杠命令**：`/venus:tr-impl-genfull`
 - **description**：引导式全流程编排器 explore→[frontend-design]→propose(+verify)→deep-review→requirement-doc→apply(+conditional frontend-impl/test)→archive，委派阶段 SKILL + 阶段间桥梁门
-- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*)`
+- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_explore), Skill(tr_impl_frontend), Skill(spec_propose), Skill(tr_impl_review_proposal), Skill(tr_docs_requirement_doc), Skill(spec_apply), Skill(tr_test_generate), Skill(spec_archive)`
 - **compatibility**：依赖 venus CLI（spec 命令组）与阶段技能（venus_spec_explore/propose/apply/archive + venus_tr_impl_review_proposal + venus_tr_docs_requirement_doc + venus_tr_impl_frontend + venus_tr_test_generate）；CLI 缺失时各阶段技能各自降级
 - **NOT-for**：inline 单 SKILL 工作流（用 venus_tr_impl_workflow）/ 全自动无门流水线（用 venus_tr_impl_auto_workflow）/ 调试（用 venus_tr_impl_debug）
 
@@ -1204,7 +1223,7 @@ Stage 4: 归档 —— 委派 venus_spec_archive（Skill 工具，传 change-nam
 - **斜杠命令**：`/venus:tr-docs-feature-doc`
 - **description**：扫描源项目功能模块，生成功能需求实现文档（功能地图），覆盖前端实现、
   后端方法、字段级 API 契约、数据库调用链、跨模块交互
-- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(codegraph:*)`
+- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore`
 - **NOT-for**：将变更提案转为评审需求文档（用 venus_tr_docs_requirement_doc）
 
 ### 输入
@@ -1310,7 +1329,7 @@ public+private 全覆盖 / 工具类引用全覆盖。
 - **斜杠命令**：`/venus:tr-impl-migration-check`
 - **description**：检查源项目迁移到目标项目后的功能一致性——识别丢失功能、不一致实现、
   框架差异问题（后端三层/前端/SQL/数据库）
-- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(codegraph:*)`
+- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore`
 - **NOT-for**：独立源项目扫描（用 feature_doc）；本技能做独立迁移后对比或被 auto-migration 调用
 
 ### 输入
@@ -1397,7 +1416,7 @@ P1 重要（功能部分缺失/日志不完整/权限配置，尽快修复）/ P
 - **斜杠命令**：`/venus:tr-impl-auto-migration`
 - **description**：一站式自动功能迁移——源项目蒸馏、变更提案、门控实现、完整性检查（含修复循环）
 - **触发词**：自动迁移 / 功能迁移 / auto migration / migrate feature to this project
-- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*)`
+- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(tr_docs_feature_doc), Skill(tr_impl_migration_check), Agent, Task`
 - **NOT-for**：独立源项目扫描（用 feature_doc）；独立迁移后对比（用 migration_check）；
   本技能编排完整迁移管道（扫描→提案→实现→对比）
 
@@ -1710,7 +1729,7 @@ Step 6 生成文档（八章节 + 路由输出）
 
 - **斜杠命令**：`/venus:tr-test-generate`
 - **description**：生成测试。为新功能或已有代码编写测试用例、补充测试覆盖。多 schema 模式：自动检测 Java（Maven/Gradle）或 Node（Vitest/Jest/Mocha）项目，加载对应框架模板
-- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(pnpm:*), Bash(npm:*), Bash(node:*), Bash(mvn:*), Bash(gradle:*), Bash(mkdir:*), Bash(ls:*), Bash(find:*), Bash(cat:*), Bash(cp:*)`
+- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(pnpm:*), Bash(npm:*), Bash(node:*), Bash(mvn:*), Bash(gradle:*), Bash(mkdir:*), Bash(ls:*), Bash(find:*), Bash(cat:*), Bash(cp:*), Bash(grep:*), Bash(echo:*)`
 - **compatibility**：无特殊依赖，通用环境可用。多 schema 自动适配：Java（Maven/Gradle + JUnit4/5/Mockito/EasyMock/AssertJ）与 Node（Vitest/Jest/Mocha/Jasmine）
 - **metadata**：version 3.0，type `tr_test`
 - **架构**：多 schema 模式。主 SKILL 语言无关（检测路由 + BCDE 场景矩阵 + 通用编写规范 + 反模式清单）；语言/框架专属内容拆为 `references/schema-*.md` 按需 Read：
@@ -2007,14 +2026,14 @@ target 目录（任意层级及其全部内容，含 classes、test-classes、su
 
 ## 9.1 venus_tr_tools_pwd（查看路径）
 
-- **命令**：`/venus:tr-tools-pwd`；**allowed-tools**：`Bash(pwd:*), Bash(echo %CD%:*), Read, Glob`
+- **命令**：`/venus:tr-tools-pwd`；**allowed-tools**：`Bash(pwd:*), Bash(pwd), Bash(echo %CD%:*), Bash(echo %CD%), Read, Glob`
 - **输入**：无需输入
 - **输出**：当前工作目录绝对路径（清晰格式呈现）；可选补充路径下关键标志文件
 - **规范**：只读操作，不切换目录不修改文件；始终报告命令实际返回的路径，不做推断
 
 ## 9.2 venus_tr_tools_list（列出技能）
 
-- **命令**：`/venus:tr-tools-list`；**allowed-tools**：`Bash(venus:*), Read, Glob`
+- **命令**：`/venus:tr-tools-list`；**allowed-tools**：`Bash(venus:*), Bash(venus), Read, Glob`
 - **输入**：无需输入（可选 JSON 结构化数据）
 - **输出**：已安装 venus 技能列表，按生命周期类型分组呈现；可选补充斜杠指令形式与
   `venus generate` 用法

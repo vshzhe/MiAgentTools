@@ -6,12 +6,13 @@
  * 内置 per-framework 预设）、P0/P1/P2 问题分级，以及强制写回验证。
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
+import { CODEGRAPH_MCP } from '../tool-whitelist.js';
 
 export function getTrImplMigrationCheckSkillTemplate(): SkillTemplate {
     return {
         name: 'venus_tr_impl_migration_check',
         description: 'Check functional consistency after migrating a source project to a target project — identify lost functionality, inconsistent implementations, and framework-difference issues across backend layers (Controller/Service/DAO), frontend pages, SQL statements, and database schema. Use when the user wants a migration check, a function comparison between two projects, migration verification after code migration, or a framework-upgrade consistency check. Supports standalone interactive mode and non-interactive invocation from the auto-migration workflow.',
-        allowedTools: 'Read, Write, Edit, Glob, Grep, Bash(codegraph:*)',
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(codegraph:*), ${CODEGRAPH_MCP}`,
         type: 'tr_impl',
         instructions: `**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** Mark undefined items as **[待确认]** and ask the user rather than guessing.
 

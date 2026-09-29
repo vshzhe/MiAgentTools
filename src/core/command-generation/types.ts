@@ -21,6 +21,12 @@ export interface CommandContent {
     tags: string[];
     /** 指令正文 */
     body: string;
+    /**
+     * allowed-tools 白名单（frontmatter allowed-tools）。
+     * **必填**：作为「白名单必须存在」的强制校验点——构建 CommandContent 时
+     * 若不透传配对技能的白名单即类型报错。
+     */
+    allowedTools: string;
 }
 
 /** 每个目标工具的格式化策略 */

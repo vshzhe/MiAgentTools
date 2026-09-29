@@ -16,5 +16,5 @@ export {
     readGeneratedFingerprint,
 } from './fingerprint.js';
 export { generateCommand, generateCommands, generateSkillContent } from './generator.js';
-export { claudeAdapter, VENUS_CLI_ALLOWED_TOOLS } from './adapters/claude.js';
+export { claudeAdapter } from './adapters/claude.js';
 export { CommandAdapterRegistry } from './adapters/registry.js';

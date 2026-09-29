@@ -26,10 +26,12 @@ src/
 │   ├── project-config.ts             .venus/ 配置读写（config.yaml + rules/）
 │   ├── templates/
 │   │   ├── types.ts                 SkillTemplate / CommandTemplate 接口
-│   │   ├── registry.ts               模板注册表 + deriveCommandId 派生规则
+│   │   ├── registry.ts               模板注册表 + deriveCommandId 派生规则 + 指令白名单回填
+│   │   ├── tool-whitelist.ts        白名单共享常量（CodeGraph MCP 双写 / 派发条目 / 委派条目生成）
 │   │   ├── derive-command.ts         spec 模板 command 压缩版派生（CMD:SKIP 标记裁剪）
 │   │   └── workflows/               技能模板（中文正文）：tr-*.ts 生命周期 7 类
 │   │                                 + spec-*.ts 规格工作流（单一源，command 派生）
+│   ├── permissions.ts                会话级权限载体（settings.json 的 permissions.allow 非破坏合并）
 │   └── command-generation/
 │       ├── types.ts                  ToolCommandAdapter 接口（多工具扩展点）
 │       ├── generator.ts              generateSkillContent / generateCommand
@@ -59,7 +61,29 @@ node bin/venus.js <cmd> # 直接运行 CLI
 1. **改技能模板**（`src/core/templates/workflows/`）后必须依次：
    `pnpm build && pnpm generate:skills` —— 否则 `test/skills-parity.test.ts` 失败
 2. **改模板正文的命令**时同步更新 `allowedTools` 字段 —— 否则技能在 Claude Code 中被权限拦截
-   （`test/allowed-tools.test.ts` 会拦截部分回归）
+   （`test/allowed-tools.test.ts` 会拦截部分回归）。白名单按**三层**组合，新增条目必须走
+   `src/core/templates/tool-whitelist.ts` 的共享常量，不得逐模板手写：
+
+   | 层 | 内容 | 约束 |
+   |---|---|---|
+   | 只读检索 | `Read` / `Glob` / `Grep` | 按正文实际使用，不无差别补齐 |
+   | 调用类 | CodeGraph MCP、`Skill(venus_xxx)`、`Agent, Task` | 见下列四条规则 |
+   | 技能专有 | `Bash(...)` / `Write` / `Edit` | 只增不减地维持现状，MUST NOT 扩大 |
+
+   - **MCP 双写**：用 CodeGraph 的技能同时写 `${CODEGRAPH_MCP}`（裸服务器形式 + 9 个具名工具）——
+     服务器级形式有失效报告，双写使任一路径生效；CLI 形态 `Bash(codegraph:*)` 与 MCP 工具名是
+     **两套命名**，互不覆盖
+   - **委派逐技能枚举**：写 `${skillDelegation([...])}` 产出 `Skill(venus_xxx)` 精确条目，
+     **禁用** `Skill(*)`；清单须逐条读正文核准，**MUST NOT 采信 grep 结果**（散文提及他技能名不构成委派）
+   - **派发按实放行**：仅正文**确有派发动作**的技能写 `${SUBAGENT_DISPATCH}`（`Agent, Task` 新旧名双写）
+     ——授权面向子代理传递，不整类放行；仅错误处理段落提及「子代理失败」不构成派发
+   - **指令白名单派生自配对技能**：斜杠指令的白名单与其配对技能**完全一致**（由 `getCommandTemplates()`
+     单点回填），不得硬编码或另立第二份真源。`CommandTemplate.allowedTools` 为**可选**（工厂不知配对技能），
+     `CommandContent.allowedTools` 为**必填**（作为存在性强制点）
+
+   **会话级载体**：技能 frontmatter 的授权仅覆盖调用当轮，跨轮次管线需会话级放行 —— `venus init` /
+   `venus update` 会把本工具集条目**非破坏合并**进 `.claude/settings.json` 的 `permissions.allow`
+   （见 `src/core/permissions.ts`：不删既有条目、不碰 `deny`、过滤 `Bash(*)`、非法 JSON 保留原文件、幂等）
 3. **新增 CLI 命令**：`src/commands/<name>.ts` + `src/cli/index.ts` 注册 +
    `src/commands/completion.ts` 的 `VENUS_COMMANDS` 表同步（补全覆盖）
 4. **新增技能类型**：`src/core/config.ts` 的 `SKILL_TYPES` 加条目，类型体系即 7→N 类

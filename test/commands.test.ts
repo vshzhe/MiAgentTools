@@ -11,7 +11,7 @@ import { runUpdate } from '../src/commands/update.js';
 import { runList, scanInstalledSkills } from '../src/commands/list.js';
 import { runGenerate } from '../src/commands/generate.js';
 import { ensureProjectConfig, writeWorkflowsToConfig } from '../src/core/project-config.js';
-import { getSkillTemplates } from '../src/core/templates/index.js';
+import { getSkillTemplates, getCommandTemplates } from '../src/core/templates/index.js';
 
 let tempRoot: string;
 
@@ -221,5 +221,100 @@ describe('workflows 过滤（profile 生效）', () => {
         } finally {
             fs.rmSync(root, { recursive: true, force: true });
         }
+    });
+});
+
+describe('指令白名单继承与会话级权限载体（端到端）', () => {
+    // 前置：以全量 27 技能重装一次，使断言不依赖同文件其他用例的执行顺序
+    beforeAll(() => {
+        runInit(tempRoot, { force: true });
+    });
+
+    /** 会话级权限载体的绝对路径 */
+    function settingsPath(): string {
+        return path.join(tempRoot, '.claude', 'settings.json');
+    }
+
+    /** 指令/技能产物的绝对路径 */
+    function artifactPath(kind: 'commands' | 'skills', name: string): string {
+        return kind === 'commands'
+            ? path.join(tempRoot, '.claude', 'commands', 'venus', `${name}.md`)
+            : path.join(tempRoot, '.claude', 'skills', name, 'SKILL.md');
+    }
+
+    /** 从产物文件正文中取出 frontmatter 的 allowed-tools 值 */
+    function readAllowedTools(content: string): string {
+        const matched = content.match(/^allowed-tools: (.*)$/m);
+        expect(matched, 'frontmatter 缺少 allowed-tools').not.toBeNull();
+        return matched?.[1] ?? '';
+    }
+
+    /** 读取会话级放行条目数组 */
+    function readAllow(): string[] {
+        const settings = JSON.parse(fs.readFileSync(settingsPath(), 'utf8')) as {
+            permissions?: { allow?: string[] };
+        };
+        return settings.permissions?.allow ?? [];
+    }
+
+    it('每个指令产物的 allowed-tools 等于其配对技能的白名单', () => {
+        const skillWhitelist = new Map(
+            getSkillTemplates().map((entry) => [entry.commandId, entry.template.allowedTools])
+        );
+        const commands = getCommandTemplates();
+        expect(commands.length).toBe(27);
+
+        for (const { id } of commands) {
+            const commandFile = artifactPath('commands', id);
+            expect(fs.existsSync(commandFile), `指令产物缺失：${id}`).toBe(true);
+            const allowedTools = readAllowedTools(fs.readFileSync(commandFile, 'utf8'));
+            expect(allowedTools, `指令 ${id} 的白名单与其配对技能不一致`).toBe(skillWhitelist.get(id));
+            // 旧硬编码值已消除，白名单确实来自配对技能而非常量
+            expect(allowedTools, `指令 ${id} 仍为硬编码白名单`).not.toBe('Bash(venus:*)');
+        }
+    });
+
+    it('技能产物与指令产物的 frontmatter 白名单逐对一致（27 对）', () => {
+        const skills = getSkillTemplates();
+        expect(skills.length).toBe(27);
+        for (const { template, commandId } of skills) {
+            const skillAllowed = readAllowedTools(
+                fs.readFileSync(artifactPath('skills', template.name), 'utf8')
+            );
+            const commandAllowed = readAllowedTools(
+                fs.readFileSync(artifactPath('commands', commandId), 'utf8')
+            );
+            expect(commandAllowed, `技能 ${template.name} 与指令 ${commandId} 白名单不一致`).toBe(skillAllowed);
+        }
+    });
+
+    it('生成 .claude/settings.json 且含 permissions.allow 段', () => {
+        expect(fs.existsSync(settingsPath())).toBe(true);
+        const settings = JSON.parse(fs.readFileSync(settingsPath(), 'utf8')) as {
+            permissions?: { allow?: unknown };
+        };
+        expect(Array.isArray(settings.permissions?.allow)).toBe(true);
+        expect((settings.permissions?.allow as string[]).length).toBeGreaterThan(0);
+    });
+
+    it('会话级条目含 CodeGraph MCP，且已过滤全量放行条目 Bash(*) 与裸 *', () => {
+        const allow = readAllow();
+        expect(allow).toContain('mcp__codegraph');
+        expect(allow).toContain('mcp__codegraph__codegraph_explore');
+        expect(allow).toContain('Read');
+        // Bash(*) 在技能范围内只作用于该技能，写入会话级载体则放大为全局授权
+        expect(allow).not.toContain('Bash(*)');
+        expect(allow).not.toContain('*');
+        expect(new Set(allow).size).toBe(allow.length);
+    });
+
+    it('重复 init 幂等：settings.json 内容不变', () => {
+        const before = fs.readFileSync(settingsPath(), 'utf8');
+        const result = runInit(tempRoot, { force: true });
+
+        expect(result.permissionSettings.length).toBe(1);
+        expect(result.permissionSettings[0].state).toBe('unchanged');
+        expect(result.permissionSettings[0].added).toBe(0);
+        expect(fs.readFileSync(settingsPath(), 'utf8')).toBe(before);
     });
 });

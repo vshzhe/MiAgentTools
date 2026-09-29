@@ -85,7 +85,7 @@ Stage 4：spec_archive（归档 + 记忆闭环），由 Bridge 3 确认进入
 - **斜杠命令**：`/venus:tr-impl-genfull`
 - **触发词**：全流程编排 / genfull / 引导式全流程 / coupled stage workflow
 - **description**：引导式全流程编排器 explore→[frontend-design]→propose(+verify)→deep-review→requirement-doc→apply(+conditional frontend-impl/test)→archive，委派阶段 SKILL 并在阶段间设桥梁门，确保每个流程完整
-- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*)`
+- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_explore), Skill(tr_impl_frontend), Skill(spec_propose), Skill(tr_impl_review_proposal), Skill(tr_docs_requirement_doc), Skill(spec_apply), Skill(tr_test_generate), Skill(spec_archive)`
 - **依赖**：venus CLI（spec 命令组）+ 8 个阶段技能（explore / frontend / propose / apply / archive /
   review_proposal / requirement_doc / test_generate）；CLI 缺失时各阶段技能各自降级
 

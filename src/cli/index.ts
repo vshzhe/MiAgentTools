@@ -23,6 +23,7 @@ import { buildSpecCommand } from '../commands/spec.js';
 import { ensureDependencies, renderDependencyReport } from '../core/dependencies.js';
 import { AI_TOOLS, SKILL_TYPES } from '../core/config.js';
 import { reconcileOrphanCount } from '../core/reconcile.js';
+import { renderPermissionReport } from '../core/permissions.js';
 import { runConfigInteractive, runConfigShow, runConfigSet } from '../commands/config.js';
 
 const require = createRequire(import.meta.url);
@@ -93,6 +94,10 @@ export function buildProgram(): Command {
                     console.log(`    - ${cmd}`);
                 }
                 console.log('    如需移除：venus uninstall 或手动删除');
+            }
+            const permissionReport = renderPermissionReport(result.permissionSettings);
+            if (permissionReport !== '') {
+                console.log(permissionReport);
             }
             // 依赖检测与安装（codegraph，--no-deps 跳过）
             const deps = ensureDependencies(process.cwd(), { skip: options.deps === false });
@@ -166,6 +171,10 @@ export function buildProgram(): Command {
                     console.log(`    - ${cmd}`);
                 }
                 console.log('    如需移除：venus uninstall 或手动删除');
+            }
+            const permissionReport = renderPermissionReport(result.permissionSettings);
+            if (permissionReport !== '') {
+                console.log(permissionReport);
             }
         });
 

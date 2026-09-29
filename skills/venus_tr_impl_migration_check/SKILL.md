@@ -1,7 +1,7 @@
 ---
 name: venus_tr_impl_migration_check
 description: Check functional consistency after migrating a source project to a target project — identify lost functionality, inconsistent implementations, and framework-difference issues across backend layers (Controller/Service/DAO), frontend pages, SQL statements, and database schema. Use when the user wants a migration check, a function comparison between two projects, migration verification after code migration, or a framework-upgrade consistency check. Supports standalone interactive mode and non-interactive invocation from the auto-migration workflow.
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(codegraph:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore
 license: MIT
 compatibility: 依赖 CodeGraph MCP（可选，调用链验证时使用）。
 metadata:
@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:6cca83cd4198fa820a8fbf167e22bf5402bce0484ca03b51ad854f85afbd0edd"
+  generatedFingerprint: "sha256:4f8e332a7a090e844122bbc09568c6533fd801245a7b9bb4315801ce6fdedbd4"
 ---
 
 **Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** Mark undefined items as **[待确认]** and ask the user rather than guessing.

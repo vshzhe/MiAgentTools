@@ -32,7 +32,15 @@ import {
 import { readProjectConfig } from '../core/project-config.js';
 import { resolveWorkflows } from '../core/profiles.js';
 import { scanReconcileOrphans, type ReconcileOrphans } from '../core/reconcile.js';
+import {
+    buildPermissionEntries,
+    mergePermissions,
+    type MergeResult,
+} from '../core/permissions.js';
 import { ensureDir, writeFile, readFileIfExists, writeSkillReferences, removeDir } from '../utils/file-system.js';
+
+/** 目标工具设置文件的相对路径（会话级权限载体） */
+const SETTINGS_FILE = 'settings.json';
 
 /** update 命令选项 */
 export interface UpdateOptions {
@@ -58,6 +66,8 @@ export interface UpdateResult {
     injectedDeps: string[];
     /** 已装但不在生效集内的 venus 产物（保留不删，供输出提示） */
     reconcileOrphans: ReconcileOrphans;
+    /** 会话级权限载体（.claude/settings.json）的合并结果，每个目标工具一项 */
+    permissionSettings: MergeResult[];
 }
 
 /** 读取当前包版本 */
@@ -83,12 +93,18 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
     const installed: string[] = [];
     const updated: string[] = [];
     const skippedModified: string[] = [];
+    const permissionSettings: MergeResult[] = [];
     let commandsWritten = 0;
 
     // 读项目配置，解析生效 workflow 集（未配置用默认集 + 依赖注入补全）
     const projectConfig = readProjectConfig(projectRoot);
     const resolved = resolveWorkflows(projectConfig?.workflows);
     const workflowsSource = projectConfig && projectConfig.workflows.length > 0 ? 'user' : 'default';
+
+    // 会话级放行条目：源自生效集技能模板的白名单（与 frontmatter 同源，避免第二份真源）
+    const permissionEntries = buildPermissionEntries(
+        getSkillTemplates(undefined, resolved.workflows).map((entry) => entry.template.allowedTools)
+    );
 
     for (const tool of tools) {
         const adapter = CommandAdapterRegistry.get(tool.value);
@@ -148,6 +164,7 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
                 category: template.category,
                 tags: template.tags,
                 body: template.content,
+                allowedTools: template.allowedTools,
             };
             const generated = generateCommand(content, adapter);
             const commandFile = path.join(projectRoot, generated.path);
@@ -157,6 +174,20 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
             }
             writeFile(commandFile, generated.fileContent, { force: true });
             commandsWritten++;
+        }
+
+        // 3. 会话级权限载体（.claude/settings.json）：补齐新增条目，失败仅告警不阻断
+        try {
+            permissionSettings.push(
+                mergePermissions(projectRoot, path.join(tool.skillsDir, SETTINGS_FILE), permissionEntries)
+            );
+        } catch (error) {
+            permissionSettings.push({
+                path: path.join(tool.skillsDir, SETTINGS_FILE).replaceAll('\\', '/'),
+                state: 'preserved-invalid',
+                added: 0,
+                note: `写入失败（已跳过，不影响产物刷新）：${(error as Error).message}`,
+            });
         }
     }
 
@@ -173,6 +204,7 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
         workflowsSource,
         injectedDeps: resolved.injected,
         reconcileOrphans,
+        permissionSettings,
     };
 }
 

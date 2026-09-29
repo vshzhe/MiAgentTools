@@ -106,6 +106,14 @@ interface WorkflowPair {
     command: CommandTemplate;
 }
 
+/**
+ * 斜杠指令模板（白名单已由配对技能回填）。
+ *
+ * `allowedTools` 在 `CommandTemplate` 侧可选（见 types.ts 说明），经 registry
+ * 单点回填后此处收敛为必填，供下游 `CommandContent`（必填）直接透传。
+ */
+type ResolvedCommandTemplate = CommandTemplate & { allowedTools: string };
+
 /** 全部内置技能（顺序即安装与展示顺序） */
 const WORKFLOW_PAIRS: WorkflowPair[] = [
     { skill: getTrInitProjectSkillTemplate(), command: getTrInitProjectCommandTemplate() },
@@ -176,7 +184,7 @@ export function getSkillTemplates(
 export function getCommandTemplates(
     typeFilter?: SkillType,
     workflowFilter?: readonly string[]
-): { template: CommandTemplate; id: string }[] {
+): { template: ResolvedCommandTemplate; id: string }[] {
     let pairs = WORKFLOW_PAIRS;
     if (typeFilter) {
         pairs = pairs.filter((p) => p.skill.type === typeFilter);
@@ -185,8 +193,9 @@ export function getCommandTemplates(
         const set = new Set(workflowFilter);
         pairs = pairs.filter((p) => set.has(deriveCommandId(p.skill.name)));
     }
+    // 单点回填：指令白名单与其配对技能的白名单保持完全一致
     return pairs.map(({ skill, command }) => ({
-        template: command,
+        template: { ...command, allowedTools: skill.allowedTools },
         id: deriveCommandId(skill.name),
     }));
 }

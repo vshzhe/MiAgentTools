@@ -1,7 +1,7 @@
 ---
 name: venus_spec_apply
 description: 实现变更。当 openspec/changes/ 下已有变更制品（proposal/specs/design/tasks），需要基于规格驱动实现任务清单时使用；用户直接描述需求而无变更制品时，应使用 venus_tr_impl_feature 直接实现。
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(ant:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(ant:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), Skill(tr_test_generate), Agent, Task
 license: MIT
 compatibility: 依赖 venus CLI（spec 命令组）。
 metadata:
@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:462eba1ab580d6076fa446e7ad0c6d0df918a58e64baa5280803795f775989ac"
+  generatedFingerprint: "sha256:a7a01ed1e5b33a8f8445c987b99ecb0ebc95cfd713aca439d18511a70201af77"
 ---
 
 **Before implementing, read openspec/rules/ai-coding.md for AI coding guardrails.** Never guess database fields, API params, or business rules — mark as **[待确认]** and ask the user.

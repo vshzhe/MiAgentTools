@@ -1,7 +1,7 @@
 ---
 name: venus_spec_propose
 description: 创建变更提案。当用户要快速描述想构建的内容并一步生成包含设计、规格和任务的完整提案时使用。
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Skill(spec_verify_proposal), Agent, Task
 license: MIT
 compatibility: 依赖 venus CLI（spec 命令组）与 CodeGraph MCP（可选）。
 metadata:
@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:00d20b1649bfb6e9d12b243f9bdcc72d605d8f8341b8e1d1252676d1cc3b8c50"
+  generatedFingerprint: "sha256:b1aa8dec13921ab28ea50c8e69652db955d62d5363b2b97e2d6d8a8c7d6d1097"
 ---
 
 Propose a new change - create the change and generate all artifacts in one step.

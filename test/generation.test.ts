@@ -49,19 +49,19 @@ describe('Claude 指令生成', () => {
 
     it('frontmatter 含 name/description/allowed-tools/category/tags', () => {
         const [{ template, id }] = getCommandTemplates('tr_tools');
-        const generated = generateCommand(
-            {
-                id,
-                name: template.name,
-                description: template.description,
-                category: template.category,
-                tags: template.tags,
-                body: template.content,
-            },
-            claudeAdapter
-        );
+        const content = {
+            id,
+            name: template.name,
+            description: template.description,
+            category: template.category,
+            tags: template.tags,
+            body: template.content,
+            // 白名单由配对技能派生（registry 单点回填），此处透传后逐值断言
+            allowedTools: template.allowedTools,
+        };
+        const generated = generateCommand(content, claudeAdapter);
         expect(generated.path).toContain('tr-tools-pwd.md');
-        expect(generated.fileContent).toContain('allowed-tools: Bash(venus:*)');
+        expect(generated.fileContent).toContain(`allowed-tools: ${content.allowedTools}`);
         // name 含冒号时被 YAML 转义为双引号包裹："Venus: 查看当前路径"
         expect(generated.fileContent).toContain(`name: "${template.name}"`);
         expect(generated.fileContent).toContain('description: 查看当前路径');

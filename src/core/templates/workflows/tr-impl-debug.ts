@@ -13,6 +13,7 @@ import {
     buildFlowchartCompact,
     FAULT_CHAIN_FLOW_COLUMNS,
 } from '../flowchart-gate.js';
+import { CODEGRAPH_MCP, skillDelegation } from '../tool-whitelist.js';
 
 /** 缺陷五维的提示词校验门全文（唯一源渲染，见 prompt-gate.ts） */
 const PROMPT_GATE_BUG = buildPromptGateBlock(BUG_DIMENSIONS);
@@ -579,7 +580,7 @@ Ready for \`/venus:spec-apply\` (fixes already applied) or archive.
 - **Independent change separation**: when user declares a bug needs a separate change, finalize current change and prompt separate debug
 - **Use \`path.join()\`** for all file paths (cross-platform: macOS/Linux/Windows)
 - **Terminology in real time**: resolved terms go to CONTEXT.md immediately during investigation`,
-        allowedTools: 'Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(codegraph:*), Bash(tsc:*), Bash(mvn:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*)',
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(codegraph:*), Bash(tsc:*), Bash(mvn:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), ${CODEGRAPH_MCP}, ${skillDelegation(['tr_test_generate', 'spec_verify_proposal', 'tr_impl_review_proposal', 'tr_docs_requirement_doc'])}`,
         type: 'tr_impl',
         license: 'MIT',
         compatibility: '依赖 venus CLI（spec 命令组）与 venus_spec_verify_proposal / venus_tr_docs_requirement_doc 技能；CodeGraph MCP 可选（不可用时降级 Glob/Grep）。',

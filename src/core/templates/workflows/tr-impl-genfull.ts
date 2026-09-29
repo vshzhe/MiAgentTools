@@ -17,6 +17,7 @@ import {
     buildFlowchartCompact,
     REQUIREMENT_FLOW_COLUMNS,
 } from '../flowchart-gate.js';
+import { CODEGRAPH_MCP, skillDelegation } from '../tool-whitelist.js';
 
 /** 需求维度的提示词校验门全文（唯一源渲染，见 prompt-gate.ts） */
 const PROMPT_GATE = buildPromptGateBlock(REQUIREMENT_DIMENSIONS);
@@ -323,7 +324,7 @@ Stage 1 探索 → Bridge 1 → [Stage 1.5 前端设计（条件）] → Stage 2
 - **Do show quantified scores** - verify 评分展示
 - **Don't lose exploration** - 文件持久化
 - Build all paths with \`path.join()\``,
-        allowedTools: 'Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*)',
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), ${CODEGRAPH_MCP}, ${skillDelegation(['spec_explore', 'tr_impl_frontend', 'spec_propose', 'tr_impl_review_proposal', 'tr_docs_requirement_doc', 'spec_apply', 'tr_test_generate', 'spec_archive'])}`,
         type: 'tr_impl',
         license: 'MIT',
         compatibility: '依赖 venus CLI（spec 命令组）与阶段技能（venus_spec_explore/propose/apply/archive + venus_tr_impl_review_proposal + venus_tr_docs_requirement_doc + venus_tr_impl_frontend + venus_tr_test_generate）；CLI 缺失时各阶段技能各自降级。',

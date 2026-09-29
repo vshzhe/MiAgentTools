@@ -8,10 +8,7 @@
 import path from 'path';
 import type { CommandContent, ToolCommandAdapter } from '../types.js';
 import { escapeYamlValue, formatTagsArray } from '../yaml.js';
-import { COMMAND_NAMESPACE, TOOL_COMMANDS_SUBDIR } from '../../config.js';
-
-/** 技能正文中引用 CLI 命令的 allowed-tools 白名单 */
-export const VENUS_CLI_ALLOWED_TOOLS = `Bash(${COMMAND_NAMESPACE}:*)`;
+import { TOOL_COMMANDS_SUBDIR } from '../../config.js';
 
 export const claudeAdapter: ToolCommandAdapter = {
     toolId: 'claude',
@@ -24,7 +21,7 @@ export const claudeAdapter: ToolCommandAdapter = {
         return `---
 name: ${escapeYamlValue(content.name)}
 description: ${escapeYamlValue(content.description)}
-allowed-tools: ${VENUS_CLI_ALLOWED_TOOLS}
+allowed-tools: ${content.allowedTools}
 category: ${escapeYamlValue(content.category)}
 tags: ${formatTagsArray(content.tags)}
 ---

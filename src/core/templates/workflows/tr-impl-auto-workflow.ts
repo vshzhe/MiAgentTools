@@ -13,6 +13,7 @@ import {
     buildFlowchartCompact,
     REQUIREMENT_FLOW_COLUMNS,
 } from '../flowchart-gate.js';
+import { CODEGRAPH_MCP, SUBAGENT_DISPATCH, skillDelegation } from '../tool-whitelist.js';
 
 /** 需求维度的提示词校验门全文（唯一源渲染，见 prompt-gate.ts） */
 const PROMPT_GATE = buildPromptGateBlock(REQUIREMENT_DIMENSIONS);
@@ -627,7 +628,7 @@ After auto-archive completes:
 - **Do inject capability memory** - Phase 1 reads specs/<capability>/explorations.md when it exists
 - **Do scan other projects with CodeGraph** - When exploration context contains other project paths, spawn sub-agent to scan them using CodeGraph projectPath parameter; fall back to Glob/Grep on failure
 - **Don't lose exploration** - File persists even on abandon (unless deleted)`,
-        allowedTools: 'Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(mvn:*), Bash(gradle:*), Bash(ant:*), Bash(go:*), Bash(cargo:*), Bash(git:*), Bash(codegraph:*), Bash(ls:*), Bash(mv:*)',
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(mvn:*), Bash(gradle:*), Bash(ant:*), Bash(go:*), Bash(cargo:*), Bash(git:*), Bash(codegraph:*), Bash(ls:*), Bash(mv:*), ${CODEGRAPH_MCP}, ${skillDelegation(['spec_verify_proposal', 'tr_impl_review_proposal', 'tr_docs_requirement_doc'])}, ${SUBAGENT_DISPATCH}`,
         type: 'tr_impl',
         license: 'MIT',
         compatibility: '依赖 venus CLI（spec 命令组）与 spec 系列技能（venus_spec_apply / venus_spec_archive）；CLI 缺失时降级为 AI 内联生成。',

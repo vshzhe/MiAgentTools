@@ -1,7 +1,7 @@
 ---
 name: venus_tr_impl_workflow
 description: One-stop guided workflow from exploration to task generation with verification phase. Creates persistent exploration files, asks clarifying questions until clear (grill-with-docs, L1-L5 per-level confirmation gates), generates all artifacts inline, then auto-verifies before implementation. Use when the user wants a guided workflow with追问 (grill-with-docs) questioning and automatic quality verification (一站式工作流 / guided workflow / workflow from exploration). NOT for fully automated pipeline (use venus_tr_impl_auto_workflow), single-stage exploration (use venus_spec_explore), or debugging (use venus_tr_impl_debug).
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), Bash(ls:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), Bash(ls:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_verify_proposal), Skill(tr_impl_review_proposal), Skill(tr_docs_requirement_doc), Agent, Task
 license: MIT
 compatibility: 依赖 venus CLI（spec 命令组）；CLI 缺失时降级为 AI 内联生成（CLI-degraded generation）。
 metadata:
@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:c3419be75b2d66c1245e22f484aa30df7a7b223414a80d6d5d7bfd2a14317ab8"
+  generatedFingerprint: "sha256:e0127a593a9cc3ef2c4b07dfc2c964614e80156d8f80fdca92ec3a3d525b1639"
 ---
 
 **Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** In Phase 1 (Exploration), follow Section 1 (Zero-Assumption). In Phase 2 (Proposal), follow Section 2 (Design-First). In Phase 3 (Verification), check Sections 3-5 for compliance.

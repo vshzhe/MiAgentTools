@@ -1,7 +1,7 @@
 ---
 name: venus_tr_impl_debug
 description: "一站式调试工作流 reproduce→investigate root cause with CodeGraph and capability memory→change association→fix with mandatory regression test→compile check→synchronize proposal→verify；触发词\"调试 / debug / 修复 bug / bug 报告 / 复现 / 根因\"；NOT-for：新功能开发用 venus_tr_impl_feature、工作流编排用 venus_tr_impl_workflow"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(codegraph:*), Bash(tsc:*), Bash(mvn:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(codegraph:*), Bash(tsc:*), Bash(mvn:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(tr_test_generate), Skill(spec_verify_proposal), Skill(tr_impl_review_proposal), Skill(tr_docs_requirement_doc)
 license: MIT
 compatibility: 依赖 venus CLI（spec 命令组）与 venus_spec_verify_proposal / venus_tr_docs_requirement_doc 技能；CodeGraph MCP 可选（不可用时降级 Glob/Grep）。
 metadata:
@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:4e7c3b52f58e4d7f030da405d70642e3f17f33a8237e9d10024622945baceb1a"
+  generatedFingerprint: "sha256:dc11294000bf2c0e7ff88f242c5aac25ebb90869736cc5125f3f152aa7057f23"
 ---
 
 **Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** In Phase 1 (Reproduce), follow Section 1 (Zero-Assumption). In Phase 4 (Fix), follow Section 3 (Data & Storage) when schema changes are involved. In Phase 6 (Synchronization), check Sections 2 (Design-First) for the confirmation gate.

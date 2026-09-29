@@ -57,6 +57,15 @@ export interface CommandTemplate {
     tags: string[];
     /** 指令正文 */
     content: string;
+    /**
+     * allowed-tools 白名单（frontmatter allowed-tools）。
+     *
+     * **可选**：27 个指令模板工厂各自返回字面量、彼此不知道配对技能，若设为必填
+     * 会迫使白名单复制 27 份（第二份真源，必然漂移）。因此本字段由 registry.ts
+     * 在成对映射处**单点回填**配对技能的 `allowedTools`，产物侧经
+     * `CommandContent.allowedTools`（必填）强制校验。
+     */
+    allowedTools?: string;
 }
 
 /** 技能模板注册项：模板 + 派生的指令 id（斜杠指令文件名，如 tr-tools-pwd） */

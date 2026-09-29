@@ -5,6 +5,7 @@ import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
 import { buildPromptGateBlock, REQUIREMENT_DIMENSIONS } from '../prompt-gate.js';
 import { buildFlowchartBlock, REQUIREMENT_FLOW_COLUMNS } from '../flowchart-gate.js';
+import { CODEGRAPH_MCP } from '../tool-whitelist.js';
 
 /** 需求维度的提示词校验门全文（唯一源渲染，见 prompt-gate.ts） */
 const PROMPT_GATE = buildPromptGateBlock(REQUIREMENT_DIMENSIONS);
@@ -16,7 +17,7 @@ export function getSpecExploreSkillTemplate(): SkillTemplate {
     return {
         name: 'venus_spec_explore',
         description: '进入探索模式。当用户想要在变更前或变更中思考问题、调研代码库、明确需求时使用。',
-        allowedTools: 'Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*)',
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), ${CODEGRAPH_MCP}`,
         type: 'spec',
         instructions: `**Before exploring, read openspec/rules/ai-coding.md for AI coding guardrails.** When encountering undefined database fields, business logic, or API parameters, mark them as **[待确认]** and ask the user rather than guessing.
 

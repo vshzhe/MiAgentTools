@@ -187,3 +187,81 @@ describe('workflowFilter 过滤', () => {
         expect(getCommandTemplates(undefined, [])).toEqual([]);
     });
 });
+
+describe('对话级确认门未被白名单改动侵蚀', () => {
+    const skills = getSkillTemplates();
+
+    /** 接入两个确认门的 5 个工作流技能 */
+    const GATED_SKILLS = [
+        'venus_spec_explore',
+        'venus_tr_impl_workflow',
+        'venus_tr_impl_auto_workflow',
+        'venus_tr_impl_debug',
+        'venus_tr_impl_genfull',
+    ];
+
+    /** 提示词校验门关键标识句（优化输出、四条出口） */
+    const PROMPT_GATE_MARKS = [
+        '提示词校验门',
+        '【优化后提示词】',
+        '优化说明',
+        '出口有四条',
+        '显式授权按推断',
+    ];
+
+    /** 功能流程图门关键标识句（段落要求、最终确认门、节点清单） */
+    const FLOWCHART_GATE_MARKS = [
+        '## 功能流程图',
+        '功能流程图（Functional Flowchart）',
+        '流程最终确认门（阻塞）',
+        '出口有四条',
+        '节点清单',
+    ];
+
+    /** 断言判据：正文含提示词校验门的全部关键标识句 */
+    function expectPromptGate(name: string, instructions: string): void {
+        for (const mark of PROMPT_GATE_MARKS) {
+            expect(instructions, `${name} 提示词校验门标识句缺失：${mark}`).toContain(mark);
+        }
+    }
+
+    /** 断言判据：正文含功能流程图门的全部关键标识句 */
+    function expectFlowchartGate(name: string, instructions: string): void {
+        for (const mark of FLOWCHART_GATE_MARKS) {
+            expect(instructions, `${name} 功能流程图门标识句缺失：${mark}`).toContain(mark);
+        }
+    }
+
+    it('5 个含门技能的提示词校验门与功能流程图门标识句仍然存在', () => {
+        expect(GATED_SKILLS.length).toBe(5);
+        for (const name of GATED_SKILLS) {
+            const skill = skills.find((s) => s.template.name === name);
+            expect(skill, `技能 ${name} 未注册`).toBeDefined();
+            const instructions = skill?.template.instructions ?? '';
+            expectPromptGate(name, instructions);
+            expectFlowchartGate(name, instructions);
+        }
+    });
+
+    it('判据拦截力：门标识句被改动后判定失败', () => {
+        const instructions =
+            skills.find((s) => s.template.name === 'venus_spec_explore')?.template.instructions ?? '';
+        // 未改动时判据通过（排除判据恒失败造成的假保护）
+        expect(() => expectPromptGate('venus_spec_explore', instructions)).not.toThrow();
+        expect(() => expectFlowchartGate('venus_spec_explore', instructions)).not.toThrow();
+        // 优化输出标识被篡改 / 最终确认门被删除 → 对应判据必须失败
+        // （标识句在全文可出现多次，故用 replaceAll 全量改写后再验证判据）
+        expect(() =>
+            expectPromptGate(
+                'venus_spec_explore',
+                instructions.replaceAll('【优化后提示词】', '【提示词】')
+            )
+        ).toThrow();
+        expect(() =>
+            expectFlowchartGate(
+                'venus_spec_explore',
+                instructions.replaceAll('流程最终确认门（阻塞）', '流程确认门')
+            )
+        ).toThrow();
+    });
+});
