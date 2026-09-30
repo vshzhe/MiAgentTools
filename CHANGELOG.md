@@ -9,6 +9,31 @@
 
 （暂无）
 
+## [1.8.0] - 2026-09-30
+
+### Changed
+
+- **探索文件改为提案生成时移动并删除源件**（变更 `improve-workflow-artifact-dataflow`）：
+  `openspec/explorations/*.md` 由「持久化探索记录」改为探索期的**暂存**文件 —— 提案生成
+  时**移动**（非复制）为变更目录的 `exploration.md`，移动成功且目标校验通过后删除暂存区
+  源件，**流程中只保留一份**；移动失败保留源件。规则**不追溯**搬迁或删除生效前的历史文件。
+- **评审需求文档改为归档时生成**：`需求文档.md` 不再由提案校验后的各工作流生成，改由
+  `venus_spec_archive` 的**预归档检查点（步骤 4.8）**与 `venus_spec_bulk_archive` 的
+  平行步骤（a.6）从**最终制品**生成，随后随归档目录迁移至 `openspec/devdocs/`。原 4 条
+  「校验通过后生成」链路（`tr-impl-workflow` / `tr-impl-auto-workflow` / `tr-impl-genfull` /
+  `tr-impl-debug`）全部移除；故提案校验通过、甚至实现完成后该文件可能尚不存在，属预期行为。
+- **调试侧「生成 / 就地增量对齐」双分支能力整体迁移至归档侧**：原 `venus_tr_impl_debug`
+  Phase 7.3 的存在性判定与**人工域保护**（`## 基本信息` 与 `## 八、评审记录` 逐字保留，
+  一~七按当前制品重新派生）迁为归档生成的「已存在」分支，调试流程不再触碰需求文档。
+- **依赖注入调整，默认生效集由 8 项变为 9 项**：`spec-archive` / `spec-bulk-archive` 新增
+  依赖 `tr-docs-requirement-doc`，故 `resolveWorkflows()` 在默认显式集（8 项）之外注入
+  该技能，生效集为 **9 项**。未配置 `workflows` 的项目执行 `venus update` 后自动补齐并提示。
+- **白名单随委派面同增同减**：`spec-archive` / `spec-bulk-archive` 各补
+  `Skill(tr_docs_requirement_doc)`；`tr-impl-workflow` / `tr-impl-debug` /
+  `tr-impl-genfull` 剔除该条目；`tr-impl-auto-workflow` 因 Phase 5 内联归档步骤仍委派而保留。
+- **术语同步**（`openspec/CONTEXT.md`）：「探索文件」「人工域」「就地增量对齐」
+  「工作流技能套件」改写触发主体与语义，新增「归档生成制品」。
+
 ## [1.7.0] - 2026-09-28
 
 ### Added
@@ -493,7 +518,8 @@
 - 项目配置从单文件 `venus.config.yaml` 重构为 `.venus/` 目录结构
   （`config.yaml` 显式引用 `rules/` 下规则文件），重复 init 保留用户全部修改
 
-[Unreleased]: https://github.com/venus-agent-tools/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/venus-agent-tools/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/venus-agent-tools/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/venus-agent-tools/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/venus-agent-tools/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/venus-agent-tools/compare/v1.3.1...v1.5.0

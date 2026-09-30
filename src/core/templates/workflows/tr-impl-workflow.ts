@@ -1,6 +1,6 @@
 /**
  * tr_impl 类型技能模板：引导工作流（探索→提案→验证一站式）。
- * 引导式工作流 —— 结构化探索（grill 追问 L1-L5）→ 提案内联生成 → 自动验证门 → 深度复查与需求文档联动。
+ * 引导式工作流 —— 结构化探索（grill 追问 L1-L5）→ 提案内联生成 → 自动验证门 → 深度复查收束（需求文档改由归档阶段生成）。
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import {
@@ -946,7 +946,7 @@ Before creating change directory and migrating exploration file:
 #### Migration Failure Recovery
 
 **If migration fails**:
-- Preserve source file unchanged
+- Preserve source file (MUST NOT delete it on the failure path)
 - Clean up partial destination file
 - Report error with specific failure reason
 - Offer retry or manual migration instructions
@@ -1049,35 +1049,20 @@ Destination: openspec/changes/<change-name>/exploration.md
 
 **Cross-platform**: Use \`path.join()\` for all paths.
 
-**Failure handling**:
-- If migration fails, preserve source file
-- Report error with specific reason
-- Offer retry or manual migration
+**Move semantics (no original copy is kept)**:
 
-**Post-Migration: Source File Preservation** (Task 7.1):
+1. **Move, do not copy** — the exploration file is MOVED into the change directory; the same exploration content MUST end up with exactly ONE resident copy in the flow.
 
-After successful migration, system MUST preserve the source exploration file (do NOT delete):
+2. **Delete the source on success**:
+   - **Migration succeeded**: verify the destination file exists, then DELETE \`openspec/explorations/<keyword>-explore-<sequence>.md\` and log "Source exploration file removed (moved): <path>"
+   - **Migration failed**: preserve the source file (MUST NOT delete), report the specific reason, offer retry or manual migration
+   - **Partial migration**: if the destination file exists but verification failed, delete the unverified destination copy and keep the source file
 
-1. **Keep source file** at \`openspec/explorations/<keyword>-explore-<sequence>.md\`
-   - Use \`path.join()\` for cross-platform path
-   - Source file is retained for reference after migration success
-
-2. **Preservation rules**:
-   - **Migration succeeded**: Keep source file, log "Source exploration file preserved: <path>"
-   - **Migration failed**: Preserve source file, do NOT delete
-   - **Partial migration**: If destination file exists but verification failed, keep source file
-
-3. **Log preservation status**:
-   - Success: "✓ Source file preserved (not deleted): <path>"
-   - Skipped: "Source file preserved (migration failed): <path>"
-
-**Checkpoint Enforcement**:
-- System MUST verify migration success before cleaning up source file
-- If migration fails, system MUST preserve source file
-- System MUST log preservation action for transparency
+3. **Only this migration** — MUST NOT retroactively migrate, read, or delete pre-existing historical files in \`openspec/explorations/\`; files produced before this rule keep their original location for traceability
 
 **Checkpoint Enforcement**:
 - System MUST verify migration success before proceeding to artifact generation
+- If migration succeeds, the source file MUST be deleted (leaving no second copy behind)
 - If migration fails, system MUST preserve source file
 - User MUST be informed of migration status and any errors
 
@@ -1388,15 +1373,11 @@ When ALL dimensions PASS (≥90%):
 
 If user wants to skip the deep review, they can interrupt. Otherwise it runs automatically.
 
-5. **Auto-generate requirement document** — After deep review completes, invoke the \`venus_tr_docs_requirement_doc\` **skill** (via Skill tool) in **non-interactive mode**:
-   - Markdown format, placeholder basic information (需求编号/需求名称/交付时间 as placeholders)
-   - Do NOT ask the user any questions
-   - Output: \`openspec/changes/<change-name>/需求文档.md\`
-   - Display the generated document path alongside the verification report
-   - **Failure handling**: if generation fails or is interrupted, log WARN with the reason and CONTINUE the workflow — the user can re-run the skill standalone later
+5. **Converge after the deep review — do NOT generate the requirement document** — the requirement document is produced by the ARCHIVE phase (see the pre-archive requirement-document generation checkpoint of \`venus_spec_archive\`). This skill MUST NOT invoke \`venus_tr_docs_requirement_doc\`, MUST NOT align an existing requirement document in place, and MUST NOT ask the user for document basic information. After the deep review completes, converge the verification phase and report the change as apply-ready.
+   - Rationale: generating the document here would freeze a document that the implementation phase is about to invalidate; the archive phase generates it from the FINAL artifacts
 
-> "Deep review complete. Auto-generating requirement document..."
-> "✓ 需求文档已生成: openspec/changes/<change-name>/需求文档.md"
+> "Deep review complete."
+> "Requirement document: deferred to archive time — run /venus:spec-archive to generate it from the final artifacts."
 
 ### 3.6 Verification Fail → Auto-Fix and Re-run
 
@@ -1501,14 +1482,14 @@ Re-run Overall Score: 92% (≥90%, PASS) → auto-triggering venus_tr_impl_revie
 
 [deep review results displayed]
 
-✓ 需求文档已生成: openspec/changes/add-user-auth/需求文档.md
+Requirement document: deferred to archive time (generated from the final artifacts).
 
 ## Verification Complete ✓
 
 All artifacts ready! Run \`/venus:spec-apply\` to implement.
 \`\`\`
 
-### Example 2: Direct Pass with Requirement Document Generation
+### Example 2: Direct Pass (Requirement Document Deferred to Archive)
 
 \`\`\`
 ## Exploration Phase
@@ -1562,8 +1543,8 @@ Overall Score: 95% (≥90%, PASS) → auto-triggering venus_tr_impl_review_propo
 
 [deep review results displayed]
 
-Deep review complete. Auto-generating requirement document...
-✓ 需求文档已生成: openspec/changes/complex-refactor/需求文档.md
+Deep review complete.
+Requirement document: deferred to archive time — run /venus:spec-archive to generate it from the final artifacts.
 
 ## Verification Complete ✓
 
@@ -1615,8 +1596,8 @@ All artifacts ready! Run \`/venus:spec-apply\` to implement.
 - **Do log checkpoint status** - Inform user of file creation, verification, migration status
 - **Do inject capability memory** - Phase 1 reads specs/<capability>/explorations.md when it exists
 - **Do scan other projects with CodeGraph** - When exploration context contains other project paths, spawn sub-agent to scan them using CodeGraph projectPath parameter; fall back to Glob/Grep on failure
-- **Do auto-generate requirement doc** - After full pass (D1-D5 + deep review), invoke venus_tr_docs_requirement_doc non-interactively; on FAIL do not generate; on generation failure WARN and continue`,
-        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), Bash(ls:*), ${CODEGRAPH_MCP}, ${skillDelegation(['spec_verify_proposal', 'tr_impl_review_proposal', 'tr_docs_requirement_doc'])}, ${SUBAGENT_DISPATCH}`,
+- **Do converge after the deep review** - After full pass (D1-D5 + deep review), stop and report apply-ready; the requirement document is generated by the ARCHIVE phase, never by this workflow`,
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), Bash(ls:*), ${CODEGRAPH_MCP}, ${skillDelegation(['spec_verify_proposal', 'tr_impl_review_proposal'])}, ${SUBAGENT_DISPATCH}`,
         type: 'tr_impl',
         license: 'MIT',
         compatibility: '依赖 venus CLI（spec 命令组）；CLI 缺失时降级为 AI 内联生成（CLI-degraded generation）。',
@@ -1627,7 +1608,7 @@ All artifacts ready! Run \`/venus:spec-apply\` to implement.
 export function getTrImplWorkflowCommandTemplate(): CommandTemplate {
     return {
         name: 'Venus: 引导工作流',
-        description: '一站式引导工作流：结构化探索（grill 追问 L1-L5）→ 提案内联生成 → 自动验证门 → 深度复查与需求文档联动',
+        description: '一站式引导工作流：结构化探索（grill 追问 L1-L5）→ 提案内联生成 → 自动验证门 → 深度复查收束（需求文档由归档阶段生成）',
         category: 'Venus / 实现',
         tags: ['venus', 'tr_impl', 'workflow', 'exploration', 'verification'],
         content: `**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.**
@@ -2113,7 +2094,7 @@ Destination: openspec/changes/<change-name>/exploration.md
 
 **Cross-platform**: Use \`path.join()\` for all paths.
 
-**Post-Migration**: Source file is preserved (not deleted) — consistent with venus_tr_impl_auto_workflow behavior.
+**Post-Migration**: On successful migration (destination verified) the source exploration file is DELETED — the flow keeps exactly one copy, inside the change directory — consistent with venus_tr_impl_auto_workflow behavior. On migration failure the source file is preserved and the error reported.
 
 ### 2.4 Artifact Generation (Inline)
 
@@ -2205,12 +2186,11 @@ During inline generation, handle CLI failures:
 **PASS (≥90%)**:
 - Auto-execute deep review (\`venus_tr_impl_review_proposal\` skill via Skill tool, no [Yes/No] prompt, user can interrupt to skip; fallback to main-workflow inline read-only deep review + WARN on skill unavailable or call failure — never silently skip)
 - Display results alongside verification report
-- **Auto-generate requirement document**: after deep review completes, invoke the \`venus_tr_docs_requirement_doc\` skill (via Skill tool) in non-interactive mode (Markdown, placeholder basic info); output to \`openspec/changes/<change-name>/需求文档.md\`; display the document path; on generation failure log WARN and continue
+- **Converge — do NOT generate the requirement document**: the document is produced by the ARCHIVE phase (per \`venus_spec_archive\`'s pre-archive requirement-document checkpoint); after the deep review converges, report the change as apply-ready
 
 **FAIL (<90%)**:
 - Auto-generate fix suggestions and apply fixes
 - Re-run verification automatically
-- Do NOT generate the requirement document until fixes pass re-verification
 - If still FAIL: [Manual edit] [Return to exploration] [View detailed diff] (no skip-to-apply path)
 
 ## Output
@@ -2262,7 +2242,7 @@ Ready for \`/venus:spec-apply\`
 | D5: Pending | 100% | PASS |
 
 Overall: 99% → deep review complete →
-✓ 需求文档已生成: openspec/changes/<change-name>/需求文档.md
+Requirement document: deferred to archive time
 
 Ready for \`/venus:spec-apply\`
 \`\`\`
@@ -2277,7 +2257,7 @@ Ready for \`/venus:spec-apply\`
 - Read-only passthrough does not cover clarification gates - grill L1-L5 clarification gates still wait for user confirmation
 - Don't offer method selection - Phase 2 proceeds directly to inline propose-style generation
 - Do auto-verify - automatically verify after proposal
-- Do auto-generate requirement doc - after full pass, invoke venus_tr_docs_requirement_doc non-interactively; never generate on FAIL; WARN and continue on generation failure
+- Do converge after the deep review - after full pass, stop and report apply-ready; the requirement document is generated by the ARCHIVE phase, never by this workflow
 - Do inject capability memory - Phase 1 reads specs/<capability>/explorations.md when it exists
 - Do scan other projects with CodeGraph - When exploration context contains other project paths, spawn sub-agent to scan them using CodeGraph projectPath parameter; fall back to Glob/Grep on failure
 - Don't lose exploration - file persists

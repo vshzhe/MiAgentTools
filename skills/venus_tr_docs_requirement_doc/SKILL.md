@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: tr_docs
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:db0473014449675a261e20865c8bd342ac6e35c5dfde5b2b1d93ff30f8251aa1"
+  generatedFingerprint: "sha256:0ca7426546123376e186361948be6001f14dad7646d8abbdbd7980c3738ca46c"
 ---
 
 **Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** Mark undefined items as **[待确认]** and ask the user rather than guessing.
@@ -42,10 +42,11 @@ Record the archive status from where the proposal files are found — it determi
   - 原始需求 (original requirement text, optional paste)
 - Skipped fields use placeholders the user can fill in later.
 
-**Non-interactive mode (when invoked from the workflow verification phase)**:
+**Non-interactive mode (when invoked from a workflow)**:
 - Do NOT ask any questions.
 - Use Markdown format, placeholder basic information.
 - The user can re-run this skill standalone later to fill in details.
+- **Caller note (自动调用方唯一化为归档)**: the only workflow that automatically invokes this skill is the ARCHIVE phase (`venus_spec_archive` pre-archive checkpoint step 4.8, plus its parallel step in `venus_spec_bulk_archive`), which generates the document from the FINAL artifacts right before the archive move. `venus_tr_impl_workflow` / `venus_tr_impl_auto_workflow` / `venus_tr_impl_debug` / `venus_tr_impl_genfull` MUST NOT invoke it. **Manual invocation stays available at any stage** — standalone mode below is unchanged.
 
 ## Step 3: Read the change artifacts
 
@@ -219,6 +220,7 @@ Routing rules:
 - When the archive directory name has no parseable `YYYY-MM-DD-` prefix, fall back to `openspec/devdocs/{change-name}-需求文档.md` without a timestamp
 - Create the target directory if missing (devdocs or change directory), using `path.join()`
 - When the target file already exists, overwrite it silently — regeneration is idempotent and must not block on questions
+- **This silent-overwrite rule is intentional and MUST NOT be softened**: protecting human-authored content is the CALLER's duty. Callers that may face an already-reviewed document (the archive checkpoints) MUST detect the existing file themselves and take the in-place alignment branch instead of calling this skill — see `venus_spec_archive` step 4.8. This skill therefore stays a pure "produce the document" primitive.
 
 ## Output verification
 

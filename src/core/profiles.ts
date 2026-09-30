@@ -27,26 +27,30 @@ export const DEFAULT_WORKFLOWS: readonly string[] = [
 
 /** 依赖注入规则表：key 依赖 value（用户选了 key 但漏了 value 时自动补全 value）。
  *  - spec-propose ⇒ spec-verify-proposal（规则文件：提案实现前必须通过评分门）
- *  - spec-archive / spec-bulk-archive ⇒ spec-verify（verify 职责：实现完成后、归档前验证）
+ *  - spec-archive / spec-bulk-archive ⇒ spec-verify + tr-docs-requirement-doc
+ *    （spec-verify：实现完成后、归档前验证；tr-docs-requirement-doc：预归档需求文档生成检查点
+ *    经 Skill 工具委派该技能，被委派技能必须可得 —— 与 spec-propose ⇒ spec-verify-proposal 同构）
+ *  - 默认集后果：DEFAULT_WORKFLOWS 显式项仍为 8，但 spec-archive 在集内且依赖 tr-docs-requirement-doc，
+ *    故未配置 workflows 时实际安装 9 项（8 显式 + 1 注入）
  *  - tr-impl-auto-migration ⇒ tr-docs-feature-doc + tr-impl-migration-check
  *    （编排技能 Phase 1 源项目扫描与 Phase 4 迁移检查依赖两子技能）
- *  - tr-impl-workflow ⇒ tr-impl-review-proposal + tr-docs-requirement-doc
- *    （验证 PASS 后深度复查与需求文档生成依赖两技能）
+ *  - tr-impl-workflow ⇒ tr-impl-review-proposal
+ *    （验证 PASS 后只做深度复查；需求文档改由归档阶段生成，故不再注入该技能）
  *  - tr-impl-auto-workflow ⇒ tr-impl-workflow + tr-docs-requirement-doc
- *    （Phase 1-3 与引导工作流同构，Phase 3.3 生成需求文档）
+ *    （Phase 1-3 与引导工作流同构；Phase 5 内联执行归档步骤，其中包含需求文档生成检查点，仍委派该技能）
  *  - tr-impl-genfull ⇒ spec-explore + spec-propose + spec-apply + spec-archive
- *    + tr-impl-frontend + tr-test-generate + tr-impl-review-proposal + tr-docs-requirement-doc
- *    （引导式全流程编排：委派 8 个阶段技能；spec-verify-proposal 由 spec-propose 传递注入，
- *    spec-verify 由 spec-archive 传递注入，不在此重复列出）
- *  - tr-impl-debug ⇒ tr-docs-requirement-doc + spec-verify-proposal
- *    （P7 验证调用两技能）
+ *    + tr-impl-frontend + tr-test-generate + tr-impl-review-proposal
+ *    （引导式全流程编排：委派 7 个阶段技能；spec-verify-proposal 由 spec-propose 传递注入，
+ *    spec-verify 与 tr-docs-requirement-doc 由 spec-archive 传递注入，不在此重复列出）
+ *  - tr-impl-debug ⇒ spec-verify-proposal
+ *    （P7 验证调用；需求文档不在 debug 范围内，故不再注入该技能）
  *  - spec-apply 不注入（apply 时假设 propose 阶段已过评分门，避免冗余） */
 export const DEPS: Record<string, readonly string[]> = {
     'spec-propose': ['spec-verify-proposal'],
-    'spec-archive': ['spec-verify'],
-    'spec-bulk-archive': ['spec-verify'],
+    'spec-archive': ['spec-verify', 'tr-docs-requirement-doc'],
+    'spec-bulk-archive': ['spec-verify', 'tr-docs-requirement-doc'],
     'tr-impl-auto-migration': ['tr-docs-feature-doc', 'tr-impl-migration-check'],
-    'tr-impl-workflow': ['tr-impl-review-proposal', 'tr-docs-requirement-doc'],
+    'tr-impl-workflow': ['tr-impl-review-proposal'],
     'tr-impl-auto-workflow': ['tr-impl-workflow', 'tr-docs-requirement-doc'],
     'tr-impl-genfull': [
         'spec-explore',
@@ -56,9 +60,8 @@ export const DEPS: Record<string, readonly string[]> = {
         'tr-impl-frontend',
         'tr-test-generate',
         'tr-impl-review-proposal',
-        'tr-docs-requirement-doc',
     ],
-    'tr-impl-debug': ['tr-docs-requirement-doc', 'spec-verify-proposal'],
+    'tr-impl-debug': ['spec-verify-proposal'],
 };
 
 /** resolveWorkflows 结果 */

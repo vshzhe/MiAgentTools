@@ -291,6 +291,8 @@ describe('调用类白名单条目（MCP / Skill 委派 / 子代理派发）', (
         // 委派技能集合（回归锁）：白名单声明委派即意味着该技能正文存在委派动作
         expect(delegating.map((s) => s.commandId).sort()).toEqual([
             'spec-apply',
+            'spec-archive',
+            'spec-bulk-archive',
             'spec-propose',
             'tr-impl-auto-migration',
             'tr-impl-auto-workflow',

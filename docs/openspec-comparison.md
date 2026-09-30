@@ -99,7 +99,7 @@
 
 - **Venus**：
   - 检测 `openspec/explorations/*.md`，存在时**必须**让用户选择关联/跳过（不允许静默跳过）
-  - 关联后迁移为 `changes/<name>/exploration.md`
+  - 关联后**移动**为 `changes/<name>/exploration.md`（成功即删除源文件，失败保留；不追溯历史文件）
   - 探索内容定向传递：Decisions→proposal / Analysis→design / Questions→specs /
     Codebase Findings→tasks
   - 联动 CONTEXT.md 术语表检查（缺失自动同步/生成）
@@ -182,13 +182,14 @@
 
 ## 5. archive：增强功能点
 
-### 5.1 三个 MANDATORY 归档前检查点
+### 5.1 四个 MANDATORY 归档前检查点
 
 | 检查点 | Venus 行为 | OpenSpec 对应 |
 | :--- | :--- | :--- |
 | 4.5 CONTEXT.md 术语同步 | 存在则补充缺失术语；不存在则从 proposal（领域术语）+ design（技术术语）自动创建 | 无术语表机制 |
 | 4.6 CodeGraph 状态检查 | `codegraph status` 单一检测（禁止 Glob 预检 `.codegraph/`——dot 目录假阴性） | 无 |
 | 4.7 探索记忆同步 | 提取变更 exploration.md 的 Decisions/术语/边界场景，追加到 `specs/<capability>/explorations.md`；过时决策标"已过时"不删历史 | 无 |
+| 4.8 需求文档生成 | 不存在则委派 tr_docs_requirement_doc 非交互生成；已存在则就地增量对齐（人工域 `## 基本信息` / `## 八、评审记录` 原样保留、一~七节按当前制品重导，此分支不调技能）；失败 WARN 非阻断 | 无 |
 
 ### 5.2 CodeGraph 知识图谱同步 + 符号验证
 
@@ -203,9 +204,11 @@
   （扫描 tasks.md 类型标签）
 - **OpenSpec**：归档目录内无索引文件，变更历史需自行翻目录
 
-### 5.4 需求文档归档（devdocs）
+### 5.4 需求文档归档生成与归集（devdocs）
 
-- **Venus**：变更含 `需求文档.md` 时自动移动到 `openspec/devdocs/YYYY-MM-DD-<change-name>-需求文档.md`
+- **Venus**：**归档时生成**（不存在则委派 tr_docs_requirement_doc 自动生成；已存在则就地
+  增量对齐、保留人工填写的评审记录与基本信息）后**归集**到
+  `openspec/devdocs/YYYY-MM-DD-<change-name>-需求文档.md`
   （与 tr_docs_requirement_doc 八章节需求文档技能联动，形成"变更→评审文档"交付链）
 - **OpenSpec**：无需求文档概念
 

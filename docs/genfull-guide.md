@@ -31,14 +31,14 @@ genfull 是**引导式全流程编排器**——把 OpenSpec 生命周期（探�
 │                venus_tr_impl_genfull（编排层）                  │
 │  引导式全流程：委派阶段 SKILL + Bridge 1-3 桥梁门，贯穿到归档   │
 └──────────────────────────────────────────────────────────┬──────┘
-                                                           │ Skill 工具委派（8 个阶段技能）
+                                                           │ Skill 工具委派（7 个阶段技能）
                                                            ▼
 ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐
 │Stage 1       │ │Stage 1.5     │ │Stage 2       │ │Stage 3       │
 │spec_explore  │ │impl_frontend │ │spec_propose  │ │spec_apply    │
 │探索 grill    │ │（仅设计）    │ │提案（内含    │ │实现 auto-    │
-│L1-L5         │ │（条件）      │ │验证+复查+    │ │mode 分层+    │
-│              │ │              │ │需求文档）    │ │编译检查      │
+│L1-L5         │ │（条件）      │ │验证+复查     │ │mode 分层+    │
+│              │ │              │ │收束）        │ │编译检查      │
 └──────────────┘ └──────────────┘ └──────────────┘ └───────┬──────┘
                                                          3.2/3.3 条件
                                                ┌───────────┴─────────┐
@@ -70,7 +70,7 @@ Stage 4：spec_archive（归档 + 记忆闭环），由 Bridge 3 确认进入
 | 阶段门 | L1-L5 grill 门 | L1-L5 后全自动无门 | Bridge 1/2/3 + 子阶段确认门 |
 | 前端设计 | 无专门阶段 | 无 | **Stage 1.5 前端设计前置到 proposal** |
 | 条件子阶段 | 无 | 无 | has-frontend → frontend 实现；has-java-test → test |
-| 终点 | 需求文档完毕，等手动 apply/archive | 全流程闭环到归档（无门） | 全流程闭环到归档（每阶段桥梁确认） |
+| 终点 | 深度复查收束，等手动 apply/archive | 全流程闭环到归档（无门） | 归档完成（含需求文档生成），每阶段桥梁确认 |
 
 ## 1.3 NOT-for 边界（SKILL.md 原文）
 
@@ -84,10 +84,10 @@ Stage 4：spec_archive（归档 + 记忆闭环），由 Bridge 3 确认进入
 
 - **斜杠命令**：`/venus:tr-impl-genfull`
 - **触发词**：全流程编排 / genfull / 引导式全流程 / coupled stage workflow
-- **description**：引导式全流程编排器 explore→[frontend-design]→propose(+verify)→deep-review→requirement-doc→apply(+conditional frontend-impl/test)→archive，委派阶段 SKILL 并在阶段间设桥梁门，确保每个流程完整
-- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_explore), Skill(tr_impl_frontend), Skill(spec_propose), Skill(tr_impl_review_proposal), Skill(tr_docs_requirement_doc), Skill(spec_apply), Skill(tr_test_generate), Skill(spec_archive)`
-- **依赖**：venus CLI（spec 命令组）+ 8 个阶段技能（explore / frontend / propose / apply / archive /
-  review_proposal / requirement_doc / test_generate）；CLI 缺失时各阶段技能各自降级
+- **description**：引导式全流程编排器 explore→[frontend-design]→propose(+verify)→deep-review→apply(+conditional frontend-impl/test)→archive（归档阶段生成需求文档），委派阶段 SKILL 并在阶段间设桥梁门，确保每个流程完整
+- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_explore), Skill(tr_impl_frontend), Skill(spec_propose), Skill(tr_impl_review_proposal), Skill(spec_apply), Skill(tr_test_generate), Skill(spec_archive)`
+- **依赖**：venus CLI（spec 命令组）+ 7 个阶段技能（explore / frontend / propose / apply / archive /
+  review_proposal / test_generate）；需求文档技能由归档阶段委派（本技能不直接委派）；CLI 缺失时各阶段技能各自降级
 
 ## 2.1 前置条件
 
@@ -107,7 +107,7 @@ Phase 0  初始化
    │   Stage2 / Bridge2 / Stage3 / Bridge3 / Stage4）
    ├─ 0.1 actionContext.mode 检测（venus spec status --json；CLI 不可用
    │   则 Glob 扫描 openspec/changes/）
-   │   workspace-planning → 降级为"仅探索+提案+深度复查+需求文档"（Bridge 2 前停止）
+   │   workspace-planning → 降级为"仅探索+提案+深度复查"（Bridge 2 前停止）
    └─ 0.2 贯穿上下文初始化：change-name / has-frontend / has-java-test /
        tech-stack（待 Bridge 1 判定）
    │
@@ -129,15 +129,14 @@ Stage 1.5  前端设计（条件 has-frontend=true）—— 委派 venus_tr_impl
    └─ 设计确认门 = 桥梁点：用户确认设计方案后进入提案
    │
    ▼
-Stage 2  提案 + 深度复查 + 需求文档
+Stage 2  提案 + 深度复查
    2.1 委派 venus_spec_propose：创建变更目录、按依赖序生成四制品、
        迁移 exploration.md、同步 CONTEXT.md；
        propose 内部自动调用 venus_spec_verify_proposal（D1-D9 评分，90% 阈值）——
        FAIL 走内部 auto-fix 回路，仍 FAIL 暂停供用户决策（[手动编辑]/[返回探索]/[查看差异]）
    2.2 委派 venus_tr_impl_review_proposal：8 维度完整性只读复查
        （不可用时降级为编排器内联复查 + WARN，不静默跳过；用户可打断）
-   2.3 委派 venus_tr_docs_requirement_doc（非交互）：生成 需求文档.md
-       （失败/打断 → WARN 记录原因并继续）
+   2.3 收束 —— MUST NOT 生成需求文档（由归档阶段生成）
    │
    ▼
 Bridge 2  提案 → 实现（详见第 4 章）
@@ -164,8 +163,10 @@ Bridge 3  实现 → 归档（详见第 4 章）
    ▼
 Stage 4  归档 —— 委派 venus_spec_archive（传 change-name 跳过选择）
    ├─ archive 内部：delta spec 合并主规格、CONTEXT.md 同步、探索记忆同步
-   │   specs/<cap>/explorations.md、目录迁移 archive/、ARCHIVE-INDEX.md 更新、
-   │   需求文档迁移 devdocs/、条件 CodeGraph sync（全部 non-blocking，失败 WARN）
+   │   specs/<cap>/explorations.md、需求文档生成（4.8：不存在则委派生成；
+   │   已存在则就地增量对齐保人工域；失败 WARN 非阻断）、目录迁移 archive/、
+   │   ARCHIVE-INDEX.md 更新、需求文档迁移 devdocs/、条件 CodeGraph sync
+   │   （全部 non-blocking，失败 WARN）
    └─ 记忆闭环：归档写入的能力记忆供下一轮 propose 读取
 ```
 
@@ -190,9 +191,9 @@ Stage 4  归档 —— 委派 venus_spec_archive（传 change-name 跳过选择�
 
 | 步骤 | 检查项 | 行为 |
 | :--- | :--- | :--- |
-| ① 就绪检查 | 提案完整性 | proposal.md / design.md / specs/*.md / tasks.md 齐全（Glob 确认）+ verify PASS（≥90%）+ 深度复查已完成 + 需求文档已生成（或 WARN 跳过）+ apply instruction 状态 ready（`venus spec instructions apply --json`；CLI 不可用读 tasks.md 推断） |
-| ② 降级停止 | workspace-planning | Phase 0 检测到 workspace-planning 模式 → 在此停止，输出"探索+提案+深度复查+需求文档完成，不进入实现" |
-| ③ 门决策 | 人工确认 | 暂停呈现：提案摘要 + 验证评分 + 深度复查结论 + 需求文档路径 + 条件子阶段预告（has-frontend / has-java-test）；等用户确认"进入实现" |
+| ① 就绪检查 | 提案完整性 | proposal.md / design.md / specs/*.md / tasks.md 齐全（Glob 确认）+ verify PASS（≥90%）+ 深度复查已完成 + apply instruction 状态 ready（`venus spec instructions apply --json`；CLI 不可用读 tasks.md 推断）——需求文档**不在**就绪项（由 Stage 4 归档阶段生成） |
+| ② 降级停止 | workspace-planning | Phase 0 检测到 workspace-planning 模式 → 在此停止，输出"探索+提案+深度复查完成，不进入实现" |
+| ③ 门决策 | 人工确认 | 暂停呈现：提案摘要 + 验证评分 + 深度复查结论 + 条件子阶段预告（has-frontend / has-java-test）；等用户确认"进入实现" |
 
 ## 4.3 Bridge 3：实现 → 归档
 
@@ -265,11 +266,10 @@ Bridge 1 AI：## Bridge 1：探索 → 提案
               Impact：UserService 5 个写方法为上游符号，爆炸半径 2 层
               确认进入提案？[确认] [回退继续探索]
          用户：确认
-Stage 2  propose 生成四制品（内部 verify 92% PASS）→ 深度复查 → 需求文档
+Stage 2  propose 生成四制品（内部 verify 92% PASS）→ 深度复查 → 收束
 Bridge 2 AI：## Bridge 2：提案 → 实现
               变更：add-user-module-audit-log / 验证：D1-D9 Overall 92%（PASS）
               深度复查：8 维度通过，补充 2 个遗漏 Scenario 已入 specs
-              需求文档：openspec/changes/add-user-module-audit-log/需求文档.md
               条件子阶段预告：3b Java 单测（has-java-test=true）
               确认进入实现？[确认] [修改提案]
          用户：确认
@@ -279,7 +279,7 @@ Bridge 3 AI：## Bridge 3：实现 → 归档
               Tasks 17/17 / 编译通过 / 测试 12/12 通过
               确认进入归档？[确认] [继续处理]
          用户：确认
-Stage 4  archive 归档 + 全套同步 + 记忆沉淀
+Stage 4  archive 归档 + 全套同步（含需求文档生成）+ 记忆沉淀
 ```
 
 ## 示例 2：含前端页面的功能（触发 Stage 1.5 + 3.2）
@@ -331,7 +331,7 @@ AI：## 待确认：测试计划（test_generate / schema-java）
 用户：/venus:tr-impl-genfull 重构整个配置中心的存储层
 AI：（Phase 0 检测到 actionContext.mode = "workspace-planning"）
     workspace-planning 变更不支持 apply/archive，genfull 将在 Bridge 2 前停止，
-    降级为仅：探索 + 提案 + 深度复查 + 需求文档。
+    降级为仅：探索 + 提案 + 深度复查。
 ```
 
 降级流程仍执行 Stage 1 → Bridge 1 → Stage 2，在 Bridge 2 输出完成摘要后停止，
@@ -359,7 +359,7 @@ openspec/
 ├── changes/<change-name>/               ← Stage 2 propose 创建
 │   ├── exploration.md                   ← 含 "## 前端设计" 段（条件 has-frontend）
 │   ├── proposal.md / specs/ / design.md / tasks.md   ← 标准四制品
-│   └── 需求文档.md                       ← Stage 2.3 产出
+│   └── 需求文档.md                       ← 归档阶段（Stage 4 委派的 archive 步骤 4.8）产出
 ├── changes/archive/YYYY-MM-DD-<change-name>/   ← Stage 4 归档迁移
 │   └── （delta spec 已合并主规格，需求文档迁移 devdocs/）
 ├── specs/<capability>/
@@ -375,10 +375,10 @@ openspec/
 
 ```
 ## Genfull 全流程完成 ✓
-Stage 1 探索 → Bridge 1 → [Stage 1.5 前端设计（条件）] → Stage 2 提案+深度复查+需求文档
-→ Bridge 2 → Stage 3 实现（含条件 frontend 实现/test）→ Bridge 3 → Stage 4 归档
+Stage 1 探索 → Bridge 1 → [Stage 1.5 前端设计（条件）] → Stage 2 提案+深度复查+收束
+→ Bridge 2 → Stage 3 实现（含条件 frontend 实现/test）→ Bridge 3 → Stage 4 归档（含需求文档生成）
 变更: <change-name>
-产物: proposal/design/specs/tasks + 需求文档.md + 代码 + 测试 + 归档
+产物: proposal/design/specs/tasks + 代码 + 测试 + 归档 + 需求文档.md（归档阶段生成）
 记忆: specs/<cap>/explorations.md 已更新
 ```
 
@@ -391,7 +391,7 @@ Stage 1 探索 → Bridge 1 → [Stage 1.5 前端设计（条件）] → Stage 2
 | venus CLI 未安装 | 各阶段技能各自降级（CLI-degraded 内联生成）；genfull 编排逻辑不受影响 |
 | explore 未产出探索文件 | Bridge 1 兜底补建最小版 exploration.md（verify_proposal 的硬依赖），动作记录到 TodoWrite |
 | review_proposal 技能不可用 | 降级为编排器内联只读复查 + WARN 日志（**不静默跳过**）；用户可打断跳过 |
-| requirement_doc 生成失败/被打断 | WARN 记录原因并继续（用户可后续单独运行 `/venus:tr-docs-requirement-doc`） |
+| 归档阶段需求文档生成/对齐失败 | WARN 记录目标路径与原因并继续（非阻断；用户可后续单独运行 `/venus:tr-docs-requirement-doc`） |
 | apply 编译检查失败 | 3 次自动修复后仍失败 → 暂停等待用户，**不进入归档** |
 | frontend/test 确认门被拒绝 | 回退到 Bridge 2 重新确认 |
 | 子代理/阶段技能失败 | auto-retry 一次，仍失败暂停报告用户 |

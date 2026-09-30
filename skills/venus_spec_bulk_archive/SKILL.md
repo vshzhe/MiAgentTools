@@ -1,7 +1,7 @@
 ---
 name: venus_spec_bulk_archive
 description: 批量归档变更。当用户要一次归档多个已完成变更时使用。
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Agent, Task
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(tr_docs_requirement_doc), Agent, Task
 license: MIT
 compatibility: 依赖 venus CLI（spec 命令组）与 CodeGraph CLI（可选）。
 metadata:
@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:87276f369e288795fc517a069cc43da96eb2cca9d9b9032b1e7d2423f7c24044"
+  generatedFingerprint: "sha256:a11eb5e59b6442c73d56901ba8588f0ea241fca9d4b1fd60790ddf1a625b0319"
 ---
 
 **Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.**
@@ -144,7 +144,7 @@ This skill allows you to batch-archive changes, handling spec conflicts intellig
 8. **Execute archive for each selected change (three-phase layered parallelism)**
 
    **Execution grouping** — before dispatching, group the selected changes by the step 4 conflict detection results:
-   - Changes with no shared capability form parallel groups — within a group, each change is executed by one sub-agent as a complete archive dispatch unit (the a → a.5 → b → b.5 sequence below)
+   - Changes with no shared capability form parallel groups — within a group, each change is executed by one sub-agent as a complete archive dispatch unit (the a → a.5 → a.6 → b → b.5 sequence below)
    - Changes sharing a capability form a serial chain executed in resolved (chronological) order
    - At most 3 archive sub-agents run at the same time (fixed limit, no configuration item)
    - Single selected change: execute directly without dispatch (equivalent to existing serial behavior)
@@ -191,6 +191,14 @@ This skill allows you to batch-archive changes, handling spec conflicts intellig
         "Skipping CONTEXT.md sync: no change artifacts found"
       - **Failure handling (non-blocking)**: Do NOT block archive on check failure — log and proceed
 
+   a.6 **Pre-archive requirement document generation (MANDATORY CHECKPOINT, before the directory move)**:
+      - **Decision scope**: ONLY `openspec/changes/<change-name>/需求文档.md` (use `path.join()`)
+      - **If the change directory is not readable** (IO error): log a WARN and treat the document as absent — proceed to the not-exists branch
+      - **Not exists** → invoke the `venus_tr_docs_requirement_doc` skill (Skill tool) in **non-interactive mode** with this change name (no questions, placeholder basic information); output to `openspec/changes/<change-name>/需求文档.md`
+      - **Already exists** → perform an **in-place incremental alignment update**: `## 基本信息` and `## 八、评审记录` are the **人工域** and MUST NOT be overwritten (preserve verbatim, including placeholder states); sections `一~七` SHALL be re-derived from the CURRENT artifacts. **Do NOT invoke `venus_tr_docs_requirement_doc`** in this branch — its own rule is "when the target file already exists, overwrite it silently", which would erase human-authored review content. The alignment MUST NOT delete sections (only content removed from the artifacts may be dropped); if the document is structurally broken, rebuild the missing sections and log a WARN
+      - **Failure handling (non-blocking)**: if generation or alignment fails, log a WARN with the target path and the reason and CONTINUE with this change's remaining steps — a failure here MUST NOT abort the change unit and MUST NOT abort the batch
+      - The generated document stays in the change directory, moves with it in step b, and is migrated to `openspec/devdocs/` by step c
+
    b. **Perform the archive**:
       Run the venus CLI archive command — it performs the state check and directory move in one step:
       ```bash
@@ -219,7 +227,7 @@ This skill allows you to batch-archive changes, handling spec conflicts intellig
           - The `YYYY-MM-DD` prefix comes from that change's own archive directory name (consistent with the archive command's directory naming logic)
           - If the archive directory name has no parseable `YYYY-MM-DD-` prefix, fall back to `openspec/devdocs/<change-name>-需求文档.md` without a timestamp
           - Create the devdocs directory if it does not exist (use `path.join()`); overwrite the target if it already exists
-        - If it does not exist: skip silently for this change — no error, no warning, continue with the batch
+        - If it does not exist: skip for this change without an additional warning — a.6 has already logged a WARN when generation failed, so there is nothing left to report here; continue with the batch
         - A document move failure must never abort the batch: log a WARN and continue with the remaining changes
 
    c. **Track outcome** for each change:
@@ -429,6 +437,7 @@ No active changes found. Create a new change to get started.
 - Track and report all outcomes (success/skip/fail)
 - Sync exploration memory per change (step b.5); a failure in one change logs a warning and never aborts the batch
 - Sync CONTEXT.md per change (step a.5); missing artifacts skip with log, never block the batch
+- Generate the requirement document per change (step a.6, before the directory move) from the FINAL artifacts: not exists → delegate venus_tr_docs_requirement_doc non-interactively; already exists → in-place alignment preserving the 人工域 (## 基本信息 / ## 八、评审记录) and never calling the skill in that branch; a failure logs a warning and never aborts the change unit or the batch
 - Preserve .openspec.yaml when moving to archive (CLI guarantees this)
 - Archive directory target uses current date: YYYY-MM-DD-<name>
 - If archive target exists, fail that change but continue with others

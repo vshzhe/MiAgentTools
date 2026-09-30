@@ -17,7 +17,7 @@ let tempRoot: string;
 
 beforeAll(() => {
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'venus-test-'));
-    // 配置全量 workflows，让 init 装全部 27 个技能（默认集仅 8 个）
+    // 配置全量 workflows，让 init 装全部 27 个技能（默认集 8 显式项 + 1 注入 = 9 个）
     ensureProjectConfig(tempRoot);
     writeWorkflowsToConfig(tempRoot, getSkillTemplates().map((e) => e.commandId));
 });
@@ -132,14 +132,15 @@ describe('workflows 过滤（profile 生效）', () => {
         return fs.mkdtempSync(path.join(os.tmpdir(), 'venus-wf-'));
     }
 
-    it('未配置 workflows 时 init 装默认集 8 个', () => {
+    it('未配置 workflows 时 init 装默认集 8 显式项 + 1 注入 = 9 个', () => {
         const root = freshRoot();
         try {
             const result = runInit(root);
             expect(result.workflowsSource).toBe('default');
-            expect(result.skillsInstalled.length).toBe(8);
-            expect(result.commandsInstalled.length).toBe(8);
-            expect(result.injectedDeps).toEqual([]);
+            expect(result.skillsInstalled.length).toBe(9);
+            expect(result.commandsInstalled.length).toBe(9);
+            // spec-archive 在默认集内，其依赖 tr-docs-requirement-doc 被注入
+            expect(result.injectedDeps).toEqual(['tr-docs-requirement-doc']);
             // 默认集内技能存在
             expect(
                 fs.existsSync(path.join(root, '.claude', 'skills', 'venus_tr_init_project', 'SKILL.md'))

@@ -37,10 +37,11 @@ Record the archive status from where the proposal files are found — it determi
   - 原始需求 (original requirement text, optional paste)
 - Skipped fields use placeholders the user can fill in later.
 
-**Non-interactive mode (when invoked from the workflow verification phase)**:
+**Non-interactive mode (when invoked from a workflow)**:
 - Do NOT ask any questions.
 - Use Markdown format, placeholder basic information.
 - The user can re-run this skill standalone later to fill in details.
+- **Caller note (自动调用方唯一化为归档)**: the only workflow that automatically invokes this skill is the ARCHIVE phase (\`venus_spec_archive\` pre-archive checkpoint step 4.8, plus its parallel step in \`venus_spec_bulk_archive\`), which generates the document from the FINAL artifacts right before the archive move. \`venus_tr_impl_workflow\` / \`venus_tr_impl_auto_workflow\` / \`venus_tr_impl_debug\` / \`venus_tr_impl_genfull\` MUST NOT invoke it. **Manual invocation stays available at any stage** — standalone mode below is unchanged.
 
 ## Step 3: Read the change artifacts
 
@@ -214,6 +215,7 @@ Routing rules:
 - When the archive directory name has no parseable \`YYYY-MM-DD-\` prefix, fall back to \`openspec/devdocs/{change-name}-需求文档.md\` without a timestamp
 - Create the target directory if missing (devdocs or change directory), using \`path.join()\`
 - When the target file already exists, overwrite it silently — regeneration is idempotent and must not block on questions
+- **This silent-overwrite rule is intentional and MUST NOT be softened**: protecting human-authored content is the CALLER's duty. Callers that may face an already-reviewed document (the archive checkpoints) MUST detect the existing file themselves and take the in-place alignment branch instead of calling this skill — see \`venus_spec_archive\` step 4.8. This skill therefore stays a pure "produce the document" primitive.
 
 ## Output verification
 
@@ -387,7 +389,7 @@ END IF
 | User-specified path containing an archive segment | \`openspec/devdocs/{date}-{change-name}-需求文档.md\` |
 | User-specified path without an archive segment | \`需求文档.md\` in the directory containing the proposal files |
 
-Routing rules: \`{date}\` prefix matches the archive command's \`YYYY-MM-DD-\` naming (parse from archive directory name); no parseable prefix → fall back to \`openspec/devdocs/{change-name}-需求文档.md\`; create target directory if missing via \`path.join()\`; overwrite existing target file silently (regeneration is idempotent, no blocking questions).
+Routing rules: \`{date}\` prefix matches the archive command's \`YYYY-MM-DD-\` naming (parse from archive directory name); no parseable prefix → fall back to \`openspec/devdocs/{change-name}-需求文档.md\`; create target directory if missing via \`path.join()\`; overwrite existing target file silently (regeneration is idempotent, no blocking questions — human-content protection is the CALLER's duty: the archive checkpoints detect an existing document themselves and align it in place via \`venus_spec_archive\` step 4.8 instead of calling this skill).<br>**自动调用方唯一化为归档**：本技能的唯一自动调用方是归档阶段（\`venus_spec_archive\` 步骤 4.8 与 \`venus_spec_bulk_archive\` 的 a.6），由它从**最终制品**生成；workflow / auto-workflow / debug / genfull MUST NOT 自动调用本技能。**手工独立调用不受影响**。
 
 ## Output verification
 

@@ -80,8 +80,8 @@ VenusAgentTools 是 AI Agent 技能生成与管理 CLI，按生命周期类型�
   思考/调研      一步生成制品      D1-D9 评分≥90%      设计门+批调度  实现验证    同步specs+      批量归档+
   (stance)      proposal/design   review_proposal     +编译检查     (report)    知识图谱+        冲突解决
                  specs/tasks       深度复查                                      探索记忆
-                                        ▼
-                                 requirement_doc（需求文档交付）
+                                                                                ▼
+                                                                        需求文档生成（归档时）
 ```
 
 ## 全局通用规范（所有技能共同遵守）
@@ -219,7 +219,7 @@ VenusAgentTools 是 AI Agent 技能生成与管理 CLI，按生命周期类型�
 | `design.md` | how——决策、架构、依赖（含并发分组信息） |
 | `specs/<capability>/spec.md` | delta 规格（ADDED/MODIFIED/REMOVED/RENAMED 头；`#### Scenario:` 4 井号 + WHEN/THEN/AND） |
 | `tasks.md` | 带类型标签的任务清单（`- [ ] X.Y` 复选框格式） |
-| `exploration.md` | （可选）用户选择关联时从 `openspec/explorations/` 迁移而来 |
+| `exploration.md` | （可选）用户选择关联时从 `openspec/explorations/` **移动**而来（成功即删除源文件，失败保留；不追溯历史文件） |
 
 **任务类型标签**：`[代码]` / `[DB脚本]` / `[使用说明]` / `[API文档]` / `[配置示例]` / `[部署说明]` / `[测试数据]`；
 非 `[代码]` 任务必须含 `产出:` 字段（默认输出 `attachments/<filename>`）。
@@ -232,7 +232,8 @@ Step 0: 探索文件检测（MANDATORY 前置）
      存在则注入历史 Decisions/术语/边界场景到上下文
   1. Glob openspec/explorations/*.md；有文件 → MUST 提示用户 [关联] / [跳过]
   2. CONTEXT.md 术语表检查（缺失自动同步/生成）
-  3. 关联 → 迁移到 changes/<name>/exploration.md
+  3. 关联 → **移动**到 changes/<name>/exploration.md
+     （成功且目标校验通过后删除源文件；失败保留；不追溯历史文件）
   4. 探索内容定向传递：Decisions→proposal / Analysis→design /
      Questions→specs / Codebase Findings→tasks
 
@@ -394,7 +395,7 @@ Step 9: 最终状态 + 归档建议
 
 - **斜杠命令**：`/venus:spec-archive`
 - **description**：归档变更。当用户要归档已实现完成的变更、结束变更工作流时使用
-- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*), Bash(ls:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore`
+- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*), Bash(ls:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(tr_docs_requirement_doc)`
 
 ### 输入
 
@@ -413,7 +414,7 @@ Step 9: 最终状态 + 归档建议
 | 主规格同步 | `openspec/specs/<capability>/spec.md` | delta spec 内联 AI merge（ADDED/MODIFIED/REMOVED/RENAMED） |
 | 探索记忆 | `openspec/specs/<capability>/explorations.md` | 能力级探索记忆，新建或追加章节 |
 | 术语表 | `openspec/CONTEXT.md` | 术语同步或新建 |
-| 需求文档 | `openspec/devdocs/YYYY-MM-DD-<change-name>-需求文档.md` | 变更含需求文档时移入 |
+| 需求文档 | `openspec/devdocs/YYYY-MM-DD-<change-name>-需求文档.md` | **归档时生成后移入**（不存在则委派生成；已存在则就地增量对齐保人工域） |
 | 归档索引 | `openspec/changes/archive/ARCHIVE-INDEX.md` | 归档变更列表 + 模块统计表 |
 | 知识图谱 | CodeGraph 索引 | `codegraph sync` 增量索引 + symbol 验证 |
 
@@ -441,6 +442,11 @@ Step 4.7: Pre-Archive 探索记忆同步 ⚠ MANDATORY
           │   提取 Decisions/术语/边界场景/Codebase Findings 要点
           │   （不复制过程性内容），追加 "## <change-name>（归档日期）" 章节
           └─ 新旧决策矛盾 → 旧段标 "> 已过时（由 <change-name> 取代）"，不删历史
+Step 4.8: Pre-Archive 需求文档生成 ⚠ MANDATORY CHECKPOINT
+          ├─ 不存在 需求文档.md → 委派 venus_tr_docs_requirement_doc（非交互）生成
+          ├─ 已存在 → 就地增量对齐（人工域 `## 基本信息` / `## 八、评审记录`
+          │   原样保留，一~七节按当前制品重导），此分支 MUST NOT 调技能
+          └─ 失败 → WARN（目标路径 + 原因）非阻断，继续归档
 Step 5:   执行归档 —— venus spec archive "<name>" --yes
           （目标已存在报错禁止覆盖；保留 .openspec.yaml 与 attachments/）
 Step 6:   移动需求文档到 devdocs（若存在 需求文档.md）
@@ -453,11 +459,12 @@ Step 6.5: Post-Archive CodeGraph 同步 + 验证（仅当 4.6 确认启用）
 Step 8:   显示摘要
 ```
 
-**交互点**：仅 Step 1 可能询问用户；4.5/4.6/4.7/5/6/7/6.5 全部自动执行。
+**交互点**：仅 Step 1 可能询问用户；4.5/4.6/4.7/4.8/5/6/7/6.5 全部自动执行。
 
 ### 初步规范
 
-- **3 个 MANDATORY CHECKPOINT**：4.5 CONTEXT.md 同步、4.6 CodeGraph 状态检查、4.7 探索记忆同步
+- **4 个 MANDATORY CHECKPOINT**：4.5 CONTEXT.md 同步、4.6 CodeGraph 状态检查、4.7 探索记忆同步、
+  4.8 Pre-Archive 需求文档生成（不存在则委派生成；已存在则就地增量对齐保人工域；失败 WARN 非阻断）
 - **归档目录命名**：`YYYY-MM-DD-<change-name>`；目标已存在禁止覆盖
 - **CONTEXT.md 条目格式**：`**<Term>**: <definition>` + `_Avoid_: <synonyms>`
 
@@ -674,7 +681,7 @@ DataNotFoundException）；F. JSP 前端 IE 兼容（禁 ES6+）；G. Oracle 11g
 
 - **斜杠命令**：`/venus:spec-bulk-archive`
 - **description**：批量归档变更。当用户要一次归档多个已完成变更时使用
-- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Agent, Task`
+- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(tr_docs_requirement_doc), Agent, Task`
 
 ### 输入
 
@@ -709,6 +716,8 @@ Step 8: 执行归档（three-phase layered parallelism）
         │  共享 capability → 串行链按决议顺序
         └─ 每变更执行：a. Sync specs（内联 AI 合并，按决议顺序）
             a.5. CONTEXT.md 同步（MANDATORY CHECKPOINT）
+            a.6. 需求文档生成（存在性判定 → 委派生成 / 就地增量对齐保人工域；
+                 失败 WARN 且不中止批次）
             b. venus spec archive "<name>" --yes
             b.5. 探索记忆同步 + 需求文档迁移到 devdocs
             c. 跟踪结果（Success/Failed/Skipped）
@@ -741,8 +750,8 @@ Step 11: Batch CodeGraph Sync + Verification（条件：2.5 确认启用且 ≥1
 
 - **斜杠命令**：`/venus:tr-impl-workflow`
 - **description**：一站式引导工作流：结构化探索（grill 追问 L1-L5 逐级确认）→ 提案内联生成 →
-  自动验证门 → 深度复查与需求文档联动
-- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), Bash(ls:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_verify_proposal), Skill(tr_impl_review_proposal), Skill(tr_docs_requirement_doc), Agent, Task`
+  自动验证门 → 深度复查收束（需求文档由归档阶段生成）
+- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), Bash(ls:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_verify_proposal), Skill(tr_impl_review_proposal), Agent, Task`
 - **NOT-for**：全自动流水线（用 auto_workflow）；单阶段探索（用 venus_spec_explore）；
   调试（用 venus_tr_impl_debug）
 
@@ -761,11 +770,11 @@ Step 11: Batch CodeGraph Sync + Verification（条件：2.5 确认启用且 ≥1
 | :--- | :--- |
 | 探索文件 | `openspec/explorations/<keyword>-explore-<sequence>.md`（kebab-case ≤50 字符，序号 001/002） |
 | 变更目录 | `openspec/changes/<change-name>/`（exploration.md + proposal.md + specs/ + design.md + tasks.md） |
-| 需求文档 | `openspec/changes/<change-name>/需求文档.md`（Phase 3 PASS 后自动生成） |
+| 需求文档 | `openspec/changes/<change-name>/需求文档.md`（**归档阶段生成**；本工作流不生成） |
 | 术语表 | `openspec/CONTEXT.md`（按术语解析实时追加） |
 | ADR | `openspec/docs/adr/NNNN-slug.md`（三条件：难逆转/无上下文惊讶/真实权衡） |
 
-**终点**：需求文档生成完毕，提示 "All artifacts ready! Run `/venus:spec-apply` to implement."
+**终点**：深度复查收束；需求文档**由归档阶段生成**。提示 "All artifacts ready! Run `/venus:spec-apply` to implement."
 （实现与归档由用户手动执行——这是与 auto_workflow 的核心区别）。
 
 ### 操作手册（三阶段）
@@ -823,7 +832,7 @@ Step 11: Batch CodeGraph Sync + Verification（条件：2.5 确认启用且 ≥1
 ┌─────────────────── Phase 2: Proposal ───────────────────────┐
 │ 2.0 预迁移验证（MANDATORY）：文件存在 + CONTEXT.md +         │
 │     Impact 触发检测（Pending 有符号→codegraph_impact）       │
-│ 2.3 迁移探索文件（强制保留源文件不删除）                      │
+│ 2.3 迁移探索文件（移动并删除源文件，失败保留）                 │
 │ 2.4 内联制品生成（遵循 artifact-generation.md 共享协议）：    │
 │     venus spec new → 循环 status --json → instructions      │
 │     --json → 写文件；进度 "已创建 proposal.md (1/4)"         │
@@ -838,8 +847,7 @@ Step 11: Batch CodeGraph Sync + Verification（条件：2.5 确认启用且 ≥1
 ┌─────────────────── Phase 3: Verification（自动）────────────┐
 │ 3.2 Skill 调用 venus_spec_verify_proposal（D1-D5+D6）        │
 │ 3.5 PASS ≥90% → 自动调用 venus_tr_impl_review_proposal      │
-│     深度复查（可中断）→ 自动调用 venus_tr_docs_requirement_  │
-│     doc（非交互）生成需求文档                                 │
+│     深度复查（可中断）→ 收束；需求文档由归档阶段生成          │
 │ 3.6 FAIL <90% → 自动修复重跑；仍 FAIL 提供                   │
 │     [手动编辑][返回探索][查看 diff]（无跳过路径）             │
 └──────────────────────────────────────────────────────────────┘
@@ -855,12 +863,12 @@ Step 11: Batch CodeGraph Sync + Verification（条件：2.5 确认启用且 ≥1
   1.6.6 聚合一致性门 / 2.0 预迁移验证 / 2.3 迁移 / 2.4 规则文件扫描 / 2.6 验证制品
 - **探索文件命名**：`<keyword>-explore-<sequence>.md`（kebab-case ≤50 字符，序号 001/002，
   冲突 3 次后加时间戳）
-- **迁移保留源文件**：成功迁移后不删除源文件
+- **迁移删源**：成功迁移且目标校验通过后删除源文件；失败保留（不追溯历史文件）
 
 ### 使用情况与问题
 
-- **依赖编排**：verify_proposal（Phase 3.2）→ review_proposal（Phase 3.5）→
-  requirement_doc（Phase 3.5），均 Skill 工具调用
+- **依赖编排**：verify_proposal（Phase 3.2）→ review_proposal（Phase 3.5）→ 收束，
+  均 Skill 工具调用；需求文档由归档阶段（venus_spec_archive 步骤 4.8）生成
 - **降级路径**：CodeGraph→Glob/Grep；CLI→CLI-degraded；各验证技能→AI 内联 + WARN
 - **护栏**：不跳过提问；冲突不自动前进；L1-L5 等用户确认；不丢失探索文件
 
@@ -904,12 +912,12 @@ Phase 1: Exploration —— workflow 的简化版
 
 Phase 2: Proposal（自动，无用户确认）
   ├─ 2.0 影响分析（自动）
-  ├─ 2.1 迁移探索文件（保留源文件）
+  ├─ 2.1 迁移探索文件（移动并删除源文件，失败保留）
   └─ 2.2 内联制品生成（CLI-degraded：不中途重试；
       CLI 调用失败（非命令未找到）→ 恢复语义：找首个 status:"ready" 恢复）
 
 Phase 3: Verification（自动，无用户确认）
-  ├─ PASS → 自动深度复查 + 自动需求文档 + 自动转入 Phase 4
+  ├─ PASS → 自动深度复查 → 自动转入 Phase 4（本阶段**不生成**需求文档）
   └─ FAIL → 自动修复重跑；仍 FAIL 给三选项（无跳过路径）
 
 Phase 4: Auto-Apply（自动——apply 用 auto-mode=true 跳过设计确认门）
@@ -922,6 +930,8 @@ Phase 4: Auto-Apply（自动——apply 用 auto-mode=true 跳过设计确认门
 
 Phase 5: Auto-Archive（自动——archive 用 change-name 跳过选择提示）
   ├─ 构造 archive 上下文：change-name
+  ├─ **需求文档生成**（按归档技能同一规则：不存在则委派生成；
+  │   已存在则就地增量对齐保人工域；失败 WARN 非阻断）
   ├─ 执行 venus_spec_archive 模板（全套同步自动）
   └─ 错误处理：各同步步骤失败均非阻塞 WARN 继续；归档目标已存在→失败报错
 ```
@@ -935,13 +945,13 @@ Phase 5: Auto-Archive（自动——archive 用 change-name 跳过选择提示�
 | Phase 4 Apply | 无此阶段 | **自动执行**（auto-mode=true 跳过 Step 5.5 设计门） |
 | Phase 5 Archive | 无此阶段 | **自动执行**（change-name 跳过选择提示） |
 | allowed-tools | 无 npm/pnpm/node | 有（编译检查需要） |
-| 输出终点 | 需求文档完毕，等手动 apply/archive | 全流程闭环到归档 |
+| 输出终点 | 深度复查收束，等手动 apply/archive | 全流程闭环到归档（含需求文档生成） |
 
 ### 使用情况与问题
 
 - **护栏**：L1-L5 需求澄清门**仍等用户确认**（自动化的前提是需求已澄清）；编译失败 3 次暂停
-- **依赖编排**：verify_proposal → review_proposal → requirement_doc → spec_apply（auto-mode）→
-  spec_archive
+- **依赖编排**：verify_proposal → review_proposal → spec_apply（auto-mode）→
+  spec_archive（Phase 5 内联归档步骤，内含 requirement_doc 生成）
 
 ---
 
@@ -954,7 +964,7 @@ Phase 5: Auto-Archive（自动——archive 用 change-name 跳过选择提示�
   capability memory→change association→fix with mandatory regression test→compile check→
   synchronize proposal→verify
 - **触发词**：调试 / debug / 修复 bug / bug 报告 / 复现 / 根因
-- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(codegraph:*), Bash(tsc:*), Bash(mvn:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(tr_test_generate), Skill(spec_verify_proposal), Skill(tr_impl_review_proposal), Skill(tr_docs_requirement_doc)`
+- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(codegraph:*), Bash(tsc:*), Bash(mvn:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(tr_test_generate), Skill(spec_verify_proposal), Skill(tr_impl_review_proposal)`
 - **NOT-for**：新功能开发（用 venus_tr_impl_feature）；工作流编排（用 venus_tr_impl_workflow）
 
 ### 输入
@@ -971,7 +981,7 @@ Phase 5: Auto-Archive（自动——archive 用 change-name 跳过选择提示�
 | 诊断记录 | 工作笔记 scratch 段，Phase 6 持久化到变更目录 `exploration.md` |
 | 变更目录 | `openspec/changes/<fix-{module}-<topic>>/`（独立 bug）或归属已有变更 |
 | 更新产物 | proposal.md（按 bug 组织的 What Changes）/ tasks.md（勾选+回归测试任务）/ design.md（仅当改了文档化决策）/ specs/（仅当改了文档化行为） |
-| 需求文档 | Phase 7 通过后非交互生成 |
+| 需求文档 | **不在 debug 范围内**（由归档阶段生成） |
 
 **最终输出**：Loop Summary（Total bugs fixed / Non-defect findings）+ Per-Bug Summaries
 （每 bug 的 Phase 1-4 结果）+ Phase 5/6/7 汇总 + "Ready for archive (fixes already applied)"。
@@ -1054,8 +1064,7 @@ Phase 5: Auto-Archive（自动——archive 用 change-name 跳过选择提示�
 ┌───────── Phase 7: Verification 验证（覆盖所有修复）─────────┐
 │ 7.1 Skill 调用 venus_spec_verify_proposal（D1-D9 评分）      │
 │ 7.2 FAIL → 自动修复循环（无跳过路径）                        │
-│ 7.3 PASS → 自动深度复查（review_proposal）+ 自动需求文档     │
-│     （requirement_doc 非交互）                                │
+│ 7.3 PASS → 自动深度复查（review_proposal）→ 收束并提示准备归档│
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -1071,7 +1080,7 @@ Phase 5: Auto-Archive（自动——archive 用 change-name 跳过选择提示�
 - **能力记忆（capability memory）机制**：存储于 `openspec/specs/<capability>/explorations.md`，
   归档时写入、探索/调试时读出注入。debug 的特殊用法——历史边界场景是**根因线索**：
   判断当前 bug 是否为当初有意接受的边界在新条件下失效；也可证明行为预期（支持非缺陷出口）
-- **降级路径**：CodeGraph→Glob/Grep（仍按相同结构记录保可追溯性）；验证/复查/需求文档
+- **降级路径**：CodeGraph→Glob/Grep（仍按相同结构记录保可追溯性）；验证/复查
   技能→AI 内联 + WARN；编译失败→maxRetries 后报告用户
 - **长循环**：≥5 bug 建议拆分但不强制终止
 
@@ -1082,9 +1091,9 @@ Phase 5: Auto-Archive（自动——archive 用 change-name 跳过选择提示�
 ### 定位与触发
 
 - **斜杠命令**：`/venus:tr-impl-genfull`
-- **description**：引导式全流程编排器 explore→[frontend-design]→propose(+verify)→deep-review→requirement-doc→apply(+conditional frontend-impl/test)→archive，委派阶段 SKILL + 阶段间桥梁门
-- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_explore), Skill(tr_impl_frontend), Skill(spec_propose), Skill(tr_impl_review_proposal), Skill(tr_docs_requirement_doc), Skill(spec_apply), Skill(tr_test_generate), Skill(spec_archive)`
-- **compatibility**：依赖 venus CLI（spec 命令组）与阶段技能（venus_spec_explore/propose/apply/archive + venus_tr_impl_review_proposal + venus_tr_docs_requirement_doc + venus_tr_impl_frontend + venus_tr_test_generate）；CLI 缺失时各阶段技能各自降级
+- **description**：引导式全流程编排器 explore→[frontend-design]→propose(+verify)→deep-review→apply(+conditional frontend-impl/test)→archive（归档阶段生成需求文档），委派阶段 SKILL + 阶段间桥梁门
+- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_explore), Skill(tr_impl_frontend), Skill(spec_propose), Skill(tr_impl_review_proposal), Skill(spec_apply), Skill(tr_test_generate), Skill(spec_archive)`
+- **compatibility**：依赖 venus CLI（spec 命令组）与阶段技能（venus_spec_explore/propose/apply/archive + venus_tr_impl_review_proposal + venus_tr_impl_frontend + venus_tr_test_generate）；需求文档技能由归档阶段委派（经 spec-archive 的依赖注入与会话级权限放行），本技能不直接委派；CLI 缺失时各阶段技能各自降级
 - **NOT-for**：inline 单 SKILL 工作流（用 venus_tr_impl_workflow）/ 全自动无门流水线（用 venus_tr_impl_auto_workflow）/ 调试（用 venus_tr_impl_debug）
 
 ### 输入
@@ -1103,7 +1112,7 @@ Phase 5: Auto-Archive（自动——archive 用 change-name 跳过选择提示�
 | 探索文件 | `openspec/explorations/`（explore 产出；缺失时 Bridge 1 补建最小版） |
 | 变更目录 | `openspec/changes/<change-name>/`（exploration + proposal + specs + design + tasks） |
 | 前端设计 | `exploration.md` 的 `## 前端设计` 段（条件 has-frontend，Stage 1.5 产出，供 propose 提取到 design.md） |
-| 需求文档 | `openspec/changes/<change-name>/需求文档.md`（Stage 2.3 非交互生成） |
+| 需求文档 | `openspec/changes/<change-name>/需求文档.md`（**归档阶段生成**，Stage 4 委派 spec_archive 步骤 4.8） |
 | 代码 | apply 分层生成 + 条件 frontend JSP（Stage 3） |
 | 测试 | 条件 `src/test/java/.../XxxTest.java`（Stage 3.3，has-java-test） |
 | 归档 | `openspec/changes/archive/YYYY-MM-DD-<change-name>/` + 全套同步（主 specs / CONTEXT.md / 探索记忆 / ARCHIVE-INDEX.md / CodeGraph） |
@@ -1116,7 +1125,7 @@ Phase 5: Auto-Archive（自动——archive 用 change-name 跳过选择提示�
 Phase 0: 初始化
   ├─ TodoWrite 全阶段跟踪（9 项 todo：Phase0/Stage1/Bridge1/Stage1.5/Stage2/Bridge2/Stage3/Bridge3/Stage4）
   ├─ 0.1 actionContext.mode 检测（venus spec status --json；CLI 不可用 Glob 扫描 changes/）
-  │   workspace-planning → 降级为仅探索+提案+深度复查+需求文档（Bridge 2 前停止）
+  │   workspace-planning → 降级为仅探索+提案+深度复查（Bridge 2 前停止）
   └─ 0.2 贯穿上下文初始化（change-name / has-frontend / has-java-test / tech-stack 待定）
 
 Stage 1: 探索 —— 委派 venus_spec_explore（Skill 工具）
@@ -1141,7 +1150,7 @@ Stage 1.5: 前端设计（条件 has-frontend=true）—— 委派 venus_tr_impl
   │   页面类型 / 组件选型 / 字段-组件映射矩阵 / jQuery 版本与引入顺序 / 4 种 UI 状态 / 前后端交互方式
   └─ 设计确认门 = 桥梁点：用户确认设计方案后进入提案；references 实现模板留待 Stage 3
 
-Stage 2: 提案 + 深度复查 + 需求文档
+Stage 2: 提案 + 深度复查
   2.1 委派 venus_spec_propose（Skill 工具）
      ├─ 传入 change-name + 关联 exploration 文件
      ├─ propose 内部完成：创建变更目录、按依赖序生成四制品、迁移 exploration.md、同步 CONTEXT.md
@@ -1150,14 +1159,15 @@ Stage 2: 提案 + 深度复查 + 需求文档
   2.2 深度复查 —— 委派 venus_tr_impl_review_proposal（Skill 工具）
      ├─ 8 维度完整性只读复查（codebase 深度探索 + 合规性验证）
      └─ fallback：技能不可用 → 编排器内联只读复查 + WARN（不静默跳过）；用户可打断跳过
-  2.3 需求文档 —— 委派 venus_tr_docs_requirement_doc（Skill 工具，非交互）
-     └─ 失败/打断 → WARN 记录原因并继续（用户可后续单独运行）
+  2.3 收束 —— MUST NOT 生成需求文档（由归档阶段生成）
+     └─ 深度复查完成后收束 Stage 2，不委派 venus_tr_docs_requirement_doc
 
 Bridge 2: 提案 → 实现
-  ① 就绪检查：四制品齐全 + verify PASS + 深度复查完成 + 需求文档生成（或 WARN）+
+  ① 就绪检查：四制品齐全 + verify PASS + 深度复查完成 +
      apply instruction 状态 ready（venus spec instructions apply --json；CLI 不可用读 tasks.md 推断）
-  ② workspace-planning 降级（0.1 检测到则在此停止，输出"探索+提案+深度复查+需求文档完成"）
-  ③ 门决策：暂停呈现提案摘要+评分+复查结论+需求文档路径+条件子阶段预告，等用户确认"进入实现"
+     （**不含**需求文档——该文档由 Stage 4 归档阶段生成）
+  ② workspace-planning 降级（0.1 检测到则在此停止，输出"探索+提案+深度复查完成"）
+  ③ 门决策：暂停呈现提案摘要+评分+复查结论+条件子阶段预告，等用户确认"进入实现"
 
 Stage 3: 实现
   3.1 委派 venus_spec_apply（Skill 工具，传 auto-mode=true）
@@ -1180,7 +1190,8 @@ Bridge 3: 实现 → 归档
 
 Stage 4: 归档 —— 委派 venus_spec_archive（Skill 工具，传 change-name 跳过选择）
   ├─ archive 内部完成：delta spec 合并主规格、CONTEXT.md 同步、探索记忆同步 specs/<cap>/explorations.md、
-  │   目录迁移 archive/、ARCHIVE-INDEX.md 更新、需求文档迁移 devdocs/、条件 CodeGraph sync
+  │   需求文档生成（步骤 4.8）、目录迁移 archive/、ARCHIVE-INDEX.md 更新、
+  │   需求文档迁移 devdocs/、条件 CodeGraph sync
   ├─ 所有 sync 检查点 non-blocking（失败 WARN 不阻断）
   └─ 记忆闭环：archive 写 explorations.md 供下一轮 propose 读取
 ```
@@ -1195,7 +1206,7 @@ Stage 4: 归档 —— 委派 venus_spec_archive（Skill 工具，传 change-nam
 | 阶段门 | L1-L5 grill 门 | L1-L5 后全自动无门 | Bridge 1/2/3 + 子阶段确认门（引导式） |
 | 前端设计 | 无专门阶段 | 无 | **Stage 1.5 前端设计前置到 proposal（设计与实现分离）** |
 | 条件子阶段 | 无 | 无 | has-frontend → frontend 实现；has-java-test → test |
-| 终点 | 需求文档完毕，等手动 apply/archive | 全流程闭环到归档（无门） | 全流程闭环到归档（每阶段桥梁确认） |
+| 终点 | 深度复查收束，等手动 apply/archive | 全流程闭环到归档（无门） | 全流程闭环到归档（每阶段桥梁确认，含需求文档生成） |
 
 ### 初步规范
 
@@ -1207,8 +1218,8 @@ Stage 4: 归档 —— 委派 venus_spec_archive（Skill 工具，传 change-nam
 
 ### 使用情况与问题
 
-- **依赖编排**：explore → propose(内含 verify) → review_proposal → requirement_doc → apply(auto-mode) → [frontend 实现] → [test] → archive，均 Skill 工具委派
-- **降级路径**：CLI 缺失各阶段技能各自降级；review_proposal 不可用 → 内联只读复查 + WARN；需求文档失败 → WARN 继续
+- **依赖编排**：explore → propose(内含 verify) → review_proposal → 收束 → apply(auto-mode) → [frontend 实现] → [test] → archive（内含需求文档生成），均 Skill 工具委派
+- **降级路径**：CLI 缺失各阶段技能各自降级；review_proposal 不可用 → 内联只读复查 + WARN；归档阶段需求文档生成失败 → WARN 非阻断
 - **exploration.md 兜底**：explore 不强制产出固定文件，Bridge 1 缺失时补建最小版（verify 硬依赖）
 - **前端设计/实现分离**：Stage 1.5 设计产出喂入 propose，Stage 3.2 基于设计读 references 实现，避免 apply 阶段重做设计决策
 
@@ -2060,7 +2071,7 @@ target 目录（任意层级及其全部内容，含 classes、test-classes、su
 ```
 /venus:tr-impl-workflow
   Phase 1 探索（grill L1-L5 逐级确认 + CodeGraph + 能力记忆）
-  → Phase 2 内联提案 → Phase 3 验证门 + 深度复查 + 需求文档
+  → Phase 2 内联提案 → Phase 3 验证门 + 深度复查收束（需求文档由归档阶段生成）
 （终点：等用户手动 /venus:spec-apply + /venus:spec-archive）
 ```
 
@@ -2078,7 +2089,7 @@ target 目录（任意层级及其全部内容，含 classes、test-classes、su
 /venus:tr-impl-debug "<bug 描述>"
   Phase 1 复现 → Phase 2 CodeGraph 根因排查（+能力记忆）→ Phase 3 关联变更判定
   → Phase 4 修复 + 强制回归测试 →（调试循环：还有 bug？）
-  → Phase 5 编译检查 → Phase 6 同步提案 → Phase 7 验证 + 需求文档
+  → Phase 5 编译检查 → Phase 6 同步提案 → Phase 7 验证 + 深度复查收束
 ```
 
 ## 模式 E：跨项目功能迁移
@@ -2109,8 +2120,9 @@ target 目录（任意层级及其全部内容，含 classes、test-classes、su
 ```
 /venus:tr-impl-genfull
   Stage 1 探索（委派 spec_explore，grill L1-L5）→ Bridge 1（exploration 兜底 + impact + 信号判定）
-  → [Stage 1.5 前端设计（条件 has-frontend）] → Stage 2 提案+深度复查+需求文档
-  → Bridge 2 → Stage 3 实现（apply auto-mode + 条件 frontend 实现/test）→ Bridge 3 → Stage 4 归档
+  → [Stage 1.5 前端设计（条件 has-frontend）] → Stage 2 提案+深度复查+收束
+  → Bridge 2 → Stage 3 实现（apply auto-mode + 条件 frontend 实现/test）→ Bridge 3
+  → Stage 4 归档（含需求文档生成）
 （委派各阶段 SKILL + 阶段间桥梁确认门，贯穿到归档；前端设计前置到 proposal）
 ```
 

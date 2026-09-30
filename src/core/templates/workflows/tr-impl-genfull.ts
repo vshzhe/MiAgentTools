@@ -34,7 +34,7 @@ const FLOWCHART_COMPACT = buildFlowchartCompact(REQUIREMENT_FLOW_COLUMNS);
 export function getTrImplGenfullSkillTemplate(): SkillTemplate {
     return {
         name: 'venus_tr_impl_genfull',
-        description: 'Guided full-pipeline orchestrator: explore→[frontend-design]→propose(+verify)→deep-review→requirement-doc→apply(+conditional frontend-impl/test)→archive, delegating stage SKILLs with bridge gates between stages to ensure each process completeness. Frontend design (Phase 1) is front-loaded to proposal stage; frontend impl (Phase 2) stays in apply. Triggers: 全流程编排 / genfull / 引导式全流程 / coupled stage workflow. Use when the user wants a guided end-to-end pipeline through archive with per-stage confirmation bridges (coupling explore/frontend/propose/apply/test/archive SKILLs). NOT for inline single-SKILL workflow (use venus_tr_impl_workflow), fully-automated no-gate pipeline (use venus_tr_impl_auto_workflow), or debugging (use venus_tr_impl_debug).',
+        description: 'Guided full-pipeline orchestrator: explore→[frontend-design]→propose(+verify)→deep-review→apply(+conditional frontend-impl/test)→archive (which generates the requirement document), delegating stage SKILLs with bridge gates between stages to ensure each process completeness. Frontend design (Phase 1) is front-loaded to proposal stage; frontend impl (Phase 2) stays in apply. Triggers: 全流程编排 / genfull / 引导式全流程 / coupled stage workflow. Use when the user wants a guided end-to-end pipeline through archive with per-stage confirmation bridges (coupling explore/frontend/propose/apply/test/archive SKILLs). NOT for inline single-SKILL workflow (use venus_tr_impl_workflow), fully-automated no-gate pipeline (use venus_tr_impl_auto_workflow), or debugging (use venus_tr_impl_debug).',
         instructions: `**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** In Stage 1 (Exploration), follow Section 1 (Zero-Assumption). In Stage 2 (Proposal), follow Section 2 (Design-First). In Stage 3 (Implementation), check Sections 3-5 for compliance.
 
 引导式全流程编排器 —— 贯穿探索→归档，委派阶段 SKILL + 阶段间桥梁门。
@@ -46,11 +46,11 @@ This orchestrator guides you through:
 2. **Stage 1: 探索** - 委派 venus_spec_explore（交互式 grill L1-L5）
 3. **Bridge 1** - exploration.md 兜底 + impact analysis + 信号判定 + 确认门
 4. **Stage 1.5: 前端设计**（条件 has-frontend）- 委派 venus_tr_impl_frontend 仅设计，产出喂入 propose
-5. **Stage 2: 提案** - 委派 venus_spec_propose（内部自动 verify_proposal）→ 深度复查 → 需求文档
+5. **Stage 2: 提案** - 委派 venus_spec_propose（内部自动 verify_proposal）→ 深度复查 → 收束（需求文档改由归档阶段生成）
 6. **Bridge 2** - 就绪校验 + 确认门
 7. **Stage 3: 实现** - 委派 venus_spec_apply（auto-mode）+ 条件 frontend 实现/test
 8. **Bridge 3** - 完整性校验 + 确认门
-9. **Stage 4: 归档** - 委派 venus_spec_archive（记忆闭环）
+9. **Stage 4: 归档** - 委派 venus_spec_archive（需求文档生成 + 记忆闭环）
 
 ---
 
@@ -59,7 +59,7 @@ This orchestrator guides you through:
 **Input**: User's topic description (what they want to build).
 
 Use the **TodoWrite tool** to initialize tracking:
-\`[{"content":"Phase 0: 初始化","status":"in_progress"},{"content":"Stage 1: 探索（venus_spec_explore）","status":"pending"},{"content":"Bridge 1: 探索→提案","status":"pending"},{"content":"Stage 1.5: 前端设计（条件 has-frontend）","status":"pending"},{"content":"Stage 2: 提案+深度复查+需求文档","status":"pending"},{"content":"Bridge 2: 提案→实现","status":"pending"},{"content":"Stage 3: 实现（含条件 frontend/test）","status":"pending"},{"content":"Bridge 3: 实现→归档","status":"pending"},{"content":"Stage 4: 归档","status":"pending"}]\`
+\`[{"content":"Phase 0: 初始化","status":"in_progress"},{"content":"Stage 1: 探索（venus_spec_explore）","status":"pending"},{"content":"Bridge 1: 探索→提案","status":"pending"},{"content":"Stage 1.5: 前端设计（条件 has-frontend）","status":"pending"},{"content":"Stage 2: 提案+深度复查","status":"pending"},{"content":"Bridge 2: 提案→实现","status":"pending"},{"content":"Stage 3: 实现（含条件 frontend/test）","status":"pending"},{"content":"Bridge 3: 实现→归档","status":"pending"},{"content":"Stage 4: 归档","status":"pending"}]\`
 
 ### 0.0 Prompt Validation Gate (MANDATORY)
 
@@ -79,7 +79,7 @@ ${PROMPT_GATE}
 ### 0.1 actionContext.mode 检测
 
 - 读取 \`openspec/config.yaml\` 与当前变更状态（\`venus spec status --json\`；CLI 不可用则 Glob 扫描 \`openspec/changes/\`）
-- 若检测到 workspace-planning 模式（\`actionContext.mode === "workspace-planning"\`）：提示"workspace-planning 变更不支持 apply/archive，genfull 将在 Bridge 2 前停止"，降级为仅探索+提案+深度复查+需求文档
+- 若检测到 workspace-planning 模式（\`actionContext.mode === "workspace-planning"\`）：提示"workspace-planning 变更不支持 apply/archive，genfull 将在 Bridge 2 前停止"，降级为仅探索+提案+深度复查
 - 否则：全流程贯通到归档
 
 ### 0.2 贯穿上下文初始化
@@ -175,7 +175,7 @@ ${FLOWCHART}
 
 ---
 
-## Stage 2: 提案 + 深度复查 + 需求文档
+## Stage 2: 提案 + 深度复查
 
 ### 2.1 委派 venus_spec_propose（via Skill tool）
 
@@ -191,12 +191,10 @@ ${FLOWCHART}
 - **fallback**：技能不可用或调用失败 → 降级为编排器内联只读复查 + WARN 日志（不静默跳过）
 - 用户可打断跳过
 
-### 2.3 需求文档生成（委派 venus_tr_docs_requirement_doc，via Skill tool）
+### 2.3 收束（MUST NOT 生成需求文档）
 
-- 非交互模式（Markdown，基本信息占位）
-- 输出：\`openspec/changes/<change-name>/需求文档.md\`
-- **失败处理**：生成失败或打断 → WARN 记录原因并继续（用户可后续单独运行）
-- 显示文档路径
+- 深度复查完成后收束 Stage 2；**MUST NOT 委派 \`venus_tr_docs_requirement_doc\`、MUST NOT 生成需求文档**
+- 原因：需求文档由 **Stage 4 委派的 \`venus_spec_archive\`** 在预归档检查点（步骤 4.8）从**最终制品**生成（已存在则就地增量对齐、保人工域），避免在实现阶段尚未开始时就冻结一份必然过期的文档
 
 ---
 
@@ -207,16 +205,16 @@ ${FLOWCHART}
 - proposal.md / design.md / specs/*.md / tasks.md 齐全（Glob 确认）
 - verify_proposal PASS（≥90%）
 - 深度复查已完成
-- 需求文档已生成（或 WARN 跳过）
+- （**不含**"需求文档已生成"——该文档由 Stage 4 归档阶段生成）
 - apply instruction 状态：\`venus spec instructions apply --change "<name>" --json\` 返回 \`ready\`（非 \`blocked\` / \`all_done\`）；CLI 不可用则读 tasks.md 推断
 
 ### ② workspace-planning 降级
 
-- 若 0.1 检测到 workspace-planning：在此停止，输出"探索+提案+深度复查+需求文档完成，workspace-planning 不进入实现"
+- 若 0.1 检测到 workspace-planning：在此停止，输出"探索+提案+深度复查完成，workspace-planning 不进入实现"
 
 ### ③ 门决策（引导模式）
 
-- 暂停并呈现：提案摘要 + 验证评分 + 深度复查结论 + 需求文档路径 + 条件子阶段预告（has-frontend / has-java-test）
+- 暂停并呈现：提案摘要 + 验证评分 + 深度复查结论 + 条件子阶段预告（has-frontend / has-java-test）
 - 等待用户确认"进入实现"
 
 ---
@@ -274,7 +272,7 @@ ${FLOWCHART}
 ### 4.1 委派 venus_spec_archive（via Skill tool）
 
 - 传入 change-name（跳过选择 prompt）
-- archive 内部完成：delta spec 合并到主规格、CONTEXT.md 同步、探索记忆同步到 \`specs/<cap>/explorations.md\`、目录迁移到 \`archive/\`、ARCHIVE-INDEX.md 更新、需求文档迁移到 \`devdocs/\`
+- archive 内部完成：delta spec 合并到主规格、CONTEXT.md 同步、探索记忆同步到 \`specs/<cap>/explorations.md\`、**需求文档生成（步骤 4.8：不存在则委派生成；已存在则就地增量对齐保人工域；失败 WARN 非阻断）**、目录迁移到 \`archive/\`、ARCHIVE-INDEX.md 更新、需求文档迁移到 \`devdocs/\`
 - 所有 sync 检查点 non-blocking（失败 WARN 不阻断）
 - 条件性 CodeGraph sync
 
@@ -291,9 +289,9 @@ ${FLOWCHART}
 
 \`\`\`
 ## Genfull 全流程完成 ✓
-Stage 1 探索 → Bridge 1 → [Stage 1.5 前端设计（条件）] → Stage 2 提案+深度复查+需求文档 → Bridge 2 → Stage 3 实现（含条件 frontend 实现/test）→ Bridge 3 → Stage 4 归档
+Stage 1 探索 → Bridge 1 → [Stage 1.5 前端设计（条件）] → Stage 2 提案+深度复查 → Bridge 2 → Stage 3 实现（含条件 frontend 实现/test）→ Bridge 3 → Stage 4 归档（含需求文档生成）
 变更: <change-name>
-产物: proposal/design/specs/tasks + 需求文档.md + 代码 + 测试 + 归档
+产物: proposal/design/specs/tasks + 代码 + 测试 + 归档 + 需求文档.md（归档阶段生成）
 记忆: specs/<cap>/explorations.md 已更新
 \`\`\`
 
@@ -313,7 +311,7 @@ Stage 1 探索 → Bridge 1 → [Stage 1.5 前端设计（条件）] → Stage 2
 - **Read-only passthrough does not cover clarification gates** - 桥梁确认门与 grill 门仍等待用户确认
 - **Do auto-mode to apply** - Stage 3 向 apply 传 auto-mode=true，由 Bridge 2 承载实现确认门，避免 Step 5.5 重复
 - **Do pass change-name to archive** - Stage 4 传 change-name 跳过选择
-- **Do deep review + requirement doc after verify PASS** - verify PASS 后先深度复查再生成需求文档（对齐 workflow 3.5），FAIL 不生成
+- **Do converge after verify PASS** - verify PASS 后只做深度复查并收束，**MUST NOT 生成需求文档**（需求文档由 Stage 4 归档阶段步骤 4.8 从最终制品生成）
 - **Do impact analysis at Bridge 1** - explore 只准备符号，Bridge 1 补跑 codegraph_impact 传给 propose
 - **Do exploration.md fallback** - explore 不强制产出，Bridge 1 缺失时补建最小版（verify 硬依赖）
 - **Do flowchart fallback** - Bridge 1 ①.1 检查 exploration.md 是否含 \`## 功能流程图\` 段；**缺失时**依 Decisions / 边界场景 / Codebase Findings 强制补建流程图与节点清单（规则同 tr-impl-workflow 1.5.5：节点证据追溯、\`[新建]\` 标记、异常路径），并随 ⑥ 门决策请用户确认流程基准；确认前不进入 Stage 1.5 / Stage 2
@@ -324,10 +322,10 @@ Stage 1 探索 → Bridge 1 → [Stage 1.5 前端设计（条件）] → Stage 2
 - **Do show quantified scores** - verify 评分展示
 - **Don't lose exploration** - 文件持久化
 - Build all paths with \`path.join()\``,
-        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), ${CODEGRAPH_MCP}, ${skillDelegation(['spec_explore', 'tr_impl_frontend', 'spec_propose', 'tr_impl_review_proposal', 'tr_docs_requirement_doc', 'spec_apply', 'tr_test_generate', 'spec_archive'])}`,
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), ${CODEGRAPH_MCP}, ${skillDelegation(['spec_explore', 'tr_impl_frontend', 'spec_propose', 'tr_impl_review_proposal', 'spec_apply', 'tr_test_generate', 'spec_archive'])}`,
         type: 'tr_impl',
         license: 'MIT',
-        compatibility: '依赖 venus CLI（spec 命令组）与阶段技能（venus_spec_explore/propose/apply/archive + venus_tr_impl_review_proposal + venus_tr_docs_requirement_doc + venus_tr_impl_frontend + venus_tr_test_generate）；CLI 缺失时各阶段技能各自降级。',
+        compatibility: '依赖 venus CLI（spec 命令组）与阶段技能（venus_spec_explore/propose/apply/archive + venus_tr_impl_review_proposal + venus_tr_impl_frontend + venus_tr_test_generate）；需求文档技能由归档阶段委派（经 spec-archive 的依赖注入与会话级权限放行），本技能不直接委派；CLI 缺失时各阶段技能各自降级。',
         metadata: { author: 'venus-agent-tools', version: '1.0' },
     };
 }
@@ -335,7 +333,7 @@ Stage 1 探索 → Bridge 1 → [Stage 1.5 前端设计（条件）] → Stage 2
 export function getTrImplGenfullCommandTemplate(): CommandTemplate {
     return {
         name: 'Venus: 引导式全流程编排',
-        description: '引导式全流程编排器：探索→[前端设计]→提案(+verify)→深度复查→需求文档→实现(+条件 frontend 实现/test)→归档，委派阶段 SKILL + 桥梁确认门',
+        description: '引导式全流程编排器：探索→[前端设计]→提案(+verify)→深度复查→实现(+条件 frontend 实现/test)→归档（含需求文档生成），委派阶段 SKILL + 桥梁确认门',
         category: 'Venus / 实现',
         tags: ['venus', 'tr_impl', 'genfull', 'orchestrator', 'full-pipeline'],
         content: `**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** Mark undefined items as **[待确认]** and ask the user rather than guessing.
@@ -352,7 +350,7 @@ export function getTrImplGenfullCommandTemplate(): CommandTemplate {
 
 ${PROMPT_GATE_COMPACT}
 
-TodoWrite 全阶段+桥梁跟踪。检测 actionContext.mode（\`venus spec status --json\`，CLI 不可用则 Glob 扫描 \`openspec/changes/\`）：workspace-planning 模式 → 降级为仅探索+提案+深度复查+需求文档，Bridge 2 前停止。初始化贯穿上下文（change-name / changeRoot / has-frontend / has-java-test / tech-stack / 提示词基线 待各阶段填充）。
+TodoWrite 全阶段+桥梁跟踪。检测 actionContext.mode（\`venus spec status --json\`，CLI 不可用则 Glob 扫描 \`openspec/changes/\`）：workspace-planning 模式 → 降级为仅探索+提案+深度复查，Bridge 2 前停止。初始化贯穿上下文（change-name / changeRoot / has-frontend / has-java-test / tech-stack / 提示词基线 待各阶段填充）。
 
 ## Stage 1: 探索（委派 venus_spec_explore）
 
@@ -373,13 +371,13 @@ ${FLOWCHART_COMPACT}
 
 委派 venus_tr_impl_frontend（via Skill tool）**仅执行主 SKILL Phase 1 设计决策**（不读 references、不生成 JSP）：产出页面类型/组件选型/字段-组件映射矩阵/jQuery版本与引入顺序/4种UI状态/交互方式，写入 exploration.md \`## 前端设计\` 段供 Stage 2 propose 提取到 design.md。设计确认门 = 桥梁点，用户确认后进入提案。references 实现模板（page-templates/component-templates/popup-selectors/action-routing/style-and-security）留待 Stage 3。
 
-## Stage 2: 提案+深度复查+需求文档
+## Stage 2: 提案+深度复查
 
-2.1 委派 venus_spec_propose（via Skill tool，传 change-name + 关联 exploration）：内部创建变更目录、按依赖序生成 proposal/specs/design/tasks、迁移 exploration.md、同步 CONTEXT.md、**自动调用 venus_spec_verify_proposal**（D1-D9，90% 阈值，FAIL 内部 auto-fix 闭环，仍 FAIL 暂停供决策）。verify PASS 后：2.2 委派 venus_tr_impl_review_proposal（8 维度只读复查；fallback 内联复查 + WARN）；2.3 委派 venus_tr_docs_requirement_doc（非交互，输出 \`openspec/changes/<change-name>/需求文档.md\`；失败 WARN 继续）。
+2.1 委派 venus_spec_propose（via Skill tool，传 change-name + 关联 exploration）：内部创建变更目录、按依赖序生成 proposal/specs/design/tasks、迁移 exploration.md、同步 CONTEXT.md、**自动调用 venus_spec_verify_proposal**（D1-D9，90% 阈值，FAIL 内部 auto-fix 闭环，仍 FAIL 暂停供决策）。verify PASS 后：2.2 委派 venus_tr_impl_review_proposal（8 维度只读复查；fallback 内联复查 + WARN）；2.3 收束——**MUST NOT 委派 venus_tr_docs_requirement_doc、MUST NOT 生成需求文档**（由 Stage 4 归档阶段步骤 4.8 生成）。
 
 ## Bridge 2: 提案→实现
 
-①就绪：proposal/design/specs/tasks 齐全 + verify PASS + 深度复查完成 + 需求文档已生成 + apply instruction=\`ready\`（\`venus spec instructions apply --change "<name>" --json\`；CLI 不可用读 tasks.md 推断）；②workspace-planning 降级在此停止；③门：引导模式暂停确认"进入实现"，呈现提案摘要 + 评分 + 复查结论 + 需求文档路径 + 条件子阶段预告。
+①就绪：proposal/design/specs/tasks 齐全 + verify PASS + 深度复查完成 + apply instruction=\`ready\`（\`venus spec instructions apply --change "<name>" --json\`；CLI 不可用读 tasks.md 推断）；②workspace-planning 降级在此停止；③门：引导模式暂停确认"进入实现"，呈现提案摘要 + 评分 + 复查结论 + 条件子阶段预告。（需求文档不在就绪项——由归档阶段生成）
 
 ## Stage 3: 实现（委派 venus_spec_apply + 条件子阶段）
 
@@ -391,12 +389,12 @@ ${FLOWCHART_COMPACT}
 
 ## Stage 4: 归档（委派 venus_spec_archive）
 
-via Skill tool 传 change-name（跳过选择）。archive 内部完成 delta spec 合并主规格、CONTEXT.md 同步、探索记忆同步 \`specs/<cap>/explorations.md\`、目录迁移 \`archive/\`、ARCHIVE-INDEX.md 更新、需求文档迁移 \`devdocs/\`、条件 CodeGraph sync；sync 检查点 non-blocking。记忆闭环：\`specs/<cap>/explorations.md\` 供下一轮 propose 读取。输出全流程总结。
+via Skill tool 传 change-name（跳过选择）。archive 内部完成 delta spec 合并主规格、CONTEXT.md 同步、探索记忆同步 \`specs/<cap>/explorations.md\`、**需求文档生成（步骤 4.8：不存在则委派生成；已存在则就地增量对齐保人工域；失败 WARN 非阻断）**、目录迁移 \`archive/\`、ARCHIVE-INDEX.md 更新、需求文档迁移 \`devdocs/\`、条件 CodeGraph sync；sync 检查点 non-blocking。记忆闭环：\`specs/<cap>/explorations.md\` 供下一轮 propose 读取。输出全流程总结。
 
 ---
 
 ## Guardrails
 
-委派不内联（阶段执行委派对应 SKILL，genfull 只编排 + 桥梁，区别于 venus_tr_impl_workflow）；MUST validate prompt before delegating（0.0 提示词校验门，清晰直通 / 不明确须优化并确认，未确认不委派 Stage 1）且幂等（检测到既有提示词基线直接通过，不重复确认）；确认门四条出口不得死锁；桥梁保证完整性（①上下文交接 ②就绪检查 ③完整性校验 ④门决策）；引导式门控（Bridge 1/2/3 暂停确认，frontend 设计/实现确认门与 test 确认门作桥梁点）；前端设计前置（Stage 1.5 仅设计喂入 propose design.md，Stage 3.2 仅实现读 references 生成 JSP，设计与实现分离）；don't skip questioning（grill L1-L5 由 explore 承载）；read-only operations（文件 / CodeGraph / impact）直接执行但桥梁确认门等待确认；auto-mode to apply（Stage 3 传 auto-mode=true，Bridge 2 承载确认避免 Step 5.5 重复）；pass change-name to archive；deep review + requirement doc after verify PASS（先复查再需求文档，FAIL 不生成）；impact analysis at Bridge 1（explore 只准备符号，Bridge 1 补跑 codegraph_impact）；exploration.md fallback（缺失补建最小版，verify 硬依赖）；do flowchart fallback（Bridge 1 ①.1 缺失 \`## 功能流程图\` 段时依 Decisions / 边界场景 / Codebase Findings 强制补建并随门决策确认流程基准，确认前不进入 Stage 1.5 / Stage 2）；do flowchart idempotency（已含经用户确认的 \`## 功能流程图\` 段时直接通过，不重复产出或再次要求确认）；actionContext.mode detection（workspace-planning 降级）；MUST preserve source on migration failure；do explore codebase before asking；do show quantified scores；don't lose exploration。Build all paths with \`path.join()\`.`,
+委派不内联（阶段执行委派对应 SKILL，genfull 只编排 + 桥梁，区别于 venus_tr_impl_workflow）；MUST validate prompt before delegating（0.0 提示词校验门，清晰直通 / 不明确须优化并确认，未确认不委派 Stage 1）且幂等（检测到既有提示词基线直接通过，不重复确认）；确认门四条出口不得死锁；桥梁保证完整性（①上下文交接 ②就绪检查 ③完整性校验 ④门决策）；引导式门控（Bridge 1/2/3 暂停确认，frontend 设计/实现确认门与 test 确认门作桥梁点）；前端设计前置（Stage 1.5 仅设计喂入 propose design.md，Stage 3.2 仅实现读 references 生成 JSP，设计与实现分离）；don't skip questioning（grill L1-L5 由 explore 承载）；read-only operations（文件 / CodeGraph / impact）直接执行但桥梁确认门等待确认；auto-mode to apply（Stage 3 传 auto-mode=true，Bridge 2 承载确认避免 Step 5.5 重复）；pass change-name to archive；do converge after verify PASS（只做深度复查并收束，**MUST NOT 生成需求文档** —— 该文档由归档阶段步骤 4.8 从最终制品生成）；impact analysis at Bridge 1（explore 只准备符号，Bridge 1 补跑 codegraph_impact）；exploration.md fallback（缺失补建最小版，verify 硬依赖）；do flowchart fallback（Bridge 1 ①.1 缺失 \`## 功能流程图\` 段时依 Decisions / 边界场景 / Codebase Findings 强制补建并随门决策确认流程基准，确认前不进入 Stage 1.5 / Stage 2）；do flowchart idempotency（已含经用户确认的 \`## 功能流程图\` 段时直接通过，不重复产出或再次要求确认）；actionContext.mode detection（workspace-planning 降级）；MUST preserve source on migration failure；do explore codebase before asking；do show quantified scores；don't lose exploration。Build all paths with \`path.join()\`.`,
     };
 }

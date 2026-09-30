@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:b1e77d9b7a0c47d58f912f9935680f0aa164ef845061cddd2f679720c76ef312"
+  generatedFingerprint: "sha256:7d210a057394a8a7a08a4908451a5c3ef286f926d089f3d89a40050cb4f85101"
 ---
 
 **Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** In Phase 1 (Exploration), follow Section 1 (Zero-Assumption). In Phase 2 (Proposal), follow Section 2 (Design-First). In Phase 3 (Verification), check Sections 3-5 for compliance.
@@ -540,7 +540,7 @@ Move exploration file from `openspec/explorations/` to change directory:
 mv openspec/explorations/<keyword>-explore-<sequence>.md openspec/changes/<change-name>/exploration.md
 ```
 
-**Preserve the exploration file — do NOT delete it.**
+**Move semantics — the original copy is NOT kept**: after the move succeeds AND the destination file is verified, the source file no longer exists (that is the point of `mv`); the flow MUST keep exactly ONE resident copy, inside the change directory. If the move fails or the destination fails verification, preserve the source file and report the reason (never delete on the failure path). MUST NOT retroactively migrate or delete pre-existing historical files in `openspec/explorations/`.
 
 ### 2.2 Inline Artifact Generation
 
@@ -594,13 +594,12 @@ Proceed directly to inline artifact generation (no complexity evaluation, no met
 **PASS (≥90%)**:
 - Auto-execute deep proposal review: invoke the `venus_tr_impl_review_proposal` skill (via Skill tool) for deep review (no [Yes/No] prompt); fallback to AI inline deep review + WARN log if the skill is unavailable; never silently skip
 - Display results alongside verification report
-- **Auto-generate requirement document**: after deep review completes, non-interactively invoke the `venus_tr_docs_requirement_doc` skill (via Skill tool); output to `openspec/changes/<change-name>/需求文档.md`; on failure log WARN and continue
-- **Auto-transition to Phase 4**: After requirement document generation (or skip on failure), automatically enter Phase 4 (auto-apply)
+- **Converge — do NOT generate the requirement document**: the document is produced by the ARCHIVE phase (Phase 5 inlines the archive steps, which include the pre-archive requirement-document checkpoint). This phase MUST NOT invoke `venus_tr_docs_requirement_doc` and MUST NOT ask the user for document basic information
+- **Auto-transition to Phase 4**: after the deep review converges, automatically enter Phase 4 (auto-apply)
 
 **FAIL (<90%)**:
 - Auto-generate fix suggestions and apply fixes
 - Re-run verification automatically
-- Do NOT generate the requirement document until fixes pass re-verification
 - If still FAIL: [Manual edit] [Return to exploration] [View detailed diff] (no skip-to-apply path)
 
 ---
@@ -611,7 +610,7 @@ Proceed directly to inline artifact generation (no complexity evaluation, no met
 
 ### 4.1 Auto-Execute Apply
 
-After verification passes (≥90%) and the requirement document is generated:
+After verification passes (≥90%) and the deep review has converged:
 - Announce: "## Auto-Apply Phase" with a clear header
 - Display: "Verification passed — automatically entering apply phase"
 - Construct the apply context with:
@@ -658,7 +657,8 @@ After apply completes and compile check passes:
 - Construct the archive context with:
   - `change-name` — the current change name (skips the change selection prompt)
 - Execute the archive workflow logic (following the venus_spec_archive skill template)
-- All archive steps execute automatically: delta spec sync, CONTEXT.md sync, CodeGraph check, exploration memory sync, directory move, ARCHIVE-INDEX.md update
+- All archive steps execute automatically: delta spec sync, CONTEXT.md sync, CodeGraph check, exploration memory sync, **requirement document generation**, directory move, requirement document migration to devdocs, ARCHIVE-INDEX.md update
+- **Requirement document generation (single-source rule)**: this step is NOT re-defined here — it follows the SAME rule as `venus_spec_archive` step 4.8: BEFORE the directory move, decide whether `openspec/changes/<change-name>/需求文档.md` exists; if absent, non-interactively delegate `venus_tr_docs_requirement_doc` to generate it; if present, perform an in-place incremental alignment (人工域 `## 基本信息` and `## 八、评审记录` preserved verbatim, sections 一~七 re-derived) and MUST NOT call the skill. The document then migrates to `openspec/devdocs/` via the existing step 6. MUST NOT copy the branch rule text here — reference the archive skill's step 4.8.
 
 ### 5.2 Auto-Archive Error Handling
 
@@ -666,6 +666,7 @@ After apply completes and compile check passes:
 - **CONTEXT.md sync fails**: log warning, continue (non-blocking)
 - **CodeGraph not initialized**: skip CodeGraph steps, continue (non-blocking)
 - **Exploration memory sync fails**: log warning, continue (non-blocking)
+- **Requirement document generation or alignment fails**: log warning (target path + reason), continue (non-blocking)
 - **Archive target already exists**: fail with error, suggest renaming
 
 ### 5.3 Completion
@@ -695,7 +696,7 @@ After auto-archive completes:
 - **Do auto-archive after apply complete** - Phase 5 executes automatically with change name passed from context (following the venus_spec_archive skill template)
 - **Do inherit and auto-pass the test execution gate** - Phase 4 runs venus_spec_apply §9 limited to the change scope; in-scope failures auto-retry up to 3 times, then pause and report; pre-existing out-of-scope failures are WARN only; no test framework → WARN and skip
 - **Don't silently pass a failing test gate** - a failing in-scope test gate MUST pause before archive; auto semantics never justify skipping the gate or the archive block
-- **Do auto-generate requirement doc** - After full pass, first invoke `venus_tr_impl_review_proposal` for deep review (fallback inline deep review + WARN), then non-interactively invoke `venus_tr_docs_requirement_doc`; on FAIL do not generate; on generation failure WARN and continue
+- **Do converge after the deep review** - After full pass, invoke `venus_tr_impl_review_proposal` for deep review (fallback inline deep review + WARN) and stop; the requirement document is generated by Phase 5 (auto-archive) per the archive skill's step 4.8, never by Phase 3
 - **MUST create file before questioning** - Phase 1 checkpoint is mandatory
 - **MUST verify file before migration** - Phase 2 checkpoint is mandatory
 - **MUST preserve source on migration failure** - Never lose user data

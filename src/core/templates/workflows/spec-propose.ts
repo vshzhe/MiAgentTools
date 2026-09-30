@@ -71,10 +71,13 @@ I'll create a change with artifacts:
    - 日志：记录 CONTEXT.md 状态
 
 0.6. **用户选择处理**
-   - **关联**：将探索文件迁移到变更目录
+   - **关联**：将探索文件**移动**到变更目录（不留原件）
      - 源路径: \`openspec/explorations/{filename}\`
      - 目标路径: \`openspec/changes/{change-name}/exploration.md\`
      - 使用 \`path.join()\` 确保跨平台兼容
+     - **成功后删除源文件**：移动成功且目标文件校验通过后，MUST 删除 \`openspec/explorations/\` 下的源文件，使同一探索内容只保留变更目录内的一份
+     - **失败时保留源文件**：移动失败或目标文件校验未通过时，MUST 保留源文件并报告错误原因（"不留原件"只适用于成功路径）
+     - **只作用于本次**：MUST NOT 追溯搬迁或删除 \`openspec/explorations/\` 下的既有历史文件（本规则生效前产生的探索文件保留原位以供溯源）
      - 迁移后读取探索内容作为提案生成的上下文
    - **跳过**：继续正常流程，记录为 "无探索上下文"
 
