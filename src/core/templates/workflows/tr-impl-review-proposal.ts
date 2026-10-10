@@ -7,7 +7,7 @@ export function getTrImplReviewProposalSkillTemplate(): SkillTemplate {
     return {
         name: 'venus_tr_impl_review_proposal',
         description: '检查变更提案完整性与实现合规性——深度代码库探索、8 维度完整性检查、合规性验证、量化评分与遗漏场景补充。触发词"检查提案 / 检查设计 / review proposal / 检查遗漏 / 提案完整性 / 检查合规性 / 验证实现方式"；在 /venus:spec-propose 或 /venus:tr-impl-workflow 验证通过后自动调用，也可手动调用',
-        instructions: `**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** Mark undefined items as **[待确认]** and ask the user rather than guessing.
+        instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 检查变更提案完整性与实现合规性——深度代码库探索、8 维度完整性检查、合规性验证、量化评分与遗漏场景补充。在 /venus:spec-propose 创建提案后，或经过 /venus:spec-explore 探索分析后，使用此 skill 验证提案是否完整覆盖需求场景、是否符合项目规范。确保每个变更提案都经过完整性验证和合规性检查后再进入实现阶段。
 
@@ -972,7 +972,7 @@ export function getTrImplReviewProposalCommandTemplate(): CommandTemplate {
         description: '变更提案完整性复查：代码库深探 + 8 维度完整性检查 + 合规性验证 + 量化评分',
         category: 'Venus / 实现',
         tags: ['venus', 'spec', 'review', 'proposal', 'completeness', 'compliance'],
-        content: `**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** Mark undefined items as **[待确认]** and ask the user rather than guessing.
+        content: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 变更提案完整性复查：深度代码库探索 + 8 维度完整性检查 + 合规性验证 + 量化评分 + 遗漏场景补充。在 /venus:spec-propose 创建提案后或 /venus:spec-explore 探索后调用，确保提案完整后再进入实现。
 

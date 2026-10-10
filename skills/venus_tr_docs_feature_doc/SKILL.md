@@ -9,10 +9,10 @@ metadata:
   version: "1.0"
   type: tr_docs
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:825932b03cdcc9089dec54254368cb949eec14e25db1122c24c73ccfcc471f9f"
+  generatedFingerprint: "sha256:d7a8961b1860fab1dce5433174161cd252c158a7ab8a4aa53405c5f8bc5bb74c"
 ---
 
-**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** Mark undefined items as **[待确认]** and ask the user rather than guessing.
+**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 Scan a source project's feature modules and generate a complete feature requirement implementation document covering frontend implementation, backend implementation, field-level API contracts, database call chains, and cross-module interactions.
 

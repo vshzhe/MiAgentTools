@@ -9,10 +9,10 @@ metadata:
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:4f8e332a7a090e844122bbc09568c6533fd801245a7b9bb4315801ce6fdedbd4"
+  generatedFingerprint: "sha256:a5e35568308e23062a5c1c56997d69e59c45f8dce47c3d9f6fb50a52f436cecc"
 ---
 
-**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** Mark undefined items as **[待确认]** and ask the user rather than guessing.
+**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 Check functional consistency after migrating a source project to a target project. Identify lost functionality, inconsistent implementations, and framework-difference issues across the backend (Controller / Service / DAO), frontend pages, SQL statements, and database schema. Every comparison result MUST be written into documents containing actual data — creating empty directories or template-only documents is forbidden.
 

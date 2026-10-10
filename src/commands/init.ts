@@ -7,6 +7,7 @@
  */
 
 import path from 'path';
+import * as fs from 'fs';
 import { createRequire } from 'node:module';
 import { getSkillTemplates, getCommandTemplates } from '../core/templates/index.js';
 import {
@@ -36,6 +37,7 @@ import {
     type MergeResult,
 } from '../core/permissions.js';
 import { ensureDir, writeFile, pathExists, writeSkillReferences } from '../utils/file-system.js';
+import { initDatabase, isSqlite3Available, resolveIndexDb } from '../core/spec/sqlite-index.js';
 
 /** 目标工具设置文件的相对路径（会话级权限载体） */
 const SETTINGS_FILE = 'settings.json';
@@ -71,6 +73,8 @@ export interface InitResult {
     permissionSettings: MergeResult[];
     /** 项目预扫描报告（--no-scan 时为空报告，未扫描、未写基线） */
     scanReport: ProjectScanReport;
+    /** SQLite 跨变更索引初始化结果（index.db 创建状态） */
+    indexDbStatus: 'created' | 'skipped-exists' | 'skipped-unavailable' | 'failed';
 }
 
 /** 读取当前包版本（供 metadata.generatedBy） */
@@ -208,6 +212,24 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
     //    失败只记入报告的 failures，不影响安装结果；--no-scan 时整体跳过
     const scanReport = options.scan === false ? createEmptyScanReport() : scanProject(projectRoot);
 
+    // 7. SQLite 跨变更索引初始化（非阻断）：创建 openspec/changes/archive/.venus/index.db；
+    //    sqlite3 CLI 不可用时跳过；数据库已存在时跳过
+    let indexDbStatus: 'created' | 'skipped-exists' | 'skipped-unavailable' | 'failed' = 'skipped-unavailable';
+    const openspecDir = path.join(projectRoot, 'openspec');
+    if (fs.existsSync(openspecDir)) {
+        if (!isSqlite3Available()) {
+            indexDbStatus = 'skipped-unavailable';
+        } else {
+            const dbPath = resolveIndexDb(openspecDir);
+            if (fs.existsSync(dbPath)) {
+                indexDbStatus = 'skipped-exists';
+            } else {
+                const dbResult = initDatabase(openspecDir);
+                indexDbStatus = dbResult.success ? 'created' : 'failed';
+            }
+        }
+    }
+
     return {
         projectRoot,
         tools: tools.map((t) => t.value),
@@ -221,5 +243,6 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
         reconcileOrphans,
         permissionSettings,
         scanReport,
+        indexDbStatus,
     };
 }

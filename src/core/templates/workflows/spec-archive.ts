@@ -11,7 +11,7 @@ export function getSpecArchiveChangeSkillTemplate(): SkillTemplate {
         description: '归档变更。当用户要归档已实现完成的变更、结束变更工作流时使用。',
         allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*), Bash(ls:*), ${CODEGRAPH_MCP}, ${skillDelegation(['tr_docs_requirement_doc'])}`,
         type: 'spec',
-        instructions: `**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.**
+        instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 Archive a completed change in the change workflow.
 
@@ -352,7 +352,16 @@ Target archive directory already exists.
 - Generate the requirement document at the pre-archive checkpoint (4.8) from the FINAL artifacts: absent → delegate venus_tr_docs_requirement_doc non-interactively; present → in-place alignment preserving the 人工域 (\`## 基本信息\` / \`## 八、评审记录\`) and never calling the skill in that branch; never block the archive on generation or alignment failure
 - When the change declares \`skip_specs\` (status reports specs as skipped), the archive summary MUST note "主规格未同步（skip_specs 声明）" to prevent users from mistaking it as a spec sync omission
 - Show clear summary of what happened
-- If delta specs exist, run the sync assessment, show the combined summary, and execute the inline AI merge directly (ADDED/MODIFIED/REMOVED/RENAMED → main spec, following v1.1.20 specs-apply semantics)`,
+- If delta specs exist, run the sync assessment, show the combined summary, and execute the inline AI merge directly (ADDED/MODIFIED/REMOVED/RENAMED → main spec, following v1.1.20 specs-apply semantics)
+
+## SQLite Index Sync (Post-Archive)
+
+After the archive move (step 5) and CodeGraph sync (step 6.5), auto-run rebuild of the SQLite cross-change index:
+
+1. **MUST run**: \`venus spec reindex --force\` (via Bash) — this rebuilds the full index from all archived changes
+2. On success: log "SQLite index rebuilt — N changes indexed"
+3. On failure (sqlite3 CLI unavailable): log WARN "SQLite reindex skipped — sqlite3 CLI unavailable" and continue (non-blocking)
+4. JSON missing per-change: the reindex command auto-degrades to MD extraction with per-change WARN`,
         license: 'MIT',
         compatibility: '依赖 venus CLI（spec 命令组）与 CodeGraph CLI（可选）。',
         metadata: { author: 'venus-agent-tools', version: '1.0' },

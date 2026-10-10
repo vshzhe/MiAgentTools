@@ -11,7 +11,7 @@ export function getSpecBulkArchiveSkillTemplate(): SkillTemplate {
         description: '批量归档变更。当用户要一次归档多个已完成变更时使用。',
         allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*), ${CODEGRAPH_MCP}, ${skillDelegation(['tr_docs_requirement_doc'])}, ${SUBAGENT_DISPATCH}`,
         type: 'spec',
-        instructions: `**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.**
+        instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 Archive multiple completed changes in a single operation.
 
@@ -353,6 +353,14 @@ This skill allows you to batch-archive changes, handling spec conflicts intellig
       - If batch \`codegraph sync\` fails (CLI error, timeout, or CLI not in PATH): log warning, do NOT block the batch archive
       - Still proceed to display the bulk archive summary (step 9) and batch index update (step 10) — sync runs after these
       - Partial batch success (some changes failed/skipped) still triggers sync if ≥1 change archived
+
+12. **Batch SQLite Reindex (auto, after CodeGraph sync)**
+
+   After step 11 (CodeGraph sync), auto-run SQLite index rebuild:
+   - **MUST run**: \`venus spec reindex --force\` (via Bash) — rebuilds full index from all archived changes
+   - On success: log "SQLite index rebuilt — N changes indexed"
+   - On failure (sqlite3 CLI unavailable): log WARN and continue (non-blocking)
+   - Only execute if ≥1 change was successfully archived
 
 **Conflict Resolution Examples**
 

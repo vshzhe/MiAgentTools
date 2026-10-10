@@ -66,6 +66,8 @@ Implement tasks from a change's artifacts (proposal/specs/design/tasks) under op
    - Log a WARN stating the fallback reason (e.g., "command not found" or "non-zero exit code <N>") so the user knows structured context was unavailable
    - Task completion status is read directly from the tasks.md checkboxes (\`- [x]\` = complete, \`- [ ]\` = pending) in fallback mode
 
+   **JSON sidecar preference**: Before parsing tasks.md, check for \`.venus/tasks.json\`. If present, read structured task entries (id / label / status / dependencies / files / batchGroup) directly — skip markdown checkbox parsing. If tasks.json is missing or out of sync with tasks.md, fall back to parsing tasks.md (WARN). After completing a task, update both tasks.md checkbox AND tasks.json status field.
+
    **Handle states (both paths):**
    - If artifacts are missing (proposal/specs/design/tasks): show message, suggest using \`venus_spec_verify\` to complete the artifacts first
    - If all tasks are already complete: congratulate, suggest archive

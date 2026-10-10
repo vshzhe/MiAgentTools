@@ -9,10 +9,10 @@ metadata:
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:facb7c8495d879c5cf22f75c77bb3816a05eed3642f88c72a107176e753bf153"
+  generatedFingerprint: "sha256:2e68b7776d41142d0831318b0fe937c2df79e6f51c1ebd211e69782c2e9a10eb"
 ---
 
-**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** Mark undefined items as **[待确认]** and ask the user rather than guessing.
+**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 One-stop automated feature migration across four phases: source requirement document generation with distilled core-feature confirmation → target-project exploration (incl. target coding-spec loading) + change proposal generation → implementation confirmation gate → review sub-agent migration check with fix loop. The flow structure mirrors the spec-driven workflow (`/venus:spec-explore` → `/venus:spec-propose` → `/venus:spec-apply`) and the one-stop guided workflow `/venus:tr-impl-workflow` (exploration → proposal → verification); exploration and proposal generation run automatically (consistency passthrough). Two mid-flow confirmation points, distinct in nature: the **distill confirmation** in Phase 1 (requirement-clarification gate — confirms WHAT to migrate) and the **implementation gate** in Phase 3 (flow gate — confirms HOW to implement); the Phase 2→3 consistency passthrough is unaffected.
 

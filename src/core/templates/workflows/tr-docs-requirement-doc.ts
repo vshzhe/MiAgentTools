@@ -7,7 +7,7 @@ export function getTrDocsRequirementDocSkillTemplate(): SkillTemplate {
     return {
         name: 'venus_tr_docs_requirement_doc',
         description: 'Convert a change proposal (proposal.md/design.md/tasks.md/specs) into a standard eight-section requirement document for human review. Use when the user wants to 生成需求文档 / 需求单 / 转换提案为需求文档 / requirement document from change. NOT for source-project feature scanning to generate a migration requirement document (use venus_tr_docs_feature_doc).',
-        instructions: `**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** Mark undefined items as **[待确认]** and ask the user rather than guessing.
+        instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 Convert an OpenSpec change proposal into a standard requirement document for human review.
 
@@ -67,6 +67,12 @@ Read in priority order (skip missing files gracefully):
 | **六、表结构设计** | design.md → Decisions（数据库设计） + tasks.md | 提取完整 DDL（含建表、索引、序列、预置数据） |
 | **七、影响分析** | proposal.md → Impact | 直接映射模块/客户/调度影响 |
 | **八、评审记录** | 空模板 | 待评审后填写 |
+
+**JSON sidecar preference**: Before parsing markdown artifacts, check for JSON sidecars under \`.venus/\`:
+- \`decisions.json\` → render 关键技术决策 table directly (no AI inference from prose)
+- \`tasks.json\` → use structured task data for 需求拆解
+- \`capabilities.json\` → use capability→scenario mapping for 场景分组
+- JSON missing → fall back to parsing markdown (WARN, non-blocking)
 
 ## Step 5: Tech stack detection (generic rules)
 
@@ -253,7 +259,7 @@ export function getTrDocsRequirementDocCommandTemplate(): CommandTemplate {
         description: '变更提案（proposal/design/tasks/specs）转八章节评审需求文档',
         category: 'Venus / 文档',
         tags: ['venus', 'tr_docs', 'requirement-doc', 'documentation', 'review'],
-        content: `**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** Mark undefined items as **[待确认]** and ask the user rather than guessing.
+        content: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 Convert an OpenSpec change proposal (proposal/design/tasks/specs) into a standard eight-section requirement document for human review. **Trigger boundary**: change-proposal → requirement doc only — source-project feature scanning for a migration requirement doc is \`/venus:tr-docs-feature-doc\`.
 

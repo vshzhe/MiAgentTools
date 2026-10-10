@@ -9,10 +9,10 @@ metadata:
   version: "1.0"
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:a11eb5e59b6442c73d56901ba8588f0ea241fca9d4b1fd60790ddf1a625b0319"
+  generatedFingerprint: "sha256:5c99dbf152088d7a4ac70cd07e0e8f9c7db49b510b147df480e549458f1b4944"
 ---
 
-**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.**
+**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 Archive multiple completed changes in a single operation.
 
@@ -354,6 +354,14 @@ This skill allows you to batch-archive changes, handling spec conflicts intellig
       - If batch `codegraph sync` fails (CLI error, timeout, or CLI not in PATH): log warning, do NOT block the batch archive
       - Still proceed to display the bulk archive summary (step 9) and batch index update (step 10) — sync runs after these
       - Partial batch success (some changes failed/skipped) still triggers sync if ≥1 change archived
+
+12. **Batch SQLite Reindex (auto, after CodeGraph sync)**
+
+   After step 11 (CodeGraph sync), auto-run SQLite index rebuild:
+   - **MUST run**: `venus spec reindex --force` (via Bash) — rebuilds full index from all archived changes
+   - On success: log "SQLite index rebuilt — N changes indexed"
+   - On failure (sqlite3 CLI unavailable): log WARN and continue (non-blocking)
+   - Only execute if ≥1 change was successfully archived
 
 **Conflict Resolution Examples**
 

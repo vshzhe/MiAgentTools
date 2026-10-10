@@ -15,23 +15,23 @@ import {
 } from '../flowchart-gate.js';
 import { CODEGRAPH_MCP, SUBAGENT_DISPATCH, skillDelegation } from '../tool-whitelist.js';
 
-/** 需求维度的提示词校验门全文（唯一源渲染，见 prompt-gate.ts） */
-const PROMPT_GATE = buildPromptGateBlock(REQUIREMENT_DIMENSIONS);
+/** 需求维度的提示词校验门紧凑版（技能正文内联）；全文细则见 references/prompt-gate.md */
+const PROMPT_GATE = buildPromptGateCompact(REQUIREMENT_DIMENSIONS);
 
-/** 需求维度的提示词校验门压缩版（斜杠指令正文复用） */
-const PROMPT_GATE_COMPACT = buildPromptGateCompact(REQUIREMENT_DIMENSIONS);
+/** 提示词校验门全文（写入 references/prompt-gate.md，AI 在 Gate 触发时按需读取） */
+const PROMPT_GATE_FULL = buildPromptGateBlock(REQUIREMENT_DIMENSIONS);
 
-/** 需求版功能流程图制品全文（唯一源渲染，见 flowchart-gate.ts） */
-const FLOWCHART = buildFlowchartBlock(REQUIREMENT_FLOW_COLUMNS);
+/** 需求版功能流程图紧凑版（技能正文内联）；全文细则见 references/flowchart-gate.md */
+const FLOWCHART = buildFlowchartCompact(REQUIREMENT_FLOW_COLUMNS);
 
-/** 需求版功能流程图压缩版（斜杠指令正文复用） */
-const FLOWCHART_COMPACT = buildFlowchartCompact(REQUIREMENT_FLOW_COLUMNS);
+/** 功能流程图全文（写入 references/flowchart-gate.md，AI 在流程生成时按需读取） */
+const FLOWCHART_FULL = buildFlowchartBlock(REQUIREMENT_FLOW_COLUMNS);
 
 export function getTrImplWorkflowSkillTemplate(): SkillTemplate {
     return {
         name: 'venus_tr_impl_workflow',
         description: 'One-stop guided workflow from exploration to task generation with verification phase. Creates persistent exploration files, asks clarifying questions until clear (grill-with-docs, L1-L5 per-level confirmation gates), generates all artifacts inline, then auto-verifies before implementation. Use when the user wants a guided workflow with追问 (grill-with-docs) questioning and automatic quality verification (一站式工作流 / guided workflow / workflow from exploration). NOT for fully automated pipeline (use venus_tr_impl_auto_workflow), single-stage exploration (use venus_spec_explore), or debugging (use venus_tr_impl_debug).',
-        instructions: `**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** In Phase 1 (Exploration), follow Section 1 (Zero-Assumption). In Phase 2 (Proposal), follow Section 2 (Design-First). In Phase 3 (Verification), check Sections 3-5 for compliance.
+        instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 One-stop workflow from exploration to task generation with verification phase.
 
@@ -106,6 +106,8 @@ Use \`path.join()\` for cross-platform compatibility.
 **门的校验对象是用户最终提供的需求描述**：调用未携带主题时，先交互收集主题描述，再以收集后的描述执行本门，MUST NOT 对空输入执行校验。
 
 ${PROMPT_GATE}
+
+> **完整门细则**见 references/prompt-gate.md。**仅在 Gate 实际触发时**（输入不明确、进入 Step 3 优化流程）读取全文细则；清晰输入直接通过，无需读取。
 
 **本技能内的执行要求**：
 
@@ -801,6 +803,8 @@ Use markdown format with proper syntax.
 触发点：1.3 grill L1-L5 与 1.4 关键词分析均已执行、1.5 探索文件已更新之后。本制品是**强制产出**——不因"本次判定无流程"而跳过，也 MUST NOT 留空。
 
 ${FLOWCHART}
+
+> **完整流程图细则**见 references/flowchart-gate.md。**仅在流程浮现时**读取全文细则。
 
 **本技能内的执行要求**：
 
@@ -1602,6 +1606,10 @@ All artifacts ready! Run \`/venus:spec-apply\` to implement.
         license: 'MIT',
         compatibility: '依赖 venus CLI（spec 命令组）；CLI 缺失时降级为 AI 内联生成（CLI-degraded generation）。',
         metadata: { author: 'venus-agent-tools', version: '1.0' },
+        references: [
+            { path: 'references/prompt-gate.md', content: PROMPT_GATE_FULL },
+            { path: 'references/flowchart-gate.md', content: FLOWCHART_FULL },
+        ],
     };
 }
 
@@ -1611,7 +1619,7 @@ export function getTrImplWorkflowCommandTemplate(): CommandTemplate {
         description: '一站式引导工作流：结构化探索（grill 追问 L1-L5）→ 提案内联生成 → 自动验证门 → 深度复查收束（需求文档由归档阶段生成）',
         category: 'Venus / 实现',
         tags: ['venus', 'tr_impl', 'workflow', 'exploration', 'verification'],
-        content: `**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.**
+        content: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 One-stop workflow from exploration to task generation with keyword detection, analysis integration, and automatic verification phase.
 
@@ -1643,7 +1651,7 @@ Use \`path.join()\` for cross-platform compatibility.
 
 **⚠️ MANDATORY: 本门在任何探索动作之前执行，不得跳过。** 校验对象是用户最终提供的需求描述（未携带主题时先交互收集，再以收集后的描述执行本门，不对空输入校验）。
 
-${PROMPT_GATE_COMPACT}
+${PROMPT_GATE}
 
 不明确分支的确认门是**澄清门（确认 WHAT）**：用户确认或修改前 MUST NOT 推进到 1.1.5 及之后的任何步骤。校验结论（原始提示词 + 确认后的基线）写入探索文件的 \`## 提示词基线\` 段。
 
@@ -2032,7 +2040,7 @@ Apply the full grill-with-docs discipline: grilling primitive (decision tree wal
 
 **⚠️ MANDATORY: 探索分析完成后必须强制产出功能流程图，并经流程最终确认门确认后才进入 1.6。** 本制品不因"本次判定无流程"而跳过，也 MUST NOT 留空；用户确认前 MUST NOT 进入 1.6，MUST NOT 把未确认流程图当作提案锚点。
 
-${FLOWCHART_COMPACT}
+${FLOWCHART}
 
 **回改规则**：探索或提案阶段发现遗漏节点 MUST 回到本步骤（1.5.5）更新流程图与节点清单并**重新经用户确认**；MUST NOT 在 tasks.md 中静默补节点。确认后的流程图 = **流程基准**，随探索文件迁移（Phase 2.3）一并进入变更目录。
 

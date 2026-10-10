@@ -24,7 +24,7 @@ I'll create a change with artifacts:
 
 ---
 
-**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** Mark undefined items as **[待确认]** and ask the user rather than guessing.
+**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 ---
 
@@ -272,7 +272,27 @@ After completing all artifacts AND Phase 3 verification passes:
 - **Material ambiguity划分**: 影响范围/行为契约/向后兼容性/验收标准的歧义 MUST 表面化并向用户提问（标记 [待确认]）；细节性歧义可做合理假设并记录到 planning artifacts
 - After all artifacts are created, display a design blueprint summary and wait for user confirmation before suggesting implementation.
 - If a change with that name already exists, ask if user wants to continue it or create a new one
-- Verify each artifact file exists after writing before proceeding to next`,
+- Verify each artifact file exists after writing before proceeding to next
+
+## JSON Sidecar Generation (MANDATORY)
+
+After each artifact is written, sync-generate the corresponding JSON sidecar under \`.venus/\`:
+
+1. **manifest.json**: After proposal.md is written → write \`openspec/changes/<name>/.venus/manifest.json\` with changeName / capabilities / impactAreas / phase fields
+2. **tasks.json**: After tasks.md is written → write \`.venus/tasks.json\` with structured task entries (id / label / description / status / dependencies / nodeRef / specRef / files / batchGroup) and progress stats
+3. **decisions.json**: After design.md is written → write \`.venus/decisions.json\` from the Decisions section (id / title / choice / alternatives / rationale / risks / relatedFiles)
+4. **capabilities.json**: After specs/*.md are written → write \`.venus/capabilities.json\` aggregating all capability operations (name / operations[] with type ADDED/MODIFIED/REMOVED/RENAMED + requirement + scenarios[])
+
+JSON sidecar is a read-only acceleration layer — Markdown is the single source of truth. JSON write failure is non-blocking (WARN and continue).
+
+> JSON schema definitions: manifest → venus/manifest/v1, tasks → venus/tasks/v1, decisions → venus/decisions/v1, capabilities → venus/capabilities/v1
+
+## SQLite Conflict Detection
+
+Before finalizing the proposal, check for capability conflicts via SQLite index (when available):
+- If \`openspec/.venus/index.db\` exists → query \`capabilities\` table for active changes touching the same capabilities
+- If 2+ active changes reference the same capability → warn user about potential conflict
+- If index.db is unavailable → skip (non-blocking)`,
         license: 'MIT',
         compatibility: '依赖 venus CLI（spec 命令组）与 CodeGraph MCP（可选）。',
         metadata: { author: 'venus-agent-tools', version: '1.0' },

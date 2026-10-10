@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:0eb1b24576079589291627c7d3748130b4c3e62a71cec913b94cca150b355759"
+  generatedFingerprint: "sha256:801c92dc68076940613625e95a0b8d5ae13f86fcd4141101889fec045d2a7dcc"
 ---
 
 **验证前先阅读 openspec/rules/ai-coding.md 中的验证标准。** 重点检查未定义数据字段、架构分层违规、前端 UI 状态覆盖。
@@ -61,8 +61,8 @@ metadata:
 5. **验证 Completeness（完整性）**
 
    **任务完成情况**：
-   - 若存在 tasks.md，读取其内容
-   - 解析复选框：`- [ ]`（未完成） vs `- [x]`（完成）
+   - **优先读** `.venus/tasks.json`：若存在，直接获取结构化任务列表（id / label / status / files）与 progress 统计，跳过 markdown 解析
+   - **降级**：tasks.json 缺失时解析 tasks.md 复选框：`- [ ]`（未完成） vs `- [x]`（完成）
    - 统计完成 / 总任务数
    - 若存在未完成任务：
      - 为每个未完成任务添加 CRITICAL 问题

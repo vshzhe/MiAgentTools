@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:a7a01ed1e5b33a8f8445c987b99ecb0ebc95cfd713aca439d18511a70201af77"
+  generatedFingerprint: "sha256:3d871c4faff26418192527c065021b49d4d4c3b9086185e7f572673768a037c5"
 ---
 
 **Before implementing, read openspec/rules/ai-coding.md for AI coding guardrails.** Never guess database fields, API params, or business rules — mark as **[待确认]** and ask the user.
@@ -66,6 +66,8 @@ Implement tasks from a change's artifacts (proposal/specs/design/tasks) under op
      - `openspec/changes/<name>/tasks.md` — task list with checkboxes
    - Log a WARN stating the fallback reason (e.g., "command not found" or "non-zero exit code <N>") so the user knows structured context was unavailable
    - Task completion status is read directly from the tasks.md checkboxes (`- [x]` = complete, `- [ ]` = pending) in fallback mode
+
+   **JSON sidecar preference**: Before parsing tasks.md, check for `.venus/tasks.json`. If present, read structured task entries (id / label / status / dependencies / files / batchGroup) directly — skip markdown checkbox parsing. If tasks.json is missing or out of sync with tasks.md, fall back to parsing tasks.md (WARN). After completing a task, update both tasks.md checkbox AND tasks.json status field.
 
    **Handle states (both paths):**
    - If artifacts are missing (proposal/specs/design/tasks): show message, suggest using `venus_spec_verify` to complete the artifacts first

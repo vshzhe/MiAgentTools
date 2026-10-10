@@ -9,7 +9,7 @@ export function getTrImplAutoMigrationSkillTemplate(): SkillTemplate {
     return {
         name: 'venus_tr_impl_auto_migration',
         description: 'One-stop automated feature migration — distill the source project (via venus_tr_docs_feature_doc + user-confirmed core-feature list), load the target project coding specs, create a standard OpenSpec change proposal and implement it under those specs after the implementation gate, then an independent review agent cross-checks source vs target functionality and generates a report with a P0/P1 fix loop (via venus_tr_impl_migration_check). Use when the user wants to migrate a feature or module from a source project into the current (target) project automatically (自动迁移 / 功能迁移 / auto migration / migrate feature to this project). NOT for standalone source-project scanning (use venus_tr_docs_feature_doc) or standalone post-migration comparison (use venus_tr_impl_migration_check).',
-        instructions: `**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** Mark undefined items as **[待确认]** and ask the user rather than guessing.
+        instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 One-stop automated feature migration across four phases: source requirement document generation with distilled core-feature confirmation → target-project exploration (incl. target coding-spec loading) + change proposal generation → implementation confirmation gate → review sub-agent migration check with fix loop. The flow structure mirrors the spec-driven workflow (\`/venus:spec-explore\` → \`/venus:spec-propose\` → \`/venus:spec-apply\`) and the one-stop guided workflow \`/venus:tr-impl-workflow\` (exploration → proposal → verification); exploration and proposal generation run automatically (consistency passthrough). Two mid-flow confirmation points, distinct in nature: the **distill confirmation** in Phase 1 (requirement-clarification gate — confirms WHAT to migrate) and the **implementation gate** in Phase 3 (flow gate — confirms HOW to implement); the Phase 2→3 consistency passthrough is unaffected.
 
@@ -124,7 +124,7 @@ export function getTrImplAutoMigrationCommandTemplate(): CommandTemplate {
         description: '一站式自动迁移：源需求文档、变更提案、门控实现与完整性检查（含修复循环）',
         category: 'Venus / 实现',
         tags: ['venus', 'tr_impl', 'auto-migration', 'migration', 'automation'],
-        content: `**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** Mark undefined items as **[待确认]** and ask the user rather than guessing.
+        content: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 One-stop automated feature migration from a source project into the current (target) project. **Trigger boundary**: full pipeline only — standalone scanning is \`/venus:tr-docs-feature-doc\`, standalone comparison is \`/venus:tr-impl-migration-check\`.
 

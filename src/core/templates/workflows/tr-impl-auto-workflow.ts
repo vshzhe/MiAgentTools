@@ -15,23 +15,23 @@ import {
 } from '../flowchart-gate.js';
 import { CODEGRAPH_MCP, SUBAGENT_DISPATCH, skillDelegation } from '../tool-whitelist.js';
 
-/** 需求维度的提示词校验门全文（唯一源渲染，见 prompt-gate.ts） */
-const PROMPT_GATE = buildPromptGateBlock(REQUIREMENT_DIMENSIONS);
+/** 需求维度的提示词校验门紧凑版（技能正文内联）；全文细则见 references/prompt-gate.md */
+const PROMPT_GATE = buildPromptGateCompact(REQUIREMENT_DIMENSIONS);
 
-/** 需求维度的提示词校验门压缩版（斜杠指令正文复用） */
-const PROMPT_GATE_COMPACT = buildPromptGateCompact(REQUIREMENT_DIMENSIONS);
+/** 提示词校验门全文（写入 references/prompt-gate.md，AI 在 Gate 触发时按需读取） */
+const PROMPT_GATE_FULL = buildPromptGateBlock(REQUIREMENT_DIMENSIONS);
 
-/** 需求版功能流程图制品全文（唯一源渲染，见 flowchart-gate.ts） */
-const FLOWCHART = buildFlowchartBlock(REQUIREMENT_FLOW_COLUMNS);
+/** 需求版功能流程图紧凑版（技能正文内联）；全文细则见 references/flowchart-gate.md */
+const FLOWCHART = buildFlowchartCompact(REQUIREMENT_FLOW_COLUMNS);
 
-/** 需求版功能流程图压缩版（斜杠指令正文复用） */
-const FLOWCHART_COMPACT = buildFlowchartCompact(REQUIREMENT_FLOW_COLUMNS);
+/** 功能流程图全文（写入 references/flowchart-gate.md，AI 在流程生成时按需读取） */
+const FLOWCHART_FULL = buildFlowchartBlock(REQUIREMENT_FLOW_COLUMNS);
 
 export function getTrImplAutoWorkflowSkillTemplate(): SkillTemplate {
     return {
         name: 'venus_tr_impl_auto_workflow',
         description: 'One-stop automated workflow exploration→proposal→verification→auto-apply→auto-archive, L1-L5 user confirmation then full automation; triggers: 全自动工作流 / auto workflow / fully automated pipeline. Use when the user wants a fully automated pipeline without manual apply/archive steps. NOT for interactive guided workflow (use venus_tr_impl_workflow).',
-        instructions: `**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** In Phase 1 (Exploration), follow Section 1 (Zero-Assumption). In Phase 2 (Proposal), follow Section 2 (Design-First). In Phase 3 (Verification), check Sections 3-5 for compliance.
+        instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 One-stop automated workflow from exploration to archive.
 
@@ -108,6 +108,10 @@ Use \`path.join()\` for cross-platform compatibility.
 **门的校验对象是用户最终提供的需求描述**：调用未携带主题时，先交互收集主题描述，再以收集后的描述执行本门，MUST NOT 对空输入执行校验。
 
 ${PROMPT_GATE}
+
+> **完整门细则**见 references/prompt-gate.md。**仅在 Gate 实际触发时**读取全文细则。
+
+**本技能内的执行要求**：
 
 **本技能内的执行要求**：
 
@@ -410,6 +414,8 @@ mcp__codegraph__codegraph_impact --symbol <symbol> --direction upstream --maxDep
 
 ${FLOWCHART}
 
+> **完整流程图细则**见 references/flowchart-gate.md。**仅在流程浮现时**读取全文细则。
+
 **本技能内的执行要求**：
 
 - **强制产出**：把探索发现的业务功能流程固化为探索文件 1.2 结构中的 \`## 功能流程图\` 段（该段已在 1.2 预留）；Mermaid 流程图与节点清单表的节点 id MUST 稳定一致
@@ -634,6 +640,10 @@ After auto-archive completes:
         license: 'MIT',
         compatibility: '依赖 venus CLI（spec 命令组）与 spec 系列技能（venus_spec_apply / venus_spec_archive）；CLI 缺失时降级为 AI 内联生成。',
         metadata: { author: 'venus-agent-tools', version: '1.0' },
+        references: [
+            { path: 'references/prompt-gate.md', content: PROMPT_GATE_FULL },
+            { path: 'references/flowchart-gate.md', content: FLOWCHART_FULL },
+        ],
     };
 }
 
@@ -643,7 +653,7 @@ export function getTrImplAutoWorkflowCommandTemplate(): CommandTemplate {
         description: '一站式全自动工作流：探索（L1-L5 确认）→ 自动提案 → 自动验证 → 自动实现（auto-mode）→ 自动归档',
         category: 'Venus / 实现',
         tags: ['venus', 'tr_impl', 'auto-workflow', 'automation'],
-        content: `**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** Mark undefined items as **[待确认]** and ask the user rather than guessing.
+        content: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 One-stop automated workflow from exploration to archive. **Trigger boundary**: full pipeline only — interactive guided workflow is \`venus_tr_impl_workflow\`.
 
@@ -657,13 +667,13 @@ Create exploration file at \`openspec/explorations/<keyword>-explore-<sequence>.
 
 **1.1.2 Prompt Validation Gate (MANDATORY, 澄清门)**:
 
-${PROMPT_GATE_COMPACT}
+${PROMPT_GATE}
 
 校验对象为用户最终提供的主题描述（未携带主题时先交互收集）；用户确认或修改前 MUST NOT 推进到 1.1.5 及之后的任何步骤。
 
 **1.5.5 Functional Flowchart & Flow Final Confirmation Gate (MANDATORY, 确认门)**:
 
-${FLOWCHART_COMPACT}
+${FLOWCHART}
 
 探索文件 1.2 结构中 MUST 含 \`## 功能流程图\` 段（Mermaid \`flowchart TD\` + 节点清单表）。本门是**确认门（确认流程基准）**——管线虽为全自动，但流程基准的确认是自动化的前置条件，MUST NOT 因 auto 语义跳过或静默通过本门：用户确认前 MUST NOT 进入 1.6 Completion Check，MUST NOT 把未经用户确认的流程图作为 propose 的生成锚点。发现遗漏节点 MUST 回到本步骤更新并重新经用户确认，MUST NOT 在 tasks.md 中静默补节点。
 

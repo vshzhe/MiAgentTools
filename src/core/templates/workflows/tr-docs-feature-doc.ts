@@ -10,7 +10,7 @@ export function getTrDocsFeatureDocSkillTemplate(): SkillTemplate {
         description: 'Scan a source project\'s feature modules and generate a feature requirement implementation document (feature map) covering frontend implementation, backend methods, field-level API contracts, database call chains, and cross-module interactions, driven by a framework profile (built-in Venus4A / Spring MVC / Struts or auto-detected with confirmation). Use when the user wants to scan feature modules of a source project, analyze feature implementation from code, build a project feature map (项目功能地图 / 功能地图), or generate a migration requirement document (迁移需求文档) for framework migration or refactoring. NOT for converting an OpenSpec change proposal into a review requirement document — that is venus_tr_docs_requirement_doc.',
         allowedTools: `Read, Write, Edit, Glob, Grep, Bash(codegraph:*), ${CODEGRAPH_MCP}`,
         type: 'tr_docs',
-        instructions: `**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** Mark undefined items as **[待确认]** and ask the user rather than guessing.
+        instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 Scan a source project's feature modules and generate a complete feature requirement implementation document covering frontend implementation, backend implementation, field-level API contracts, database call chains, and cross-module interactions.
 
@@ -445,7 +445,7 @@ export function getTrDocsFeatureDocCommandTemplate(): CommandTemplate {
         description: '扫描源项目功能模块，生成功能需求实现文档（功能地图）',
         category: 'Venus / 文档',
         tags: ['venus', 'tr_docs', 'feature-doc', 'documentation', 'analysis'],
-        content: `**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** Mark undefined items as **[待确认]** and ask the user rather than guessing.
+        content: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 Scan a source project's feature modules and generate a feature requirement implementation document. **Trigger boundary**: this command scans source project code (feature map / 项目功能地图 / 迁移需求文档).
 

@@ -16,7 +16,28 @@
 
 ## [Unreleased]
 
-（暂无）
+### Added
+
+- **SKILL 模板 references 机制启用**：5 个 Gate 注入模板（spec-explore / tr-impl-workflow /
+  tr-impl-auto-workflow / tr-impl-genfull / tr-impl-debug）的提示词校验门和功能流程图从内联
+  全文（~320 行/个）改为 compact 紧凑版（~20 行）+ references 引用文件（`references/prompt-gate.md`、
+  `references/flowchart-gate.md`），AI 在 Gate 实际触发时按需读取全文细则。其余模板同步启用
+  references 机制。`venus init` / `venus update` 自动管理 references 文件生命周期。
+- **JSON Sidecar schema 类型定义**：`src/core/spec/sidecar-schema.ts`（新文件），定义
+  manifest / tasks / decisions / capabilities 四类 JSON sidecar 的 TypeScript 接口，
+  为后续 artifact 结构化加速奠定基础。
+
+### Changed
+
+- **Guardrails 护栏文本统一化**：全部 26 个模板的开头护栏从多行 "Before proceeding..." 改为
+  单行 "适用 openspec/rules/ai-coding.md 全域护栏。未定义项标 [待确认]，禁止猜测。"
+- **Compact Gate 语言一致性**：`buildPromptGateCompact` 与 `buildFlowchartCompact` 中的
+  "出口四条" 统一为 "出口有四条"，与全文版表述对齐。
+
+### Fixed
+
+- 修复 Gate 紧凑版缺失"出口有四条"关键标识句导致 `templates.test.ts` 的
+  "对话级确认门未被白名单改动侵蚀" 测试失败
 
 ## [1.9.0] - 2026-09-30
 

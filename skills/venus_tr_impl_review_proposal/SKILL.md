@@ -9,10 +9,10 @@ metadata:
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:9add85941c0fcde83a13c67395c957836a9593e39256bd129bb03985e29f0861"
+  generatedFingerprint: "sha256:d57cfe2e23e0c98aa36e18cd680107f931e87e033ac1202829676ab021f46849"
 ---
 
-**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** Mark undefined items as **[待确认]** and ask the user rather than guessing.
+**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 检查变更提案完整性与实现合规性——深度代码库探索、8 维度完整性检查、合规性验证、量化评分与遗漏场景补充。在 /venus:spec-propose 创建提案后，或经过 /venus:spec-explore 探索分析后，使用此 skill 验证提案是否完整覆盖需求场景、是否符合项目规范。确保每个变更提案都经过完整性验证和合规性检查后再进入实现阶段。
 

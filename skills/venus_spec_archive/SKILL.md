@@ -9,10 +9,10 @@ metadata:
   version: "1.0"
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:1bad834ec13207f7d34067679b986ba71d3cba790d87812d563a9f4953ef6526"
+  generatedFingerprint: "sha256:4f339bb17f889518838cbbba027e5490d098035d6a86f33fe662ec86bd6f8b1d"
 ---
 
-**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.**
+**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 Archive a completed change in the change workflow.
 
@@ -354,3 +354,12 @@ Target archive directory already exists.
 - When the change declares `skip_specs` (status reports specs as skipped), the archive summary MUST note "主规格未同步（skip_specs 声明）" to prevent users from mistaking it as a spec sync omission
 - Show clear summary of what happened
 - If delta specs exist, run the sync assessment, show the combined summary, and execute the inline AI merge directly (ADDED/MODIFIED/REMOVED/RENAMED → main spec, following v1.1.20 specs-apply semantics)
+
+## SQLite Index Sync (Post-Archive)
+
+After the archive move (step 5) and CodeGraph sync (step 6.5), auto-run rebuild of the SQLite cross-change index:
+
+1. **MUST run**: `venus spec reindex --force` (via Bash) — this rebuilds the full index from all archived changes
+2. On success: log "SQLite index rebuilt — N changes indexed"
+3. On failure (sqlite3 CLI unavailable): log WARN "SQLite reindex skipped — sqlite3 CLI unavailable" and continue (non-blocking)
+4. JSON missing per-change: the reindex command auto-degrades to MD extraction with per-change WARN

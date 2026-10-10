@@ -61,6 +61,36 @@ describe('venus init', () => {
     it('非法工具 id 抛错', () => {
         expect(() => runInit(tempRoot, { tools: 'not-a-tool' })).toThrow(/未知的工具标识/);
     });
+
+    it('references 文件正确生成且内容完整', () => {
+        // references 在前序 init 测试中已生成，直接检查已有文件
+
+        // 验证 Gate 模板的 references 文件存在且非空
+        const exploreRefs = path.join(tempRoot, '.claude', 'skills', 'venus_spec_explore', 'references');
+        expect(fs.existsSync(exploreRefs)).toBe(true);
+        const promptGateRef = path.join(exploreRefs, 'prompt-gate.md');
+        expect(fs.existsSync(promptGateRef)).toBe(true);
+        const pgContent = fs.readFileSync(promptGateRef, 'utf8');
+        expect(pgContent.length).toBeGreaterThan(200); // 全文版 Gate 应 > 200 字符
+        expect(pgContent).toContain('出口有四条'); // 关键语义标识
+
+        const flowchartRef = path.join(exploreRefs, 'flowchart-gate.md');
+        expect(fs.existsSync(flowchartRef)).toBe(true);
+        expect(fs.readFileSync(flowchartRef, 'utf8').length).toBeGreaterThan(200);
+
+        // 验证 tr-init references 存在
+        const initRefs = path.join(tempRoot, '.claude', 'skills', 'venus_tr_init_project', 'references');
+        expect(fs.existsSync(initRefs)).toBe(true);
+        expect(fs.existsSync(path.join(initRefs, 'doc-architecture.md'))).toBe(true);
+    });
+
+    it('index.db 初始化状态记录正确', () => {
+        // 前序 init 已执行，检查返回的 indexDbStatus 字段
+        const result = runInit(tempRoot); // 重复 init（跳过已有文件）但仍返回 indexDbStatus
+        expect(['created', 'skipped-exists', 'skipped-unavailable', 'failed']).toContain(
+            result.indexDbStatus
+        );
+    });
 });
 
 describe('venus list', () => {

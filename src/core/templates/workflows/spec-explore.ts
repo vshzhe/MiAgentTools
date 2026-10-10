@@ -3,15 +3,21 @@
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
-import { buildPromptGateBlock, REQUIREMENT_DIMENSIONS } from '../prompt-gate.js';
-import { buildFlowchartBlock, REQUIREMENT_FLOW_COLUMNS } from '../flowchart-gate.js';
+import { buildPromptGateBlock, buildPromptGateCompact, REQUIREMENT_DIMENSIONS } from '../prompt-gate.js';
+import { buildFlowchartBlock, buildFlowchartCompact, REQUIREMENT_FLOW_COLUMNS } from '../flowchart-gate.js';
 import { CODEGRAPH_MCP } from '../tool-whitelist.js';
 
-/** 需求维度的提示词校验门全文（唯一源渲染，见 prompt-gate.ts） */
-const PROMPT_GATE = buildPromptGateBlock(REQUIREMENT_DIMENSIONS);
+/** 需求维度的提示词校验门紧凑版（技能正文内联）；全文细则见 references/prompt-gate.md */
+const PROMPT_GATE = buildPromptGateCompact(REQUIREMENT_DIMENSIONS);
 
-/** 需求版功能流程图制品全文（唯一源渲染，见 flowchart-gate.ts） */
-const FLOWCHART = buildFlowchartBlock(REQUIREMENT_FLOW_COLUMNS);
+/** 需求版功能流程图紧凑版（技能正文内联）；全文细则见 references/flowchart-gate.md */
+const FLOWCHART = buildFlowchartCompact(REQUIREMENT_FLOW_COLUMNS);
+
+/** 提示词校验门全文（写入 references/prompt-gate.md，AI 在 Gate 触发时按需读取） */
+const PROMPT_GATE_FULL = buildPromptGateBlock(REQUIREMENT_DIMENSIONS);
+
+/** 功能流程图全文（写入 references/flowchart-gate.md，AI 在流程生成时按需读取） */
+const FLOWCHART_FULL = buildFlowchartBlock(REQUIREMENT_FLOW_COLUMNS);
 
 export function getSpecExploreSkillTemplate(): SkillTemplate {
     return {
@@ -19,7 +25,7 @@ export function getSpecExploreSkillTemplate(): SkillTemplate {
         description: '进入探索模式。当用户想要在变更前或变更中思考问题、调研代码库、明确需求时使用。',
         allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), ${CODEGRAPH_MCP}`,
         type: 'spec',
-        instructions: `**Before exploring, read openspec/rules/ai-coding.md for AI coding guardrails.** When encountering undefined database fields, business logic, or API parameters, mark them as **[待确认]** and ask the user rather than guessing.
+        instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 Enter explore mode. Think deeply. Visualize freely. Follow the conversation wherever it goes.
 
@@ -49,6 +55,8 @@ Enter explore mode. Think deeply. Visualize freely. Follow the conversation wher
 - 输入为比较型或问题型表述时按需求六维正常判定
 
 ${PROMPT_GATE}
+
+> **完整门细则**见 references/prompt-gate.md。**仅在 Gate 实际触发时**（输入不明确、进入 Step 3 优化流程）读取全文细则；清晰输入一句话复述理解后直通，无需读取。
 
 **本技能内的执行要求**：
 
@@ -142,6 +150,8 @@ When modifying existing code, go beyond surface analysis:
 
 ${FLOWCHART}
 
+> **完整流程图细则**见 references/flowchart-gate.md。**仅在流程浮现时**（探索中浮现明确的业务功能流程）读取全文细则；纯概念探讨或无流程时直通，无需读取。
+
 **本技能内的执行要求**：
 
 - **条件触发**：探索浮现明确的业务功能流程时（如探索导出功能时梳理出"选择范围 → 点击导出 → 数据量判定 → 分批查询 → 生成文件"的完整链路），产出 \`## 功能流程图\` 段并执行流程最终确认门；确认后的流程图成为 propose / verify 的**流程基准**
@@ -161,6 +171,13 @@ At the start, quickly check what exists:
 \`\`\`bash
 venus spec status --json
 \`\`\`
+
+### Check for history (SQLite index)
+
+When exploring a capability, check historical context via SQLite index:
+- If \`openspec/.venus/index.db\` exists → query \`exploration_memory\` table by capability name for prior decisions/terms/edge cases
+- If index.db unavailable → fall back to Glob \`openspec/specs/<capability>/explorations.md\`
+- Inject any found historical decisions/terms into exploration context
 
 This tells you:
 - If there are active changes
@@ -379,6 +396,10 @@ But this summary is optional. Sometimes the thinking IS the value.
         license: 'MIT',
         compatibility: '依赖 venus CLI（spec 命令组）与 CodeGraph MCP（不可用时回退 Glob/Grep）。',
         metadata: { author: 'venus-agent-tools', version: '1.0' },
+        references: [
+            { path: 'references/prompt-gate.md', content: PROMPT_GATE_FULL },
+            { path: 'references/flowchart-gate.md', content: FLOWCHART_FULL },
+        ],
     };
 }
 

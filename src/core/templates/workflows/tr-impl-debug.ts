@@ -15,23 +15,23 @@ import {
 } from '../flowchart-gate.js';
 import { CODEGRAPH_MCP, skillDelegation } from '../tool-whitelist.js';
 
-/** 缺陷五维的提示词校验门全文（唯一源渲染，见 prompt-gate.ts） */
-const PROMPT_GATE_BUG = buildPromptGateBlock(BUG_DIMENSIONS);
+/** 缺陷五维的提示词校验门紧凑版（技能正文内联）；全文细则见 references/prompt-gate.md */
+const PROMPT_GATE_BUG = buildPromptGateCompact(BUG_DIMENSIONS);
 
-/** 缺陷五维的提示词校验门压缩版（斜杠指令正文复用） */
-const PROMPT_GATE_BUG_COMPACT = buildPromptGateCompact(BUG_DIMENSIONS);
+/** 提示词校验门全文（写入 references/prompt-gate.md，AI 在 Gate 触发时按需读取） */
+const PROMPT_GATE_BUG_FULL = buildPromptGateBlock(BUG_DIMENSIONS);
 
-/** 缺陷链路版功能流程图制品全文（唯一源渲染，见 flowchart-gate.ts） */
-const FLOWCHART_FAULT = buildFlowchartBlock(FAULT_CHAIN_FLOW_COLUMNS);
+/** 缺陷链路版功能流程图紧凑版（技能正文内联）；全文细则见 references/flowchart-gate.md */
+const FLOWCHART_FAULT = buildFlowchartCompact(FAULT_CHAIN_FLOW_COLUMNS);
 
-/** 缺陷链路版功能流程图压缩版（斜杠指令正文复用） */
-const FLOWCHART_FAULT_COMPACT = buildFlowchartCompact(FAULT_CHAIN_FLOW_COLUMNS);
+/** 功能流程图全文（写入 references/flowchart-gate.md，AI 在流程生成时按需读取） */
+const FLOWCHART_FAULT_FULL = buildFlowchartBlock(FAULT_CHAIN_FLOW_COLUMNS);
 
 export function getTrImplDebugSkillTemplate(): SkillTemplate {
     return {
         name: 'venus_tr_impl_debug',
         description: '一站式调试工作流 reproduce→investigate root cause with CodeGraph and capability memory→change association→fix with mandatory regression test→compile check→synchronize proposal→verify；触发词"调试 / debug / 修复 bug / bug 报告 / 复现 / 根因"；NOT-for：新功能开发用 venus_tr_impl_feature、工作流编排用 venus_tr_impl_workflow',
-        instructions: `**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** In Phase 1 (Reproduce), follow Section 1 (Zero-Assumption). In Phase 4 (Fix), follow Section 3 (Data & Storage) when schema changes are involved. In Phase 6 (Synchronization), check Sections 2 (Design-First) for the confirmation gate.
+        instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 One-stop debugging workflow from reproduction to proposal synchronization.
 
@@ -61,6 +61,10 @@ This workflow guides you through:
 **执行前置**：用户最初未提供 bug 描述、由本技能提示后补充的，以补充内容为原始提示词执行本门；**MUST NOT 对空输入执行校验**。
 
 ${PROMPT_GATE_BUG}
+
+> **完整门细则**见 references/prompt-gate.md。**仅在 Gate 实际触发时**读取全文细则。
+
+**本技能内的执行要求**：
 
 **本技能内的执行要求**：
 
@@ -275,6 +279,8 @@ Apply the full discipline while narrowing down the root cause:
 触发点：2.4 根因确认门通过（单一高置信根因）之后、Phase 3 关联变更判定之前——异常与根因节点须待根因确认后方可知，故本步骤不得前移。经确认的缺陷链路是 Phase 3 / Phase 4 的**验证口径来源**。
 
 ${FLOWCHART_FAULT}
+
+> **完整流程图细则**见 references/flowchart-gate.md。**仅在流程浮现时**读取全文细则。
 
 **本技能内的执行要求**：
 
@@ -578,6 +584,10 @@ Ready for \`/venus:spec-apply\` (fixes already applied) or archive.
         license: 'MIT',
         compatibility: '依赖 venus CLI（spec 命令组）与 venus_spec_verify_proposal / venus_tr_impl_review_proposal / venus_tr_test_generate 技能；CodeGraph MCP 可选（不可用时降级 Glob/Grep）。',
         metadata: { author: 'venus-agent-tools', version: '1.0' },
+        references: [
+            { path: 'references/prompt-gate.md', content: PROMPT_GATE_BUG_FULL },
+            { path: 'references/flowchart-gate.md', content: FLOWCHART_FAULT_FULL },
+        ],
     };
 }
 
@@ -587,7 +597,7 @@ export function getTrImplDebugCommandTemplate(): CommandTemplate {
         description: '一站式调试：复现 → CodeGraph 排查定位 → 关联变更判定 → 修复+回归测试（调试循环）→ 编译检查 → 同步提案 → 验证',
         category: 'Venus / 实现',
         tags: ['venus', 'tr_impl', 'debug', 'bug-fix', 'root-cause', 'regression'],
-        content: `**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.**
+        content: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 One-stop debugging workflow from reproduction to proposal synchronization, with P1-P4 debug loop for multiple bug fixes.
 
@@ -595,7 +605,7 @@ One-stop debugging workflow from reproduction to proposal synchronization, with 
 
 **门 0 — Prompt Validation Gate（缺陷五维，MANDATORY）**: 记录 bug 描述之后、Phase 1 复现之前强制自检。用户未提供描述、由技能提示后补充的，以补充内容为原始提示词（不对空输入校验）。
 
-${PROMPT_GATE_BUG_COMPACT}
+${PROMPT_GATE_BUG}
 
 用户确认或修改前 MUST NOT 进入 Phase 1，不得凭猜测编写失败测试。校验结论（原始提示词 + 确认后的基线）写入诊断记录 \`## 提示词基线\` 段，Phase 6 随根因分析持久化到变更 exploration.md。
 
@@ -633,7 +643,7 @@ Reproduce the bug BEFORE any fix:
 
 **⚠️ MANDATORY: 根因确认门（2.4）通过后强制产出缺陷链路图，并经流程最终确认门确认后才进入 Phase 3。** 异常与根因节点须待根因确认后方可知，故本步骤不得前移。
 
-${FLOWCHART_FAULT_COMPACT}
+${FLOWCHART_FAULT}
 
 **节点范围只覆盖缺陷链路**（前置条件 → 触发 → 异常 → 根因），MUST NOT 展开被测功能的完整业务流程；异常节点标 \`🔴异常\`、根因节点标 \`🟠根因\`；落盘为诊断记录新增的 \`## 功能流程（缺陷链路）\` 段，Phase 6 随根因分析一并持久化到变更 exploration.md。确认后的缺陷链路是 Phase 3 / Phase 4 的**验证口径来源**——修复方案与回归测试 MUST 覆盖「异常节点 + 根因节点」。确认门四出口不得死锁。
 

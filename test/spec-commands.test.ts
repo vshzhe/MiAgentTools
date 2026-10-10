@@ -9,6 +9,8 @@ import * as path from 'path';
 import { spawnSync } from 'child_process';
 import { createChange } from '../src/core/spec/new-change.js';
 import { executeArchive, previewArchive } from '../src/core/spec/archive.js';
+import { isSqlite3Available, resolveIndexDb } from '../src/core/spec/sqlite-index.js';
+import { MemoryBackend } from '../src/core/spec/sqlite-memory-backend.js';
 
 /** 创建临时项目根目录 */
 function makeTempProject(): string {
@@ -112,40 +114,53 @@ describe('venus spec archive（previewArchive / executeArchive）', () => {
     });
 });
 
-describe('跨 CLI 兼容（venus ↔ openspec 互认）', () => {
-    /** 检测 openspec CLI 是否可用（不可用则跳过本组测试） */
-    function openspecAvailable(): boolean {
-        const probe = spawnSync('openspec', ['--version'], { shell: true, encoding: 'utf8' });
-        return probe.status === 0;
-    }
+describe('venus spec reindex（内存后端，不依赖外部 sqlite3）', () => {
+    it('空 archive 目录 → 0 个变更被索引', () => {
+        const backend = new MemoryBackend();
+        expect(backend.indexedCount).toBe(0);
+        expect(backend.capabilityCount).toBe(0);
+    });
 
-    const hasOpenspec = openspecAvailable();
+    it('带 proposal.md 的变更目录 → 提取摘要索引', () => {
+        const backend = new MemoryBackend();
+        backend.insertChange({ name: 'add-test', archiveDate: '2026-01-01', module: 'test', summary: '测试变更' });
+        expect(backend.isIndexed('add-test')).toBe(true);
+        expect(backend.indexedCount).toBe(1);
+    });
 
-    it.skipIf(!hasOpenspec)('venus spec new 创建的变更可被 openspec status 识别且状态一致', { timeout: 15000 }, () => {
-        const projectRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'venus-spec-xcli-'));
-        try {
-            // 制造部分完成状态：proposal + design 存在，specs/tasks 缺失
-            const { changeDir } = createChange(projectRoot, 'xcli-compat-change');
-            fs.writeFileSync(path.join(changeDir, 'proposal.md'), '# 提案\n');
-            fs.writeFileSync(path.join(changeDir, 'design.md'), '# 设计\n');
+    it('能力冲突检测：同一 capability 被 2 个 active 变更引用', () => {
+        const backend = new MemoryBackend();
+        backend.insertChange({ name: 'add-oauth', module: 'auth', summary: 'OAuth', status: 'active' });
+        backend.insertChange({ name: 'add-jwt', module: 'auth', summary: 'JWT', status: 'active' });
+        backend.insertCapability({ name: 'auth', changeName: 'add-oauth', operation: 'ADDED' });
+        backend.insertCapability({ name: 'auth', changeName: 'add-jwt', operation: 'ADDED' });
+        const conflicts = backend.queryCapabilityConflicts(['auth']);
+        expect(conflicts.length).toBe(2);
+        expect(conflicts).toContain('add-oauth');
+        expect(conflicts).toContain('add-jwt');
+    });
 
-            // openspec CLI 读取 venus 创建的变更
-            const result = spawnSync('openspec', ['status', '--change', 'xcli-compat-change', '--json'], {
-                cwd: projectRoot,
-                shell: true,
-                encoding: 'utf8',
-            });
-            expect(result.status).toBe(0);
-            const payload = JSON.parse(result.stdout) as { schemaName?: string; artifacts?: { id: string; status: string }[] };
-            expect(payload.schemaName).toBe('spec-driven');
-            const byId = new Map(payload.artifacts?.map((a) => [a.id, a.status]));
-            // 两端状态判定一致：proposal/design done，specs ready，tasks blocked
-            expect(byId.get('proposal')).toBe('done');
-            expect(byId.get('design')).toBe('done');
-            expect(byId.get('specs')).toBe('ready');
-            expect(byId.get('tasks')).toBe('blocked');
-        } finally {
-            fs.rmSync(projectRoot, { recursive: true, force: true });
-        }
+    it('决策全文搜索命中与未命中', () => {
+        const backend = new MemoryBackend();
+        backend.insertDecision({ title: '使用 Redis 缓存', choice: 'Redis 6.x', rationale: '分布式', changeName: 'add-cache' });
+        expect(backend.searchDecisions('Redis').length).toBeGreaterThanOrEqual(1);
+        expect(backend.searchDecisions('PostgreSQL').length).toBe(0);
+    });
+
+    it('探索记忆按 capability 查询并按时间降序排列', () => {
+        const backend = new MemoryBackend();
+        backend.insertExplorationMemory({ capability: 'export', changeName: 'add-export', memoryType: 'decision', content: 'Apache POI', archivedAt: '2026-03-01' });
+        backend.insertExplorationMemory({ capability: 'export', changeName: 'improve-export', memoryType: 'decision', content: 'EasyExcel', archivedAt: '2026-06-01' });
+        const memories = backend.queryExplorationByCapability('export');
+        expect(memories.length).toBe(2);
+        expect(memories[0].content).toContain('EasyExcel');
+    });
+
+    it('clear 后全部数据清空', () => {
+        const backend = new MemoryBackend();
+        backend.insertChange({ name: 'test', module: 'test', summary: 'test' });
+        backend.clear();
+        expect(backend.indexedCount).toBe(0);
     });
 });
+

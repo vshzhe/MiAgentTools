@@ -19,23 +19,23 @@ import {
 } from '../flowchart-gate.js';
 import { CODEGRAPH_MCP, skillDelegation } from '../tool-whitelist.js';
 
-/** 需求维度的提示词校验门全文（唯一源渲染，见 prompt-gate.ts） */
-const PROMPT_GATE = buildPromptGateBlock(REQUIREMENT_DIMENSIONS);
+/** 需求维度的提示词校验门紧凑版（技能正文内联）；全文细则见 references/prompt-gate.md */
+const PROMPT_GATE = buildPromptGateCompact(REQUIREMENT_DIMENSIONS);
 
-/** 需求维度的提示词校验门压缩版（斜杠指令正文复用） */
-const PROMPT_GATE_COMPACT = buildPromptGateCompact(REQUIREMENT_DIMENSIONS);
+/** 提示词校验门全文（写入 references/prompt-gate.md，AI 在 Gate 触发时按需读取） */
+const PROMPT_GATE_FULL = buildPromptGateBlock(REQUIREMENT_DIMENSIONS);
 
-/** 需求版功能流程图制品全文（唯一源渲染，见 flowchart-gate.ts） */
-const FLOWCHART = buildFlowchartBlock(REQUIREMENT_FLOW_COLUMNS);
+/** 需求版功能流程图紧凑版（技能正文内联）；全文细则见 references/flowchart-gate.md */
+const FLOWCHART = buildFlowchartCompact(REQUIREMENT_FLOW_COLUMNS);
 
-/** 需求版功能流程图压缩版（斜杠指令正文复用） */
-const FLOWCHART_COMPACT = buildFlowchartCompact(REQUIREMENT_FLOW_COLUMNS);
+/** 功能流程图全文（写入 references/flowchart-gate.md，AI 在流程生成时按需读取） */
+const FLOWCHART_FULL = buildFlowchartBlock(REQUIREMENT_FLOW_COLUMNS);
 
 export function getTrImplGenfullSkillTemplate(): SkillTemplate {
     return {
         name: 'venus_tr_impl_genfull',
         description: 'Guided full-pipeline orchestrator: explore→[frontend-design]→propose(+verify)→deep-review→apply(+conditional frontend-impl/test)→archive (which generates the requirement document), delegating stage SKILLs with bridge gates between stages to ensure each process completeness. Frontend design (Phase 1) is front-loaded to proposal stage; frontend impl (Phase 2) stays in apply. Triggers: 全流程编排 / genfull / 引导式全流程 / coupled stage workflow. Use when the user wants a guided end-to-end pipeline through archive with per-stage confirmation bridges (coupling explore/frontend/propose/apply/test/archive SKILLs). NOT for inline single-SKILL workflow (use venus_tr_impl_workflow), fully-automated no-gate pipeline (use venus_tr_impl_auto_workflow), or debugging (use venus_tr_impl_debug).',
-        instructions: `**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** In Stage 1 (Exploration), follow Section 1 (Zero-Assumption). In Stage 2 (Proposal), follow Section 2 (Design-First). In Stage 3 (Implementation), check Sections 3-5 for compliance.
+        instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 引导式全流程编排器 —— 贯穿探索→归档，委派阶段 SKILL + 阶段间桥梁门。
 
@@ -68,6 +68,10 @@ Use the **TodoWrite tool** to initialize tracking:
 **门的校验对象是用户最终提供的需求描述**：调用未携带主题时，先交互收集主题描述，再以收集后的描述执行本门，MUST NOT 对空输入执行校验。
 
 ${PROMPT_GATE}
+
+> **完整门细则**见 references/prompt-gate.md。**仅在 Gate 实际触发时**读取全文细则。
+
+**本技能内的执行要求**：
 
 **本技能内的执行要求**：
 
@@ -124,6 +128,8 @@ ${PROMPT_GATE}
 **补建规则（生成 → 用户最终确认 → 落盘）**：
 
 ${FLOWCHART}
+
+> **完整流程图细则**见 references/flowchart-gate.md。**仅在流程浮现时**读取全文细则。
 
 ### ② CONTEXT.md 存在性校验
 
@@ -327,6 +333,10 @@ Stage 1 探索 → Bridge 1 → [Stage 1.5 前端设计（条件）] → Stage 2
         license: 'MIT',
         compatibility: '依赖 venus CLI（spec 命令组）与阶段技能（venus_spec_explore/propose/apply/archive + venus_tr_impl_review_proposal + venus_tr_impl_frontend + venus_tr_test_generate）；需求文档技能由归档阶段委派（经 spec-archive 的依赖注入与会话级权限放行），本技能不直接委派；CLI 缺失时各阶段技能各自降级。',
         metadata: { author: 'venus-agent-tools', version: '1.0' },
+        references: [
+            { path: 'references/prompt-gate.md', content: PROMPT_GATE_FULL },
+            { path: 'references/flowchart-gate.md', content: FLOWCHART_FULL },
+        ],
     };
 }
 
@@ -336,7 +346,7 @@ export function getTrImplGenfullCommandTemplate(): CommandTemplate {
         description: '引导式全流程编排器：探索→[前端设计]→提案(+verify)→深度复查→实现(+条件 frontend 实现/test)→归档（含需求文档生成），委派阶段 SKILL + 桥梁确认门',
         category: 'Venus / 实现',
         tags: ['venus', 'tr_impl', 'genfull', 'orchestrator', 'full-pipeline'],
-        content: `**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** Mark undefined items as **[待确认]** and ask the user rather than guessing.
+        content: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 引导式全流程编排器：贯穿探索→归档，委派阶段 SKILL + 阶段间桥梁门。**Trigger boundary**: 引导式全流程（有桥梁确认门）—— 全自动无门用 \`venus_tr_impl_auto_workflow\`，止于 verify 用 \`venus_tr_impl_workflow\`。
 
@@ -348,7 +358,7 @@ export function getTrImplGenfullCommandTemplate(): CommandTemplate {
 
 **0.0 Prompt Validation Gate（MANDATORY，澄清门）**: 在 Stage 1 委派之前强制自检用户主题描述（校验对象为用户最终提供的描述；未携带主题时先交互收集，不对空输入校验）。清晰 → 一句话复述理解后直通；不明确 → 先优化并阻塞等待确认或修改，未确认前不得委派 Stage 1。**幂等**：检测到上游已产出提示词基线（本次会话已确认，或探索产物中已存在 \`## 提示词基线\` 段）时直接通过，不重复确认。
 
-${PROMPT_GATE_COMPACT}
+${PROMPT_GATE}
 
 TodoWrite 全阶段+桥梁跟踪。检测 actionContext.mode（\`venus spec status --json\`，CLI 不可用则 Glob 扫描 \`openspec/changes/\`）：workspace-planning 模式 → 降级为仅探索+提案+深度复查，Bridge 2 前停止。初始化贯穿上下文（change-name / changeRoot / has-frontend / has-java-test / tech-stack / 提示词基线 待各阶段填充）。
 
@@ -362,7 +372,7 @@ via Skill tool 传入 topic + 0.0 确认的提示词基线（explore 检测到�
 
 **①.1 功能流程图兜底补建与确认（MANDATORY）**:
 
-${FLOWCHART_COMPACT}
+${FLOWCHART}
 
 - **兜底（强制补建）**：exploration.md 缺失 \`## 功能流程图\` 段时（Stage 1 的 explore 走条件触发分支未产出），由 genfull 依 Decisions / 边界场景 / Codebase Findings 强制补建流程图与节点清单（规则同 tr-impl-workflow 1.5.5：节点证据追溯、\`[新建]\` 标记 + 预期产物、异常路径），并随 ⑤ 门决策请用户确认流程基准；确认前 MUST NOT 进入 Stage 1.5 / Stage 2，MUST NOT 把未确认流程图当作 propose 的生成锚点
 - **幂等**：exploration.md 已含经用户确认的 \`## 功能流程图\` 段时**直接通过**，MUST NOT 重复产出或再次要求用户确认

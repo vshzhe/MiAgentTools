@@ -4,13 +4,15 @@
 
 ## 这是什么项目
 
-AI Agent 技能生成与管理 CLI：按生命周期类型（`tr_*`）分类生成 `venus_` 前缀的 SKILL 与斜杠指令，安装到目标项目的 `.claude/` 目录。TypeScript + Commander.js + ESM，参考 [OpenSpec](https://github.com/Fission-AI/OpenSpec) 的三层架构。
+AI Agent 技能生成与管理 CLI：按生命周期类型（`tr_*` / `spec`）分类生成 `venus_` 前缀的 SKILL 与斜杠指令，安装到目标项目的 `.claude/` 目录。TypeScript + Commander.js + ESM，参考 [OpenSpec](https://github.com/Fission-AI/OpenSpec) 的三层架构。
+
+技术栈：TypeScript 5.9 + Node.js 20+ + pnpm 10 + Commander.js 14 + Vitest 3 + sql.js
 
 ## 仓库地图
 
 ```text
 src/
-├── cli/index.ts                      CLI 入口（Commander 程序，全部命令注册处）
+├── cli/index.ts                      CLI 入口（Commander 程序，全部 11 个命令注册处）
 ├── commands/                         命令实现（每个命令一个文件）
 │   ├── init.ts                       venus init
 │   ├── list.ts                       venus list（scanInstalledSkills 被 show 复用）
@@ -20,29 +22,47 @@ src/
 │   ├── uninstall.ts                  venus uninstall（dry-run 预览 + 安全边界）
 │   ├── show.ts                       venus show（模糊匹配 + 详情）
 │   ├── completion.ts                 venus completion（bash/pwsh 补全脚本生成与安装）
-│   └── onboarding.ts                 init 后的引导提示
+│   ├── onboarding.ts                 init 后的引导提示
+│   ├── spec.ts                       venus spec 子命令组（new / status / instructions / archive）
+│   └── config.ts                     venus config（交互式 workflow 配置）
 ├── core/
-│   ├── config.ts                     常量中心：SKILL_PREFIX、7 类 SKILL_TYPES、AI_TOOLS
+│   ├── config.ts                     常量中心：SKILL_PREFIX、9 类 SKILL_TYPES、AI_TOOLS
 │   ├── project-config.ts             .venus/ 配置读写（config.yaml + rules/）
 │   ├── templates/
 │   │   ├── types.ts                 SkillTemplate / CommandTemplate 接口
-│   │   ├── registry.ts               模板注册表 + deriveCommandId 派生规则 + 指令白名单回填
+│   │   ├── registry.ts              模板注册表 + deriveCommandId 派生规则 + 指令白名单回填
 │   │   ├── tool-whitelist.ts        白名单共享常量（CodeGraph MCP 双写 / 派发条目 / 委派条目生成）
-│   │   ├── derive-command.ts         spec 模板 command 压缩版派生（CMD:SKIP 标记裁剪）
-│   │   └── workflows/               技能模板（中文正文）：tr-*.ts 生命周期 7 类
-│   │                                 + spec-*.ts 规格工作流（单一源，command 派生）
-│   ├── permissions.ts                会话级权限载体（settings.json 的 permissions.allow 非破坏合并）
-│   └── command-generation/
-│       ├── types.ts                  ToolCommandAdapter 接口（多工具扩展点）
-│       ├── generator.ts              generateSkillContent / generateCommand
-│       ├── fingerprint.ts            产物内容指纹（手改保护判定信号）
-│       ├── yaml.ts                   YAML 转义
-│       └── adapters/claude.ts         Claude Code 适配器
-└── utils/file-system.ts              文件系统工具
+│   │   ├── derive-command.ts        spec 模板 command 压缩版派生（CMD:SKIP 标记裁剪）
+│   │   ├── prompt-gate.ts          提示门控逻辑
+│   │   ├── flowchart-gate.ts       流程图门控
+│   │   └── workflows/              技能模板（中文正文）：tr-*.ts + spec-*.ts 共 26 个模板
+│   ├── permissions.ts               会话级权限载体（settings.json 的 permissions.allow 非破坏合并）
+│   ├── command-generation/
+│   │   ├── types.ts                 ToolCommandAdapter 接口（多工具扩展点）
+│   │   ├── generator.ts             generateSkillContent / generateCommand
+│   │   ├── fingerprint.ts           产物内容指纹（手改保护判定信号）
+│   │   ├── yaml.ts                  YAML 转义
+│   │   └── adapters/claude.ts       Claude Code 适配器
+│   ├── spec/                        规格驱动工作流
+│   │   ├── schema.ts               变更制品 schema
+│   │   ├── status.ts               变更状态查询
+│   │   ├── archive.ts              变更归档
+│   │   ├── instructions.ts         制品模板
+│   │   ├── new-change.ts           新变更创建
+│   │   ├── sqlite-index.ts         SQLite 索引后端
+│   │   ├── sqlite-memory-backend.ts SQLite 内存后端（sql.js WASM）
+│   │   ├── sidecar-schema.ts       附属文件 schema
+│   │   └── templates/index.ts      规格模板
+│   ├── profiles.ts                  框架档案
+│   ├── dependencies.ts              依赖检测（codegraph / openspec）
+│   ├── project-scan.ts              项目预扫描（scan-baseline.json）
+│   └── reconcile.ts                 孤立产物协调
+└── utils/file-system.ts             文件系统工具
 
-test/                                 vitest（71 个用例，8 个文件）
-skills/                               静态快照（勿手编，pnpm generate:skills 生成）
+test/                                vitest（71 个用例，8 个文件）
+skills/                              静态快照（勿手编，pnpm generate:skills 生成）
 scripts/generate-skills.mjs          快照生成脚本
+docs/project/                        项目知识文档（五类语义扫描产物）
 ```
 
 ## 常用命令
@@ -86,7 +106,7 @@ node bin/venus.js <cmd> # 直接运行 CLI
    （见 `src/core/permissions.ts`：不删既有条目、不碰 `deny`、过滤 `Bash(*)`、非法 JSON 保留原文件、幂等）
 3. **新增 CLI 命令**：`src/commands/<name>.ts` + `src/cli/index.ts` 注册 +
    `src/commands/completion.ts` 的 `VENUS_COMMANDS` 表同步（补全覆盖）
-4. **新增技能类型**：`src/core/config.ts` 的 `SKILL_TYPES` 加条目，类型体系即 7→N 类
+4. **新增技能类型**：`src/core/config.ts` 的 `SKILL_TYPES` 加条目，类型体系即 9→N 类
 5. **YAML 转义**：含冒号/引号的 frontmatter 值必须走 `escapeYamlValue`
 6. Windows 兼容：路径断言用 `replaceAll('\\', '/')` 归一化；`path.join` 不硬编码分隔符
 7. **spec 模板单一源（已落地）**：`workflows/spec-*.ts` 的正文仅维护 skill 版

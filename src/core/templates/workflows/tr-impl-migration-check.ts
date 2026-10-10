@@ -14,7 +14,7 @@ export function getTrImplMigrationCheckSkillTemplate(): SkillTemplate {
         description: 'Check functional consistency after migrating a source project to a target project — identify lost functionality, inconsistent implementations, and framework-difference issues across backend layers (Controller/Service/DAO), frontend pages, SQL statements, and database schema. Use when the user wants a migration check, a function comparison between two projects, migration verification after code migration, or a framework-upgrade consistency check. Supports standalone interactive mode and non-interactive invocation from the auto-migration workflow.',
         allowedTools: `Read, Write, Edit, Glob, Grep, Bash(codegraph:*), ${CODEGRAPH_MCP}`,
         type: 'tr_impl',
-        instructions: `**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** Mark undefined items as **[待确认]** and ask the user rather than guessing.
+        instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 Check functional consistency after migrating a source project to a target project. Identify lost functionality, inconsistent implementations, and framework-difference issues across the backend (Controller / Service / DAO), frontend pages, SQL statements, and database schema. Every comparison result MUST be written into documents containing actual data — creating empty directories or template-only documents is forbidden.
 
@@ -357,7 +357,7 @@ export function getTrImplMigrationCheckCommandTemplate(): CommandTemplate {
         description: '检查源项目到目标项目的迁移一致性（后端/前端/SQL/数据库全栈）',
         category: 'Venus / 实现',
         tags: ['venus', 'tr_impl', 'migration-check', 'verification', 'comparison'],
-        content: `**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** Mark undefined items as **[待确认]** and ask the user rather than guessing.
+        content: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 Check functional consistency after migrating a source project to a target project. Identify lost functionality, inconsistent implementations, and framework-difference issues across the backend (Controller / Service / DAO), frontend pages, SQL statements, and database schema. Every comparison result MUST be written into documents containing actual data — creating empty directories or template-only documents is forbidden.
 

@@ -59,8 +59,8 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
 5. **验证 Completeness（完整性）**
 
    **任务完成情况**：
-   - 若存在 tasks.md，读取其内容
-   - 解析复选框：\`- [ ]\`（未完成） vs \`- [x]\`（完成）
+   - **优先读** \`.venus/tasks.json\`：若存在，直接获取结构化任务列表（id / label / status / files）与 progress 统计，跳过 markdown 解析
+   - **降级**：tasks.json 缺失时解析 tasks.md 复选框：\`- [ ]\`（未完成） vs \`- [x]\`（完成）
    - 统计完成 / 总任务数
    - 若存在未完成任务：
      - 为每个未完成任务添加 CRITICAL 问题

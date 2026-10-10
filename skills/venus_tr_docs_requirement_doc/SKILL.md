@@ -9,10 +9,10 @@ metadata:
   version: "1.0"
   type: tr_docs
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:0ca7426546123376e186361948be6001f14dad7646d8abbdbd7980c3738ca46c"
+  generatedFingerprint: "sha256:ee5ac4db1cc5bbec5cf88948e8d40bab9a55406957d24b07f5d7e1424c184a01"
 ---
 
-**Before proceeding, read openspec/rules/ai-coding.md for AI coding guardrails.** Mark undefined items as **[待确认]** and ask the user rather than guessing.
+**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 Convert an OpenSpec change proposal into a standard requirement document for human review.
 
@@ -72,6 +72,12 @@ Read in priority order (skip missing files gracefully):
 | **六、表结构设计** | design.md → Decisions（数据库设计） + tasks.md | 提取完整 DDL（含建表、索引、序列、预置数据） |
 | **七、影响分析** | proposal.md → Impact | 直接映射模块/客户/调度影响 |
 | **八、评审记录** | 空模板 | 待评审后填写 |
+
+**JSON sidecar preference**: Before parsing markdown artifacts, check for JSON sidecars under `.venus/`:
+- `decisions.json` → render 关键技术决策 table directly (no AI inference from prose)
+- `tasks.json` → use structured task data for 需求拆解
+- `capabilities.json` → use capability→scenario mapping for 场景分组
+- JSON missing → fall back to parsing markdown (WARN, non-blocking)
 
 ## Step 5: Tech stack detection (generic rules)
 

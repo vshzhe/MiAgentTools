@@ -21,6 +21,22 @@ import { listSubdirectories } from '../utils/file-system.js';
 import { SPEC_DRIVEN_SCHEMA } from '../core/spec/schema.js';
 import * as path from 'path';
 import * as fs from 'fs';
+import {
+    initDatabase,
+    recreateDatabase,
+    isSqlite3Available,
+    resolveIndexDb,
+    insertChange,
+    insertCapabilities,
+    insertDecisions,
+    insertRequirements,
+    insertExplorationMemory,
+    type ChangeIndexEntry,
+    type CapabilityIndexEntry,
+    type DecisionIndexEntry,
+    type RequirementIndexEntry,
+    type ExplorationMemoryEntry,
+} from '../core/spec/sqlite-index.js';
 
 /** 变更状态结果类型（从 getChangeStatus 派生） */
 type ChangeStatusResult = ReturnType<typeof getChangeStatus>;
@@ -183,6 +199,191 @@ export function buildSpecCommand(): Command {
             console.log(`  位置：${path.relative(process.cwd(), result.archivedPath)}`);
         });
 
+    spec.command('reindex')
+        .description('重建 SQLite 跨变更索引（扫描 archive/ 下全部已归档变更，JSON sidecar 优先，缺失时降级解析 MD）')
+        .option('--force', '删除现有 index.db 后全量重建')
+        .option('--json', '以 JSON 输出结果')
+        .action((options: { force?: boolean; json?: boolean }) => {
+            const projectRoot = process.cwd();
+            const openspecDir = path.join(projectRoot, 'openspec');
+
+            // 检查 openspec 目录存在性
+            if (!fs.existsSync(openspecDir)) {
+                const msg = 'openspec 目录不存在，无法执行 reindex';
+                if (options.json) {
+                    console.log(JSON.stringify({ success: false, error: msg }));
+                } else {
+                    console.log(msg);
+                }
+                process.exitCode = 1;
+                return;
+            }
+
+            // 检查 SQLite CLI 可用性
+            if (!isSqlite3Available()) {
+                const msg = 'sqlite3 CLI 不可用，无法执行 reindex（请安装 sqlite3 后重试）';
+                if (options.json) {
+                    console.log(JSON.stringify({ success: false, error: msg }));
+                } else {
+                    console.log(msg);
+                }
+                process.exitCode = 1;
+                return;
+            }
+
+            // 初始化或重建数据库
+            const dbPath = resolveIndexDb(openspecDir);
+            if (options.force && fs.existsSync(dbPath)) {
+                const recreateResult = recreateDatabase(openspecDir);
+                if (!recreateResult.success) {
+                    console.log(JSON.stringify({ success: false, error: recreateResult.error }));
+                    process.exitCode = 1;
+                    return;
+                }
+                console.log('已删除旧索引，重建空数据库');
+            } else {
+                const initResult = initDatabase(openspecDir);
+                if (!initResult.success) {
+                    console.log(JSON.stringify({ success: false, error: initResult.error }));
+                    process.exitCode = 1;
+                    return;
+                }
+            }
+
+            // 扫描 archive 目录
+            const archiveDir = path.join(openspecDir, 'changes', 'archive');
+            if (!fs.existsSync(archiveDir)) {
+                const msg = '无已归档变更可索引（archive 目录不存在）';
+                if (options.json) {
+                    console.log(JSON.stringify({ success: true, indexed: 0, message: msg }));
+                } else {
+                    console.log(msg);
+                }
+                return;
+            }
+
+            const entries = fs.readdirSync(archiveDir, { withFileTypes: true })
+                .filter((d) => d.isDirectory())
+                .map((d) => d.name);
+
+            if (entries.length === 0) {
+                const msg = '无已归档变更可索引';
+                if (options.json) {
+                    console.log(JSON.stringify({ success: true, indexed: 0, message: msg }));
+                } else {
+                    console.log(msg);
+                }
+                return;
+            }
+
+            let indexed = 0;
+            let degraded = 0;
+            const errors: string[] = [];
+
+            for (const entry of entries) {
+                const changeDir = path.join(archiveDir, entry);
+                // 从目录名提取变更名（去除 YYYY-MM-DD- 前缀）
+                const changeName = entry.replace(/^\d{4}-\d{2}-\d{2}-/, '');
+
+                try {
+                    // 尝试读取 JSON sidecar
+                    const venusDir = path.join(changeDir, '.venus');
+                    const manifestPath = path.join(venusDir, 'manifest.json');
+
+                    if (fs.existsSync(manifestPath)) {
+                        // JSON sidecar 路径
+                        const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+                        const archiveDate = entry.match(/^(\d{4}-\d{2}-\d{2})-/)?.[1];
+
+                        insertChange(dbPath, {
+                            name: changeName,
+                            archiveDate,
+                            module: extractModule(changeName),
+                            summary: manifest.summary ?? '',
+                        });
+
+                        // 索引能力
+                        const capsPath = path.join(venusDir, 'capabilities.json');
+                        if (fs.existsSync(capsPath)) {
+                            const caps = JSON.parse(fs.readFileSync(capsPath, 'utf8'));
+                            const capEntries: CapabilityIndexEntry[] = [];
+                            for (const c of caps.capabilities ?? []) {
+                                for (const op of c.operations ?? []) {
+                                    capEntries.push({ name: c.name, changeName, operation: op.type });
+                                }
+                            }
+                            insertCapabilities(dbPath, changeName, capEntries);
+                        }
+
+                        // 索引决策
+                        const decisionsPath = path.join(venusDir, 'decisions.json');
+                        if (fs.existsSync(decisionsPath)) {
+                            const decs = JSON.parse(fs.readFileSync(decisionsPath, 'utf8'));
+                            const decEntries: DecisionIndexEntry[] = (decs.decisions ?? []).map(
+                                (d: Record<string, unknown>) => ({
+                                    title: String(d.title ?? ''),
+                                    choice: String(d.choice ?? ''),
+                                    rationale: String(d.rationale ?? ''),
+                                    changeName,
+                                }),
+                            );
+                            insertDecisions(dbPath, decEntries);
+                        }
+
+                        indexed++;
+                    } else {
+                        // 降级：从 proposal.md 提取基本信息
+                        const proposalPath = path.join(changeDir, 'proposal.md');
+                        if (fs.existsSync(proposalPath)) {
+                            const proposalContent = fs.readFileSync(proposalPath, 'utf8');
+                            const summaryMatch = /^## Why\s*\n+(.+)/m.exec(proposalContent);
+                            const archiveDate = entry.match(/^(\d{4}-\d{2}-\d{2})-/)?.[1];
+
+                            insertChange(dbPath, {
+                                name: changeName,
+                                archiveDate,
+                                module: extractModule(changeName),
+                                summary: summaryMatch?.[1]?.slice(0, 200) ?? '',
+                            });
+                            indexed++;
+                            degraded++;
+                        } else {
+                            errors.push(`${entry}: 无可解析的制品（无 manifest.json 也无 proposal.md）`);
+                        }
+                    }
+                } catch (error: unknown) {
+                    errors.push(`${entry}: ${(error as Error).message}`);
+                }
+            }
+
+            const result = {
+                success: true,
+                indexed,
+                degraded,
+                total: entries.length,
+                errors: errors.length > 0 ? errors : undefined,
+            };
+
+            if (options.json) {
+                console.log(JSON.stringify(result, null, 2));
+            } else {
+                console.log(`索引重建完成：${indexed}/${entries.length} 个变更已索引`);
+                if (degraded > 0) {
+                    console.log(`  ${degraded} 个变更无 JSON sidecar，已降级解析 MD`);
+                }
+                if (errors.length > 0) {
+                    console.log(`  ${errors.length} 个变更索引失败：`);
+                    for (const e of errors) {
+                        console.log(`    - ${e}`);
+                    }
+                }
+            }
+
+            if (errors.length > 0) {
+                process.exitCode = 1;
+            }
+        });
+
     return spec;
 }
 
@@ -235,6 +436,19 @@ export function runSpecStatus(
 function listActiveChanges(projectRoot: string): string[] {
     const changesDir = path.join(projectRoot, 'openspec', 'changes');
     return listSubdirectories(changesDir).filter((name) => name !== 'archive');
+}
+
+/** 从 kebab-case 变更名提取模块名 */
+function extractModule(changeName: string): string {
+    // 格式：{prefix}-{module}-{feature}，取中间段
+    const parts = changeName.split('-');
+    if (parts.length >= 3) {
+        return parts.slice(1, -1).join('-');
+    }
+    if (parts.length === 2) {
+        return parts[1];
+    }
+    return 'general';
 }
 
 /** 渲染单变更状态文本 */
