@@ -26,6 +26,11 @@ import { ensureProjectConfig, readProjectConfig } from '../core/project-config.j
 import { resolveWorkflows } from '../core/profiles.js';
 import { scanReconcileOrphans, type ReconcileOrphans } from '../core/reconcile.js';
 import {
+    scanProject,
+    createEmptyScanReport,
+    type ProjectScanReport,
+} from '../core/project-scan.js';
+import {
     buildPermissionEntries,
     mergePermissions,
     type MergeResult,
@@ -41,6 +46,8 @@ export interface InitOptions {
     tools?: string;
     /** 覆盖已存在文件 */
     force?: boolean;
+    /** 是否执行项目预扫描（--no-scan 时由 Commander 生成 scan: false，跳过扫描且不写基线） */
+    scan?: boolean;
 }
 
 /** init 执行结果（供测试与 --json 输出） */
@@ -62,6 +69,8 @@ export interface InitResult {
     reconcileOrphans: ReconcileOrphans;
     /** 会话级权限载体（.claude/settings.json）的合并结果，每个目标工具一项 */
     permissionSettings: MergeResult[];
+    /** 项目预扫描报告（--no-scan 时为空报告，未扫描、未写基线） */
+    scanReport: ProjectScanReport;
 }
 
 /** 读取当前包版本（供 metadata.generatedBy） */
@@ -195,6 +204,10 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
     // 5. reconcile 扫描：已装但不在生效集内的 venus 产物（保留不删，供输出提示）
     const reconcileOrphans = scanReconcileOrphans(projectRoot, resolved.workflows);
 
+    // 6. 项目预扫描（非阻断）：产出 .venus/scan-baseline.json 供 tr-init 技能参考；
+    //    失败只记入报告的 failures，不影响安装结果；--no-scan 时整体跳过
+    const scanReport = options.scan === false ? createEmptyScanReport() : scanProject(projectRoot);
+
     return {
         projectRoot,
         tools: tools.map((t) => t.value),
@@ -207,5 +220,6 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
         injectedDeps: resolved.injected,
         reconcileOrphans,
         permissionSettings,
+        scanReport,
     };
 }

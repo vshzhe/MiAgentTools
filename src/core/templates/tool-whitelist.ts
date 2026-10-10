@@ -36,10 +36,13 @@ export const SUBAGENT_DISPATCH: string = 'Agent, Task';
 /**
  * 生成技能委派的精确条目，产出 `Skill(a), Skill(b)` 形式（逗号 + 空格分隔）。
  *
- * 技能名取本地技能名（如 `venus_spec_apply`），**不带** `plugin:` 前缀。
- * 调用方 MUST NOT 使用星号通配（授权面过宽属安全问题），MUST 逐技能显式列举。
+ * 技能名取**去掉 `venus_` 前缀的裸名**（如 `spec_apply`、`tr_docs_feature_doc`），
+ * 也**不带** `plugin:` 前缀 —— 即传 `venus_spec_apply` 是错误的，会产出
+ * `Skill(venus_spec_apply)` 这一永不放行的死条目（测试按「`Skill(X)` 对应已注册技能
+ * `venus_X`」校验，会判为委派了未注册技能）。调用方 MUST NOT 使用星号通配
+ * （授权面过宽属安全问题），MUST 逐技能显式列举。
  *
- * @param names 被委派的本地技能名列表
+ * @param names 被委派技能的**裸名**列表（不含 `venus_` 前缀）
  * @returns 逗号 + 空格分隔的 `Skill(...)` 条目串；空数组返回空串
  */
 export function skillDelegation(names: readonly string[]): string {

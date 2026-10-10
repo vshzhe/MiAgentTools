@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: tr_commit
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:44ecad6462e35e83e8e2173d4fd4f1b27fdbf97b97124ca8fc1bcc38c76e0c5b"
+  generatedFingerprint: "sha256:4bad07b3d480bba52c882ae7b8b3f65237baad54f1328ae28837d5e0a3779bbb"
 ---
 
 SVN 提交注释生成与执行（venus_tr_commit_push）—— 四环节确认提交 + 提案分类提交。
@@ -46,7 +46,7 @@ SVN 提交注释生成与执行（venus_tr_commit_push）—— 四环节确认�
 
 ### 提案判定
 
-- **点名提案**：校验 `openspec/changes/<提案名>/` 存在 → 读取其 proposal/design/tasks 进入分类提交流程；提案名不存在时列出当前活跃变更供用户选择；提案已在 `openspec/changes/archive/`（归档）时报错提示已归档并列出活跃变更供选。
+- **点名提案**：校验 `openspec/changes/<提案名>/` 存在 → 读取其 proposal/design/tasks 进入分类提交流程；提案名不存在时列出当前活跃变更供用户选择；提案已在 `openspec/changes/archive/`（归档）时同样读取归档提案内容并按分类提交流程推进，同时在环节 1 提示「提案已归档，按提案内容检查未提交变更」；若 `svn status` 无相关变更则提示无需提交并终止。
 - **未点名**：自动检测 `openspec/changes/` 活跃变更——唯一时直接采用并提示；多个时列出供用户选择；无活跃变更时退化为场景 2（询问是否提交全部，提交不带溯源标注）。
 - 提案名仅允许取自 changes/ 目录实际存在的变更名（或用户从列表中的选择），禁止拼接任意路径。
 

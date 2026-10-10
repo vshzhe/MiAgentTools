@@ -12,6 +12,10 @@
  *   - 顺序即注入顺序
  *   - 未列出的规则文件不生效（用户可通过删除引用停用）
  *
+ * 回写（writeWorkflowsToConfig / writeContextToConfig）采用逐行段替换：
+ * 只替换命中的目标段，其余行（含注释行与未知段）逐字保留，
+ * MUST NOT 重新序列化整个 YAML（否则会丢注释与未知段）。
+ *
  * 采用极简 YAML 解析（键: 值 + 缩进列表），不引入 YAML 依赖。
  */
 
@@ -244,13 +248,23 @@ export function listRuleFiles(projectRoot: string): string[] {
 }
 
 /**
- * 更新 config.yaml 的 workflows 字段（保留 context/rules 不动）。
- * 若 config.yaml 不存在则先创建目录与默认 context/rules，再写入指定 workflows。
+ * 段替换公共实现：逐行扫描 config.yaml，只替换命中的目标段，其余行逐字保留
+ * （含注释行与未知段），MUST NOT 重新序列化整个 YAML。
+ *
+ * 命中目标段时以 renderSection 渲染的新内容替换原段头与段体；未命中则在文末追加。
+ * 写入前确保 .venus/ 目录存在（config.yaml 不存在时先以默认内容为基底）。
  *
  * @param projectRoot - 项目根目录
- * @param workflows - 要写入的 workflow id 列表
+ * @param sectionHead - 目标段头的行匹配（如 /^workflows:/）
+ * @param findSectionBodyEnd - 传入段头下一行的下标，返回原段体结束后的下标（段体行被跳过）
+ * @param renderSection - 渲染新段内容（段头 + 缩进体），逐行压入 out
  */
-export function writeWorkflowsToConfig(projectRoot: string, workflows: string[]): void {
+function replaceConfigSection(
+    projectRoot: string,
+    sectionHead: RegExp,
+    findSectionBodyEnd: (lines: string[], start: number) => number,
+    renderSection: (out: string[]) => void
+): void {
     const configPath = path.join(projectRoot, CONFIG_FILE_NAME);
     const raw = readConfigRaw(projectRoot) ?? defaultConfigFileContent();
     const lines = raw.split(/\r?\n/);
@@ -259,32 +273,22 @@ export function writeWorkflowsToConfig(projectRoot: string, workflows: string[])
     let found = false;
 
     while (i < lines.length) {
-        // 命中 workflows 段：替换为新的列表
-        if (/^workflows:/.test(lines[i])) {
+        // 命中目标段：替换为渲染内容，并跳过原段体
+        if (sectionHead.test(lines[i])) {
             found = true;
-            out.push('workflows:');
-            for (const wf of workflows) {
-                out.push(`  - ${wf}`);
-            }
-            i++;
-            // 跳过原 workflows 列表项（缩进的 "- xxx"）
-            while (i < lines.length && /^\s+-\s/.test(lines[i])) {
-                i++;
-            }
+            renderSection(out);
+            i = findSectionBodyEnd(lines, i + 1);
             continue;
         }
         out.push(lines[i]);
         i++;
     }
-    // 原 config 无 workflows 段：追加
+    // 原 config 无该段：文末追加（与上一行以空行分隔）
     if (!found) {
         if (out.length > 0 && out[out.length - 1] !== '') {
             out.push('');
         }
-        out.push('workflows:');
-        for (const wf of workflows) {
-            out.push(`  - ${wf}`);
-        }
+        renderSection(out);
     }
 
     // 确保配置目录存在（config.yaml 不存在时首次创建）
@@ -293,4 +297,80 @@ export function writeWorkflowsToConfig(projectRoot: string, workflows: string[])
         fs.mkdirSync(configDir, { recursive: true });
     }
     fs.writeFileSync(configPath, out.join('\n') + '\n', 'utf8');
+}
+
+/** workflows 段体结束位置：缩进的 "- xxx" 列表项 */
+function findWorkflowListEnd(lines: string[], start: number): number {
+    let i = start;
+    while (i < lines.length && /^\s+-\s/.test(lines[i])) {
+        i++;
+    }
+    return i;
+}
+
+/**
+ * context 段体（`context: |` 后的缩进块）结束位置。
+ * 空行仅在其后方仍有缩进行时才计入段体（YAML 块标量允许块内空行），
+ * 从而不吞掉段体之后的空行——其余行必须逐字保留。
+ */
+function findContextBlockEnd(lines: string[], start: number): number {
+    let i = start;
+    let bodyEnd = start;
+    while (i < lines.length) {
+        if (lines[i].startsWith('  ')) {
+            i++;
+            bodyEnd = i;
+            continue;
+        }
+        if (lines[i].trim() === '') {
+            i++;
+            continue;
+        }
+        break;
+    }
+    return bodyEnd;
+}
+
+/**
+ * 更新 config.yaml 的 workflows 字段（保留 context/rules 不动）。
+ * 若 config.yaml 不存在则先创建目录与默认 context/rules，再写入指定 workflows。
+ *
+ * @param projectRoot - 项目根目录
+ * @param workflows - 要写入的 workflow id 列表
+ */
+export function writeWorkflowsToConfig(projectRoot: string, workflows: string[]): void {
+    replaceConfigSection(
+        projectRoot,
+        /^workflows:/,
+        findWorkflowListEnd,
+        (out) => {
+            out.push('workflows:');
+            for (const wf of workflows) {
+                out.push(`  - ${wf}`);
+            }
+        }
+    );
+}
+
+/**
+ * 回写 config.yaml 的 context 段（`context: |` + 缩进块），其余行逐字保留。
+ * 若 config.yaml 不存在则先创建 .venus/ 目录与默认配置，再写入指定 context。
+ *
+ * @param projectRoot - 项目根目录
+ * @param context - 项目背景多行文本（每行统一缩进 2 空格）
+ */
+export function writeContextToConfig(projectRoot: string, context: string): void {
+    const contentLines = context.trimEnd().split(/\r?\n/);
+    replaceConfigSection(
+        projectRoot,
+        /^context:\s*\|/,
+        findContextBlockEnd,
+        (out) => {
+            out.push('context: |');
+            for (const line of contentLines) {
+                // 块内空行保持为空行，不写出行尾多余空格
+                out.push(line.length > 0 ? `  ${line}` : '');
+            }
+        }
+    );
 }

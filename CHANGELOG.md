@@ -5,9 +5,75 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [1.10.0] - 2026-10-10
+
+### Changed
+
+- **`venus_tr_commit_push` 放宽归档提案提交限制**：提案已在 `openspec/changes/archive/`
+  （归档）时不再报错拒绝，改为同样读取归档提案内容并按分类提交流程推进；归档提案关联
+  文件仍有未提交变更时可正常提交（溯源标注不变），无变更时提示无需提交并终止。
+  消除「提案已归档但内容尚未提交」的阻断死锁。
+
 ## [Unreleased]
 
 （暂无）
+
+## [1.9.0] - 2026-09-30
+
+### Added
+
+- **`venus init` 确定性预扫描**（变更 `improve-init-project-scan`，新增模块
+  `src/core/project-scan.ts`）：`venus init` 新增由纯 Node 代码执行的**确定性预扫描**，
+  提取机器可判定事实（标志文件 / 构建设施 / 目录骨架 / 依赖清单 / 配置键名 / 路由声明位置），
+  导出 `scanProject()` 与 `renderScanReport()`，在 `runInit()` 中于依赖自检语义位置之后接入，
+  报告与 `renderDependencyReport()` 并列打印。新增 `--no-scan` 逃生阀
+  （Commander 的 `--no-scan` → `scan: false`）；`InitResult` 追加 `scanReport` 字段
+  （`--json` 契约无破坏）。**非阻断**：扫描任何失败仅 WARN + 记入 `failures`，
+  MUST NOT 抛异常中断 init、MUST NOT 使退出码非零。
+- **扫描基线 `.venus/scan-baseline.json`**：确定性预扫描的落盘产物（本机产物，不入库，
+  整体覆盖写），含 `version` / `scannedAt` / `scope` / `limits` / `signals` / `candidates` /
+  `failures`。定位为**给技能读的脚手架** —— 免去技能重复机械探测，非交付物；
+  写入失败只落入 `failures` + WARN 文本，不抛异常。
+- **`venus_tr_init_project` 项目知识文档生成能力**：技能正文扩写为
+  「读基线 → 五类语义扫描 → 逐份确认 → 落盘 → 回写 context」；五类文档落
+  `docs/project/<类型>/`（中文文件名：技术框架 / 模块与功能点 / 数据库 / API规范 / 安全规范）
+  + 索引 `docs/project/README.md`；某类无内容则**不生成**该文档，索引仍列出全部五类并对
+  未生成者标「不适用 + 探测依据」。委派 `venus_tr_docs_feature_doc`（可选降级，
+  **不注入 DEPS**，默认安装集维持 **9 项**）。
+- **`writeContextToConfig()`**（`src/core/project-config.ts`）：只替换 `context:` 段
+  （`context: |` + 缩进块），其余逐行保留；MUST NOT 重新序列化整个 YAML（会丢注释与未知段）；
+  与 `writeWorkflowsToConfig()` 共用抽出的段替换实现。
+- **能力规格 `init-project-scan`**：为上述能力链新增规格，锁定契约 C1–C5 ——
+  `ProjectScanReport` 形状、CLI 增量契约、五类文档路径契约、人工域标记契约与
+  「信号 / 候选」判定层级。
+- **人工域标记契约**：`<!-- 人工域:开始 -->` … `<!-- 人工域:结束 -->` 成对注释界定文档中
+  逐字保留的段落，未标记段落一律可重派生；机制与 `derive-command.ts` 的 `<!-- CMD:SKIP -->`
+  同构。破损情形一律取**保留侧**（未闭合保留至文末、嵌套乱序保留最外层最大连续区间，均记 WARN）。
+- **`CONTEXT.md` 术语**（`openspec/CONTEXT.md`）：新增 6 条 —— 项目扫描 / 确定性预扫描 /
+  扫描基线 / 信号与候选 / 人工域标记 / 不适用类。
+
+### Changed
+
+- **`tr-init.ts` 的 command content 改为单一源派生**：由手工双写改为
+  `deriveCommandContent()` 按 `<!-- CMD:SKIP -->` 标记从 skill instructions 派生，
+  消除「双模板漂移」在该技能上的最后一处存量；7 个 `spec-*.ts` 已用同一机制。
+- **白名单随委派面同增**：`venus_tr_init_project` 写入 `CODEGRAPH_MCP`（裸服务器 + 9 具名
+  工具）与 `Skill(venus_tr_docs_feature_doc)`；**禁用 `Skill(*)`**，**不加**
+  `SUBAGENT_DISPATCH`（正文无派发动作）。两处回归锁同步：CodeGraph 技能数 10 → 11、
+  经 `Skill` 委派的技能清单 9 项 → 10 项。
+- **敏感值零外泄与框架结论不外推**（硬约束）：`signals.config` 条目**只有 `keys` 无 value
+  字段**（类型层杜绝取值外泄，提取函数内即丢弃取值）；jar / 依赖只进 `candidates`
+  并带「候选」note，MUST NOT 进 `signals` ——「jar 存在 ≠ 框架在用」（实测某项目有
+  spring jar 但源码仅 1 处 import，机械判定必误报）。排除清单含 venus 自身产物目录
+  （`.claude/` / `.venus/` / `.codegraph/` / `openspec/` / `node_modules/` / `dist/` 等），
+  否则 `.claude/skills/` 下 27 个技能目录会被误报为项目信号。
+- 版本号 1.8.0 → 1.9.0
+
+### 说明
+
+- **非破坏性，无迁移动作**：`venus init` 既有 option（`--tools` / `--force` / `--no-deps` /
+  `--onboarding`）行为**逐字不变**；默认安装集维持 9 项（8 显式 + 1 注入），**无 BREAKING**。
+  既有项目执行一次 `venus init` 即可获得扫描基线与项目知识文档骨架。
 
 ## [1.8.0] - 2026-09-30
 
@@ -518,7 +584,9 @@
 - 项目配置从单文件 `venus.config.yaml` 重构为 `.venus/` 目录结构
   （`config.yaml` 显式引用 `rules/` 下规则文件），重复 init 保留用户全部修改
 
-[Unreleased]: https://github.com/venus-agent-tools/compare/v1.8.0...HEAD
+[Unreleased]: https://github.com/venus-agent-tools/compare/v1.10.0...HEAD
+[1.10.0]: https://github.com/venus-agent-tools/compare/v1.9.0...v1.10.0
+[1.9.0]: https://github.com/venus-agent-tools/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/venus-agent-tools/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/venus-agent-tools/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/venus-agent-tools/compare/v1.5.0...v1.6.0

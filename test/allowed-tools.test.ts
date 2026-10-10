@@ -259,7 +259,8 @@ describe('调用类白名单条目（MCP / Skill 委派 / 子代理派发）', (
             ({ template }) => /codegraph_/.test(template.instructions) || template.allowedTools.includes('Bash(codegraph:')
         );
         // 判据自检：命中数不得为 0，否则断言静默空转
-        expect(derived.length).toBe(10);
+        // 11 = 既有 10 项 + tr-init-project（其正文新增扫描步骤后提及 codegraph 工具名）
+        expect(derived.length).toBe(11);
         for (const { template } of derived) {
             expectCodegraphEntries(template);
         }
@@ -299,6 +300,7 @@ describe('调用类白名单条目（MCP / Skill 委派 / 子代理派发）', (
             'tr-impl-debug',
             'tr-impl-genfull',
             'tr-impl-workflow',
+            'tr-init-project',
         ]);
 
         for (const { template } of delegating) {

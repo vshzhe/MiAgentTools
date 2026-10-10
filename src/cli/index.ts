@@ -21,6 +21,7 @@ import { runShow } from '../commands/show.js';
 import { renderOnboardingHints } from '../commands/onboarding.js';
 import { buildSpecCommand } from '../commands/spec.js';
 import { ensureDependencies, renderDependencyReport } from '../core/dependencies.js';
+import { renderScanReport } from '../core/project-scan.js';
 import { AI_TOOLS, SKILL_TYPES } from '../core/config.js';
 import { reconcileOrphanCount } from '../core/reconcile.js';
 import { renderPermissionReport } from '../core/permissions.js';
@@ -50,8 +51,11 @@ export function buildProgram(): Command {
         )
         .option('--force', '覆盖已存在的文件')
         .option('--no-deps', '跳过依赖检测与安装（codegraph）')
+        .option('--no-scan', '跳过项目预扫描（不写 .venus/scan-baseline.json）')
         .option('--onboarding', '完成后显示下一步使用引导')
-        .action((options: { tools?: string; force?: boolean; deps?: boolean; onboarding?: boolean }) => {
+        .action((options: {
+            tools?: string; force?: boolean; deps?: boolean; scan?: boolean; onboarding?: boolean;
+        }) => {
             const result = runInit(process.cwd(), options);
             console.log(`Venus 初始化完成（工具：${result.tools.join(', ')}）`);
             console.log(`  技能：${result.skillsInstalled.length} 个`);
@@ -102,6 +106,10 @@ export function buildProgram(): Command {
             // 依赖检测与安装（codegraph，--no-deps 跳过）
             const deps = ensureDependencies(process.cwd(), { skip: options.deps === false });
             console.log(renderDependencyReport(deps));
+            // 项目预扫描报告（与依赖报告并列；--no-scan 时无扫描输出）
+            if (options.scan !== false) {
+                console.log(renderScanReport(result.scanReport));
+            }
             // 首次初始化（配置刚创建）或显式 --onboarding 时显示引导
             if (result.configState === 'created' || options.onboarding) {
                 console.log(renderOnboardingHints());
