@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: tr_tools
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:f56d1458b65b92464f8cc1743d26cd31c76c2802afe4fbb6d2193b287d59226b"
+  generatedFingerprint: "sha256:0d6bc63c68a8f547e502061f2e0dcd38cb0ebef842e321dce1ba7051791430fe"
 ---
 
 查看当前路径 —— 给出当前工作目录的绝对路径。
@@ -33,7 +33,7 @@ metadata:
    以清晰的格式向用户呈现：
    ```text
    当前工作目录：
-   E:\github\VenusAgentTools
+   <实际路径（pwd / Get-Location 返回的值）>
    ```
 
 3. **（可选）补充上下文**

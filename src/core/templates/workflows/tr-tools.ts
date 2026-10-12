@@ -31,7 +31,7 @@ export function getTrToolsPwdSkillTemplate(): SkillTemplate {
    以清晰的格式向用户呈现：
    \`\`\`text
    当前工作目录：
-   E:\\github\\VenusAgentTools
+   <实际路径（pwd / Get-Location 返回的值）>
    \`\`\`
 
 3. **（可选）补充上下文**

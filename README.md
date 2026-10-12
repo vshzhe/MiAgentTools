@@ -9,7 +9,7 @@ AI Agent 技能生成与管理 CLI —— 按生命周期类型（`tr_*`）分�
 ### 方式一：本地全局安装（推荐，任意目录可用 `venus` 命令）
 
 ```bash
-cd E:\github\VenusAgentTools
+cd <VenusAgentTools 仓库路径>
 
 # 安装依赖并构建
 pnpm install
@@ -19,6 +19,11 @@ pnpm build
 pnpm link --global
 ```
 
+> **前置条件**：`pnpm link --global` 要求 `PNPM_HOME` 已设置**且该目录在 PATH 中**。未满足时先执行
+> `pnpm setup`，然后**重开终端 / 编辑器**——已启动的进程不会感知新写入的环境变量，会分别报
+> `ERR_PNPM_NO_GLOBAL_BIN_DIR`（变量未生效）或 `The configured global bin directory ... is not in PATH`
+> （PATH 未生效）。已实测确认。
+>
 > **提示**：pnpm 10 偶发首次 link 不生成全局 bin 软链接 —— 若 `venus --version` 报"命令不存在"，
 > 再执行一次 `pnpm link --global` 即可。已实测：链接后在任意目录（含 Git Bash / cmd / PowerShell）
 > `venus` 直接可用。
@@ -26,7 +31,7 @@ pnpm link --global
 验证安装：
 
 ```bash
-venus --version    # 输出 1.18.0
+venus --version    # 输出 1.18.1
 venus --help       # 查看全部命令
 ```
 
@@ -39,7 +44,7 @@ pnpm uninstall --global venus-agent-tools
 ### 方式二：项目内直接运行（不装全局命令）
 
 ```bash
-cd E:\github\VenusAgentTools
+cd <VenusAgentTools 仓库路径>
 node bin/venus.js <command>     # 效果与 venus <command> 完全一致
 ```
 
@@ -48,7 +53,7 @@ node bin/venus.js <command>     # 效果与 venus <command> 完全一致
 在目标项目中：
 
 ```bash
-pnpm add file:E:\github\VenusAgentTools
+pnpm add file:<VenusAgentTools 仓库路径>
 pnpm exec venus init
 ```
 

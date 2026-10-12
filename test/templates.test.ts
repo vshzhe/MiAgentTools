@@ -205,7 +205,9 @@ describe('对话级确认门未被白名单改动侵蚀', () => {
         '提示词校验门',
         '【优化后提示词】',
         '优化说明',
-        '出口有四条',
+        // 紧凑版门文本（buildPromptGateCompact）的四条出口措辞，
+        // 与全文版（buildPromptGateBlock）的"出口有四条，不得只认一条"等价
+        '出口：确认 / 修改 / 拒绝 / 显式授权按推断',
         '显式授权按推断',
     ];
 
@@ -213,8 +215,9 @@ describe('对话级确认门未被白名单改动侵蚀', () => {
     const FLOWCHART_GATE_MARKS = [
         '## 功能流程图',
         '功能流程图（Functional Flowchart）',
-        '流程最终确认门（阻塞）',
-        '出口有四条',
+        // 内联版流程门措辞为"（强制停止）"；"出口有四条，不得只认一条"仅存在于流程图全文版
+        '流程最终确认门（强制停止）',
+        '出口：确认 / 修改 / 拒绝',
         '节点清单',
     ];
 
@@ -260,7 +263,7 @@ describe('对话级确认门未被白名单改动侵蚀', () => {
         expect(() =>
             expectFlowchartGate(
                 'venus_spec_explore',
-                instructions.replaceAll('流程最终确认门（阻塞）', '流程确认门')
+                instructions.replaceAll('流程最终确认门（强制停止）', '流程确认门')
             )
         ).toThrow();
     });

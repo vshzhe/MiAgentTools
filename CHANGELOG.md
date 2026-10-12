@@ -185,6 +185,26 @@
 
 ## [Unreleased]
 
+## [1.18.1] - 2026-10-12
+
+### Changed
+
+- **`.gitignore` 补齐 AI 工具产物目录**：新增 `.pi/`、`.codex/`（原先仅忽略 `.claude/`），
+  与「本机产物均不入库」的约定一致。
+
+### Fixed
+
+- **文档与技能模板中的机器专有路径**：`README.md` 安装指引（3 处）与 `venus_tr_tools_pwd`
+  技能模板示例输出中硬编码的 `E:\github\VenusAgentTools` 替换为通用占位符 —— 前者会把读者
+  带向本机不存在的路径，后者与技能自身「始终报告命令实际返回的路径，不做推断」的约束矛盾。
+- **README 全局链接前置条件缺失**：补充 `pnpm link --global` 要求 `PNPM_HOME` 已设置且在
+  PATH 中，以及必须重开终端 / 编辑器才能让新写入的环境变量生效（否则分别报
+  `ERR_PNPM_NO_GLOBAL_BIN_DIR` 与 `The configured global bin directory ... is not in PATH`）。
+- **门标识句测试判据与内联门文本脱节**：`test/templates.test.ts` 的提示词校验门 / 功能流程图门
+  判据仍要求全文版字面量（`出口有四条`、`流程最终确认门（阻塞）`），而内联进 5 个技能的是
+  紧凑版文本（`出口：确认 / 修改 / 拒绝 ...`、`流程最终确认门（强制停止）`），导致 2 个用例恒失败；
+  标识句改为紧凑版实际措辞（同时修正判据拦截力用例的篡改目标串），保留四条出口与最终确认门的语义校验。
+
 ## [1.18.0] - 2026-10-12
 
 ### Changed
@@ -777,7 +797,8 @@
 - 项目配置从单文件 `venus.config.yaml` 重构为 `.venus/` 目录结构
   （`config.yaml` 显式引用 `rules/` 下规则文件），重复 init 保留用户全部修改
 
-[Unreleased]: https://github.com/venus-agent-tools/compare/v1.18.0...HEAD
+[Unreleased]: https://github.com/venus-agent-tools/compare/v1.18.1...HEAD
+[1.18.1]: https://github.com/venus-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/venus-agent-tools/compare/v1.17.0...v1.18.0
 [1.17.0]: https://github.com/venus-agent-tools/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/venus-agent-tools/compare/v1.15.0...v1.16.0
