@@ -59,24 +59,26 @@ Archive a completed change in the change workflow.
 
 4. **Assess delta spec sync state and execute AI merge**
 
-   Use \`artifactPaths.specs.existingOutputPaths\` from status JSON to check for delta specs. If none exist, proceed without sync.
+   **JSON-primary source**: Read \`<changeRoot>/.venus/change.json\` and take its \`specs\` section (\`SpecEntry[]\` — each entry carries \`name\` / \`path\` / \`operations[]\`). Every operation is fully structured: \`type\` (\`ADDED\` / \`MODIFIED\` / \`REMOVED\` / \`RENAMED\`), \`requirement\`, \`description\`, \`scenarios[]\`, plus the per-type fields \`reason\` / \`migration\` (REMOVED) and \`from\` / \`to\` (RENAMED). Apply these operations directly — do NOT re-classify the delta spec MD prose when change.json is present.
 
-   **If delta specs exist:**
-   - Compare each delta spec with its corresponding main spec at \`openspec/specs/<capability>/spec.md\`
-   - Classify the changes by operation kind:
+   **MD fallback (WARN)**: If change.json or its \`specs\` section is missing, log a WARN ("change.json specs section missing — falling back to delta spec MD classification") and use the legacy path: check \`artifactPaths.specs.existingOutputPaths\` from the status JSON for delta specs, compare each delta spec (\`specs/<capability>/spec.md\`) with its corresponding main spec at \`openspec/specs/<capability>/spec.md\`, and classify the prose changes by operation kind:
      - **ADDED**: new requirements/scenarios present in delta but not in main spec
      - **MODIFIED**: requirement or scenario text/details changed in delta
      - **REMOVED**: requirements/scenarios deleted in delta
      - **RENAMED**: requirement identifiers renamed in delta
-   - Show a combined summary of what will be applied (ADDED/MODIFIED/REMOVED/RENAMED)
+
+   **If neither source yields delta specs**: proceed without sync.
+
+   **If delta specs exist:**
+   - Show a combined summary of what will be applied (counts per ADDED/MODIFIED/REMOVED/RENAMED)
    - Execute the AI merge directly — do NOT prompt for sync options ("Sync now" is the default behavior)
-   - **Inline AI merge procedure** (no separate skill invocation): for each delta spec, apply the classified operations directly to the main \`openspec/specs/<capability>/spec.md\`:
-     - ADDED → append the new requirements/scenarios in the correct section of the main spec
-     - MODIFIED → replace the corresponding requirement/scenario text in place within the main spec
-     - REMOVED → remove the corresponding requirement/scenario from the main spec
-     - RENAMED → update the identifier and any cross-references within the main spec
+   - **Inline AI merge procedure** (no separate skill invocation): for each capability, apply the operations directly to the main \`openspec/specs/<capability>/spec.md\`:
+     - ADDED → append the new requirement (description + scenarios) in the correct section of the main spec
+     - MODIFIED → replace the corresponding requirement/scenario in place within the main spec
+     - REMOVED → remove the corresponding requirement from the main spec (the \`reason\` / \`migration\` values may be quoted in the archive summary)
+     - RENAMED → update the requirement identifier and any cross-references within the main spec
    - Follow v1.1.20 specs-apply merge semantics for conflict resolution and section placement
-   - Log: "Delta specs merged — <N> operations applied (A added / M modified / R removed / N renamed)"
+   - Log: "Delta specs merged — <N> operations applied (A added / M modified / R removed / N renamed)" (append \`[source: change.json]\` or \`[source: delta MD fallback]\` for traceability)
 
    **If already synced**: skip the sync and proceed with archiving.
 
@@ -155,17 +157,17 @@ Archive a completed change in the change workflow.
    - The change's exploration.md still moves to the archive directory with the change (extraction copies, not moves)
    - Do NOT block archive on sync failure — log and proceed
 
-4.8 **Pre-Archive Requirement Document Generation (MANDATORY CHECKPOINT)**
+4.8 **Pre-Archive Requirement Document Checkpoint (MANDATORY CHECKPOINT)**
 
-   **⚠️ MANDATORY: generate the requirement document from the FINAL artifacts BEFORE the archive move**
+   **⚠️ MANDATORY: ensure the requirement document is present and aligned BEFORE the archive move**
 
-   Executes after the exploration memory sync (4.7) and BEFORE moving the change directory (5). Rationale: the document is a review artifact derived from the change's artifacts; generating it at proposal-verification time (the previous behavior) froze a document that the implementation phase immediately invalidated.
+   Executes after the exploration memory sync (4.7) and BEFORE moving the change directory (5). Rationale: the requirement document is now generated at proposal-verification time (Phase 3 / Stage 2 of the workflow pipelines). This checkpoint ensures the archived document is aligned with the FINAL artifacts — new-flow changes already have the document from verification time and only need alignment; legacy changes (created before the verification-time generation rule) still get the document generated here for backward compatibility.
 
    **Decision scope**: ONLY \`openspec/changes/<change-name>/需求文档.md\` (build with \`path.join()\`).
 
    1. **If the change directory is not readable** (IO error): log a WARN and treat the document as absent — proceed to branch 2
    2. **Branch A — the document does NOT exist**: invoke the \`venus_tr_docs_requirement_doc\` skill (Skill tool) in **non-interactive mode** with the change name — no questions to the user, placeholder basic information; the document is written to \`openspec/changes/<change-name>/需求文档.md\`
-   3. **Branch B — the document ALREADY exists** (e.g. generated by a standalone run and then completed by hand): perform an **in-place incremental alignment update** on that file. \`## 基本信息\` (需求编号 / 需求名称 / 交付时间, including placeholder states) and \`## 八、评审记录\` are the **人工域** and MUST NOT be overwritten — preserve them verbatim; sections \`一~七\` SHALL be re-derived from the CURRENT artifacts. **Do NOT invoke \`venus_tr_docs_requirement_doc\`** in this branch — its own rule is "when the target file already exists, overwrite it silently", which would erase human-authored review content. The alignment MUST NOT delete sections (only content removed from the artifacts may be dropped); if the document is structurally broken, rebuild the missing sections and log a WARN
+   3. **Branch B — the document ALREADY exists** (e.g. generated by a standalone run and then completed by hand): perform an **in-place incremental alignment update** on that file. \`## 基本信息\` (需求编号 / 需求名称 / 交付时间, including placeholder states) and \`## 八、评审记录\` are the **人工域** and MUST NOT be overwritten — preserve them verbatim; sections \`一~七\` SHALL be re-derived from the CURRENT structured sources — \`.venus/change.json\` (proposal / design / specs sections) and \`.venus/tasks.json\`. **Do NOT invoke \`venus_tr_docs_requirement_doc\`** in this branch — its own rule is "when the target file already exists, overwrite it silently", which would erase human-authored review content. The alignment MUST NOT delete sections (only content removed from the artifacts may be dropped); if the document is structurally broken, rebuild the missing sections and log a WARN
    4. **Failure handling (non-blocking)**: if generation or alignment fails, log a WARN with the target path and the reason, then CONTINUE the archive — never block the archive on this checkpoint
 
    **Checkpoint Enforcement**:
@@ -286,7 +288,7 @@ Archive a completed change in the change workflow.
    - Archive index updated status
    - CodeGraph sync status (synced / skipped — not initialized or error)
    - Exploration memory sync status (synced / skipped — no exploration file or no delta specs / failed — warning logged)
-   - Requirement document status (generated / aligned in place / failed — warning logged with reason)
+   - Requirement document status (aligned in place / generated backward compat / failed — warning logged with reason)
    - Note about any warnings (incomplete artifacts/tasks)
 
 **Output On Success**
@@ -349,19 +351,18 @@ Target archive directory already exists.
 - Preserve \`attachments/\` subdirectory — it moves with the change directory automatically
 - When extracting summary for ARCHIVE-INDEX.md, scan \`tasks.md\` for supplement type labels and append \`[含xxx]\` annotation to the summary
 - Sync exploration memory to specs/<capability>/explorations.md for every involved capability before the archive move; skip (with log) when exploration.md or delta specs are missing; never block the archive on sync failure
-- Generate the requirement document at the pre-archive checkpoint (4.8) from the FINAL artifacts: absent → delegate venus_tr_docs_requirement_doc non-interactively; present → in-place alignment preserving the 人工域 (\`## 基本信息\` / \`## 八、评审记录\`) and never calling the skill in that branch; never block the archive on generation or alignment failure
+Ensure the requirement document at the pre-archive checkpoint (4.8) from the FINAL artifacts: present → in-place alignment preserving the 人工域; absent → delegate venus_tr_docs_requirement_doc non-interactively (backward compat for legacy changes) (\`## 基本信息\` / \`## 八、评审记录\`) and never calling the skill in that branch; never block the archive on generation or alignment failure
 - When the change declares \`skip_specs\` (status reports specs as skipped), the archive summary MUST note "主规格未同步（skip_specs 声明）" to prevent users from mistaking it as a spec sync omission
 - Show clear summary of what happened
 - If delta specs exist, run the sync assessment, show the combined summary, and execute the inline AI merge directly (ADDED/MODIFIED/REMOVED/RENAMED → main spec, following v1.1.20 specs-apply semantics)
 
 ## SQLite Index Sync (Post-Archive)
 
-After the archive move (step 5) and CodeGraph sync (step 6.5), auto-run rebuild of the SQLite cross-change index:
+After the archive move (step 5) and CodeGraph sync (step 6.5), MUST rebuild the SQLite cross-change index:
 
-1. **MUST run**: \`venus spec reindex --force\` (via Bash) — this rebuilds the full index from all archived changes
-2. On success: log "SQLite index rebuilt — N changes indexed"
-3. On failure (sqlite3 CLI unavailable): log WARN "SQLite reindex skipped — sqlite3 CLI unavailable" and continue (non-blocking)
-4. JSON missing per-change: the reindex command auto-degrades to MD extraction with per-change WARN`,
+1. **MUST run**: \`Bash(venus spec reindex --force)\` — this rebuilds the full index from all archived changes
+2. On success: report "SQLite index rebuilt — N changes indexed"
+3. On failure: log WARN with the error reason and continue (non-blocking); the index can be rebuilt later with the same command`,
         license: 'MIT',
         compatibility: '依赖 venus CLI（spec 命令组）与 CodeGraph CLI（可选）。',
         metadata: { author: 'venus-agent-tools', version: '1.0' },

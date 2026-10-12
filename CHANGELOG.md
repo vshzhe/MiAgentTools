@@ -14,7 +14,16 @@
   文件仍有未提交变更时可正常提交（溯源标注不变），无变更时提示无需提交并终止。
   消除「提案已归档但内容尚未提交」的阻断死锁。
 
-## [Unreleased]
+## [1.12.0] - 2026-10-10
+
+### Changed
+
+- **需求文档生成时机前移**：需求文档生成从归档阶段（Phase 5 / Stage 4）提前到提案验证通过后
+  （Phase 3 / Stage 2 收束阶段），使用户在实现开始前就能获得结构化需求文档便于对照排查。
+  涉及 8 个模板文件。归档阶段改为"对齐为主"（已存在则增量对齐保留人工域，
+  不存在则后向兼容生成）。同步更新 artifact-dataflow.test.ts 测试断言。
+
+## [1.12.1] - 2026-10-10
 
 ### Added
 
@@ -38,6 +47,58 @@
 
 - 修复 Gate 紧凑版缺失"出口有四条"关键标识句导致 `templates.test.ts` 的
   "对话级确认门未被白名单改动侵蚀" 测试失败
+- **JSON sidecar 数据流接通**：`improve-template-dual-layer-optimization` 提案的 Layer B
+  （JSON Sidecar + SQLite 索引）代码基础设施已就位但从未实际生效——模板用散文指令驱动 AI 产出
+  JSON，AI 从不执行。本次修复将 JSON sidecar 从"AI 散文指令驱动"改为"代码级主产物 + AI 内容填充"：
+  - **NEW** `src/core/spec/sidecar-writer.ts`：代码级 JSON sidecar 写入/校验/渲染函数
+  - **CHANGED** `spec-propose.ts`：JSON 侧车生成从 ~20 行散文改为显式 Write + Bash 步骤；
+    tasks.json 成为主任务产物，tasks.md 由 `venus spec tasks render` 代码渲染
+  - **CHANGED** `spec-apply.ts`：消费 tasks.json（结构化 status）替代解析 tasks.md checkbox
+  - **CHANGED** `spec-archive.ts`：归档后 MUST 运行 `Bash(venus spec reindex --force)` 重建索引
+  - **CHANGED** `tr-docs-requirement-doc.ts`：优先读取 decisions.json 渲染决策表
+  - **NEW** `venus spec tasks render` / `venus spec sidecar init` / `venus spec sidecar manifest`
+    三个 CLI 子命令，实现代码级 JSON 文件管理与 MD 确定性渲染
+  - **NEW** `test/sidecar-writer.test.ts`：26 个测试用例覆盖写入/校验/渲染全路径
+
+## [1.13.0] - 2026-10-12
+
+### Added
+
+- **合并 JSON 主产物 `.venus/change.json`**（schema `venus/change/v1`）：proposal / design / specs
+  三段结构化数据合并存储（吸收旧 manifest / decisions / capabilities 侧车字段），
+  `src/core/spec/sidecar-schema.ts` 新增 `ChangeSchema` / `ProposalSection` / `DesignSection` /
+  `SpecsSection` 类型与 `createEmptyChange` 工厂；旧 3 类 schema 标 `@deprecated` 保留降级读取；
+  tasks.json 保持独立（变更目录根）。
+- **统一渲染命令 `venus spec render <type>`**（type = proposal / specs / design / tasks）：从 JSON
+  真源确定性渲染对应 MD（`renderProposalMd` / `renderDesignMd` / `renderSpecsMd` 与 `renderTasksMd`
+  并列，纯函数）；读取时校验，失败报字段路径且退出码非零；`venus spec sidecar init` 改为生成
+  change.json 骨架（幂等），移除 `spec sidecar manifest`（信息吸收进 change.json 根字段）。
+- **`venus spec instructions` 新增 `jsonTemplate` 字段**：按 artifact 返回 JSON 段 schema 示例
+  （机器源），AI 写 JSON 不猜字段；MD `template` 保留供降级手写参照。
+
+### Changed
+
+- **JSON-first 生成协议单一源**：`openspec/rules/artifact-generation.md` G2 重写为 JSON-first 步骤
+  （写 change.json 段 / tasks.json → `venus spec render` → 失败修正 / 降级手写 MD + WARN），
+  由 spec-propose / tr-impl-workflow / tr-impl-auto-workflow 三条生成路径共享；spec-propose 与
+  tr-impl-auto-workflow 的 JSON 生成段同步重写并显式引用协议。
+- **下游消费全链路 JSON 优先**（均保留 change.json 缺失时 MD 降级 + WARN）：需求文档生成章节映射
+  改 change.json 段 + tasks.json（决策表直接遍历 `design.decisions[]`）；归档主 spec 同步按结构化
+  operations 应用（spec-archive / spec-bulk-archive，含 REMOVED 的 reason/migration 与 RENAMED 的
+  from/to）；验证与复查结构化对比（spec-verify / spec-verify-proposal / tr-impl-review-proposal）；
+  调试同步改 JSON 真源 + 重渲染（tr-impl-debug）。
+- **`reindex` 读取链更新**：优先 change.json（changes / capabilities / requirements_fts /
+  decisions_fts / exploration_memory 全表填充）→ 旧 3 文件 → MD 散文降级解析（新增 specs/*.md /
+  design.md / exploration.md 降级解析，存量变更全量可检索）。
+
+### Fixed
+
+- 修复 `reindex` 归档目录扫描误把 `.venus/` 点目录当变更条目、导致命令恒 exit 1 的缺陷。
+- 修复 `renderTasksMd` 对带方括号 label（存量 `"[代码]"` 写法）渲染出 `[[代码]]` 的问题：
+  渲染前归一化剥离括号（新 jsonTemplate 约定 label 值不带方括号）。
+- 修复 `test/sqlite-index.test.ts` 清理逻辑在临时路径含正斜杠时越界指向系统目录的缺陷。
+
+## [Unreleased]
 
 ## [1.9.0] - 2026-09-30
 
@@ -605,7 +666,10 @@
 - 项目配置从单文件 `venus.config.yaml` 重构为 `.venus/` 目录结构
   （`config.yaml` 显式引用 `rules/` 下规则文件），重复 init 保留用户全部修改
 
-[Unreleased]: https://github.com/venus-agent-tools/compare/v1.10.0...HEAD
+[Unreleased]: https://github.com/venus-agent-tools/compare/v1.13.0...HEAD
+[1.13.0]: https://github.com/venus-agent-tools/compare/v1.12.1...v1.13.0
+[1.12.1]: https://github.com/venus-agent-tools/compare/v1.12.0...v1.12.1
+[1.12.0]: https://github.com/venus-agent-tools/compare/v1.10.0...v1.12.0
 [1.10.0]: https://github.com/venus-agent-tools/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/venus-agent-tools/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/venus-agent-tools/compare/v1.7.0...v1.8.0

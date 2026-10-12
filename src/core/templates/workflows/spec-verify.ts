@@ -41,11 +41,18 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
    - \`planningHome\`、\`changeRoot\`、\`artifactPaths\`、\`actionContext\`：路径与范围上下文
    - 该变更存在哪些制品
 
-3. **读取变更目录下制品文件**
+3. **读取变更制品（JSON 优先）**
 
-   运行 \`venus spec status --change "<name>" --json\` 获取进度统计（progress），并直接 Read 变更目录下的制品文件：proposal.md / specs/ / design.md / tasks.md。
+   运行 \`venus spec status --change "<name>" --json\` 获取进度统计（progress），并按以下顺序读取制品：
 
-   contextFiles 语义为：读取变更目录下的制品文件（proposal.md / specs/ / design.md / tasks.md），用于后续三维度验证。
+   - **优先读**变更目录下的 \`.venus/change.json\`（结构化真源）：
+     - \`specs\` 段（\`specs[].operations[]\`）：需求与场景清单，用于完整性 / 正确性验证
+     - \`design\` 段：设计一致性核对（decisions / risks）
+     - \`proposal\` 段：需求背景（why / whatChanges / impact）
+   - **优先读**变更目录根下的 \`tasks.json\`：任务状态与 specRef 覆盖关系
+   - **降级（WARN）**：change.json 缺失时输出 WARN，改读渲染后的 MD —— proposal.md / specs/*.md / design.md；tasks.json 缺失时改读 tasks.md 复选框
+
+   降级读取时必须在报告中注明 WARN 与降级原因，用于后续三维度验证。
 
 4. **初始化验证报告结构**
 
@@ -59,27 +66,38 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
 5. **验证 Completeness（完整性）**
 
    **任务完成情况**：
-   - **优先读** \`.venus/tasks.json\`：若存在，直接获取结构化任务列表（id / label / status / files）与 progress 统计，跳过 markdown 解析
-   - **降级**：tasks.json 缺失时解析 tasks.md 复选框：\`- [ ]\`（未完成） vs \`- [x]\`（完成）
+   - **优先读**变更目录根下的 \`tasks.json\`：若存在，直接获取结构化任务列表（id / label / status / dependencies / specRef / files）与 progress 统计，跳过 markdown 解析
+   - **降级（WARN）**：tasks.json 缺失时解析 tasks.md 复选框：\`- [ ]\`（未完成） vs \`- [x]\`（完成）
    - 统计完成 / 总任务数
    - 若存在未完成任务：
      - 为每个未完成任务添加 CRITICAL 问题
      - 建议："完成任务：<描述>" 或 "若已实现则标记为完成"
 
-   **Spec 覆盖**：
-   - 若存在 delta specs（specs/ 目录下）：
-     - 提取所有需求（以 "### Requirement:" 标记）
-     - 对每个需求：
-       - 在代码库中检索与需求相关的关键字
-       - 评估实现是否可能存在
-     - 若需求似乎未实现：
-       - 添加 CRITICAL 问题："需求未找到：<需求名>"
-       - 建议："实现需求 X：<描述>"
+   **Spec 覆盖（逐需求对比 tasks.json）**：
+   - 需求清单来源（JSON 优先）：
+     - 优先：\`.venus/change.json\` 的 \`specs[].operations[].requirement\`（逐条需求）
+     - 降级（WARN）：specs/*.md 中以 "### Requirement:" 标记的需求
+   - 对每条需求，在 tasks.json 中匹配覆盖任务（按以下信号依次判定）：
+     1. \`specRef\` 与需求名精确匹配
+     2. \`dependencies\` 引用链上存在面向该需求的任务
+     3. \`description\` 与需求语义相关（关键词 / 语义匹配）
+     （tasks.json 缺失降级时，覆盖匹配退化为对 tasks.md 任务描述的语义匹配）
+   - 输出逐需求的结构化对比（纳入最终报告）：
+     \`\`\`
+     | 需求 | 覆盖任务 | 任务状态 | 判定 |
+     |------|---------|---------|------|
+     | <specs[].operations[].requirement> | <task ids> | done / pending | 已覆盖 / 未完成 / 未覆盖 |
+     \`\`\`
+   - 判定规则：
+     - 覆盖任务全部 done → **已覆盖**
+     - 有覆盖任务但存在 pending → CRITICAL："需求未完成：<需求名>（任务 <id> 仍为 pending）"
+     - 无任何覆盖任务 → CRITICAL："需求未找到：<需求名>"
+       - 建议："实现需求 X：<描述>，并在 tasks.json 补建覆盖任务（specRef 指向该需求）"
 
 6. **验证 Correctness（正确性）**
 
    **需求实现映射**：
-   - 对 delta specs 中的每个需求：
+   - 对需求清单中的每个需求（JSON 优先，来源见步骤 3）：
      - 在代码库中检索实现证据
      - 若找到，记录文件路径与行范围
      - 评估实现是否匹配需求意图
@@ -88,7 +106,7 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
        - 建议："对照需求 X 审查 <file>:<lines>"
 
    **场景覆盖**：
-   - 对 delta specs 中的每个场景（以 "#### Scenario:" 标记）：
+   - 对场景清单中的每个场景（JSON 优先取 \`specs[].operations[].scenarios[]\`；降级读 "#### Scenario:" 标记）：
      - 检查代码中是否处理了相关条件
      - 检查是否存在覆盖该场景的测试
      - 若场景似乎未覆盖：
@@ -98,13 +116,14 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
 7. **验证 Coherence（一致性）**
 
    **设计遵循**：
-   - 若存在 design.md：
-     - 提取关键决策（查找 "Decision:" / "Approach:" / "Architecture:" 等段落）
+   - 若存在 design 制品：
+     - 优先：\`.venus/change.json\` 的 \`design\` 段，直接读取 \`decisions[]\`（id / title / choice / rationale）与 \`risks[]\`
+     - 降级（WARN）：design.md 中查找 "Decision:" / "Approach:" / "Architecture:" 等段落
      - 验证实现是否遵循这些决策
      - 若检测到矛盾：
        - 添加 WARNING："未遵循设计决策：<决策>"
-       - 建议："更新实现或修订 design.md 以符合实际"
-   - 若无 design.md：跳过设计遵循检查，注明 "无 design.md 可供对照"
+       - 建议："更新实现，或修订 design 段后运行 \`venus spec render design --change <name>\` 重渲染（降级读取时为直接修订 design.md）"
+   - 若无 design 制品：跳过设计遵循检查，注明 "无 design 制品可供对照"
 
    **代码模式一致性**：
    - 审查新代码与项目模式的一致性
@@ -163,6 +182,8 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
    | Correctness  | M/N reqs covered |
    | Coherence    | Followed/Issues  |
    \`\`\`
+
+   **需求覆盖对比表**：逐需求列出覆盖任务与判定（格式见步骤 5）。
 
    **按优先级分组的问题**：
 

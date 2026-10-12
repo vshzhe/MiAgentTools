@@ -57,8 +57,14 @@ Implement tasks from a change's artifacts (proposal/specs/design/tasks) under op
      - \`"ready"\`: artifacts complete and tasks pending → proceed to Step 4 (read context files)
      - \`"all_done"\`: all tasks already complete → congratulate, suggest archive; STOP
 
+   **JSON-first artifact context (PRIMARY source for proposal/design/specs — applies to both paths):**
+
+   For the structured content of proposal / design / specs, prefer the change's merged JSON main artifact over MD prose:
+   1. MUST read \`openspec/changes/<name>/.venus/change.json\` first — its \`proposal\` / \`design\` / \`specs\` sections are the structured source of truth (why, what changes, decisions, operations, scenarios); use them directly instead of re-parsing MD prose
+   2. If change.json is missing → fall back to reading the MD artifacts (\`proposal.md\`, \`specs/*.md\`, \`design.md\`) and record a WARN stating the fallback reason
+
    **Fallback path (old CLI without \`instructions apply\`):**
-   - If the \`venus spec instructions apply\` command does not exist (unrecognized subcommand) or exits non-zero (older CLI version that does not support the structured apply context contract), fall back to directly reading the change directory's artifact files:
+   - If the \`venus spec instructions apply\` command does not exist (unrecognized subcommand) or exits non-zero (older CLI version that does not support the structured apply context contract), fall back to directly reading the change directory's artifact files (MD-fallback mode — change.json absent or unusable):
      - \`openspec/changes/<name>/proposal.md\` — proposal (Why, What changes)
      - \`openspec/changes/<name>/specs/\` — delta specs (requirements)
      - \`openspec/changes/<name>/design.md\` — design (Decisions, architecture, dependencies)
@@ -66,7 +72,20 @@ Implement tasks from a change's artifacts (proposal/specs/design/tasks) under op
    - Log a WARN stating the fallback reason (e.g., "command not found" or "non-zero exit code <N>") so the user knows structured context was unavailable
    - Task completion status is read directly from the tasks.md checkboxes (\`- [x]\` = complete, \`- [ ]\` = pending) in fallback mode
 
-   **JSON sidecar preference**: Before parsing tasks.md, check for \`.venus/tasks.json\`. If present, read structured task entries (id / label / status / dependencies / files / batchGroup) directly — skip markdown checkbox parsing. If tasks.json is missing or out of sync with tasks.md, fall back to parsing tasks.md (WARN). After completing a task, update both tasks.md checkbox AND tasks.json status field.
+   **JSON sidecar preference (PRIMARY path — tasks.json):**
+
+Before parsing tasks.md, MUST read \`tasks.json\` at the change directory root:
+1. Read \`openspec/changes/<name>/tasks.json\`
+2. Parse \`tasks[].status\` for each task: "done" = complete, "pending" = remaining
+3. Use \`tasks[].dependencies\` for batch scheduling; \`tasks[].batchGroup\` for grouping
+4. If tasks.json is missing → fall back to parsing tasks.md checkboxes (\`- [x]\` / \`- [ ]\`), record WARN
+
+**Post-batch status update:**
+
+After completing a batch of tasks, update tasks.json then re-render tasks.md:
+1. Edit tasks.json: set \`status: "done"\` for each completed task + recalc \`progress.complete\` / \`progress.remaining\`
+2. MUST run: \`Bash(venus spec render tasks --change "<name>")\` — this keeps tasks.md in sync with tasks.json
+3. If the render command fails → update tasks.md checkboxes manually (WARN)
 
    **Handle states (both paths):**
    - If artifacts are missing (proposal/specs/design/tasks): show message, suggest using \`venus_spec_verify\` to complete the artifacts first
@@ -75,11 +94,17 @@ Implement tasks from a change's artifacts (proposal/specs/design/tasks) under op
 
 4. **Read context files**
 
-   Read every artifact file under the change directory:
+   Follow the JSON-first rule from Step 3 — read the structured sections first:
+   - **\`.venus/change.json\`**: \`proposal\` (why, what changes) / \`design\` (decisions, architecture, module dependencies — used to infer task batch plan) / \`specs\` (delta requirements)
+   - **\`tasks.json\` / \`tasks.md\`: task list with status
+
+   **MD fallback** (only when change.json is missing — log a WARN): read the artifact files under the change directory:
    - **proposal.md**: Why and What
    - **specs/**: delta requirement specs
    - **design.md**: Decisions, architecture, module dependencies (used to infer task batch plan)
    - **tasks.md**: task list with status checkboxes
+
+   Throughout the remaining steps, "proposal / design / specs" refers to the change.json sections when present, otherwise to the corresponding MD artifacts (MD-fallback mode).
 
 5. **Show current progress**
 

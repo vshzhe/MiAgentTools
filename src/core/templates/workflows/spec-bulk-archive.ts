@@ -156,22 +156,23 @@ This skill allows you to batch-archive changes, handling spec conflicts intellig
    Each archive dispatch unit executes the following sequence for its change (serially, in task order):
 
    a. **Sync specs** if delta specs exist (inline AI merge, no separate skill invocation):
-      - For each delta spec, compare with its corresponding main spec at \`openspec/specs/<capability>/spec.md\`
-      - Classify the changes by operation kind:
+      - **JSON-primary source**: Read \`<changeRoot>/.venus/change.json\` and take its \`specs\` section (\`SpecEntry[]\` — each entry carries \`name\` / \`path\` / \`operations[]\`). Every operation is fully structured: \`type\` (\`ADDED\` / \`MODIFIED\` / \`REMOVED\` / \`RENAMED\`), \`requirement\`, \`description\`, \`scenarios[]\`, plus the per-type fields \`reason\` / \`migration\` (REMOVED) and \`from\` / \`to\` (RENAMED). Apply these operations directly to the main spec at \`openspec/specs/<capability>/spec.md\` — do NOT re-classify the delta spec MD prose when change.json is present.
+      - **MD fallback (WARN)**: If change.json or its \`specs\` section is missing, log a WARN ("change.json specs section missing — falling back to delta spec MD classification") and use the legacy path: compare each delta spec with its corresponding main spec at \`openspec/specs/<capability>/spec.md\`, classifying the prose changes by operation kind:
         - **ADDED**: new requirements/scenarios present in delta but not in main spec
         - **MODIFIED**: requirement or scenario text/details changed in delta
         - **REMOVED**: requirements/scenarios deleted in delta
         - **RENAMED**: requirement identifiers renamed in delta
-      - Show a combined summary of what will be applied
+      - If neither source yields delta specs: proceed without sync
+      - Show a combined summary of what will be applied (counts per ADDED/MODIFIED/REMOVED/RENAMED)
       - Execute the AI merge directly (do NOT prompt for sync options)
-      - **Inline AI merge procedure**: for each delta spec, apply the classified operations directly to the main \`openspec/specs/<capability>/spec.md\`:
-        - ADDED → append the new requirements/scenarios in the correct section of the main spec
-        - MODIFIED → replace the corresponding requirement/scenario text in place within the main spec
-        - REMOVED → remove the corresponding requirement/scenario from the main spec
-        - RENAMED → update the identifier and any cross-references within the main spec
+      - **Inline AI merge procedure**: for each capability, apply the operations directly to the main \`openspec/specs/<capability>/spec.md\`:
+        - ADDED → append the new requirement (description + scenarios) in the correct section of the main spec
+        - MODIFIED → replace the corresponding requirement/scenario in place within the main spec
+        - REMOVED → remove the corresponding requirement from the main spec (the \`reason\` / \`migration\` values may be quoted in the archive summary)
+        - RENAMED → update the requirement identifier and any cross-references within the main spec
       - Follow v1.1.20 specs-apply merge semantics for conflict resolution and section placement
       - For conflicts, apply in resolved order (step 5 resolution)
-      - Log: "Delta specs merged — <N> operations applied (A added / M modified / R removed / N renamed)"
+      - Log: "Delta specs merged — <N> operations applied (A added / M modified / R removed / N renamed)" (append \`[source: change.json]\` or \`[source: delta MD fallback]\` for traceability)
       - Track if sync was done
 
    a.5 **CONTEXT.md Sync (MANDATORY CHECKPOINT, pre-archive)**:
@@ -194,7 +195,7 @@ This skill allows you to batch-archive changes, handling spec conflicts intellig
       - **Decision scope**: ONLY \`openspec/changes/<change-name>/需求文档.md\` (use \`path.join()\`)
       - **If the change directory is not readable** (IO error): log a WARN and treat the document as absent — proceed to the not-exists branch
       - **Not exists** → invoke the \`venus_tr_docs_requirement_doc\` skill (Skill tool) in **non-interactive mode** with this change name (no questions, placeholder basic information); output to \`openspec/changes/<change-name>/需求文档.md\`
-      - **Already exists** → perform an **in-place incremental alignment update**: \`## 基本信息\` and \`## 八、评审记录\` are the **人工域** and MUST NOT be overwritten (preserve verbatim, including placeholder states); sections \`一~七\` SHALL be re-derived from the CURRENT artifacts. **Do NOT invoke \`venus_tr_docs_requirement_doc\`** in this branch — its own rule is "when the target file already exists, overwrite it silently", which would erase human-authored review content. The alignment MUST NOT delete sections (only content removed from the artifacts may be dropped); if the document is structurally broken, rebuild the missing sections and log a WARN
+      - **Already exists** → perform an **in-place incremental alignment update**: \`## 基本信息\` and \`## 八、评审记录\` are the **人工域** and MUST NOT be overwritten (preserve verbatim, including placeholder states); sections \`一~七\` SHALL be re-derived from the CURRENT structured sources — \`.venus/change.json\` (proposal / design / specs sections) and \`.venus/tasks.json\`. **Do NOT invoke \`venus_tr_docs_requirement_doc\`** in this branch — its own rule is "when the target file already exists, overwrite it silently", which would erase human-authored review content. The alignment MUST NOT delete sections (only content removed from the artifacts may be dropped); if the document is structurally broken, rebuild the missing sections and log a WARN
       - **Failure handling (non-blocking)**: if generation or alignment fails, log a WARN with the target path and the reason and CONTINUE with this change's remaining steps — a failure here MUST NOT abort the change unit and MUST NOT abort the batch
       - The generated document stays in the change directory, moves with it in step b, and is migrated to \`openspec/devdocs/\` by step c
 

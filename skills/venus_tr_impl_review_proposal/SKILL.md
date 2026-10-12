@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:d57cfe2e23e0c98aa36e18cd680107f931e87e033ac1202829676ab021f46849"
+  generatedFingerprint: "sha256:bdd0ba3de131456b4d7747825fd217f622656d9fe086fdf09d3e01044dd4abde"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
@@ -30,11 +30,15 @@ metadata:
 venus spec status --change "<change-name>" --json
 ```
 
-获取变更状态后，读取所有提案文件：
-- `proposal.md` - 需求背景和目标
-- `design.md` - 技术设计
-- `specs/*.md` - Delta规格说明
-- `tasks.md` - 实现任务清单
+获取变更状态后，按以下顺序读取提案证据（JSON 优先）：
+- 优先读变更目录下的 `.venus/change.json`（结构化真源）：
+  - `proposal` 段 - 需求背景和目标（why / whatChanges / capabilities / impact）
+  - `design` 段 - 技术设计（context / goals / nonGoals / decisions[] / risks[]）
+  - `specs` 段 - Delta 规格说明（specs[].operations[]：requirement / scenarios）
+- 优先读变更目录根下的 `tasks.json` - 实现任务清单（id / label / status / specRef / 节点标注）
+- **降级（WARN）**：change.json 缺失（或所需段缺失）时输出 WARN，改读渲染后的 MD —— `proposal.md` / `design.md` / `specs/*.md`；tasks.json 缺失时改读 `tasks.md` 复选框
+
+下文各阶段提到的 proposal / design / specs / tasks 均按上述 JSON 优先口径读取（降级时读取对应 MD 制品，并在报告中注明 WARN）。
 
 ## Phase 2: 深度代码库探索（关键改进）
 
@@ -634,11 +638,13 @@ if (!StringUtils.isNull(keyword)) {
 
 发现遗漏场景后，按优先级更新：
 
-1. **P0 必须补充**（影响功能正确性）：
-   - 更新 `specs/*.md` 添加 Requirement 和 Scenario
-   - 更新 `design.md` 添加遗漏的设计决策
-   - 更新 `tasks.md` 添加对应的实现任务
-   - 示例：
+1. **P0 必须补充**（影响功能正确性，JSON-first）：
+   - 更新 `.venus/change.json` 的 `specs` 段：对应 capability 的 `operations` 新增 Requirement 与 `scenarios[]`
+   - 更新 `.venus/change.json` 的 `design` 段：`decisions[]` 补充遗漏的设计决策
+   - 更新 `tasks.json`：新增对应的实现任务（`specRef` 指向补充的需求）
+   - 每次更新 JSON 段后运行 `venus spec render <type> --change "<name>"`（`specs` / `design` / `tasks`）重渲染对应 MD 制品
+   - **降级（WARN）**：change.json 缺失时直接编辑 MD 制品（`specs/*.md` / `design.md`；tasks.json 缺失时为 `tasks.md`），并在报告中注明 WARN
+   - 示例（写入 specs 段的操作与场景）：
      ```markdown
      ### Requirement: 编辑场景数据处理
 
@@ -907,9 +913,9 @@ venus spec status --change "add-datamask-rule-management" --json
 
 建议：补充P0遗漏项（Service层设计、事务边界、列名大小写）
 
-**Phase 6 更新文档**:
+**Phase 6 更新文档**（JSON-first）:
 
-添加到 `specs/datamask/spec.md`:
+写入 `.venus/change.json` 的 `specs` 段（新增操作与场景），再运行 `venus spec render specs --change "add-datamask-rule-management"` 渲染到 `specs/datamask/spec.md`（渲染后的 MD 内容）:
 ```markdown
 ### Requirement: 数据库操作规范
 
@@ -928,7 +934,7 @@ venus spec status --change "add-datamask-rule-management" --json
 
 | 改进项 | Phase | 检查内容 |
 |-------|-------|---------|
-| **加载提案** | Phase 1 | 读取proposal.md、design.md、specs、tasks.md |
+| **加载提案** | Phase 1 | 优先读取 `.venus/change.json`（proposal/design/specs 段）+ `tasks.json`；缺失时降级 MD（WARN） |
 | **深度探索** | Phase 2-3 | 调用链分析、数据流分析、现有模式对比、8个基础维度检查 |
 | **合规验证** | Phase 4 | 技术栈合规、架构分层合规、命名规范、数据库操作规范 |
 | **特殊功能** | Phase 5 | 导出导入功能、外部回调、并发安全、搜索条件处理 |
@@ -961,5 +967,5 @@ venus spec status --change "add-datamask-rule-management" --json
 - **搜索项目现有模式**，确保实现方式一致
 - **对照 config.yaml 验证**技术栈合规性
 - **对照 CLAUDE.md 验证**架构和命名规范
-- **发现P0遗漏立即更新**文档后再进入实现
+- **发现P0遗漏立即更新** JSON 真源（change.json 段 / tasks.json）并 `venus spec render` 重渲染后再进入实现（change.json 缺失时直接编辑 MD，WARN）
 - **提供可直接使用的Scenario内容**，降低编辑成本

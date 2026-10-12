@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:230ef7d880f4157fda66485e5b22fde1208c65a5213f767968dcfa1efa1eb534"
+  generatedFingerprint: "sha256:aeeffb32aeec6974f6a3b66924dabb5c395dc60f8cb1f9df554c137f87a03d9d"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
@@ -461,16 +461,21 @@ mv openspec/explorations/<keyword>-explore-<sequence>.md openspec/changes/<chang
 
 **Move semantics — the original copy is NOT kept**: after the move succeeds AND the destination file is verified, the source file no longer exists (that is the point of `mv`); the flow MUST keep exactly ONE resident copy, inside the change directory. If the move fails or the destination fails verification, preserve the source file and report the reason (never delete on the failure path). MUST NOT retroactively migrate or delete pre-existing historical files in `openspec/explorations/`.
 
-### 2.2 Inline Artifact Generation
+### 2.2 Inline Artifact Generation (JSON-first)
+
+**MUST follow the shared JSON-first protocol at `openspec/rules/artifact-generation.md` (Steps G1-G3)** — same single source as `venus_spec_propose` / `venus_tr_impl_workflow`; this section only summarizes it and MUST NOT define a second generation path.
 
 Proceed directly to inline artifact generation (no complexity evaluation, no method selection):
 
 1. Run `venus spec status --change "<name>" --json`
 2. Loop through artifacts in dependency order: proposal → specs → design → tasks
-3. For each artifact: `venus spec instructions <artifact-id> --change "<name>" --json` → Write file
-4. Verify each file exists after writing
+3. For each artifact: `venus spec instructions <artifact-id> --change "<name>" --json` → **write the JSON truth source** per `jsonTemplate`: proposal / specs / design → update the matching section of `<changeRoot>/.venus/change.json` (whole-file Write, MUST preserve existing sections and root fields `changeName` / `createdAt` / `phase`); tasks → write `<changeRoot>/tasks.json` (task labels without brackets — the renderer wraps them). MUST NOT hand-write MD as a substitute for the JSON truth source
+4. Render MD: `venus spec render <artifact-id> --change "<name>"`
+   - Validation/render failure (CLI error names the field path, e.g. `proposal.whatChanges 必须为数组`) → fix the JSON and re-run the render; MUST NOT bypass validation by hand-editing MD
+   - Render command unavailable → degrade to AI hand-written MD (structure per `template`, content consistent with the JSON truth source), log WARN, non-blocking
+5. Verify both the JSON truth source and the rendered MD exist after each artifact
 
-**CLI availability detection**: If the first `venus spec status` call fails with a command-not-found signature ("command not found" / "不是内部或外部命令" / "not recognized"), log "venus CLI not found in PATH — switching to CLI-degraded generation mode" and switch to CLI-degraded mode:
+**CLI availability detection**: If the first `venus spec status` call fails with a command-not-found signature ("command not found" / "不是内部或外部命令" / "not recognized"), log "venus CLI not found in PATH — switching to CLI-degraded generation mode" and switch to CLI-degraded mode — with no CLI at all, the protocol's G2.5 degradation path applies for the entire run (JSON validation / `venus spec render` unavailable → hand-written MD per `template` + WARN, non-blocking):
 - Generate artifacts in built-in dependency order: proposal → specs → design → tasks
 - Use embedded artifact structure rules (from this template)
 - Track progress with TodoWrite tool
@@ -513,8 +518,8 @@ Proceed directly to inline artifact generation (no complexity evaluation, no met
 **PASS (≥90%)**:
 - Auto-execute deep proposal review: invoke the `venus_tr_impl_review_proposal` skill (via Skill tool) for deep review (no [Yes/No] prompt); fallback to AI inline deep review + WARN log if the skill is unavailable; never silently skip
 - Display results alongside verification report
-- **Converge — do NOT generate the requirement document**: the document is produced by the ARCHIVE phase (Phase 5 inlines the archive steps, which include the pre-archive requirement-document checkpoint). This phase MUST NOT invoke `venus_tr_docs_requirement_doc` and MUST NOT ask the user for document basic information
-- **Auto-transition to Phase 4**: after the deep review converges, automatically enter Phase 4 (auto-apply)
+- **Converge — generate the requirement document**: after the deep review converges, invoke `venus_tr_docs_requirement_doc` in non-interactive mode (via Skill tool) to generate the requirement document at `openspec/changes/<change-name>/需求文档.md`. The document is generated from the CURRENT artifacts (proposal/specs/design/tasks) before implementation begins — the user can review it during the apply phase. Generation failure is non-blocking (WARN log + continue). MUST NOT ask the user for document basic information
+- **Auto-transition to Phase 4**: after requirement document generation completes (or fails), automatically enter Phase 4 (auto-apply)
 
 **FAIL (<90%)**:
 - Auto-generate fix suggestions and apply fixes
@@ -576,8 +581,8 @@ After apply completes and compile check passes:
 - Construct the archive context with:
   - `change-name` — the current change name (skips the change selection prompt)
 - Execute the archive workflow logic (following the venus_spec_archive skill template)
-- All archive steps execute automatically: delta spec sync, CONTEXT.md sync, CodeGraph check, exploration memory sync, **requirement document generation**, directory move, requirement document migration to devdocs, ARCHIVE-INDEX.md update
-- **Requirement document generation (single-source rule)**: this step is NOT re-defined here — it follows the SAME rule as `venus_spec_archive` step 4.8: BEFORE the directory move, decide whether `openspec/changes/<change-name>/需求文档.md` exists; if absent, non-interactively delegate `venus_tr_docs_requirement_doc` to generate it; if present, perform an in-place incremental alignment (人工域 `## 基本信息` and `## 八、评审记录` preserved verbatim, sections 一~七 re-derived) and MUST NOT call the skill. The document then migrates to `openspec/devdocs/` via the existing step 6. MUST NOT copy the branch rule text here — reference the archive skill's step 4.8.
+- All archive steps execute automatically: delta spec sync, CONTEXT.md sync, CodeGraph check, exploration memory sync, **requirement document alignment (if present; if absent, generate for backward compat — the document was already generated by Phase 3 for new-flow changes)**, directory move, requirement document migration to devdocs, ARCHIVE-INDEX.md update
+- **Requirement document alignment (single-source rule)**: this step is NOT re-defined here — it follows the SAME rule as `venus_spec_archive` step 4.8: BEFORE the directory move, check whether `openspec/changes/<change-name>/需求文档.md` exists; if present, perform an in-place incremental alignment (人工域 `## 基本信息` and `## 八、评审记录` preserved verbatim, sections 一~七 re-derived) and MUST NOT call the skill; if absent (backward compat — the change was created before the Phase 3 generation rule), non-interactively delegate `venus_tr_docs_requirement_doc` to generate it. The document then migrates to `openspec/devdocs/` via the existing step 6. MUST NOT copy the branch rule text here — reference the archive skill's step 4.8.
 
 ### 5.2 Auto-Archive Error Handling
 
@@ -615,11 +620,12 @@ After auto-archive completes:
 - **Do auto-archive after apply complete** - Phase 5 executes automatically with change name passed from context (following the venus_spec_archive skill template)
 - **Do inherit and auto-pass the test execution gate** - Phase 4 runs venus_spec_apply §9 limited to the change scope; in-scope failures auto-retry up to 3 times, then pause and report; pre-existing out-of-scope failures are WARN only; no test framework → WARN and skip
 - **Don't silently pass a failing test gate** - a failing in-scope test gate MUST pause before archive; auto semantics never justify skipping the gate or the archive block
-- **Do converge after the deep review** - After full pass, invoke `venus_tr_impl_review_proposal` for deep review (fallback inline deep review + WARN) and stop; the requirement document is generated by Phase 5 (auto-archive) per the archive skill's step 4.8, never by Phase 3
+- **Do converge after the deep review** - After full pass, invoke `venus_tr_impl_review_proposal` for deep review (fallback inline deep review + WARN), then generate the requirement document (non-interactive `venus_tr_docs_requirement_doc`; failure is non-blocking WARN), then auto-transition to Phase 4
 - **MUST create file before questioning** - Phase 1 checkpoint is mandatory
 - **MUST verify file before migration** - Phase 2 checkpoint is mandatory
 - **MUST preserve source on migration failure** - Never lose user data
 - **MUST NOT offer method selection** - Phase 2 proceeds directly to inline propose-style generation
+- **MUST follow the JSON-first protocol in Phase 2** - Inline generation MUST follow `openspec/rules/artifact-generation.md`: write the JSON truth source (change.json sections / tasks.json) → `venus spec render <artifact-id> --change "<name>"` → on validation failure fix the JSON and re-run; when render is unavailable degrade to hand-written MD (WARN, non-blocking)
 - **Do explore codebase** - Before asking, check if codebase answers the question
 - **Do provide recommendations** - Every question includes AI's recommendation
 - **Do update file real-time** - After each exchange, write to exploration file

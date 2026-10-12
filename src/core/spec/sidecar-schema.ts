@@ -1,14 +1,13 @@
 /**
- * Artifact JSON Sidecar Schema 类型定义。
+ * Artifact JSON Schema 类型定义（合并主产物 + 遗留 sidecar）。
  *
- * JSON sidecar 为 Markdown artifact 的只读加速层：
- *   - 从 MD 提取结构化元数据，供下游 SKILL 精确消费
- *   - MD 是唯一真源，JSON 与 MD 不一致时以 MD 为准
- *   - JSON 缺失时下游 MUST 降级解析 MD，不得阻断
+ * 主产物（JSON-primary —— JSON 为结构化数据真源，Markdown 由代码渲染）：
+ *   openspec/changes/<name>/.venus/change.json  —— proposal / design / specs 三段合并
+ *   openspec/changes/<name>/tasks.json          —— 任务清单（独立，不并入）
  *
- * 四类 sidecar 文件存储于变更目录 .venus/ 下：
+ * 渲染：sidecar-writer.ts 的 renderProposalMd / renderDesignMd / renderSpecsMd / renderTasksMd。
+ * 遗留 sidecar（manifest / decisions / capabilities，标 @deprecated）保留供存量变更降级读取：
  *   openspec/changes/<name>/.venus/manifest.json
- *   openspec/changes/<name>/.venus/tasks.json
  *   openspec/changes/<name>/.venus/decisions.json
  *   openspec/changes/<name>/.venus/capabilities.json
  */
@@ -22,9 +21,11 @@ export type TaskStatus = 'pending' | 'done';
 /** 能力操作类型 */
 export type CapabilityOperation = 'ADDED' | 'MODIFIED' | 'REMOVED' | 'RENAMED';
 
-// ── manifest.json ────────────────────────────────────────────────
+// ── manifest.json（@deprecated —— 字段已吸收进 change.json 根结构）──
 
-/** manifest.json：变更元信息 */
+/** manifest.json：变更元信息
+ * @deprecated 由 ChangeSchema 根字段取代；仅保留供存量变更降级读取
+ */
 export interface ManifestSchema {
     /** JSON schema 版本标识 */
     $schema: 'venus/manifest/v1';
@@ -84,7 +85,130 @@ export interface TasksSchema {
     };
 }
 
-// ── decisions.json ───────────────────────────────────────────────
+// ── change.json（合并主产物：proposal / design / specs 三段）─────
+
+/** proposal 段：能力声明（new 与 modified 共用形状） */
+export interface CapabilityDecl {
+    /** 能力名（kebab-case） */
+    name: string;
+    /** 能力简述（new）/ 变更的需求（modified） */
+    description: string;
+}
+
+/** proposal 段：能力分组 */
+export interface ProposalCapabilities {
+    /** 新增能力 */
+    new: CapabilityDecl[];
+    /** 需求发生变化的既有能力 */
+    modified: CapabilityDecl[];
+}
+
+/** proposal 段：受影响文件 */
+export interface ImpactFile {
+    /** 文件路径 */
+    path: string;
+    /** 变更说明 */
+    description: string;
+}
+
+/** proposal 段：影响面 */
+export interface ImpactSection {
+    /** 直接影响的文件列表 */
+    files: ImpactFile[];
+    /** 是否含破坏性变更 */
+    breaking: boolean;
+    /** 向后兼容说明（无破坏性变更时写"无"） */
+    compatibility: string;
+}
+
+/** change.json 的 proposal 段 */
+export interface ProposalSection {
+    /** 为什么需要这个变更 */
+    why: string;
+    /** 变更内容清单 */
+    whatChanges: string[];
+    /** 涉及能力 */
+    capabilities: ProposalCapabilities;
+    /** 影响面 */
+    impact: ImpactSection;
+}
+
+/** design 段：风险与缓解 */
+export interface RiskEntry {
+    /** 风险描述 */
+    risk: string;
+    /** 缓解措施 */
+    mitigation: string;
+}
+
+/** change.json 的 design 段 */
+export interface DesignSection {
+    /** 架构上下文（自由文本） */
+    context: string;
+    /** 目标 */
+    goals: string[];
+    /** 非目标 */
+    nonGoals: string[];
+    /** 技术决策（复用 DecisionEntry） */
+    decisions: DecisionEntry[];
+    /** 风险与权衡 */
+    risks: RiskEntry[];
+}
+
+/** specs 段：单个需求操作（含 REMOVED/RENAMED 完整字段） */
+export interface SpecOperation {
+    /** 操作类型 */
+    type: CapabilityOperation;
+    /** 需求名 */
+    requirement: string;
+    /** 需求描述（SHALL/MUST 规范语言；ADDED/MODIFIED 必填） */
+    description?: string;
+    /** 场景列表（ADDED/MODIFIED 使用） */
+    scenarios?: ScenarioEntry[];
+    /** 移除原因（REMOVED 必填） */
+    reason?: string;
+    /** 迁移策略（REMOVED 必填） */
+    migration?: string;
+    /** 原需求名（RENAMED 必填） */
+    from?: string;
+    /** 新需求名（RENAMED 必填） */
+    to?: string;
+}
+
+/** specs 段：单个能力 */
+export interface SpecEntry {
+    /** 能力名（kebab-case） */
+    name: string;
+    /** 渲染目标路径（如 specs/<name>/spec.md） */
+    path: string;
+    /** 需求操作列表 */
+    operations: SpecOperation[];
+}
+
+/** change.json specs 段（数组嵌套，键序确定） */
+export type SpecsSection = SpecEntry[];
+
+/** change.json 根结构（proposal/design/specs 三段合并主产物） */
+export interface ChangeSchema {
+    /** JSON schema 版本标识 */
+    $schema: 'venus/change/v1';
+    /** 变更名（kebab-case） */
+    changeName: string;
+    /** 创建时间 ISO 8601 */
+    createdAt: string;
+    /** 最后更新时间 ISO 8601 */
+    updatedAt: string;
+    /** 变更当前阶段 */
+    phase: ChangePhase;
+    /** 提案段（生成流程第一段） */
+    proposal?: ProposalSection;
+    /** 设计段（跨切面变更时提供） */
+    design?: DesignSection;
+    /** 规格段（skip_specs 变更可缺省） */
+    specs?: SpecsSection;
+}
+
+// ── decisions.json（@deprecated —— 已吸收进 change.json 的 design 段）──
 
 /** decisions.json：单个技术决策 */
 export interface DecisionEntry {
@@ -104,7 +228,9 @@ export interface DecisionEntry {
     relatedFiles: string[];
 }
 
-/** decisions.json：技术决策清单 */
+/** decisions.json：技术决策清单
+ * @deprecated 由 DesignSection.decisions 取代；仅保留供存量变更降级读取
+ */
 export interface DecisionsSchema {
     /** JSON schema 版本标识 */
     $schema: 'venus/decisions/v1';
@@ -112,7 +238,7 @@ export interface DecisionsSchema {
     decisions: DecisionEntry[];
 }
 
-// ── capabilities.json ────────────────────────────────────────────
+// ── capabilities.json（@deprecated —— 已吸收进 change.json 的 specs 段）──
 
 /** capabilities.json：单个场景 */
 export interface ScenarioEntry {
@@ -144,7 +270,9 @@ export interface CapabilityEntry {
     operations: CapabilityOperationEntry[];
 }
 
-/** capabilities.json：能力映射 */
+/** capabilities.json：能力映射
+ * @deprecated 由 SpecsSection 取代；仅保留供存量变更降级读取
+ */
 export interface CapabilitiesSchema {
     /** JSON schema 版本标识 */
     $schema: 'venus/capabilities/v1';
@@ -153,6 +281,18 @@ export interface CapabilitiesSchema {
 }
 
 // ── 辅助函数 ─────────────────────────────────────────────────────
+
+/** 创建空的 change.json 骨架（三段缺省，根字段就绪） */
+export function createEmptyChange(changeName: string): ChangeSchema {
+    const now = new Date().toISOString();
+    return {
+        $schema: 'venus/change/v1',
+        changeName,
+        createdAt: now,
+        updatedAt: now,
+        phase: 'proposal',
+    };
+}
 
 /** 创建空的 manifest.json 模板 */
 export function createEmptyManifest(changeName: string): ManifestSchema {

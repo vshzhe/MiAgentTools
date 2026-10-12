@@ -4,8 +4,8 @@
  * 锁定两类**制品**在技能模板中的处理链路：
  *   ① 探索文件：提案阶段由 `openspec/explorations/` 移动入变更目录，移动成功即删源
  *      （流程中只保留变更目录内的一份），失败则保留源文件；
- *   ② 评审需求文档：改由**归档阶段**生成（`spec-archive` 步骤 4.8 / `spec-bulk-archive` 步骤 a.6），
- *      提案校验后不再生成 —— 生成能力唯一收敛到两个归档技能。
+ *   ② 评审需求文档：改由**验证阶段**生成（auto-workflow Phase 3 / workflow Phase 3 / genfull Stage 2.3），
+ *      归档阶段做增量对齐（已存在）或后向兼容生成（不存在）；debug 技能 MUST NOT 生成。
  *
  * 断言口径全部取自 `src/core/templates/workflows/*.ts` 的实际正文（经 getSkillTemplates() 派生），
  * 与 `skills/` 生成快照解耦：模板改动即触发失败。
@@ -24,11 +24,8 @@ const MOVE_SEMANTICS_SKILLS = ['venus_tr_impl_workflow', 'venus_tr_impl_auto_wor
 /** 迁移探索文件的全部链路技能（含提案侧） */
 const MIGRATING_SKILLS = [...MOVE_SEMANTICS_SKILLS, 'venus_spec_propose'];
 
-/** 已移除「校验 PASS 后自动生成需求文档」调用步的技能（需求文档移出提案/实现侧） */
+/** 已移除「校验 PASS 后自动生成需求文档」调用步的技能 —— 仅 debug 保留禁令 */
 const CALL_STEP_REMOVED_SKILLS = [
-    'venus_tr_impl_workflow',
-    'venus_tr_impl_auto_workflow',
-    'venus_tr_impl_genfull',
     'venus_tr_impl_debug',
 ];
 
@@ -92,18 +89,18 @@ describe('A1 探索文件移动语义（成功删源 / 失败保留）', () => {
     });
 });
 
-describe('A2 归档阶段生成需求文档（双分支）', () => {
+describe('A2 归档阶段需求文档检查点（双分支）', () => {
     /** 两个归档技能各自的预归档检查点步骤标识 */
     const CHECKPOINTS: Record<string, RegExp> = {
-        venus_spec_archive: /4\.8 \*\*Pre-Archive Requirement Document Generation/,
-        venus_spec_bulk_archive: /a\.6 \*\*Pre-archive requirement document generation/,
+        venus_spec_archive: /4\.8 \*\*Pre-Archive Requirement Document Checkpoint/,
+        venus_spec_bulk_archive: /a\.6 \*\*Pre-archive requirement document/,
     };
 
     it('预归档检查点步骤存在且含双分支断句', () => {
         for (const [name, marker] of Object.entries(CHECKPOINTS)) {
             const body = instructions(name);
-            expect(body, `${name} 缺少预归档需求文档生成步骤`).toMatch(marker);
-            // 分支一：不存在则委派需求文档技能生成
+            expect(body, `${name} 缺少预归档需求文档检查点步骤`).toMatch(marker);
+            // 分支一：不存在则委派需求文档技能生成（后向兼容）
             expect(body, `${name} 缺少委派生成分支`).toContain('venus_tr_docs_requirement_doc');
             // 分支二：已存在则就地增量对齐并保人工域
             expect(body, `${name} 缺少就地增量对齐分支`).toMatch(/in-place/i);
@@ -114,12 +111,12 @@ describe('A2 归档阶段生成需求文档（双分支）', () => {
     });
 });
 
-describe('A3 提案校验后不再生成需求文档', () => {
-    it('四个技能均不含「校验 PASS 后自动生成需求文档」的调用步', () => {
-        for (const name of CALL_STEP_REMOVED_SKILLS) {
+describe('A3 验证阶段生成需求文档（仅 debug 保留禁令）', () => {
+    it('三个工作流技能含「验证通过后生成需求文档」的调用步', () => {
+        const generatingSkills = ['venus_tr_impl_workflow', 'venus_tr_impl_auto_workflow', 'venus_tr_impl_genfull'];
+        for (const name of generatingSkills) {
             const body = instructions(name);
-            expect(body, `${name} 仍含自动生成调用断句`).not.toContain('Auto-generate requirement document');
-            expect(body, `${name} 仍含 Stage 2.3 需求文档生成调用步`).not.toContain('Stage 2.3 需求文档生成');
+            expect(body, `${name} 缺少需求文档生成调用`).toContain('venus_tr_docs_requirement_doc');
         }
     });
 
@@ -133,21 +130,21 @@ describe('A3 提案校验后不再生成需求文档', () => {
 });
 
 describe('A4 白名单委派面与正文一致', () => {
-    /** 归档侧与自动工作流：仍委派需求文档技能 */
+    /** 验证阶段 + 归档侧：委派需求文档技能 */
     const WITH_REQUIREMENT_DOC = [
         'venus_spec_archive',
         'venus_spec_bulk_archive',
         'venus_tr_impl_auto_workflow',
-    ];
-
-    /** 链路移除侧：不再委派需求文档技能 */
-    const WITHOUT_REQUIREMENT_DOC = [
         'venus_tr_impl_workflow',
-        'venus_tr_impl_debug',
         'venus_tr_impl_genfull',
     ];
 
-    it('归档侧与自动工作流含 Skill(tr_docs_requirement_doc) 且正文确提及', () => {
+    /** 仅 debug 不含该委派条目 */
+    const WITHOUT_REQUIREMENT_DOC = [
+        'venus_tr_impl_debug',
+    ];
+
+    it('验证阶段与归档侧含 Skill(tr_docs_requirement_doc) 且正文确提及', () => {
         for (const name of WITH_REQUIREMENT_DOC) {
             // 白名单条目取自 skillDelegation() 的本地技能名（不带 venus_ 前缀）
             expect(entries(name), `${name} 白名单缺少需求文档委派条目`).toContain(
@@ -160,7 +157,7 @@ describe('A4 白名单委派面与正文一致', () => {
         }
     });
 
-    it('链路移除侧不含该委派条目', () => {
+    it('调试技能不含该委派条目', () => {
         for (const name of WITHOUT_REQUIREMENT_DOC) {
             expect(entries(name), `${name} 白名单残留需求文档委派条目`).not.toContain(
                 'Skill(tr_docs_requirement_doc)'
@@ -204,18 +201,18 @@ describe('A5 DEPS 注入口径', () => {
     });
 });
 
-describe('A6 生成能力唯一收敛到归档侧', () => {
-    it('genfull 正文声明归档阶段生成需求文档', () => {
+describe('A6 生成能力收敛到验证阶段 + 归档阶段对齐', () => {
+    it('genfull 正文声明 Stage 2.3 收束生成需求文档', () => {
         const body = instructions('venus_tr_impl_genfull');
-        // 归档阶段与需求文档同句出现（如「需求文档改由归档阶段生成」「归档阶段步骤 4.8 生成」）
-        const declarations = linesContaining(body, ['归档', '需求文档']);
-        expect(declarations.length, 'genfull 未声明归档阶段生成需求文档').toBeGreaterThan(0);
-        expect(body).toContain('4.8');
+        // Stage 2.3 收束阶段与需求文档生成同句出现
+        const declarations = linesContaining(body, ['收束', '需求文档']);
+        expect(declarations.length, 'genfull 未声明收束阶段生成需求文档').toBeGreaterThan(0);
+        expect(body).toContain('venus_tr_docs_requirement_doc');
     });
 
-    it('auto-workflow 的 Phase 5 归档步骤枚举含需求文档生成引用', () => {
+    it('auto-workflow 的 Phase 5 归档步骤枚举含需求文档对齐引用', () => {
         const body = instructions('venus_tr_impl_auto_workflow');
-        expect(body).toContain('**requirement document generation**');
+        expect(body).toContain('requirement document alignment');
         expect(body).toContain('venus_spec_archive');
         expect(body).toContain('4.8');
     });
@@ -223,7 +220,7 @@ describe('A6 生成能力唯一收敛到归档侧', () => {
     it('双分支正文唯一：预归档检查点标题只在两个归档技能中定义', () => {
         const owners = skills
             .filter(({ template }) =>
-                /4\.8 \*\*Pre-Archive Requirement Document Generation|a\.6 \*\*Pre-archive requirement document generation/.test(
+                /4\.8 \*\*Pre-Archive Requirement Document Checkpoint|a\.6 \*\*Pre-archive requirement document/.test(
                     template.instructions
                 )
             )

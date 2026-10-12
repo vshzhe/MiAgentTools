@@ -345,7 +345,7 @@ Implement the fix following the venus_spec_apply skill's task execution norms.
 - Add (or confirm the Phase 1 test serves as) a regression test that:
   - FAILS before the fix
   - PASSES after the fix
-- Add a corresponding task to the change's tasks.md if it is not yet listed
+- Add a corresponding task to the change's \`tasks.json\` if it is not yet listed (regression test tasks use the \`测试\` label with \`subLabel\` + \`priority\`); tasks.md is re-rendered from the JSON truth in Phase 6
 - Run the reproduction from Phase 1 and confirm it now passes
 - **回归测试验证口径（2.5）**：回归测试 MUST 覆盖该缺陷链路的**「异常节点 + 根因节点」**；仅覆盖触发节点而未覆盖根因节点时，验证不通过
 
@@ -439,27 +439,31 @@ After each fix is complete, ask the user:
 
 **⚠️ MANDATORY: After all fixes in the loop, the change's artifacts must reflect ALL implemented fixes.**
 
-### 6.1 Update artifacts
+### 6.1 Update artifacts (JSON-first)
 
-- **proposal.md**: add root causes and fix descriptions for ALL bugs in the loop (under What Changes, organized per bug)
-- **tasks.md**: check off completed tasks for all fixes; add regression test tasks for each bug if missing
-- **design.md**: update when any fix changed a documented decision
-- **specs/**: update delta specs when any fix changes documented behavior (use \`#### Scenario:\` with WHEN/THEN)
+JSON is the structured source of truth — update the JSON, then re-render the MD; MUST NOT hand-edit the MD as the source of truth:
+
+- **proposal**: append root causes and fix descriptions for ALL bugs in the loop to the change's \`.venus/change.json\` → \`proposal.whatChanges\` (one appended entry per bug) — do NOT edit proposal.md directly
+- **specs**: when any fix changes documented behavior, update \`specs[].operations[]\` in change.json (structured ADDED/MODIFIED/REMOVED/RENAMED operations with scenarios) — do NOT edit the delta spec MD directly
+- **design**: when any fix changed a documented decision, update the \`design\` section (\`decisions[]\`) in change.json
+- **tasks**: update the change's \`tasks.json\` (change directory root) — set \`status: "done"\` for the tasks corresponding to all loop fixes; append regression test tasks for each bug if missing (label \`测试\` + \`subLabel\`/\`priority\`); do NOT hand-edit tasks.md checkboxes
+- **Re-render after EVERY JSON update**: \`venus spec render <type> --change "<name>"\` (\`<type>\` = \`proposal\` | \`specs\` | \`design\` | \`tasks\`) — keeps proposal.md / specs/*.md / design.md / tasks.md in sync with the JSON truth
+- **Degradation (WARN, non-blocking)**: if the render command fails or change.json is missing, fall back to editing the corresponding MD directly, recording a WARN with the reason
 
 ### 6.2 Persist root cause analysis
 
 - Write the full diagnosis records for ALL bugs (prompt baseline, reproduction, investigation path, evidence, root cause, chosen fix rationale) to the change directory's \`exploration.md\`, organized per bug — the \`## 提示词基线\` section is included so the change retains the user-confirmed semantics source, and the \`## 功能流程（缺陷链路）\` section (2.5) carries the confirmed fault chain and node list
 - **分级判定结果**（2.2.3.5）：每个 bug 的排查深度分级结论 MUST 一并持久化 —— 三条信号取值、所选路径（轻量 A / 深度 B）、是否信号降级；即"为什么这个缺陷走了这条排查路径"须可追溯，避免事后无法复盘排查深度是否合理
 
-### 6.3 Artifact format validation
+### 6.3 JSON truth validation
 
-After synchronization, validate that the update did not break artifact format:
+After synchronization, validate the JSON truth — MD format is guaranteed by the renderer, so MD \`#### Scenario:\` / checkbox formats MUST NOT be re-validated on the normal path:
 
-- proposal.md retains required sections: Why, What Changes, Capabilities, Impact
-- Delta specs keep the \`#### Scenario:\` format (4 hashtags) with WHEN/THEN structure
-- tasks.md keeps the \`- [ ] X.Y\` / \`- [x] X.Y\` checkbox format
+- Every \`venus spec render <type> --change "<name>"\` run succeeds — a successful render means the JSON passed schema validation (a failure reports the offending field path, e.g., \`proposal.whatChanges 必须为数组\`; fix the JSON and re-render)
+- change.json sections conform to the contract: \`proposal\` (why / whatChanges / capabilities / impact); \`specs[].operations[]\` (ADDED/MODIFIED require description + scenarios; REMOVED requires reason + migration; RENAMED requires from + to); tasks.json entries carry \`label\` / \`status\`
+- **Degraded path only** (render unavailable / change.json missing, MD hand-edited with WARN): keep the legacy MD format checks — proposal keeps Why/What Changes/Capabilities/Impact; specs keep \`#### Scenario:\` + WHEN/THEN; tasks keep the \`- [ ] X.Y\` checkbox format
 
-Fix any format violation before proceeding — synchronization must not corrupt the artifacts.
+Fix any violation before proceeding — synchronization must not corrupt the JSON truth.
 
 Proceed to Phase 7 only after artifacts reflect all implemented fixes.
 
@@ -496,7 +500,7 @@ After verification passes:
    - generate a requirement document (regardless of whether \`openspec/changes/<change-name>/需求文档.md\` exists),
    - perform an in-place incremental alignment on an existing requirement document,
    - invoke \`venus_tr_docs_requirement_doc\` (via Skill tool) for any purpose.
-   The requirement document is generated by the **ARCHIVE phase** (per \`venus_spec_archive\`'s pre-archive requirement-document generation checkpoint, step 4.8), which also carries the 人工域 protection and the in-place alignment semantics that previously lived here.
+   The requirement document is NOW generated at VERIFICATION time (Phase 3 / Stage 2 of the workflow pipelines). The ARCHIVE phase (per \`venus_spec_archive\` step 4.8) performs in-place alignment on the existing document — if the document is absent (legacy change), it generates one for backward compatibility.
 3. **Report**: display the verification result, the deep review conclusion, and:
 
 > "Debug complete. Requirement document: generated at archive time — run /venus:spec-archive."
@@ -538,9 +542,9 @@ After verification passes:
 - Compile check: PASS / FAIL(n issues) / SKIPPED(disabled)
 
 ### Phase 6: Synchronization (汇总所有修复)
-- Artifacts updated: proposal / tasks / design / specs
+- JSON truth updated: change.json (proposal / design / specs) + tasks.json — MD re-rendered (degraded: MD edited directly, WARN)
 - All root causes persisted to exploration.md ✓
-- Format validation: PASS
+- JSON validation: PASS
 
 ### Phase 7: Verification (覆盖所有修复)
 - Score: XX% — PASS/FAIL
@@ -565,7 +569,7 @@ Ready for \`/venus:spec-apply\` (fixes already applied) or archive.
 - **Triage decoupled from the fault chain diagram**: 分级只决定 2.2.4 是否执行，2.5 缺陷链路图与流程最终确认门对轻量路径同样**强制产出**，MUST NOT 豁免
 - **Upgrade fallback is a trigger, not a step**: 升级兜底即 2.2.4 扩展后的触发条件之一，MUST NOT 为其新建独立章节或编号（2.2.4 的内容与编号不变）
 - **Triage survives CodeGraph degradation**: CodeGraph 不可用时分级仍生效（信号 (a) 降级为文件数代理指标，(b)(c) 照常）；MUST NOT 因降级跳过分级，诊断记录 MUST 标注「信号降级」
-- **Requirement document is out of scope (MANDATORY prohibition)**: Phase 7 MUST NOT generate a requirement document, MUST NOT align an existing one in place, and MUST NOT invoke \`venus_tr_docs_requirement_doc\` — the document (including the 人工域 protection and in-place alignment semantics that used to live in this skill) is produced by the ARCHIVE phase per \`venus_spec_archive\` step 4.8
+- **Requirement document is out of scope (MANDATORY prohibition)**: Phase 7 MUST NOT generate a requirement document, MUST NOT align an existing one in place, and MUST NOT invoke \`venus_tr_docs_requirement_doc\` — the document is generated at VERIFICATION time; the ARCHIVE phase (\`venus_spec_archive\` step 4.8) performs in-place alignment (or backward-compat generation if absent)
 - **Human-authored fields are protected**: 就地增量对齐时 \`## 基本信息\`（需求编号/需求名称/交付时间，含占位符状态）与 \`## 八、评审记录\` MUST NOT 覆盖；MUST NOT 删除章节（仅制品已移除的内容可删）
 - **Zero-assumption**: multiple candidate root causes → STOP and let the user choose; never guess
 - **Archives are read-only**: never modify \`openspec/changes/archive/\`
@@ -657,7 +661,7 @@ ${FLOWCHART_FAULT}
 ## Phase 4: Fix (修复)
 
 - Follow ai-coding.md (zero-assumption, minimal changes); schema changes need separate DDL confirmation
-- **Mandatory regression test**: fails before the fix, passes after; add to tasks.md if missing; re-run the Phase 1 reproduction
+- **Mandatory regression test**: fails before the fix, passes after; add a \`测试\` task to tasks.json if missing (re-rendered in Phase 6); re-run the Phase 1 reproduction
 - **Delegate the authoring**: delegate the regression test's WRITING action to the \`venus_tr_test_generate\` skill (pass test level/priority + the fault chain as the coverage basis) so it matches the project's existing framework and style — do NOT invent a separate set of test rules inside debug; if the skill is unavailable, degrade to self-authored + WARN
 - **验证口径（2.5）**: 修复方案与回归测试 MUST 覆盖缺陷链路的「异常节点 + 根因节点」；仅覆盖触发节点而未覆盖根因节点时，验证不通过
 - **Delegation relaxes nothing**: after delegation returns, still self-verify that the regression test covers 「异常节点 + 根因节点」 and fails before / passes after
@@ -678,15 +682,16 @@ After each fix, ask: "还有相关 bug 需要修复吗？" [有] [没有]
 
 ## Phase 6: Synchronize Proposal (同步提案) — 汇总所有修复
 
-- Update proposal.md (root causes + fixes for ALL bugs), tasks.md (checkboxes + regression tasks for each bug), design.md and delta specs when behavior changed
+- JSON-first update: 根因+修复追加到 \`.venus/change.json\` 的 \`proposal.whatChanges\`；行为变化更新 \`specs[].operations[]\`、决策变化更新 \`design\` 段；\`tasks.json\` 置对应任务 \`status: "done"\`、缺失的回归测试任务以 \`测试\` 类型条目追加
+- Re-render after each JSON update: \`venus spec render <type> --change "<name>"\`（type = proposal | specs | design | tasks）；渲染失败或 change.json 缺失 → 降级直接编辑 MD（WARN），不阻断
 - Persist ALL root cause analyses to the change's \`exploration.md\`, organized per bug — 含每个 bug 的**分级判定结果**（三条信号取值 / 所选路径 / 是否降级）
-- Validate artifact format after sync: proposal keeps Why/What Changes/Capabilities/Impact; specs keep \`#### Scenario:\` + WHEN/THEN; tasks keep \`- [ ] X.Y\` checkboxes. Fix violations before Phase 7.
+- Validate the JSON truth after sync (render success = format valid; change.json sections per contract) — MD 格式由渲染器保证；降级路径保留旧 MD 格式检查。Fix violations before Phase 7.
 
 ## Phase 7: Verification (验证) — 覆盖所有修复
 
 - Invoke the \`venus_spec_verify_proposal\` **skill** (Skill tool — it is a skill name, not a valid \`venus spec instructions\` artifact ID). The skill performs D1–D9 scoring. Fallback: inline D1–D9 scoring + WARN, never silently skipped
 - **FAIL**: do NOT generate the requirement document; auto-fix artifacts and re-run; still failing → [1] Manual edit [2] Return to exploration [3] View diff — no skip path
-- **PASS**: auto-invoke the \`venus_tr_impl_review_proposal\` **skill** for a deep read-only review (fallback: inline review + WARN), then **收束并提示准备归档**——需求文档**不在 debug 范围内**：MUST NOT 生成、MUST NOT 就地增量对齐、MUST NOT 调 \`venus_tr_docs_requirement_doc\`（含人工域保护与就地增量对齐的能力已迁至归档阶段的 \`venus_spec_archive\` 步骤 4.8）
+- **PASS**: auto-invoke the \`venus_tr_impl_review_proposal\` **skill** for a deep read-only review (fallback: inline review + WARN), then **收束并提示准备归档**——需求文档**不在 debug 范围内**：MUST NOT 生成、MUST NOT 就地增量对齐、MUST NOT 调 \`venus_tr_docs_requirement_doc\`（需求文档现由验证阶段生成、归档阶段对齐（\`venus_spec_archive\` 步骤 4.8））
 - **收尾清理**: MUST **clean up the debug workspace** —— 统一清理 \`.openspec-tmp/debug-<keyword>/\`（\`path.join()\`），覆盖**所有退出路径**（正常收尾 / **非缺陷退出 3.5** / **中途退出**）；清理失败记 WARN + 提示残留路径，**MUST NOT 阻断流程**
 
 ---
@@ -700,7 +705,7 @@ After each fix, ask: "还有相关 bug 需要修复吗？" [有] [没有]
 - Regression test mandatory (every bug in loop); its authoring MUST be delegated to venus_tr_test_generate (degrade to self-authored + WARN only when unavailable); delegation MUST NOT relax the 「异常节点 + 根因节点」 coverage basis or the fail-before / pass-after requirement; proposal sync mandatory (all fixes); verification never skipped
 - 分级按范围而非按便利（2.2.3.5）：信号取值 MUST 可追溯实测结果，MUST NOT 编造"半径小"走轻量路径；信号缺失或阈值边界 MUST 取深度路径；CodeGraph 不可用时分级仍生效并标注「信号降级」
 - 分级与 2.5 缺陷链路图解耦：轻量路径同样**强制产出**缺陷链路图并经确认门，MUST NOT 豁免；升级兜底是 2.2.4 的**触发条件**，MUST NOT 新建独立章节或编号
-- 需求文档禁用（Phase 7）：MUST NOT 生成、MUST NOT 就地增量对齐、MUST NOT 调 \`venus_tr_docs_requirement_doc\`；需求文档由归档阶段生成（\`venus_spec_archive\` 步骤 4.8），其人工域保护与就地增量对齐语义随能力一并迁移
+- 需求文档禁用（Phase 7）：MUST NOT 生成、MUST NOT 就地增量对齐、MUST NOT 调 \`venus_tr_docs_requirement_doc\`；需求文档现由验证阶段生成（workflow / auto-workflow / genfull），归档阶段负责对齐（\`venus_spec_archive\` 步骤 4.8）
 - Loop non-defect non-blocking; loop exit preserves completed work; independent change → finalize + prompt separate debug (\`/venus:tr-impl-debug\`)
 - Use \`path.join()\` for file paths (cross-platform)`,
     };

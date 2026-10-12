@@ -36,17 +36,18 @@ describe('任务类型标签集', () => {
         expect(TASKS_TEMPLATE).toContain('- [ ] 1.2 [测试][单元][P0]');
     });
 
-    it('生成指令的标签集与模板一致（均含 [测试]）', () => {
+    it('生成指令的标签集与模板一致（均含测试标签）', () => {
         const instruction = getTasksInstruction();
-        for (const label of ['[代码]', '[测试]', '[DB脚本]', '[使用说明]']) {
+        // JSON 值不带方括号（渲染器自动包裹为 [代码] 等），指令按 JSON 取值口径声明
+        for (const label of ['代码', '测试', 'DB脚本', '使用说明']) {
             expect(instruction, `生成指令缺少标签 ${label}`).toContain(label);
         }
     });
 
-    it('生成指令要求 [测试] 任务带层级与优先级子标注', () => {
+    it('生成指令要求测试任务带层级与优先级子标注', () => {
         const instruction = getTasksInstruction();
-        expect(instruction).toContain('[单元]/[功能]');
-        expect(instruction).toContain('[P0]/[P1]/[P2]');
+        expect(instruction).toContain('单元/功能');
+        expect(instruction).toContain('P0/P1/P2');
     });
 
     it('生成指令要求不可测场景也产出 [测试] 任务留痕', () => {

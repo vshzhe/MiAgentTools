@@ -89,16 +89,16 @@ describe('sqlite-index 模块', () => {
             if (!isSqlite3Available()) {
                 return;
             }
-            const dir = path.join(tempDir(), 'nested', 'openspec');
+            const base = tempDir();
+            const dir = path.join(base, 'nested', 'openspec');
             try {
                 const result = initDatabase(dir);
                 expect(result.success).toBe(true);
                 const dbPath = resolveIndexDb(dir);
                 expect(fs.existsSync(dbPath)).toBe(true);
             } finally {
-                // 从临时根目录清理
-                const root = dir.split(path.sep).slice(0, 2).join(path.sep);
-                fs.rmSync(root, { recursive: true, force: true });
+                // 仅清理本测试创建的临时目录（勿向上越界到系统目录）
+                fs.rmSync(base, { recursive: true, force: true });
             }
         });
     });

@@ -167,16 +167,15 @@ Apply the following naming rules when deriving a change name:
         venus spec instructions <artifact-id> --change "<name>" --json
         \`\`\`
       - The instructions JSON includes:
-        - \`context\`: Project background (constraints for you - do NOT include in output)
-        - \`rules\`: Artifact-specific rules (constraints for you - do NOT include in output)
-        - \`template\`: The structure to use for your output file
+        - \`jsonTemplate\`: JSON 真源结构示例（机器源）— 写 change.json 段 / tasks.json 时按其字段与约束执行
         - \`instruction\`: Schema-specific guidance for this artifact type
-        - \`resolvedOutputPath\`: Resolved path or pattern to write the artifact
+        - \`template\`: MD 结构参考（仅渲染不可用降级手写时参照；正常路径由渲染器产出）
+        - \`resolvedOutputPath\`: 渲染产物的目标路径（venus spec render 自动写入，供核对）
         - \`dependencies\`: Completed artifacts to read for context
       - **Re-read dependency artifacts from disk**: 生成新 artifact 需读取已完成的依赖 artifact 时，从磁盘重新读取最新内容（用户可能在会话期间手工编辑），不依赖会话缓存
       - Read any completed dependency files for context
-      - Create the artifact file using \`template\` as the structure and write it to \`resolvedOutputPath\`
-      - Apply \`context\` and \`rules\` as constraints - but do NOT copy them into the file
+      - **Write JSON truth source**: proposal/specs/design → 更新 \`.venus/change.json\` 对应段（整文件 Write，保留已有段与根字段现值）；tasks → 写 \`tasks.json\`（JSON-first 完整步骤见 \`openspec/rules/artifact-generation.md\` Step G2）
+      - **Render MD**: \`venus spec render <artifact-id> --change "<name>"\` — 校验失败（报错含字段路径）修正 JSON 后重跑；命令不可用时降级以 \`template\` 为结构手写 MD（WARN，不阻断）
       - Show brief progress: "Created <artifact-id>"
 
    b. **Continue until all required artifacts are complete (apply-ready = applyRequires 传递闭包)**
@@ -230,7 +229,7 @@ After completing all artifacts AND Phase 3 verification passes:
 - Follow the \`instruction\` field from \`venus spec instructions\` for each artifact type
 - The schema defines what each artifact should contain - follow it
 - Read dependency artifacts for context before creating new ones
-- Use \`template\` as the structure for your output file - fill in its sections
+- **JSON-first**: 先写 JSON 真源（change.json 段 / tasks.json），再 \`venus spec render <type>\` 渲染；\`template\` 仅在渲染不可用的降级路径中作为手写 MD 的结构参考
 - **IMPORTANT**: \`context\` and \`rules\` are constraints for YOU, not content for the file
   - Do NOT copy \`<context>\`, \`<rules>\`, \`<project_context>\` blocks into the artifact
   - These guide what you write, but should never appear in the output
@@ -274,25 +273,41 @@ After completing all artifacts AND Phase 3 verification passes:
 - If a change with that name already exists, ask if user wants to continue it or create a new one
 - Verify each artifact file exists after writing before proceeding to next
 
-## JSON Sidecar Generation (MANDATORY)
+## JSON Sidecar Generation (MANDATORY — JSON-first 合并主产物，显式 Write/Bash 步骤)
 
-After each artifact is written, sync-generate the corresponding JSON sidecar under \`.venus/\`:
+**JSON 是结构化数据真源，Markdown 制品由渲染器确定性产出；以下为显式 tool-call 步骤，不是散文期望。唯一源：\`openspec/rules/artifact-generation.md\` 的 Step G2（JSON-first）——本段仅为快速把握的浓缩要点，冲突时以唯一源为准。**
 
-1. **manifest.json**: After proposal.md is written → write \`openspec/changes/<name>/.venus/manifest.json\` with changeName / capabilities / impactAreas / phase fields
-2. **tasks.json**: After tasks.md is written → write \`.venus/tasks.json\` with structured task entries (id / label / description / status / dependencies / nodeRef / specRef / files / batchGroup) and progress stats
-3. **decisions.json**: After design.md is written → write \`.venus/decisions.json\` from the Decisions section (id / title / choice / alternatives / rationale / risks / relatedFiles)
-4. **capabilities.json**: After specs/*.md are written → write \`.venus/capabilities.json\` aggregating all capability operations (name / operations[] with type ADDED/MODIFIED/REMOVED/RENAMED + requirement + scenarios[])
+### 1. JSON 真源写入（proposal / specs / design → change.json）
 
-JSON sidecar is a read-only acceleration layer — Markdown is the single source of truth. JSON write failure is non-blocking (WARN and continue).
+- proposal / specs / design 三段写入 \`<changeRoot>/.venus/change.json\`，按 proposal → specs → design 依赖序累积
+- 每次更新 MUST 整文件 Write，并保留已有段与根字段现值（\`changeName\` / \`createdAt\` / \`phase\`），\`updatedAt\` 刷新为当前时间
+- 字段结构以 \`venus spec instructions\` 返回的 \`jsonTemplate\` 为机器源——MUST NOT 增删字段或改名
+- 可选骨架（也可跳过，直接写全 JSON）：\`venus spec sidecar init --change "<name>"\`——创建 change.json / tasks.json 空骨架，已存在不覆盖（幂等）
 
-> JSON schema definitions: manifest → venus/manifest/v1, tasks → venus/tasks/v1, decisions → venus/decisions/v1, capabilities → venus/capabilities/v1
+### 2. tasks.json（PRIMARY task artifact — AI 写结构化 JSON，代码渲染 tasks.md）
 
-## SQLite Conflict Detection
+**tasks.json 是权威任务清单；AI 写结构化 JSON，tasks.md 由 \`venus spec render tasks\` 渲染供人工评审。**
 
-Before finalizing the proposal, check for capability conflicts via SQLite index (when available):
-- If \`openspec/.venus/index.db\` exists → query \`capabilities\` table for active changes touching the same capabilities
-- If 2+ active changes reference the same capability → warn user about potential conflict
-- If index.db is unavailable → skip (non-blocking)`,
+1. 用 Write 工具写 \`<changeRoot>/tasks.json\`（不是 tasks.md）：
+   - \`label\` 值**不带方括号**（渲染器自动包裹）：\`代码\` | \`测试\` | \`DB脚本\` | \`使用说明\`
+   - \`测试\` 任务 MUST 带 \`subLabel\`（\`单元\` | \`功能\`）与 \`priority\`（\`P0\` | \`P1\` | \`P2\`）
+   - 字段结构以 \`venus spec instructions\` 返回的 \`jsonTemplate\`（\`venus/tasks/v1\`）为机器源：\`id\` / \`description\` / \`status\` / \`dependencies\` / \`files\` / \`batchGroup\`
+2. 写后 MUST 渲染，用户在渲染出的 tasks.md 上确认任务拆解：
+   \`\`\`bash
+   venus spec render tasks --change "<name>"
+   \`\`\`
+
+### 3. 渲染 MD（每个 artifact 写完后）
+
+\`\`\`bash
+venus spec render <type> --change "<name>"   # type = proposal | specs | design | tasks
+\`\`\`
+
+### 4. 失败处置
+
+- **校验失败（阻断）**：CLI 报错含字段路径（如 \`proposal.whatChanges 必须为数组\`）→ 按报错修正 JSON 真源后重跑渲染；不得为绕过校验而手改 MD
+- **渲染命令不可用（降级）**：CLI 缺失或执行失败 → AI 手写对应 MD（以 \`template\` 为结构、内容与 JSON 真源一致），记 WARN，不阻断后续 artifact
+- tasks.json 是 apply 阶段主执行路径的真源——其缺失会使下游 spec-apply 降级为解析 tasks.md 复选框`,
         license: 'MIT',
         compatibility: '依赖 venus CLI（spec 命令组）与 CodeGraph MCP（可选）。',
         metadata: { author: 'venus-agent-tools', version: '1.0' },

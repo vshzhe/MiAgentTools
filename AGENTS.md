@@ -23,7 +23,7 @@ src/
 │   ├── show.ts                       venus show（模糊匹配 + 详情）
 │   ├── completion.ts                 venus completion（bash/pwsh 补全脚本生成与安装）
 │   ├── onboarding.ts                 init 后的引导提示
-│   ├── spec.ts                       venus spec 子命令组（new / status / instructions / archive）
+│   ├── spec.ts                       venus spec 子命令组（new / status / instructions / archive / render / sidecar）
 │   └── config.ts                     venus config（交互式 workflow 配置）
 ├── core/
 │   ├── config.ts                     常量中心：SKILL_PREFIX、9 类 SKILL_TYPES、AI_TOOLS
@@ -51,7 +51,8 @@ src/
 │   │   ├── new-change.ts           新变更创建
 │   │   ├── sqlite-index.ts         SQLite 索引后端
 │   │   ├── sqlite-memory-backend.ts SQLite 内存后端（sql.js WASM）
-│   │   ├── sidecar-schema.ts       附属文件 schema
+│   │   ├── sidecar-schema.ts       change.json 主产物 schema（proposal/design/specs 三段；旧侧车 schema 已弃用）
+│   │   ├── sidecar-writer.ts       change.json + tasks.json 读写、校验与 MD 渲染
 │   │   └── templates/index.ts      规格模板
 │   ├── profiles.ts                  框架档案
 │   ├── dependencies.ts              依赖检测（codegraph / openspec）

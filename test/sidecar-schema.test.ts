@@ -3,6 +3,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
+    createEmptyChange,
     createEmptyManifest,
     createEmptyTasks,
     createEmptyDecisions,
@@ -11,7 +12,7 @@ import {
     isValidTaskStatus,
     isValidOperation,
 } from '../src/core/spec/sidecar-schema.js';
-import type { TasksSchema, TaskEntry } from '../src/core/spec/sidecar-schema.js';
+import type { ChangeSchema, TasksSchema, TaskEntry } from '../src/core/spec/sidecar-schema.js';
 
 describe('sidecar-schema 类型定义', () => {
     describe('ManifestSchema', () => {
@@ -54,6 +55,132 @@ describe('sidecar-schema 类型定义', () => {
         });
     });
 
+    describe('ChangeSchema（change.json 合并主产物）', () => {
+        it('createEmptyChange 返回合法骨架（proposal/design/specs 三段缺省）', () => {
+            const c = createEmptyChange('improve-artifact-json');
+            expect(c.$schema).toBe('venus/change/v1');
+            expect(c.changeName).toBe('improve-artifact-json');
+            expect(c.phase).toBe('proposal');
+            // 时间戳为 ISO 8601 字符串（toISOString 往返一致）
+            expect(Number.isNaN(Date.parse(c.createdAt))).toBe(false);
+            expect(new Date(c.createdAt).toISOString()).toBe(c.createdAt);
+            expect(Number.isNaN(Date.parse(c.updatedAt))).toBe(false);
+            expect(new Date(c.updatedAt).toISOString()).toBe(c.updatedAt);
+            // 三段缺省：由后续生成流程逐段补齐
+            expect(c.proposal).toBeUndefined();
+            expect(c.design).toBeUndefined();
+            expect(c.specs).toBeUndefined();
+        });
+
+        it('完整三段结构冒烟：嵌套字段可达且类型一致', () => {
+            const full: ChangeSchema = {
+                $schema: 'venus/change/v1',
+                changeName: 'smoke-change',
+                createdAt: '2026-01-01T00:00:00.000Z',
+                updatedAt: '2026-01-02T00:00:00.000Z',
+                phase: 'apply',
+                proposal: {
+                    why: '结构化数据真源化',
+                    whatChanges: ['新增 change.json', '由代码渲染 MD'],
+                    capabilities: {
+                        new: [{ name: 'cap-a', description: '新能力' }],
+                        modified: [{ name: 'cap-b', description: '既有能力需求变更' }],
+                    },
+                    impact: {
+                        files: [
+                            { path: 'src/core/spec/sidecar-writer.ts', description: '新增读写函数' },
+                        ],
+                        breaking: false,
+                        compatibility: '无',
+                    },
+                },
+                design: {
+                    context: 'JSON-primary 架构上下文',
+                    goals: ['单一合并主产物'],
+                    nonGoals: ['不并入 tasks.json'],
+                    decisions: [
+                        {
+                            id: 'D1',
+                            title: '合并为单文件',
+                            choice: 'change.json',
+                            alternatives: ['保留 4 个独立 sidecar'],
+                            rationale: '降低跨文件不一致风险',
+                            risks: ['单文件体积增大'],
+                            relatedFiles: ['src/core/spec/sidecar-schema.ts:192'],
+                        },
+                    ],
+                    risks: [{ risk: '渲染失败', mitigation: 'WARN 并降级手写 MD' }],
+                },
+                specs: [
+                    {
+                        name: 'cap-a',
+                        path: 'specs/cap-a/spec.md',
+                        operations: [
+                            {
+                                type: 'ADDED',
+                                requirement: '支持 JSON 真源',
+                                description: '系统 SHALL 以 change.json 为结构化真源',
+                                scenarios: [
+                                    {
+                                        name: '渲染提案',
+                                        given: 'change.json 存在',
+                                        when: '执行 render proposal',
+                                        then: '生成 proposal.md',
+                                    },
+                                ],
+                            },
+                            {
+                                type: 'MODIFIED',
+                                requirement: '读取顺序',
+                                description: '读取 SHALL 优先 change.json',
+                            },
+                            {
+                                type: 'REMOVED',
+                                requirement: '旧读取路径',
+                                reason: '已由 change.json 取代',
+                                migration: '改用 readChangeJson',
+                            },
+                            {
+                                type: 'RENAMED',
+                                requirement: '渲染命令',
+                                from: 'render-sidecar',
+                                to: 'render',
+                            },
+                        ],
+                    },
+                ],
+            };
+
+            // 根字段
+            expect(full.$schema).toBe('venus/change/v1');
+            expect(full.phase).toBe('apply');
+            // proposal 段嵌套字段
+            expect(full.proposal?.whatChanges).toHaveLength(2);
+            expect(full.proposal?.capabilities.new[0].name).toBe('cap-a');
+            expect(full.proposal?.capabilities.modified[0].description).toBe('既有能力需求变更');
+            expect(full.proposal?.impact.files[0].path).toBe('src/core/spec/sidecar-writer.ts');
+            expect(full.proposal?.impact.breaking).toBe(false);
+            // design 段嵌套字段（decisions 复用 DecisionEntry）
+            expect(full.design?.decisions[0].id).toBe('D1');
+            expect(full.design?.decisions[0].alternatives).toEqual(['保留 4 个独立 sidecar']);
+            expect(full.design?.goals).toEqual(['单一合并主产物']);
+            expect(full.design?.risks[0].mitigation).toBe('WARN 并降级手写 MD');
+            // specs 段嵌套字段（数组嵌套，键序确定）
+            const spec = full.specs?.[0];
+            expect(spec?.path).toBe('specs/cap-a/spec.md');
+            expect(spec?.operations.map((op) => op.type)).toEqual([
+                'ADDED',
+                'MODIFIED',
+                'REMOVED',
+                'RENAMED',
+            ]);
+            expect(spec?.operations[0].scenarios?.[0].then).toBe('生成 proposal.md');
+            expect(spec?.operations[2].reason).toBe('已由 change.json 取代');
+            expect(spec?.operations[3].from).toBe('render-sidecar');
+            expect(spec?.operations[3].to).toBe('render');
+        });
+    });
+
     describe('枚举校验', () => {
         it('isValidPhase 正确校验', () => {
             expect(isValidPhase('proposal')).toBe(true);
@@ -74,6 +201,20 @@ describe('sidecar-schema 类型定义', () => {
             expect(isValidOperation('REMOVED')).toBe(true);
             expect(isValidOperation('RENAMED')).toBe(true);
             expect(isValidOperation('DELETED')).toBe(false);
+        });
+
+        it('isValidPhase 边界：空串/大小写/空白均拒绝', () => {
+            expect(isValidPhase('')).toBe(false);
+            expect(isValidPhase('Proposal')).toBe(false);
+            expect(isValidPhase(' proposal ')).toBe(false);
+        });
+
+        it('isValidOperation 边界：RENAMED 合法，空串/小写/空白/未知值拒绝', () => {
+            expect(isValidOperation('RENAMED')).toBe(true);
+            expect(isValidOperation('')).toBe(false);
+            expect(isValidOperation('renamed')).toBe(false);
+            expect(isValidOperation('RENAMED ')).toBe(false);
+            expect(isValidOperation('UPDATED')).toBe(false);
         });
     });
 

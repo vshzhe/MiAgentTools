@@ -46,9 +46,9 @@ const VENUS_COMMANDS: { name: string; description: string; flags: string[]; subc
     },
     {
         name: 'spec',
-        description: '规格驱动工作流（new/status/instructions/archive）',
+        description: '规格驱动工作流（new/status/instructions/archive/reindex/render/sidecar）',
         flags: [],
-        subcommands: ['new', 'status', 'instructions', 'archive'],
+        subcommands: ['new', 'status', 'instructions', 'archive', 'reindex', 'render', 'sidecar'],
     },
 ];
 

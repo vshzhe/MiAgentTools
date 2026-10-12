@@ -37,6 +37,17 @@ import {
     type RequirementIndexEntry,
     type ExplorationMemoryEntry,
 } from '../core/spec/sqlite-index.js';
+import {
+    initTasksJson,
+    initChangeJson,
+    readChangeJson,
+    renderTasksMd,
+    renderProposalMd,
+    renderDesignMd,
+    renderSpecsMd,
+    validateSidecar,
+} from '../core/spec/sidecar-writer.js';
+import type { TasksSchema, ChangeSchema } from '../core/spec/sidecar-schema.js';
 
 /** 变更状态结果类型（从 getChangeStatus 派生） */
 type ChangeStatusResult = ReturnType<typeof getChangeStatus>;
@@ -93,6 +104,15 @@ export interface ApplyInstructionsResult {
     taskList: TaskListItem[];
     instruction: ApplyInstruction;
 }
+
+/** venus spec render 支持的渲染类型（统一 MD 产物入口） */
+type RenderType = 'proposal' | 'specs' | 'design' | 'tasks';
+
+/** render 合法类型清单（类型守卫与报错信息共用） */
+const RENDER_TYPES: readonly RenderType[] = ['proposal', 'specs', 'design', 'tasks'];
+
+/** sidecar init 合法类型清单 */
+const SIDECAR_INIT_TYPES: readonly string[] = ['change', 'tasks', 'all'];
 
 /** 构造 spec 子命令组（挂到主 program 上） */
 export function buildSpecCommand(): Command {
@@ -263,7 +283,8 @@ export function buildSpecCommand(): Command {
             }
 
             const entries = fs.readdirSync(archiveDir, { withFileTypes: true })
-                .filter((d) => d.isDirectory())
+                // 跳过点开头目录（如 .venus/ —— index.db 所在目录，非归档变更条目）
+                .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
                 .map((d) => d.name);
 
             if (entries.length === 0) {
@@ -279,21 +300,32 @@ export function buildSpecCommand(): Command {
             let indexed = 0;
             let degraded = 0;
             const errors: string[] = [];
+            const warnings: string[] = [];
 
             for (const entry of entries) {
                 const changeDir = path.join(archiveDir, entry);
-                // 从目录名提取变更名（去除 YYYY-MM-DD- 前缀）
+                // 从目录名提取变更名（去除 YYYY-MM-DD- 前缀）与归档日期
                 const changeName = entry.replace(/^\d{4}-\d{2}-\d{2}-/, '');
+                const archiveDate = entry.match(/^(\d{4}-\d{2}-\d{2})-/)?.[1];
 
                 try {
-                    // 尝试读取 JSON sidecar
+                    const changeJson = readChangeJson(changeDir);
+
+                    // 主链路：change.json（合并主产物）为结构化数据真源
+                    if (changeJson !== null) {
+                        indexChangeJsonEntry(dbPath, changeDir, changeName, archiveDate, changeJson);
+                        indexed++;
+                        continue;
+                    }
+
+                    // 降级：change.json 缺失 → WARN + 读取旧 3 文件（manifest/decisions/capabilities）
+                    warnings.push(`${entry}: change.json 缺失，降级读取旧 sidecar`);
                     const venusDir = path.join(changeDir, '.venus');
                     const manifestPath = path.join(venusDir, 'manifest.json');
 
                     if (fs.existsSync(manifestPath)) {
-                        // JSON sidecar 路径
+                        // 旧 JSON sidecar 路径
                         const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-                        const archiveDate = entry.match(/^(\d{4}-\d{2}-\d{2})-/)?.[1];
 
                         insertChange(dbPath, {
                             name: changeName,
@@ -331,13 +363,13 @@ export function buildSpecCommand(): Command {
                         }
 
                         indexed++;
+                        degraded++;
                     } else {
-                        // 降级：从 proposal.md 提取基本信息
+                        // 降级：旧 sidecar 也缺失 → 从 MD 制品降级解析（proposal/design/specs/exploration）
                         const proposalPath = path.join(changeDir, 'proposal.md');
                         if (fs.existsSync(proposalPath)) {
                             const proposalContent = fs.readFileSync(proposalPath, 'utf8');
                             const summaryMatch = /^## Why\s*\n+(.+)/m.exec(proposalContent);
-                            const archiveDate = entry.match(/^(\d{4}-\d{2}-\d{2})-/)?.[1];
 
                             insertChange(dbPath, {
                                 name: changeName,
@@ -345,10 +377,16 @@ export function buildSpecCommand(): Command {
                                 module: extractModule(changeName),
                                 summary: summaryMatch?.[1]?.slice(0, 200) ?? '',
                             });
+                            // specs/*.md → capabilities + requirements_fts（散文降级解析）
+                            const mdCapabilityNames = indexSpecsMdFallback(dbPath, changeDir, changeName);
+                            // design.md → decisions_fts
+                            indexDesignMdFallback(dbPath, changeDir, changeName);
+                            // exploration.md → exploration_memory（能力取 specs 目录名并集）
+                            indexExplorationMdFallback(dbPath, changeDir, changeName, archiveDate, mdCapabilityNames);
                             indexed++;
                             degraded++;
                         } else {
-                            errors.push(`${entry}: 无可解析的制品（无 manifest.json 也无 proposal.md）`);
+                            errors.push(`${entry}: 无可解析的制品（无 change.json / 旧 JSON sidecar / proposal.md）`);
                         }
                     }
                 } catch (error: unknown) {
@@ -361,6 +399,7 @@ export function buildSpecCommand(): Command {
                 indexed,
                 degraded,
                 total: entries.length,
+                warnings: warnings.length > 0 ? warnings : undefined,
                 errors: errors.length > 0 ? errors : undefined,
             };
 
@@ -368,8 +407,13 @@ export function buildSpecCommand(): Command {
                 console.log(JSON.stringify(result, null, 2));
             } else {
                 console.log(`索引重建完成：${indexed}/${entries.length} 个变更已索引`);
+                if (warnings.length > 0) {
+                    for (const w of warnings) {
+                        console.log(`  ⚠ ${w}`);
+                    }
+                }
                 if (degraded > 0) {
-                    console.log(`  ${degraded} 个变更无 JSON sidecar，已降级解析 MD`);
+                    console.log(`  ${degraded} 个变更 change.json 缺失，已降级读取旧 sidecar 或解析 MD`);
                 }
                 if (errors.length > 0) {
                     console.log(`  ${errors.length} 个变更索引失败：`);
@@ -384,7 +428,177 @@ export function buildSpecCommand(): Command {
             }
         });
 
+    spec.command('render <type>')
+        .description('从 JSON 主产物渲染 MD（proposal/specs/design 读 change.json；tasks 读 tasks.json）')
+        .requiredOption('--change <name>', '变更名称')
+        .action((type: string, options: { change: string }) => {
+            const projectRoot = process.cwd();
+            const changeDir = path.join(projectRoot, 'openspec', 'changes', options.change);
+
+            // 非法 type：列出合法值并以非零码退出
+            if (!isRenderType(type)) {
+                console.error(`非法 type：${type}（合法值：${RENDER_TYPES.join(' / ')}）`);
+                process.exitCode = 1;
+                return;
+            }
+
+            // 检查变更目录存在性
+            if (!fs.existsSync(changeDir)) {
+                console.error(`变更目录不存在: ${changeDir}`);
+                process.exitCode = 1;
+                return;
+            }
+
+            // tasks 路径：从 tasks.json 确定性渲染 tasks.md
+            if (type === 'tasks') {
+                const tasksJsonPath = path.join(changeDir, 'tasks.json');
+                if (!fs.existsSync(tasksJsonPath)) {
+                    console.error(`tasks.json 不存在: ${tasksJsonPath}`);
+                    process.exitCode = 1;
+                    return;
+                }
+                try {
+                    const tasksJson = JSON.parse(fs.readFileSync(tasksJsonPath, 'utf8')) as TasksSchema;
+                    const md = renderTasksMd(tasksJson, options.change);
+                    fs.writeFileSync(path.join(changeDir, 'tasks.md'), md, 'utf8');
+                    console.log(
+                        `tasks.md rendered — ${tasksJson.tasks.length} tasks, ${tasksJson.progress?.complete ?? 0} done`,
+                    );
+                } catch (error: unknown) {
+                    console.error(`渲染失败: ${(error as Error).message}`);
+                    process.exitCode = 1;
+                }
+                return;
+            }
+
+            // proposal / specs / design 路径：change.json 主链路
+            renderChangeSection(changeDir, type);
+        });
+
+    spec.command('sidecar')
+        .description('change.json 主产物管理（init：创建空骨架）')
+        .command('init')
+        .description('创建空的 JSON 骨架文件（change 仅 change.json；tasks 仅 tasks.json；all 两者）')
+        .requiredOption('--change <name>', '变更名称')
+        .option('--type <type>', '骨架类型（change/tasks/all，默认 all）', 'all')
+        .action((options: { change: string; type: string }) => {
+            const projectRoot = process.cwd();
+            const changeDir = path.join(projectRoot, 'openspec', 'changes', options.change);
+
+            // 非法 type：列出合法值并以非零码退出
+            if (!SIDECAR_INIT_TYPES.includes(options.type)) {
+                console.error(`非法 sidecar 类型：${options.type}（合法值：${SIDECAR_INIT_TYPES.join(' / ')}）`);
+                process.exitCode = 1;
+                return;
+            }
+
+            if (!fs.existsSync(changeDir)) {
+                fs.mkdirSync(changeDir, { recursive: true });
+            }
+
+            try {
+                const created: string[] = [];
+                if (options.type === 'change' || options.type === 'all') {
+                    initChangeJson(changeDir, options.change);
+                    created.push('.venus/change.json');
+                }
+                if (options.type === 'tasks' || options.type === 'all') {
+                    initTasksJson(changeDir);
+                    created.push('tasks.json');
+                }
+                console.log(`Sidecar 骨架已创建: ${created.join(', ')}`);
+            } catch (error: unknown) {
+                console.error(`创建失败: ${(error as Error).message}`);
+                process.exitCode = 1;
+            }
+        });
+
     return spec;
+}
+
+/** 校验渲染类型合法性（类型守卫，供 render 命令收窄 type） */
+function isRenderType(value: string): value is RenderType {
+    return (RENDER_TYPES as readonly string[]).includes(value);
+}
+
+/**
+ * 从 change.json 渲染 proposal / specs / design 段到 MD 文件。
+ *
+ * 链路：readChangeJson → validateSidecar('change') → 段提取 → 渲染写入。
+ * 任一步失败输出错误并置非零退出码（渲染失败不写文件）。
+ *
+ * @param changeDir - 变更目录绝对路径
+ * @param type - 目标段（proposal / specs / design）
+ */
+function renderChangeSection(changeDir: string, type: 'proposal' | 'specs' | 'design'): void {
+    const changeJson = readChangeJson(changeDir);
+    if (changeJson === null) {
+        console.error(`change.json 不存在，请先写入 .venus/change.json 的 ${type} 段`);
+        process.exitCode = 1;
+        return;
+    }
+
+    // 校验失败：列出含字段路径的错误，引导 AI 修正 JSON
+    const validation = validateSidecar('change', changeJson);
+    if (!validation.valid) {
+        console.error('change.json 校验失败：');
+        for (const error of validation.errors) {
+            console.error(`  - ${error}`);
+        }
+        process.exitCode = 1;
+        return;
+    }
+
+    try {
+        if (type === 'proposal') {
+            if (!changeJson.proposal) {
+                console.error('change.json 缺少 proposal 段');
+                process.exitCode = 1;
+                return;
+            }
+            const md = renderProposalMd(changeJson.proposal, changeJson.changeName);
+            fs.writeFileSync(path.join(changeDir, 'proposal.md'), md, 'utf8');
+            console.log('proposal.md rendered');
+            return;
+        }
+        if (type === 'design') {
+            if (!changeJson.design) {
+                console.error('change.json 缺少 design 段');
+                process.exitCode = 1;
+                return;
+            }
+            const md = renderDesignMd(changeJson.design, changeJson.changeName);
+            fs.writeFileSync(path.join(changeDir, 'design.md'), md, 'utf8');
+            console.log('design.md rendered');
+            return;
+        }
+
+        // specs：逐能力渲染 specs/<name>/spec.md
+        if (!changeJson.specs) {
+            console.error('change.json 缺少 specs 段');
+            process.exitCode = 1;
+            return;
+        }
+        const files = renderSpecsMd(changeJson.specs, changeJson.changeName);
+        const changeDirResolved = path.resolve(changeDir);
+        const targets = files.map((file) => path.resolve(changeDirResolved, file.path));
+        // 先全量校验路径位于变更目录内（防越界）再写入，避免部分写入
+        for (let i = 0; i < files.length; i++) {
+            if (!targets[i].startsWith(changeDirResolved + path.sep)) {
+                console.error(`spec 路径越界（必须位于变更目录内）: ${files[i].path}`);
+                process.exitCode = 1;
+                return;
+            }
+        }
+        for (let i = 0; i < files.length; i++) {
+            fs.mkdirSync(path.dirname(targets[i]), { recursive: true });
+            fs.writeFileSync(targets[i], files[i].content, 'utf8');
+        }
+        console.log(`specs rendered — ${files.length} files`);
+    } catch (error: unknown) {
+        console.error(`渲染失败: ${(error as Error).message}`);
+        process.exitCode = 1;
+    }
 }
 
 /**
@@ -449,6 +663,268 @@ function extractModule(changeName: string): string {
         return parts[1];
     }
     return 'general';
+}
+
+/**
+ * 从 change.json 主链路索引单个已归档变更。
+ *
+ * 写入顺序：变更 → 能力（proposal 声明 + specs 段）→ 需求 → 决策 → 探索记忆。
+ * 能力的 operation 取 specs 段同名能力的首个 operation.type；
+ * 仅出现在 proposal 声明的能力按所属分组回退 ADDED（new）/ MODIFIED（modified）。
+ *
+ * @param dbPath - index.db 路径
+ * @param changeDir - 已归档变更目录绝对路径
+ * @param changeName - 去日期前缀的变更名
+ * @param archiveDate - 归档日期（目录名无日期前缀时为 undefined）
+ * @param changeJson - change.json 解析结果
+ */
+function indexChangeJsonEntry(
+    dbPath: string,
+    changeDir: string,
+    changeName: string,
+    archiveDate: string | undefined,
+    changeJson: ChangeSchema,
+): void {
+    // 变更索引：summary 取 What Changes 首条，缺失时回退 Why（截断 200 字符）
+    const summarySource = changeJson.proposal?.whatChanges?.[0] || changeJson.proposal?.why || '';
+    const changeEntry: ChangeIndexEntry = {
+        name: changeName,
+        archiveDate,
+        module: extractModule(changeName),
+        summary: summarySource.slice(0, 200),
+    };
+    insertChange(dbPath, changeEntry);
+
+    // 能力索引：specs 段同名能力以首个 operation.type 为准，proposal 独有能力按分组回退
+    const findSpecOperationType = (name: string): string | undefined =>
+        (changeJson.specs ?? []).find((spec) => spec.name === name)?.operations[0]?.type;
+
+    const capabilityEntries: CapabilityIndexEntry[] = [];
+    for (const decl of changeJson.proposal?.capabilities?.new ?? []) {
+        capabilityEntries.push({
+            name: decl.name,
+            changeName,
+            operation: findSpecOperationType(decl.name) ?? 'ADDED',
+        });
+    }
+    for (const decl of changeJson.proposal?.capabilities?.modified ?? []) {
+        capabilityEntries.push({
+            name: decl.name,
+            changeName,
+            operation: findSpecOperationType(decl.name) ?? 'MODIFIED',
+        });
+    }
+    for (const spec of changeJson.specs ?? []) {
+        capabilityEntries.push({
+            name: spec.name,
+            changeName,
+            operation: spec.operations[0]?.type ?? 'ADDED',
+        });
+    }
+    if (capabilityEntries.length > 0) {
+        insertCapabilities(dbPath, changeName, capabilityEntries);
+    }
+
+    // 需求索引：specs 段每个 operation 一条，scenarioText 拼接场景 name/given/when/then
+    const requirementEntries: RequirementIndexEntry[] = [];
+    for (const spec of changeJson.specs ?? []) {
+        for (const operation of spec.operations) {
+            const scenarioText = (operation.scenarios ?? [])
+                .map((scenario) => {
+                    const parts = [scenario.name, scenario.given, scenario.when, scenario.then];
+                    return parts.filter(Boolean).join(' ');
+                })
+                .join(' | ');
+            requirementEntries.push({
+                requirementName: operation.requirement,
+                scenarioText,
+                changeName,
+                capabilityName: spec.name,
+            });
+        }
+    }
+    insertRequirements(dbPath, requirementEntries);
+
+    // 决策索引：design.decisions
+    const decisionEntries: DecisionIndexEntry[] = (changeJson.design?.decisions ?? []).map((decision) => ({
+        title: decision.title,
+        choice: decision.choice,
+        rationale: decision.rationale,
+        changeName,
+    }));
+    insertDecisions(dbPath, decisionEntries);
+
+    // 探索记忆：exploration.md 存在时按能力（specs[].name ∪ proposal.capabilities 并集）写入
+    const explorationPath = path.join(changeDir, 'exploration.md');
+    if (!fs.existsSync(explorationPath)) {
+        return;
+    }
+    const capabilityNames = new Set<string>();
+    for (const spec of changeJson.specs ?? []) {
+        capabilityNames.add(spec.name);
+    }
+    for (const decl of changeJson.proposal?.capabilities?.new ?? []) {
+        capabilityNames.add(decl.name);
+    }
+    for (const decl of changeJson.proposal?.capabilities?.modified ?? []) {
+        capabilityNames.add(decl.name);
+    }
+    const memoryContent = extractExplorationContent(fs.readFileSync(explorationPath, 'utf8'));
+    for (const capability of capabilityNames) {
+        const memoryEntry: ExplorationMemoryEntry = {
+            capability,
+            changeName,
+            memoryType: 'exploration',
+            content: memoryContent,
+            archivedAt: archiveDate ?? '',
+        };
+        insertExplorationMemory(dbPath, memoryEntry);
+    }
+}
+
+/**
+ * 提取 exploration.md 的探索记忆正文。
+ *
+ * 取文档首个 `## Decisions` 段文本（至下一 `## ` 标题或文末）；
+ * 该段缺失或为空时回退取文档前 300 字符。
+ *
+ * @param content - exploration.md 全文
+ * @returns 探索记忆正文
+ */
+function extractExplorationContent(content: string): string {
+    const headingMatch = /^## Decisions[ \t]*$/m.exec(content);
+    if (headingMatch) {
+        const rest = content.slice(headingMatch.index + headingMatch[0].length);
+        const nextHeading = /^## /m.exec(rest);
+        const section = (nextHeading ? rest.slice(0, nextHeading.index) : rest).trim();
+        if (section.length > 0) {
+            return section;
+        }
+    }
+    return content.slice(0, 300);
+}
+
+/**
+ * 降级解析 specs/<capability>/spec.md（散文）写入 capabilities 与 requirements_fts。
+ *
+ * 解析口径：按 `## <TYPE> Requirements` 分段（TYPE ∈ ADDED/MODIFIED/REMOVED/RENAMED），
+ * 每段内按 `### Requirement: <name>` 提取需求名与正文（截断 500 字符）。
+ *
+ * @returns 解析到的能力名列表（供探索记忆归属复用）
+ */
+function indexSpecsMdFallback(dbPath: string, changeDir: string, changeName: string): string[] {
+    const specsDir = path.join(changeDir, 'specs');
+    if (!fs.existsSync(specsDir)) {
+        return [];
+    }
+    const capabilityNames: string[] = [];
+    const capabilityEntries: CapabilityIndexEntry[] = [];
+    const requirementEntries: RequirementIndexEntry[] = [];
+
+    for (const dirEntry of fs.readdirSync(specsDir, { withFileTypes: true })) {
+        if (!dirEntry.isDirectory()) {
+            continue;
+        }
+        const specPath = path.join(specsDir, dirEntry.name, 'spec.md');
+        if (!fs.existsSync(specPath)) {
+            continue;
+        }
+        capabilityNames.push(dirEntry.name);
+        const content = fs.readFileSync(specPath, 'utf8');
+        // 按 `## <TYPE> Requirements` 标题切块（首块为标题前导内容，丢弃）
+        for (const block of content.split(/^## /m).slice(1)) {
+            const type = /^(ADDED|MODIFIED|REMOVED|RENAMED) Requirements/.exec(block)?.[1];
+            if (type === undefined) {
+                continue;
+            }
+            capabilityEntries.push({ name: dirEntry.name, changeName, operation: type });
+            // 需求块：`### Requirement: <name>` 起至下一块
+            for (const reqBlock of block.split(/^### Requirement:\s*/m).slice(1)) {
+                const firstLineEnd = reqBlock.indexOf('\n');
+                const requirementName = (firstLineEnd >= 0 ? reqBlock.slice(0, firstLineEnd) : reqBlock).trim();
+                if (!requirementName) {
+                    continue;
+                }
+                const body = firstLineEnd >= 0 ? reqBlock.slice(firstLineEnd + 1).trim() : '';
+                requirementEntries.push({
+                    requirementName,
+                    scenarioText: body.slice(0, 500),
+                    changeName,
+                    capabilityName: dirEntry.name,
+                });
+            }
+        }
+    }
+
+    if (capabilityEntries.length > 0) {
+        insertCapabilities(dbPath, changeName, capabilityEntries);
+    }
+    if (requirementEntries.length > 0) {
+        insertRequirements(dbPath, requirementEntries);
+    }
+    return capabilityNames;
+}
+
+/**
+ * 降级解析 design.md 的 `## Decisions` 段写入 decisions_fts。
+ *
+ * 解析口径：`### <title>` 标题 + `- **选择**:` / `- **理由**:` 行。
+ */
+function indexDesignMdFallback(dbPath: string, changeDir: string, changeName: string): void {
+    const designPath = path.join(changeDir, 'design.md');
+    if (!fs.existsSync(designPath)) {
+        return;
+    }
+    const content = fs.readFileSync(designPath, 'utf8');
+    const decisionEntries: DecisionIndexEntry[] = [];
+    for (const block of content.split(/^## /m).slice(1)) {
+        if (!/^Decisions\b/.test(block)) {
+            continue;
+        }
+        for (const decisionBlock of block.split(/^### /m).slice(1)) {
+            const firstLineEnd = decisionBlock.indexOf('\n');
+            const title = (firstLineEnd >= 0 ? decisionBlock.slice(0, firstLineEnd) : decisionBlock).trim();
+            if (!title) {
+                continue;
+            }
+            const body = firstLineEnd >= 0 ? decisionBlock.slice(firstLineEnd + 1) : '';
+            decisionEntries.push({
+                title,
+                choice: /- \*\*选择\*\*[:：]\s*(.+)/.exec(body)?.[1]?.trim() ?? '',
+                rationale: /- \*\*理由\*\*[:：]\s*(.+)/.exec(body)?.[1]?.trim() ?? '',
+                changeName,
+            });
+        }
+    }
+    if (decisionEntries.length > 0) {
+        insertDecisions(dbPath, decisionEntries);
+    }
+}
+
+/**
+ * 降级：exploration.md → exploration_memory（能力取 specs 目录名并集）。
+ */
+function indexExplorationMdFallback(
+    dbPath: string,
+    changeDir: string,
+    changeName: string,
+    archiveDate: string | undefined,
+    capabilityNames: string[],
+): void {
+    const explorationPath = path.join(changeDir, 'exploration.md');
+    if (!fs.existsSync(explorationPath) || capabilityNames.length === 0) {
+        return;
+    }
+    const memoryContent = extractExplorationContent(fs.readFileSync(explorationPath, 'utf8'));
+    for (const capability of capabilityNames) {
+        insertExplorationMemory(dbPath, {
+            capability,
+            changeName,
+            memoryType: 'exploration',
+            content: memoryContent,
+            archivedAt: archiveDate ?? '',
+        });
+    }
 }
 
 /** 渲染单变更状态文本 */

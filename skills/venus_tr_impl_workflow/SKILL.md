@@ -1,7 +1,7 @@
 ---
 name: venus_tr_impl_workflow
 description: One-stop guided workflow from exploration to task generation with verification phase. Creates persistent exploration files, asks clarifying questions until clear (grill-with-docs, L1-L5 per-level confirmation gates), generates all artifacts inline, then auto-verifies before implementation. Use when the user wants a guided workflow with追问 (grill-with-docs) questioning and automatic quality verification (一站式工作流 / guided workflow / workflow from exploration). NOT for fully automated pipeline (use venus_tr_impl_auto_workflow), single-stage exploration (use venus_spec_explore), or debugging (use venus_tr_impl_debug).
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), Bash(ls:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_verify_proposal), Skill(tr_impl_review_proposal), Agent, Task
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), Bash(ls:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_verify_proposal), Skill(tr_impl_review_proposal), Skill(tr_docs_requirement_doc), Agent, Task
 license: MIT
 compatibility: 依赖 venus CLI（spec 命令组）；CLI 缺失时降级为 AI 内联生成（CLI-degraded generation）。
 metadata:
@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:75c972e3d24a21597b3056c09b99e8c4f34c33c737967c7ed3ebd428a126dcff"
+  generatedFingerprint: "sha256:9f967c9ef0b37971f7e84b68c7f73f66c1300fb60cb24664ef00e6754e66896c"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
@@ -1113,7 +1113,7 @@ Before generating design.md (and any other artifact), system MUST scan project r
 WHEN Phase 2.3 migration completes:
 THEN execute artifact generation inline following the shared protocol at openspec/rules/artifact-generation.md:
   - venus spec new "<name>" (creates change directory)
-  - Loop: venus spec status --json → venus spec instructions --json → write file
+  - Loop: venus spec status --json → venus spec instructions --json → write JSON truth source (change.json sections / tasks.json) → venus spec render <artifact-id>
   - Continue without intermediate prompts until all applyRequires done
 
 System shows progress: "已创建 proposal.md (1/4)", etc.
@@ -1167,7 +1167,7 @@ The following guidelines are automatically enforced by inline generation:
 
 - Base specs/design/tasks on exploration Decisions section
 - Ensure every decision has corresponding artifact content
-- Follow schema's `instruction` field for each artifact type
+- Follow schema's `jsonTemplate` (JSON truth source structure) and `instruction` field for each artifact type
 - Do NOT copy `context`/`rules` into files - they're constraints for YOU
 
 #### Include Analysis Results in Artifacts
@@ -1370,11 +1370,11 @@ When ALL dimensions PASS (≥90%):
 
 If user wants to skip the deep review, they can interrupt. Otherwise it runs automatically.
 
-5. **Converge after the deep review — do NOT generate the requirement document** — the requirement document is produced by the ARCHIVE phase (see the pre-archive requirement-document generation checkpoint of `venus_spec_archive`). This skill MUST NOT invoke `venus_tr_docs_requirement_doc`, MUST NOT align an existing requirement document in place, and MUST NOT ask the user for document basic information. After the deep review completes, converge the verification phase and report the change as apply-ready.
-   - Rationale: generating the document here would freeze a document that the implementation phase is about to invalidate; the archive phase generates it from the FINAL artifacts
+5. **Converge — generate the requirement document** — after the deep review converges, invoke `venus_tr_docs_requirement_doc` in non-interactive mode (via Skill tool) to generate the requirement document at `openspec/changes/<change-name>/需求文档.md`. The document is generated from the CURRENT artifacts (proposal/specs/design/tasks) before implementation begins — the user can review it during the apply phase. Generation failure is non-blocking (WARN log + continue). MUST NOT ask the user for document basic information. After generation, report the change as apply-ready.
+   - Rationale: generating the document at verification time gives the user a review-ready document before implementation starts; the archive phase performs in-place incremental alignment on the existing document
 
 > "Deep review complete."
-> "Requirement document: deferred to archive time — run /venus:spec-archive to generate it from the final artifacts."
+> "Requirement document: generated at openspec/changes/<name>/需求文档.md."
 
 ### 3.6 Verification Fail → Auto-Fix and Re-run
 
@@ -1593,4 +1593,4 @@ All artifacts ready! Run `/venus:spec-apply` to implement.
 - **Do log checkpoint status** - Inform user of file creation, verification, migration status
 - **Do inject capability memory** - Phase 1 reads specs/<capability>/explorations.md when it exists
 - **Do scan other projects with CodeGraph** - When exploration context contains other project paths, spawn sub-agent to scan them using CodeGraph projectPath parameter; fall back to Glob/Grep on failure
-- **Do converge after the deep review** - After full pass (D1-D5 + deep review), stop and report apply-ready; the requirement document is generated by the ARCHIVE phase, never by this workflow
+- **Do converge after the deep review** - After full pass (D1-D5 + deep review), generate the requirement document (non-interactive `venus_tr_docs_requirement_doc`; failure is non-blocking WARN), then report apply-ready

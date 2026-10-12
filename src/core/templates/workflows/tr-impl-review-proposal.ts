@@ -25,11 +25,15 @@ export function getTrImplReviewProposalSkillTemplate(): SkillTemplate {
 venus spec status --change "<change-name>" --json
 \`\`\`
 
-获取变更状态后，读取所有提案文件：
-- \`proposal.md\` - 需求背景和目标
-- \`design.md\` - 技术设计
-- \`specs/*.md\` - Delta规格说明
-- \`tasks.md\` - 实现任务清单
+获取变更状态后，按以下顺序读取提案证据（JSON 优先）：
+- 优先读变更目录下的 \`.venus/change.json\`（结构化真源）：
+  - \`proposal\` 段 - 需求背景和目标（why / whatChanges / capabilities / impact）
+  - \`design\` 段 - 技术设计（context / goals / nonGoals / decisions[] / risks[]）
+  - \`specs\` 段 - Delta 规格说明（specs[].operations[]：requirement / scenarios）
+- 优先读变更目录根下的 \`tasks.json\` - 实现任务清单（id / label / status / specRef / 节点标注）
+- **降级（WARN）**：change.json 缺失（或所需段缺失）时输出 WARN，改读渲染后的 MD —— \`proposal.md\` / \`design.md\` / \`specs/*.md\`；tasks.json 缺失时改读 \`tasks.md\` 复选框
+
+下文各阶段提到的 proposal / design / specs / tasks 均按上述 JSON 优先口径读取（降级时读取对应 MD 制品，并在报告中注明 WARN）。
 
 ## Phase 2: 深度代码库探索（关键改进）
 
@@ -629,11 +633,13 @@ if (!StringUtils.isNull(keyword)) {
 
 发现遗漏场景后，按优先级更新：
 
-1. **P0 必须补充**（影响功能正确性）：
-   - 更新 \`specs/*.md\` 添加 Requirement 和 Scenario
-   - 更新 \`design.md\` 添加遗漏的设计决策
-   - 更新 \`tasks.md\` 添加对应的实现任务
-   - 示例：
+1. **P0 必须补充**（影响功能正确性，JSON-first）：
+   - 更新 \`.venus/change.json\` 的 \`specs\` 段：对应 capability 的 \`operations\` 新增 Requirement 与 \`scenarios[]\`
+   - 更新 \`.venus/change.json\` 的 \`design\` 段：\`decisions[]\` 补充遗漏的设计决策
+   - 更新 \`tasks.json\`：新增对应的实现任务（\`specRef\` 指向补充的需求）
+   - 每次更新 JSON 段后运行 \`venus spec render <type> --change "<name>"\`（\`specs\` / \`design\` / \`tasks\`）重渲染对应 MD 制品
+   - **降级（WARN）**：change.json 缺失时直接编辑 MD 制品（\`specs/*.md\` / \`design.md\`；tasks.json 缺失时为 \`tasks.md\`），并在报告中注明 WARN
+   - 示例（写入 specs 段的操作与场景）：
      \`\`\`markdown
      ### Requirement: 编辑场景数据处理
 
@@ -902,9 +908,9 @@ venus spec status --change "add-datamask-rule-management" --json
 
 建议：补充P0遗漏项（Service层设计、事务边界、列名大小写）
 
-**Phase 6 更新文档**:
+**Phase 6 更新文档**（JSON-first）:
 
-添加到 \`specs/datamask/spec.md\`:
+写入 \`.venus/change.json\` 的 \`specs\` 段（新增操作与场景），再运行 \`venus spec render specs --change "add-datamask-rule-management"\` 渲染到 \`specs/datamask/spec.md\`（渲染后的 MD 内容）:
 \`\`\`markdown
 ### Requirement: 数据库操作规范
 
@@ -923,7 +929,7 @@ venus spec status --change "add-datamask-rule-management" --json
 
 | 改进项 | Phase | 检查内容 |
 |-------|-------|---------|
-| **加载提案** | Phase 1 | 读取proposal.md、design.md、specs、tasks.md |
+| **加载提案** | Phase 1 | 优先读取 \`.venus/change.json\`（proposal/design/specs 段）+ \`tasks.json\`；缺失时降级 MD（WARN） |
 | **深度探索** | Phase 2-3 | 调用链分析、数据流分析、现有模式对比、8个基础维度检查 |
 | **合规验证** | Phase 4 | 技术栈合规、架构分层合规、命名规范、数据库操作规范 |
 | **特殊功能** | Phase 5 | 导出导入功能、外部回调、并发安全、搜索条件处理 |
@@ -956,7 +962,7 @@ venus spec status --change "add-datamask-rule-management" --json
 - **搜索项目现有模式**，确保实现方式一致
 - **对照 config.yaml 验证**技术栈合规性
 - **对照 CLAUDE.md 验证**架构和命名规范
-- **发现P0遗漏立即更新**文档后再进入实现
+- **发现P0遗漏立即更新** JSON 真源（change.json 段 / tasks.json）并 \`venus spec render\` 重渲染后再进入实现（change.json 缺失时直接编辑 MD，WARN）
 - **提供可直接使用的Scenario内容**，降低编辑成本`,
         allowedTools: 'Read, Write, Edit, Glob, Grep, Bash(venus:*)',
         type: 'tr_impl',
@@ -979,7 +985,7 @@ export function getTrImplReviewProposalCommandTemplate(): CommandTemplate {
 ---
 
 ## Phase 1: 加载变更提案
-\`venus spec status --change "<change-name>" --json\` -> 读取 proposal.md、design.md、specs/*.md、tasks.md。
+\`venus spec status --change "<change-name>" --json\` -> 优先读取 .venus/change.json（proposal/design/specs 段）+ tasks.json；缺失时降级读取 proposal.md、design.md、specs/*.md、tasks.md（WARN）。
 
 ## Phase 2: 深度代码库探索（关键）
 用 Grep/Glob/Read 工具追溯调用链（入口层 -> 业务层 -> 数据访问层 -> 跨模块）、数据流（输入 -> 处理 -> 输出 -> 异常）、现有实现模式对比。必须实际阅读代码，不依赖提案描述。
@@ -1006,7 +1012,7 @@ export function getTrImplReviewProposalCommandTemplate(): CommandTemplate {
 11 维度覆盖率 + 合规率评分 + 总体评分（>=90% 可进入实现，70%-90% 补充 P0，<70% 重新完善）。
 
 ## Phase 9: 发现遗漏时更新文档
-P0 必须补充（specs/design/tasks 添加 Requirement + \`#### Scenario:\` + WHEN/THEN/AND）、P1 建议补充、P2 可选补充。
+P0 必须补充（更新 change.json 对应段 + tasks.json 后 \`venus spec render <type> --change <name>\` 重渲染；change.json 缺失时直接编辑 MD 并 WARN）、P1 建议补充、P2 可选补充。
 
 ## 输出格式
 10 节检查报告：深度探索发现、多维度完整性检查、实现合规性验证、量化评分、页面设计检查、逻辑实现细节、建议补充 Scenario、页面设计遗漏 Scenario、逻辑实现遗漏 Scenario、修正建议汇总。
@@ -1014,6 +1020,6 @@ P0 必须补充（specs/design/tasks 添加 Requirement + \`#### Scenario:\` + W
 ## 常见高频遗漏速查表
 编辑场景未删除旧数据（高频）、分页标签结构不完整（高频）、隐藏字段缺失（高频）、数据访问组件列名大小写（中频）、权限检查缺少请求参数（中频）、refreshList 缺少 submit（中频）、EL 表达式用于 hidden（低频）、批量操作未分批（中频）。
 
-Guardrails: 必须实际阅读代码；搜索项目现有模式；对照 config.yaml 验证技术栈；对照 CLAUDE.md 验证架构命名；发现 P0 遗漏立即更新文档；提供可直接使用的 Scenario 内容。`,
+Guardrails: 必须实际阅读代码；搜索项目现有模式；对照 config.yaml 验证技术栈；对照 CLAUDE.md 验证架构命名；发现 P0 遗漏立即更新 JSON 真源并重渲染（降级直编 MD + WARN）；提供可直接使用的 Scenario 内容。`,
     };
 }

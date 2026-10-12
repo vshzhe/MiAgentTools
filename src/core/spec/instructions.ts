@@ -8,7 +8,16 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { SPEC_DRIVEN_SCHEMA, getArtifactIds, isValidArtifactId } from './schema.js';
 import { detectCompleted } from './status.js';
-import { DESIGN_TEMPLATE, PROPOSAL_TEMPLATE, SPECS_TEMPLATE, TASKS_TEMPLATE } from './templates/index.js';
+import {
+    DESIGN_JSON_TEMPLATE,
+    DESIGN_TEMPLATE,
+    PROPOSAL_JSON_TEMPLATE,
+    PROPOSAL_TEMPLATE,
+    SPECS_JSON_TEMPLATE,
+    SPECS_TEMPLATE,
+    TASKS_JSON_TEMPLATE,
+    TASKS_TEMPLATE,
+} from './templates/index.js';
 
 /** artifact 的依赖项信息 */
 export interface ArtifactDependency {
@@ -33,6 +42,8 @@ export interface ArtifactInstructions {
     instruction: string;
     /** artifact 模板全文 */
     template: string;
+    /** JSON schema 模板（JSON-primary 真源示例：change.json 段落 / tasks.json） */
+    jsonTemplate: string;
     dependencies: ArtifactDependency[];
     /** 依赖本 artifact 的后续 artifact id 列表 */
     unlocks: string[];
@@ -44,6 +55,14 @@ const TEMPLATES: Record<string, string> = {
     specs: SPECS_TEMPLATE,
     design: DESIGN_TEMPLATE,
     tasks: TASKS_TEMPLATE,
+};
+
+/** artifact id → JSON schema 模板映射（proposal/specs/design 为 change.json 段落，tasks 为 tasks.json） */
+const JSON_TEMPLATES: Record<string, string> = {
+    proposal: PROPOSAL_JSON_TEMPLATE,
+    specs: SPECS_JSON_TEMPLATE,
+    design: DESIGN_JSON_TEMPLATE,
+    tasks: TASKS_JSON_TEMPLATE,
 };
 
 /**
@@ -94,6 +113,7 @@ export function getArtifactInstructions(
         description: artifact.description,
         instruction: artifact.instruction,
         template: TEMPLATES[artifactId] ?? '',
+        jsonTemplate: JSON_TEMPLATES[artifactId] ?? '',
         dependencies,
         unlocks,
     };

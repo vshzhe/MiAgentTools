@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:d03d2d7182c4afe074cb9d8734a9b54a3463f94892095e4c344a479fba87a1fe"
+  generatedFingerprint: "sha256:2195658bc5a160a03ae68a168e50f88fbbb96f03f1b13b5a18b7d65b47ba4536"
 ---
 
 **Before verifying, read openspec/rules/ai-coding.md for verification criteria.**
@@ -25,14 +25,28 @@ This skill performs enhanced 10-dimension verification with quantified scoring a
 ## Prerequisites
 
 **Required files**:
+- `openspec/changes/<change-name>/.venus/change.json` - Structured primary source (`proposal` / `design` / `specs` sections)
+- `openspec/changes/<change-name>/tasks.json` - Structured task list (specRef / node annotations)
 - `openspec/changes/<change-name>/exploration.md` - Exploration results
-- `openspec/changes/<change-name>/proposal.md` - Change proposal
-- `openspec/changes/<change-name>/design.md` - Technical design
-- `openspec/changes/<change-name>/specs/*.md` - Feature specifications
-- `openspec/changes/<change-name>/tasks.md` - Implementation tasks
 - `openspec/config.yaml` - Project configuration (for tech stack detection)
 
+**MD fallback artifacts (WARN, non-blocking)** - used only when the JSON sources are missing: `proposal.md`, `design.md`, `specs/*.md`, `tasks.md`.
+
 **If no exploration.md exists**: Report "No exploration file found, cannot verify" and exit.
+
+---
+
+## Evidence Reading (JSON-first)
+
+All dimension checks below read scoring evidence from the structured JSON artifacts first:
+
+- `.venus/change.json` (change directory) - structured source of truth:
+  - `proposal` section: `why` / `whatChanges` / `capabilities`
+  - `design` section: `context` / `goals` / `nonGoals` / `decisions[]` / `risks[]`
+  - `specs` section: `specs[].operations[]` (`requirement` / `scenarios` / `type`)
+- `tasks.json` (change directory root) - task entries with `specRef` and flowchart node annotations
+
+**MD fallback (WARN)**: if `change.json` is missing (or a required section is absent), log a WARN such as "change.json missing - falling back to MD artifact parsing" and read the rendered MD artifacts instead; fall back to `tasks.md` when `tasks.json` is missing. Throughout the checks below, "proposal / design / specs / tasks" refers to the JSON sources when present, otherwise to the corresponding MD artifacts. Fallback is non-blocking but MUST be noted in the verification report.
 
 ---
 
@@ -103,7 +117,7 @@ Non-triggered dimensions are marked "不适用" and skipped in scoring.
 
 ### Dimension 1: Requirement Coverage
 
-**Check**: Every decision in exploration Decisions section → corresponding spec requirement.
+**Check**: Every declared change item in the `proposal` section of `.venus/change.json` (`why` / `whatChanges` / `capabilities`) → corresponding requirement in the `specs` section (`specs[].operations[].requirement`).
 
 **PASS condition**:
 - Each decision has matching spec requirement
@@ -120,7 +134,7 @@ D1 Score = (matched decisions / total decisions) * 100%
 
 ### Dimension 2: Technical Consistency
 
-**Check**: Technical choices in exploration → reflected in design.md.
+**Check**: Technical choices → reflected in the `design` section of `.venus/change.json` (`context` / `goals` / `decisions[]`).
 
 **PASS condition**:
 - All technical decisions appear in design
@@ -137,7 +151,7 @@ D2 Score = (matched tech choices / total tech choices) * 100%
 
 ### Dimension 3: Task Completeness
 
-**Check**: Every spec requirement → at least one corresponding task.
+**Check**: Every requirement in the `specs` section (`specs[].operations[].requirement`) → at least one task in `tasks.json` whose `specRef` matches it.
 
 **PASS condition**:
 - Each spec requirement has task referencing it
@@ -153,7 +167,7 @@ D3 Score = (requirements with tasks / total requirements) * 100%
 
 ### Dimension 4: Boundary Coverage
 
-**Check**: Questions/edge cases in exploration Questions → addressed in specs.
+**Check**: Boundary questions / edge cases → addressed by scenarios in the `specs` section (`specs[].operations[].scenarios[]`).
 
 **PASS condition**:
 - Each question has spec scenario coverage
@@ -304,8 +318,8 @@ D9 Score = (complex ops with decomposition / total complex ops) * 100%
 
 **Trigger**: 探索产物 `exploration.md` 含 `## 功能流程图` 段时触发（该段由探索阶段产出并经流程最终确认门确认）。
 
-**Check**: `## 功能流程图` 段的**关键操作节点清单**中的每个节点，是否被 design.md（节点清单引用 / 关键操作节点描述）或 tasks.md（任务标注的节点 id）覆盖
-—— 检查提案与**外部流程基准**的偏差，而非提案自身的完整性。
+**Check**: `## 功能流程图` 段的**关键操作节点清单**中的每个节点，是否被 `design` 段（节点清单引用 / 关键操作节点描述）或 `tasks.json`（任务标注的节点 id）覆盖
+—— 检查提案与**外部流程基准**的偏差，而非提案自身的完整性（JSON 缺失降级 MD 解析时按对应 MD 制品读取，WARN）。
 
 **Coverage calculation**:
 ```
@@ -313,7 +327,7 @@ D10 Score = (被 design/tasks 覆盖的节点数 / 流程图总节点数) * 100%
 ```
 
 **覆盖判定（两级，优先显式标注）**:
-1. **显式标注匹配（优先，可复现）**：tasks 任务标注了对应节点 id（`[N4]` 形）即视为该节点被覆盖；design.md 显式引用该节点 id 或节点操作名亦计入
+1. **显式标注匹配（优先，可复现）**：`tasks.json` 任务标注了对应节点 id（`[N4]` 形）即视为该节点被覆盖；`design` 段显式引用该节点 id 或节点操作名亦计入
 2. **语义等价判定（补充）**：节点未被显式标注时，MAY 以 AI **语义等价判定**补充 —— 同一操作的**不同措辞**算命中（如节点"扣减库存"与任务"库存预占"视为同一操作）；
    语义判定 MUST 能指出具体对应之处，MUST NOT 笼统放行
 
@@ -528,6 +542,7 @@ venus spec status --change "<name>" --json
 ```
 
 Check for `exploration.md` in change directory using `artifactPaths` from status.
+Read structured evidence first: `<change-dir>/.venus/change.json` (proposal / design / specs sections) and `<change-dir>/tasks.json`; if missing, fall back to MD parsing (WARN).
 <!-- /CMD:SKIP -->
 
 ---
@@ -538,5 +553,6 @@ Check for `exploration.md` in change directory using `artifactPaths` from status
 - **Tech stack detection**: Parse openspec/config.yaml context field
 - **Inline deep review**: After pass, run read-only deep check inline (no dedicated skill)
 - **Auto-fix loop**: On FAIL, auto-generate and apply fixes, re-score; if still FAIL, offer [手动编辑]/[返回探索]/[查看差异]
+- **JSON-first evidence**: Read `.venus/change.json` (proposal / design / specs) + `tasks.json` before any MD parsing; missing JSON degrades to MD with a WARN (non-blocking)
 - **No exploration**: Cannot verify, report and exit
 - **Cross-platform**: Use `path.join()` for file paths
