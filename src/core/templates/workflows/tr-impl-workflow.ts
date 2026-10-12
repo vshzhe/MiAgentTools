@@ -372,7 +372,9 @@ After the 1.2.1 base scan (current project), system MUST check if the exploratio
    - For each project, execute \`codegraph_files\` for file structure, \`codegraph_search\` for symbol search, \`codegraph_context\` for context understanding
    - Limit scan depth: \`maxDepth: 3\`, \`maxNodes: 20\` to prevent excessive results
    - The sub-agent MUST NOT modify any files
-   - Apply a 120s budget for each project (budget exceeded → per-project WARN fallback to Glob/Grep)
+
+   - **⛔ EXIT GUARD**: the sub-agent MUST stop and return findings immediately after scanning all projects — MUST NOT enter plan mode / design mode / propose next steps / suggest implementation; the sub-agent is a scanner only, its sole output is the structured findings per project; the orchestrator alone owns flow advancement
+   - **MUST only query incrementally**: the sub-agent MUST limit scanning to what was NOT already covered by the 1.2.1 base scan; it MUST NOT re-derive information already available in the current project's exploration file   - Apply a 120s budget for each project (budget exceeded → per-project WARN fallback to Glob/Grep)
 
 3. **Per-project degradation (project granularity)**:
    - If one project's CodeGraph is not initialized, its scan fails, or it exceeds the 120s budget: **only that project** falls back to Glob/Grep with a WARN log — the other projects continue their scan normally
@@ -1604,7 +1606,7 @@ All artifacts ready! Run \`/venus:spec-apply\` to implement.
 - **Do inject capability memory** - Phase 1 reads specs/<capability>/explorations.md when it exists
 - **Do scan other projects with CodeGraph** - When exploration context contains other project paths, spawn sub-agent to scan them using CodeGraph projectPath parameter; fall back to Glob/Grep on failure
 - **Do converge after the deep review** - After full pass (D1-D5 + deep review), generate the requirement document (non-interactive \`venus_tr_docs_requirement_doc\`; failure is non-blocking WARN), then report apply-ready`,
-        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), Bash(ls:*), ${CODEGRAPH_MCP}, ${skillDelegation(['spec_verify_proposal', 'tr_impl_review_proposal', 'tr_docs_requirement_doc'])}, ${SUBAGENT_DISPATCH}`,
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(ls:*), ${CODEGRAPH_MCP}, ${skillDelegation(['spec_verify_proposal', 'tr_impl_review_proposal', 'tr_docs_requirement_doc'])}, ${SUBAGENT_DISPATCH}`,
         type: 'tr_impl',
         license: 'MIT',
         compatibility: '依赖 venus CLI（spec 命令组）；CLI 缺失时降级为 AI 内联生成（CLI-degraded generation）。',
@@ -2271,7 +2273,9 @@ Ready for \`/venus:spec-apply\`
 - Do converge after the deep review - after full pass, generate the requirement document (non-interactive venus_tr_docs_requirement_doc; failure non-blocking WARN) and report the change as apply-ready
 - Do inject capability memory - Phase 1 reads specs/<capability>/explorations.md when it exists
 - Do scan other projects with CodeGraph - When exploration context contains other project paths, spawn sub-agent to scan them using CodeGraph projectPath parameter; fall back to Glob/Grep on failure
-- Don't lose exploration - file persists
+
+- **Do enforce exit guard on sub-agents** - sub-agents（Agent/Task）完成分配任务后 MUST NOT enter plan mode / design mode / propose next steps；编排器是唯一有权判停和推进阶段的角色
+- **Do enforce data sharing** - sub-agents MUST FIRST read shared context before any action and MUST NOT re-derive information already available- Don't lose exploration - file persists
 - Do explore codebase before asking
 - Do provide recommendations
 - Do update file real-time

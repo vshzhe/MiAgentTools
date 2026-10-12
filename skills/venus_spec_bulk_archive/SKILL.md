@@ -1,7 +1,7 @@
 ---
 name: venus_spec_bulk_archive
 description: 批量归档变更。当用户要一次归档多个已完成变更时使用。
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(tr_docs_requirement_doc), Agent, Task
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(tr_docs_requirement_doc), Agent, Task
 license: MIT
 compatibility: 依赖 venus CLI（spec 命令组）与 CodeGraph CLI（可选）。
 metadata:
@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:c889e77325af78dfdc8d9d168779740a533fe1fe192b3b9d15ae6d5853622dd1"
+  generatedFingerprint: "sha256:8729ecb1e5266d51f84105bce6a0d5cdc8d4a536539b61842b1c7bc948b60155"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。

@@ -1,7 +1,7 @@
 ---
 name: venus_tr_impl_workflow
 description: One-stop guided workflow from exploration to task generation with verification phase. Creates persistent exploration files, asks clarifying questions until clear (grill-with-docs, L1-L5 per-level confirmation gates), generates all artifacts inline, then auto-verifies before implementation. Use when the user wants a guided workflow with追问 (grill-with-docs) questioning and automatic quality verification (一站式工作流 / guided workflow / workflow from exploration). NOT for fully automated pipeline (use venus_tr_impl_auto_workflow), single-stage exploration (use venus_spec_explore), or debugging (use venus_tr_impl_debug).
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), Bash(ls:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_verify_proposal), Skill(tr_impl_review_proposal), Skill(tr_docs_requirement_doc), Agent, Task
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(ls:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_verify_proposal), Skill(tr_impl_review_proposal), Skill(tr_docs_requirement_doc), Agent, Task
 license: MIT
 compatibility: 依赖 venus CLI（spec 命令组）；CLI 缺失时降级为 AI 内联生成（CLI-degraded generation）。
 metadata:
@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:4993b7d7f81a6d7b111a8f7825a833673c157075bef60d4f8aacae841fbbff6f"
+  generatedFingerprint: "sha256:b6d821919ab4170d08f16fbe92b4d041ff3bea537fb777fa8ae9517bea0bb607"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
@@ -364,7 +364,9 @@ After the 1.2.1 base scan (current project), system MUST check if the exploratio
    - For each project, execute `codegraph_files` for file structure, `codegraph_search` for symbol search, `codegraph_context` for context understanding
    - Limit scan depth: `maxDepth: 3`, `maxNodes: 20` to prevent excessive results
    - The sub-agent MUST NOT modify any files
-   - Apply a 120s budget for each project (budget exceeded → per-project WARN fallback to Glob/Grep)
+
+   - **⛔ EXIT GUARD**: the sub-agent MUST stop and return findings immediately after scanning all projects — MUST NOT enter plan mode / design mode / propose next steps / suggest implementation; the sub-agent is a scanner only, its sole output is the structured findings per project; the orchestrator alone owns flow advancement
+   - **MUST only query incrementally**: the sub-agent MUST limit scanning to what was NOT already covered by the 1.2.1 base scan; it MUST NOT re-derive information already available in the current project's exploration file   - Apply a 120s budget for each project (budget exceeded → per-project WARN fallback to Glob/Grep)
 
 3. **Per-project degradation (project granularity)**:
    - If one project's CodeGraph is not initialized, its scan fails, or it exceeds the 120s budget: **only that project** falls back to Glob/Grep with a WARN log — the other projects continue their scan normally

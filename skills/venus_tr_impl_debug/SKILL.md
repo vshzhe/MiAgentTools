@@ -1,15 +1,15 @@
 ---
 name: venus_tr_impl_debug
 description: "一站式调试工作流 reproduce→investigate root cause with CodeGraph and capability memory→change association→fix with mandatory regression test→compile check→synchronize proposal→verify；触发词\"调试 / debug / 修复 bug / bug 报告 / 复现 / 根因\"；NOT-for：新功能开发用 venus_tr_impl_feature、工作流编排用 venus_tr_impl_workflow"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(codegraph:*), Bash(tsc:*), Bash(mvn:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(tr_test_generate), Skill(spec_verify_proposal), Skill(tr_impl_review_proposal)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_verify_proposal), Skill(tr_impl_review_proposal)
 license: MIT
-compatibility: 依赖 venus CLI（spec 命令组）与 venus_spec_verify_proposal / venus_tr_impl_review_proposal / venus_tr_test_generate 技能；CodeGraph MCP 可选（不可用时降级 Glob/Grep）。
+compatibility: 依赖 venus CLI（spec 命令组）与 venus_spec_verify_proposal / venus_tr_impl_review_proposal 技能；CodeGraph MCP 可选（不可用时降级 Glob/Grep）。
 metadata:
   author: venus-agent-tools
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:c63a57fb34d445f4c1880ad90f6655304f0e3ee154f641186f176163122522c5"
+  generatedFingerprint: "sha256:b32996bda9f1a64201528807b8c6d6b4e5eef5f353616c4133eb1c31d6449602"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
@@ -348,20 +348,16 @@ Implement the fix following the venus_spec_apply skill's task execution norms.
 - Run the reproduction from Phase 1 and confirm it now passes
 - **回归测试验证口径（2.5）**：回归测试 MUST 覆盖该缺陷链路的**「异常节点 + 根因节点」**；仅覆盖触发节点而未覆盖根因节点时，验证不通过
 
-**编写动作委派（Regression Test Authoring Delegation）**
+**编写动作（内联实现，不再委派）**
 
-回归测试的**编写动作** MUST 委派 `venus_tr_test_generate` 技能执行，MUST NOT 在 debug 内另立一套测试编写规则：
+回归测试 MUST 由 debug 工作流**直接内联实现**，MUST NOT 委派 `venus_tr_test_generate` 或任何其他技能：
 
-- 委派时传入：测试层级与优先级、缺陷链路图（2.5 产出）作为**覆盖口径**
-- 委派动机：复用该技能的框架检测、既有测试风格对齐、BCDE 边界覆盖与反模式防护，使回归测试与项目其它测试**同源同风格**，而非每次临时重造
-- **委派不可用时的降级**：`venus_tr_test_generate` 未安装或调用失败时，降级为自行编写回归测试并记录 WARN；降级 MUST NOT 放松下列两条硬要求
-
-**两条硬要求（保留，不因委派而放松）**
-
-1. **覆盖口径**：回归测试 MUST 覆盖该缺陷链路的「异常节点 + 根因节点」——仅覆盖触发节点而未覆盖根因节点时，验证不通过（详见 2.5 与 Guardrails）
-2. **时序要求**：回归测试 MUST 修复前 FAIL、修复后 PASS
-
-委派完成后，本技能 MUST 自行校验上述两条仍然成立（委派产出不等于自动合规）。
+- **框架检测**：从项目构建文件检测测试框架（`pom.xml` → JUnit 4/5 + Mockito；`build.gradle` → JUnit 4/5 + Mockito；`package.json` → Vitest / Jest / Mocha），对齐既有测试风格（注解、断言、命名约定）——不另立新风格
+- **覆盖口径**（2.5 产出）：回归测试 MUST 覆盖缺陷链路的「异常节点 + 根因节点」——仅覆盖触发节点而未覆盖根因节点时，验证不通过
+- **BCDE 边界**：Boundary（极值、空集合）、Condition（null、缺失字段）、Default（默认值、未设置枚举）、Error（非法输入、异常抛出）
+- **反模式防护**：禁止无断言的永真测试、禁止 Thread.sleep() 等时序依赖、禁止测试间执行顺序依赖、外部依赖（DB/HTTP/文件 IO）MUST mock
+- **结构**：一个生产类对应一个测试类（`<ClassName>Test` Java / `<className>.test.<ext>` Node），每个测试方法覆盖一个逻辑场景，Arrange-Act-Assert 三段式
+- 委派动机（框架复用、风格对齐、BCDE、反模式）现由**内联规则直接覆盖**，无需经外部技能中转——避免委派链路断裂导致流程丢失
 
 ### 4.3 Debug Loop Confirmation (调试循环确认)
 

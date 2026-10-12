@@ -1,7 +1,7 @@
 ---
 name: venus_tr_impl_auto_workflow
 description: "One-stop automated workflow exploration→proposal→verification→auto-apply→auto-archive, L1-L5 user confirmation then full automation; triggers: 全自动工作流 / auto workflow / fully automated pipeline. Use when the user wants a fully automated pipeline without manual apply/archive steps. NOT for interactive guided workflow (use venus_tr_impl_workflow)."
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(mvn:*), Bash(gradle:*), Bash(ant:*), Bash(go:*), Bash(cargo:*), Bash(git:*), Bash(codegraph:*), Bash(ls:*), Bash(mv:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_verify_proposal), Skill(tr_impl_review_proposal), Skill(tr_docs_requirement_doc), Agent, Task
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(mvn:*), Bash(gradle:*), Bash(ant:*), Bash(go:*), Bash(cargo:*), Bash(git:*), Bash(ls:*), Bash(mv:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_verify_proposal), Skill(tr_impl_review_proposal), Skill(tr_docs_requirement_doc), Agent, Task
 license: MIT
 compatibility: 依赖 venus CLI（spec 命令组）与 spec 系列技能（venus_spec_apply / venus_spec_archive）；CLI 缺失时降级为 AI 内联生成。
 metadata:
@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:7a211b3b1cd998e7a6c2a11e641e973f2318c27d9ee6262ab74a382e29cd65dd"
+  generatedFingerprint: "sha256:12958e9fe7f8152833b5e9b988ad70e76adeacabccfe428fa3d1b42652a10699"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
@@ -313,7 +313,9 @@ After the 1.2.1 base scan (current project), system MUST check if the exploratio
    - Use the `Agent` tool to spawn a **single** sub-agent covering every other project with CodeGraph initialized — **MUST NOT spawn one sub-agent per project**
    - Sub-agent prompt: "Scan each of the following projects serially, in turn: <path-1>, <path-2>, ... For **each project separately**, call the codegraph tools (codegraph_files + codegraph_search + codegraph_context) with the `projectPath` parameter switched to that project's path. Limit scanning depth (maxDepth: 3, maxNodes: 20). Report findings in structured format, grouped per project."
    - **Sub-agent instructions**: The sub-agent MUST call the codegraph tools **per project**, switching the `projectPath` argument to each project's own path in turn (never one global path for all projects). The sub-agent MUST NOT modify any files.
-   - **Per-project degradation (project granularity)**: a project whose CodeGraph is not initialized (per step 1's check), or whose scan fails or times out (>120s), falls back to Glob/Grep + WARN **for that project only**; the remaining projects continue normally. **One project's failure MUST NOT affect any other project.**
+
+   - **⛔ EXIT GUARD**: the sub-agent MUST stop and return findings immediately after scanning all projects — MUST NOT enter plan mode / design mode / propose next steps / suggest implementation; the sub-agent is a scanner only, its sole output is the structured findings per project
+   - **MUST only query incrementally**: the sub-agent MUST limit scanning to what was NOT already covered by the 1.2.1 base scan; it MUST NOT re-derive information already available in the current project's exploration file   - **Per-project degradation (project granularity)**: a project whose CodeGraph is not initialized (per step 1's check), or whose scan fails or times out (>120s), falls back to Glob/Grep + WARN **for that project only**; the remaining projects continue normally. **One project's failure MUST NOT affect any other project.**
    - If a pending project path is the same as the current project, SHALL skip it (the 1.2.1 base scan already covers it)
    - If the runtime does not provide sub-agent capability, all projects fall back to Glob/Grep + WARN (the existing fallback semantics are preserved)
 
@@ -440,14 +442,14 @@ Before declaring exploration complete, verify:
 3. **FILE CHECK**: exploration.md has all sections populated? Write any missing sections
 
 4. **AUTO-PROCEED (MANDATORY — MUST NOT pause between phases)**:
-   - Announce: "## Exploration Complete ✓ — auto-proceeding to Phase 2"
-   - After the three checks above pass (no hard conflicts / L1-L5 all answered / file complete), **immediately execute Phase 2 in the SAME response without pausing, without waiting for any user prompt, and without asking "Ready to proceed?"**. The consistency passthrough means ZERO user interaction between Phase 1 and Phase 2 — the next tool calls you make MUST be the Phase 2 impact analysis and artifact generation steps.
+   - After the three checks above pass (no hard conflicts / L1-L5 all answered / file complete), **immediately execute Phase 2 steps (2.0 → 2.1 → 2.2 → 2.3) in the SAME response without pausing, without waiting for any user prompt, and without asking "Ready to proceed?"**. Do NOT output an announcement as a standalone message — the next tool calls you make MUST be Phase 2 impact analysis and artifact generation. The consistency passthrough means ZERO user interaction between phases.
+   - Only after Phase 2 artifact generation completes, mention "Exploration Complete ✓ — proposals generated" in the Phase 2 completion summary.
 
 ---
 
 ## Phase 2: Proposal
 
-**⚠️ AUTO-EXECUTE: This phase MUST begin immediately after Phase 1 completion without any pause. If you just completed Phase 1, you MUST now execute Phase 2 steps (2.0 → 2.1 → 2.2 → 2.3) in the same response. Do NOT end the response after the Phase 1 announcement — continue directly into Phase 2.**
+**⚠️ AUTO-EXECUTE: This phase begins immediately after Phase 1 completion — no pause, no announcement, no user prompt. If you just completed Phase 1, your next action MUST be Phase 2 step 2.0 (impact analysis). Do NOT output a separate "Exploration Complete" message — continue directly into Phase 2 tool calls. If you ended a response before this point, resume with Phase 2 immediately.**
 
 ### 2.0 Impact Analysis (Auto-Execute)
 

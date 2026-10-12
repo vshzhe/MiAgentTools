@@ -8,7 +8,7 @@ export function getTrDocsFeatureDocSkillTemplate(): SkillTemplate {
     return {
         name: 'venus_tr_docs_feature_doc',
         description: 'Scan a source project\'s feature modules and generate a feature requirement implementation document (feature map) covering frontend implementation, backend methods, field-level API contracts, database call chains, and cross-module interactions, driven by a framework profile (built-in Venus4A / Spring MVC / Struts or auto-detected with confirmation). Use when the user wants to scan feature modules of a source project, analyze feature implementation from code, build a project feature map (项目功能地图 / 功能地图), or generate a migration requirement document (迁移需求文档) for framework migration or refactoring. NOT for converting an OpenSpec change proposal into a review requirement document — that is venus_tr_docs_requirement_doc.',
-        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(codegraph:*), ${CODEGRAPH_MCP}`,
+        allowedTools: `Read, Write, Edit, Glob, Grep, ${CODEGRAPH_MCP}`,
         type: 'tr_docs',
         instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 

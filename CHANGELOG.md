@@ -185,6 +185,32 @@
 
 ## [Unreleased]
 
+## [1.18.0] - 2026-10-12
+
+### Changed
+
+- **多 Agent 模式四项优化**：对 explore / workflow / auto-workflow / debug / apply
+  五个流程模板统一实施四项改进，降低 token 消耗、消除委派链路断裂风险：
+  - **子代理退出守卫**（防 Plan 模式）：所有子代理派发指令末尾强制加入 EXIT GUARD，
+    完成分配任务后 MUST 立即停止返回回执，MUST NOT enter plan mode / design mode /
+    propose next steps；编排器是唯一有权判停与推进阶段的角色。
+  - **数据共享强制执行**：子代理 MUST FIRST 读共享上下文包再做增量查询，
+    MUST NOT 绕过包重读 proposal/specs/design 或重跑已覆盖的 CodeGraph 查询；
+    `tr-impl-debug.ts` 的调查摘要从可选提升为强制优先读。
+  - **测试内联实现**（裁 `venus_tr_test_generate` 委派）：apply 与 debug 中的
+    `[测试]` 任务不再委派外部技能，改为内联测试编写规则（框架检测 → 风格对齐 →
+    BCDE 边界覆盖 → 反模式防护），消除委派链路断裂导致流程丢失的风险。
+    `venus_tr_test_generate` 技能保留供独立手动调用。
+  - **allowedTools 同步修订**：`spec-apply.ts` 移除 `skillDelegation(['tr_test_generate'])`；
+    `tr-impl-debug.ts` 同步移除；测试回归锁更新。
+  - **移除 `Bash(codegraph:*)` 白名单误导**（10 个模板）：CodeGraph 仅有 MCP 工具形态，
+    不存在 CLI 命令；`Bash(codegraph:*)` 在 allowedTools 中的存在暗示 AI agent
+    可使用不存在的 Bash 命令，导致 MCP 工具异常时误回退到永远失败的 CLI 路径。
+    全数替换为已有的 `mcp__codegraph` MCP 双写覆盖；测试断言同步更新。
+  - **Auto-workflow 过渡指令防跳过**：Phase 1→Phase 2 的 "Announce then execute" 措辞
+    改为 "Execute first, announce later"，消除宣告作为响应自然终止点导致 Phase 2
+    被跳过的风险。skill 版与 command 版同步修订。
+
 ## [1.9.0] - 2026-09-30
 
 ### Added
@@ -751,7 +777,8 @@
 - 项目配置从单文件 `venus.config.yaml` 重构为 `.venus/` 目录结构
   （`config.yaml` 显式引用 `rules/` 下规则文件），重复 init 保留用户全部修改
 
-[Unreleased]: https://github.com/venus-agent-tools/compare/v1.17.0...HEAD
+[Unreleased]: https://github.com/venus-agent-tools/compare/v1.18.0...HEAD
+[1.18.0]: https://github.com/venus-agent-tools/compare/v1.17.0...v1.18.0
 [1.17.0]: https://github.com/venus-agent-tools/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/venus-agent-tools/compare/v1.15.0...v1.16.0
 [1.15.0]: https://github.com/venus-agent-tools/compare/v1.14.0...v1.15.0

@@ -349,20 +349,16 @@ Implement the fix following the venus_spec_apply skill's task execution norms.
 - Run the reproduction from Phase 1 and confirm it now passes
 - **回归测试验证口径（2.5）**：回归测试 MUST 覆盖该缺陷链路的**「异常节点 + 根因节点」**；仅覆盖触发节点而未覆盖根因节点时，验证不通过
 
-**编写动作委派（Regression Test Authoring Delegation）**
+**编写动作（内联实现，不再委派）**
 
-回归测试的**编写动作** MUST 委派 \`venus_tr_test_generate\` 技能执行，MUST NOT 在 debug 内另立一套测试编写规则：
+回归测试 MUST 由 debug 工作流**直接内联实现**，MUST NOT 委派 \`venus_tr_test_generate\` 或任何其他技能：
 
-- 委派时传入：测试层级与优先级、缺陷链路图（2.5 产出）作为**覆盖口径**
-- 委派动机：复用该技能的框架检测、既有测试风格对齐、BCDE 边界覆盖与反模式防护，使回归测试与项目其它测试**同源同风格**，而非每次临时重造
-- **委派不可用时的降级**：\`venus_tr_test_generate\` 未安装或调用失败时，降级为自行编写回归测试并记录 WARN；降级 MUST NOT 放松下列两条硬要求
-
-**两条硬要求（保留，不因委派而放松）**
-
-1. **覆盖口径**：回归测试 MUST 覆盖该缺陷链路的「异常节点 + 根因节点」——仅覆盖触发节点而未覆盖根因节点时，验证不通过（详见 2.5 与 Guardrails）
-2. **时序要求**：回归测试 MUST 修复前 FAIL、修复后 PASS
-
-委派完成后，本技能 MUST 自行校验上述两条仍然成立（委派产出不等于自动合规）。
+- **框架检测**：从项目构建文件检测测试框架（\`pom.xml\` → JUnit 4/5 + Mockito；\`build.gradle\` → JUnit 4/5 + Mockito；\`package.json\` → Vitest / Jest / Mocha），对齐既有测试风格（注解、断言、命名约定）——不另立新风格
+- **覆盖口径**（2.5 产出）：回归测试 MUST 覆盖缺陷链路的「异常节点 + 根因节点」——仅覆盖触发节点而未覆盖根因节点时，验证不通过
+- **BCDE 边界**：Boundary（极值、空集合）、Condition（null、缺失字段）、Default（默认值、未设置枚举）、Error（非法输入、异常抛出）
+- **反模式防护**：禁止无断言的永真测试、禁止 Thread.sleep() 等时序依赖、禁止测试间执行顺序依赖、外部依赖（DB/HTTP/文件 IO）MUST mock
+- **结构**：一个生产类对应一个测试类（\`<ClassName>Test\` Java / \`<className>.test.<ext>\` Node），每个测试方法覆盖一个逻辑场景，Arrange-Act-Assert 三段式
+- 委派动机（框架复用、风格对齐、BCDE、反模式）现由**内联规则直接覆盖**，无需经外部技能中转——避免委派链路断裂导致流程丢失
 
 ### 4.3 Debug Loop Confirmation (调试循环确认)
 
@@ -583,10 +579,10 @@ Ready for \`/venus:spec-apply\` (fixes already applied) or archive.
 - **Independent change separation**: when user declares a bug needs a separate change, finalize current change and prompt separate debug
 - **Use \`path.join()\`** for all file paths (cross-platform: macOS/Linux/Windows)
 - **Terminology in real time**: resolved terms go to CONTEXT.md immediately during investigation`,
-        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(codegraph:*), Bash(tsc:*), Bash(mvn:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), ${CODEGRAPH_MCP}, ${skillDelegation(['tr_test_generate', 'spec_verify_proposal', 'tr_impl_review_proposal'])}`,
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), ${CODEGRAPH_MCP}, ${skillDelegation(["spec_verify_proposal", "tr_impl_review_proposal"])}`,
         type: 'tr_impl',
         license: 'MIT',
-        compatibility: '依赖 venus CLI（spec 命令组）与 venus_spec_verify_proposal / venus_tr_impl_review_proposal / venus_tr_test_generate 技能；CodeGraph MCP 可选（不可用时降级 Glob/Grep）。',
+        compatibility: '依赖 venus CLI（spec 命令组）与 venus_spec_verify_proposal / venus_tr_impl_review_proposal 技能；CodeGraph MCP 可选（不可用时降级 Glob/Grep）。',
         metadata: { author: 'venus-agent-tools', version: '1.0' },
         references: [
             { path: 'references/prompt-gate.md', content: PROMPT_GATE_BUG_FULL },
@@ -702,11 +698,13 @@ After each fix, ask: "还有相关 bug 需要修复吗？" [有] [没有]
 - Reproduce first (every bug in loop); zero-assumption on root causes; archives read-only
 - MUST produce the fault chain diagram (2.5 在根因确认门通过后强制产出诊断记录 \`## 功能流程（缺陷链路）\` 段；节点只覆盖前置条件 → 触发 → 异常 → 根因，异常节点标 \`🔴异常\`、根因节点标 \`🟠根因\`，MUST NOT 展开被测功能完整业务流程)；确认门四出口不得死锁
 - Fix and regression test MUST cover the exception and root cause nodes of the confirmed fault chain (仅覆盖触发节点时验证不通过)
-- Regression test mandatory (every bug in loop); its authoring MUST be delegated to venus_tr_test_generate (degrade to self-authored + WARN only when unavailable); delegation MUST NOT relax the 「异常节点 + 根因节点」 coverage basis or the fail-before / pass-after requirement; proposal sync mandatory (all fixes); verification never skipped
+- Regression test mandatory (every bug in loop); its authoring MUST be implemented inline following the inline test generation rules (framework detection → style alignment → BCDE coverage → anti-pattern protection); MUST NOT be delegated to an external skill; delegation MUST NOT relax the 「异常节点 + 根因节点」 coverage basis or the fail-before / pass-after requirement; proposal sync mandatory (all fixes); verification never skipped
 - 分级按范围而非按便利（2.2.3.5）：信号取值 MUST 可追溯实测结果，MUST NOT 编造"半径小"走轻量路径；信号缺失或阈值边界 MUST 取深度路径；CodeGraph 不可用时分级仍生效并标注「信号降级」
 - 分级与 2.5 缺陷链路图解耦：轻量路径同样**强制产出**缺陷链路图并经确认门，MUST NOT 豁免；升级兜底是 2.2.4 的**触发条件**，MUST NOT 新建独立章节或编号
 - 需求文档禁用（Phase 7）：MUST NOT 生成、MUST NOT 就地增量对齐、MUST NOT 调 \`venus_tr_docs_requirement_doc\`；需求文档现由验证阶段生成（workflow / auto-workflow / genfull），归档阶段负责对齐（\`venus_spec_archive\` 步骤 4.8）
 - Loop non-defect non-blocking; loop exit preserves completed work; independent change → finalize + prompt separate debug (\`/venus:tr-impl-debug\`)
+- **MUST NOT enter plan mode after completing**: 各 Phase 完成后 MUST NOT enter plan mode / design mode / propose next steps；流程推进由 TodoWrite 跟踪的显式阶段转换控制，MUST NOT 自动跳转
+- **MUST read investigation-digest first**: 重入 Phase 2 时 MUST FIRST read the investigation-digest（2.1.5），仅执行增量查询（incremental queries only），MUST NOT 重跑已覆盖的 CodeGraph 区域——此为数据共享强制执行，非可选优化
 - Use \`path.join()\` for file paths (cross-platform)`,
     };
 }

@@ -433,7 +433,7 @@ export function resolveActiveTools(
     allTools: AIToolOption[]
 ): AIToolOption[] {
     const raw: string[] = cliTools
-        ? cliTools.split(',').map((t) => t.trim())
+        ? cliTools.split(/[,\s]+/).filter((t) => t.length > 0)
         : configTools && configTools.length > 0
             ? configTools
             : allTools.map((t) => t.value);

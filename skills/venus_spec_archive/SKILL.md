@@ -1,7 +1,7 @@
 ---
 name: venus_spec_archive
 description: 归档变更。当用户要归档已实现完成的变更、结束变更工作流时使用。
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*), Bash(ls:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(tr_docs_requirement_doc)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(ls:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(tr_docs_requirement_doc)
 license: MIT
 compatibility: 依赖 venus CLI（spec 命令组）与 CodeGraph CLI（可选）。
 metadata:
@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:08a5f32096d5c96ccf61e1e67eaf75161a467b499d962d84b08c8a0d5c5b9ec7"
+  generatedFingerprint: "sha256:d09f4715c43bdc4bfb233121ae96bdc192cd930e04cca898e7c74209f7b6fa0a"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。

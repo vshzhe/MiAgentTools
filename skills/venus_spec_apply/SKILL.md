@@ -1,7 +1,7 @@
 ---
 name: venus_spec_apply
 description: 实现变更。当 openspec/changes/ 下已有变更制品（proposal/specs/design/tasks），需要基于规格驱动实现任务清单时使用；用户直接描述需求而无变更制品时，应使用 venus_tr_impl_feature 直接实现。
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(ant:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), Skill(tr_test_generate), Agent, Task
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(ant:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), Agent, Task
 license: MIT
 compatibility: 依赖 venus CLI（spec 命令组）。
 metadata:
@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:280845ed3dc28dfd1e3849af01303ce78383a4f06decf9607c81f11ced165264"
+  generatedFingerprint: "sha256:a3f7f933a9e3ee13c239a9e5c9e42cfda7eada711a00ef0d6819207d113888dc"
 ---
 
 **Before implementing, read openspec/rules/ai-coding.md for AI coding guardrails.** Never guess database fields, API params, or business rules — mark as **[待确认]** and ask the user.
@@ -214,13 +214,14 @@ After completing a batch of tasks, update tasks.json then re-render tasks.md:
    3. **Pre-dispatch overlap check (cross-unit fallback)**: inspect the target files of the batch's tasks across dispatch units (from task descriptions, Spec Ref, and `产出:` declarations); tasks in different units that would modify the same file MUST be split out of the concurrent group and executed serially — tasks within one unit are implemented serially by the same sub-agent, so same-group files are never edited concurrently
    4. **Concurrent dispatch — one sub-agent per dispatch unit**: dispatch one sub-agent per remaining dispatch unit (Agent/Task tool); the unit's tasks are implemented by that sub-agent serially in task order; the number of simultaneously running sub-agents (dispatch units) within the batch MUST NOT exceed the concurrency limit; use sliding-window dispatch — as soon as one sub-agent finishes, immediately dispatch the next pending dispatch unit of the same batch
    5. **Sub-agent dispatch instruction MUST contain** (the shared instruction prefix first, then the unit-specific difference):
-      - The context pack path — the sub-agent's ONLY required artifact (the pack lives in the flow-scoped temp workspace)
+      - The context pack path — the sub-agent's ONLY required artifact (the pack lives in the flow-scoped temp workspace)；**MUST FIRST read the pack before any other action** — the pack carries the distilled contract / summary / file-ownership table so the sub-agent MUST NOT re-derive that information by re-reading proposal/specs/design or re-running CodeGraph queries already covered by the pack
       - A reference to the pack's `## 规范要点` section for the AI coding guardrails (never guess DB fields, API params, or business rules — mark **[待确认]**) — the instruction MUST NOT inline the full guardrail summary
       - The receipt format and the prohibition list (see the shared resource protocol below)
       - The dispatch unit's task list in order, with each task's full details (description, requirements, Spec Ref), and the instruction to implement the unit's tasks serially in that order — the task details MUST stay inline in the instruction so the sub-agent needs NO read of tasks.md
       - The source-file list relevant to the tasks — the change's artifact files (proposal/specs/design) are covered by the pack and MUST NOT be listed for re-reading
       - The temp workspace path, with the constraint: sub-agents ONLY write files into the workspace — they MUST NOT delete the workspace and MUST NOT run their own per-task temp directory creation/cleanup cycles
       - An explicit prohibition: **禁止修改 tasks.md** — the sub-agent MUST NOT edit task checkboxes
+      - **⛔ EXIT GUARD (MANDATORY — 子代理退出守卫)**: 完成本单元分配的全部任务后 MUST **立即停止并提交回执**给编排器；MUST NOT enter plan mode / design mode / propose next steps / continue beyond the assigned task scope / suggest archiving or verification steps；唯一职责 = 实现本单元分配的任务清单、产出回执的四个字段并返回；编排器是唯一有权判停、汇总、推进阶段的角色——子代理 MUST NOT 越权替代编排器做阶段收尾决策
    6. **After the whole batch returns**: verify each sub-agent's result against the task requirements → update tasks.md centrally yourself (`- [ ]` → `- [x]`, only for confirmed-complete tasks) → append the batch's produced files and public signatures to the pack's `## 已产出（跨单元可见）` section → proceed to the next batch
    7. **Failed task**: retry the failed task serially yourself once → if the retry fails again, pause and report to the user (leave the task unchecked `- [ ]`)
 
@@ -254,11 +255,14 @@ After completing a batch of tasks, update tasks.json then re-render tasks.md:
    - Follow normal implementation flow
 
    **Test Code** (tasks with `[测试]` label):
-   - **Delegate to the `venus_tr_test_generate` skill** (pass the task's test level and priority, plus the scenario/spec reference) — do NOT implement a separate set of test-writing rules inside apply
-   - Landing location is decided by the test-generation skill following the project's test directory structure (e.g. `src/test/java/...`, `test/...`) — `[测试]` tasks MUST NOT be routed through the `产出:` → `attachments/` rule, because test code placed under `attachments/` cannot be executed
-   - `[测试]` tasks MUST NOT be treated as supplement documents
-   - Test tasks depend on their implementation tasks: when a test task's subject behavior is implemented by another task, schedule the test task in a later batch — MUST NOT run it concurrently with its implementation task
-
+       - **MUST implement inline** (NO delegation to an external skill) — the apply workflow directly owns test generation and MUST NOT delegate to `venus_tr_test_generate` or any other skill；the entire test-writing logic runs inside the same sub-agent that implements the corresponding production code
+       - **Framework detection**: detect the project’s test framework from build files (`pom.xml` → JUnit 4/5 + Mockito；`build.gradle` → JUnit 4/5 + Mockito；`package.json` → Vitest / Jest / Mocha) and structural cues (existing test files under `src/test/` or `test/`)；align with the EXISTING test style (annotations, assertions, naming conventions) — do NOT invent a new style
+       - **Coverage scope** (minimum): ① spec scenarios — write one test per `#### Scenario:` referenced in the task’s `Spec Ref`；② BCDE boundaries — Boundary (min/max values, empty collections), Condition (null inputs, missing fields), Default (default-constructed objects, unset enums), Error (invalid inputs, exceptions thrown)；③ if any scenario is evaluated as untestable, record the verdict in the test file as a comment so “not written” stays distinguishable from “never evaluated”
+       - **Test structure**: one test class per production class under test, named `<ClassName>Test` (Java) or `<className>.test.<ext>` (Node)；each test method covers ONE logical scenario with an `@Test` (JUnit) / `it(...)` (Vitest/Jest/Mocha) annotation；use the Arrange-Act-Assert (AAA) pattern
+       - **Anti-pattern protection**: MUST NOT write tests that always pass (no assertions)、MUST NOT use `Thread.sleep()` for async (use `await` / `CompletableFuture`)、MUST NOT depend on test execution order (each test isolated)、MUST mock external dependencies (DB / HTTP / file I/O) with the framework’s mock library
+       - Landing location follows the project’s test directory structure (e.g. `src/test/java/...`, `test/...`) — `[测试]` tasks MUST NOT be routed through the `产出:` → `attachments/` rule, because test code placed under `attachments/` cannot be executed
+       - `[测试]` tasks MUST NOT be treated as supplement documents
+       - Test tasks depend on their implementation tasks: when a test task’s subject behavior is implemented by another task, schedule the test task in a later batch — MUST NOT run it concurrently with its implementation task
    **Supplement Documents** (tasks with `[DB脚本]`, `[使用说明]`, `[API文档]`, `[配置示例]`, `[部署说明]`, `[测试数据]` labels):
    - Read the `产出:` field from the task to determine the output path
    - Default path: `<changeRoot>/attachments/<filename>`
@@ -531,7 +535,10 @@ What would you like to do?
 - Read artifact files directly from the change directory — don't assume specific file names beyond the standard set
 - ⚠️ **MANDATORY**: Execute Step 8 Compile Check after all tasks complete
 - ⚠️ **MANDATORY**: Execute Step 9 Test Execution Gate after the compile check — scope limited to the change (in-scope failures block; pre-existing out-of-scope failures are WARN only and MUST NOT block)
-- ⚠️ **MANDATORY**: `[测试]` tasks MUST be delegated to `venus_tr_test_generate` and MUST NOT be routed through the supplement-document `产出:` → `attachments/` rule (test code under attachments/ cannot run)
+- ⚠️ **MANDATORY**: `[测试]` tasks MUST be implemented inline following the test generation rules (framework detection → style alignment → BCDE coverage → anti-pattern protection); MUST NOT be delegated to an external skill and MUST NOT be routed through the supplement-document `产出:` → `attachments/` rule (test code under attachments/ cannot run)
+
+- ⚠️ **MANDATORY**: Sub-agent dispatch instruction MUST carry the EXIT GUARD (子代理退出守卫) — 完成分配任务后立即停止并返回回执，MUST NOT enter plan mode / design mode / propose next steps；编排器是唯一有权判停和推进阶段的角色
+- ⚠️ **MANDATORY**: Sub-agent MUST FIRST read the context pack before any other action — MUST NOT re-read proposal/specs/design or re-run CodeGraph queries already covered by the pack；仅做增量查询
 - ⚠️ **MANDATORY**: Parse compile errors and offer fix options before suggesting archive
 
 **Fluid Workflow Integration**

@@ -1,7 +1,7 @@
 ---
 name: venus_spec_explore
 description: 进入探索模式。当用户想要在变更前或变更中思考问题、调研代码库、明确需求时使用。
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore
 license: MIT
 compatibility: 依赖 venus CLI（spec 命令组）与 CodeGraph MCP（不可用时回退 Glob/Grep）。
 metadata:
@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:a5e6e9233dae70efc8f1e7bc99caa0de01cff5d8a9da027b24684c11cd364c4b"
+  generatedFingerprint: "sha256:c389f946fd9d620a766b1eb23818741e92ce598c48f17eef9515964fb66f1654"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
@@ -395,6 +395,8 @@ But this summary is optional. Sometimes the thinking IS the value.
 - **Write confirmation is scoped and explicit** - When offering to save findings or update OpenSpec artifacts, confirmation scope is limited to the specifically named file(s). Blanket "yes to all" authorization is never accepted. Answering design questions (discussing approaches, clarifying requirements, explaining terminology) does NOT constitute consent to write operations — each write requires an independent yes/no confirmation.
 - **Re-read files from disk** - Files the user may have edited during the session (CONTEXT.md, exploration.md, change artifacts such as proposal/design/specs/tasks) MUST be re-read from disk before each use. Never rely on session-cached content.
 - **Surface material ambiguities** - Ambiguities affecting scope, behavioral contracts, backward compatibility, or acceptance criteria MUST be surfaced to the user as **[待确认]** questions. Non-material detail-level ambiguities may be resolved with reasonable assumptions, documented alongside the assumption.
+- **Do enforce exit discipline** - 探索结束后 MUST NOT auto-enter plan mode / propose mode / design mode；仅在用户显式要求时进入下一阶段；explore 的立场是思考伙伴，流程推进由用户驱动
+- **Do enforce data sharing for any sub-agent scan** - 如果探索中派发了 CodeGraph 多项目扫描子代理，子代理扫描指令 MUST 包含退出守卫（完成扫描即停止返回结果，MUST NOT enter plan mode）
 - **Do validate the prompt before diving in** - 输入含糊或多义时先过提示词校验门（Step 1-5）：优化后 MUST 等用户确认或修改才继续；清晰输入一句话复述理解后直通（不输出校验表、不要求确认）；变更名输入以该变更既有制品为校验对象；无输入则跳过本门。上游已产出提示词基线时直接通过，不重复确认
 - **Don't deadlock on the prompt gate** - 确认门有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续），不得反复要求确认
 - **Do produce the flowchart when a flow emerges** - 探索浮现明确的业务功能流程时产出 `## 功能流程图` 段（Mermaid `flowchart TD` + 节点清单表）并执行流程最终确认门；节点粒度 = 可独立验证的业务操作单元，每节点 MUST 含证据位置（`文件:行` 或类.方法；新建功能标 `[新建]` + 预期产物），无法追溯证据的节点 MUST NOT 进入清单

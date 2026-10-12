@@ -69,7 +69,7 @@ describe('allowed-tools 白名单覆盖', () => {
         const tools = debug?.template.allowedTools ?? '';
         expect(tools).toContain('Bash(pnpm:');
         expect(tools).toContain('Bash(git:');
-        expect(tools).toContain('Bash(codegraph:');
+        expect(tools).toContain('mcp__codegraph');
     });
 
     it('生成的 SKILL.md 中 allowed-tools 与模板一致', async () => {
@@ -89,7 +89,7 @@ describe('allowed-tools 白名单覆盖', () => {
         for (const name of names) {
             const skill = skills.find((s) => s.template.name === name);
             expect(skill?.template.allowedTools.length).toBeGreaterThan(0);
-            expect(skill?.template.allowedTools).toContain('Bash(codegraph:*)');
+            expect(skill?.template.allowedTools).toContain('mcp__codegraph');
         }
     });
 
@@ -254,9 +254,9 @@ describe('调用类白名单条目（MCP / Skill 委派 / 子代理派发）', (
         ).toBe(entries.includes('Task'));
     }
 
-    it('正文用 CodeGraph 或白名单含 Bash(codegraph:*) 的技能，均含裸服务器与 9 个具名工具', () => {
+    it('正文用 CodeGraph 或白名单含 MCP CodeGraph 条目的技能，均含裸服务器与 9 个具名工具', () => {
         const derived = skills.filter(
-            ({ template }) => /codegraph_/.test(template.instructions) || template.allowedTools.includes('Bash(codegraph:')
+            ({ template }) => /codegraph_/.test(template.instructions) || parseEntries(template.allowedTools).includes('mcp__codegraph')
         );
         // 判据自检：命中数不得为 0，否则断言静默空转
         // 11 = 既有 10 项 + tr-init-project（其正文新增扫描步骤后提及 codegraph 工具名）
@@ -291,7 +291,6 @@ describe('调用类白名单条目（MCP / Skill 委派 / 子代理派发）', (
         );
         // 委派技能集合（回归锁）：白名单声明委派即意味着该技能正文存在委派动作
         expect(delegating.map((s) => s.commandId).sort()).toEqual([
-            'spec-apply',
             'spec-archive',
             'spec-bulk-archive',
             'spec-propose',

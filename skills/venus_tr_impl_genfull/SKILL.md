@@ -1,7 +1,7 @@
 ---
 name: venus_tr_impl_genfull
 description: "Guided full-pipeline orchestrator: explore→[frontend-design]→propose(+verify)→deep-review→apply(+conditional frontend-impl/test)→archive (which aligns the requirement document), delegating stage SKILLs with bridge gates between stages to ensure each process completeness. Frontend design (Phase 1) is front-loaded to proposal stage; frontend impl (Phase 2) stays in apply. Triggers: 全流程编排 / genfull / 引导式全流程 / coupled stage workflow. Use when the user wants a guided end-to-end pipeline through archive with per-stage confirmation bridges (coupling explore/frontend/propose/apply/test/archive SKILLs). NOT for inline single-SKILL workflow (use venus_tr_impl_workflow), fully-automated no-gate pipeline (use venus_tr_impl_auto_workflow), or debugging (use venus_tr_impl_debug)."
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_explore), Skill(tr_impl_frontend), Skill(spec_propose), Skill(tr_impl_review_proposal), Skill(tr_docs_requirement_doc), Skill(spec_apply), Skill(tr_test_generate), Skill(spec_archive)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_explore), Skill(tr_impl_frontend), Skill(spec_propose), Skill(tr_impl_review_proposal), Skill(tr_docs_requirement_doc), Skill(spec_apply), Skill(tr_test_generate), Skill(spec_archive)
 license: MIT
 compatibility: 依赖 venus CLI（spec 命令组）与阶段技能（venus_spec_explore/propose/apply/archive + venus_tr_impl_review_proposal + venus_tr_impl_frontend + venus_tr_test_generate）；需求文档技能由验证阶段和归档阶段调用（经 spec-archive 的依赖注入与会话级权限放行），本技能 Stage 2.3 直接调用；CLI 缺失时各阶段技能各自降级。
 metadata:
@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:4d9ee183aae7b2ea8918120bc8f1849ae1f36c5308a653546e33fea889068294"
+  generatedFingerprint: "sha256:3265063d31d7b6b8df4cf93af08a99e874f0d09a5211dfebd85a81bae19da395"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。

@@ -332,7 +332,7 @@ Stage 1 探索 → Bridge 1 → [Stage 1.5 前端设计（条件）] → Stage 2
 - **Do show quantified scores** - verify 评分展示
 - **Don't lose exploration** - 文件持久化
 - Build all paths with \`path.join()\``,
-        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), ${CODEGRAPH_MCP}, ${skillDelegation(['spec_explore', 'tr_impl_frontend', 'spec_propose', 'tr_impl_review_proposal', 'tr_docs_requirement_doc', 'spec_apply', 'tr_test_generate', 'spec_archive'])}`,
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), ${CODEGRAPH_MCP}, ${skillDelegation(['spec_explore', 'tr_impl_frontend', 'spec_propose', 'tr_impl_review_proposal', 'tr_docs_requirement_doc', 'spec_apply', 'tr_test_generate', 'spec_archive'])}`,
         type: 'tr_impl',
         license: 'MIT',
         compatibility: '依赖 venus CLI（spec 命令组）与阶段技能（venus_spec_explore/propose/apply/archive + venus_tr_impl_review_proposal + venus_tr_impl_frontend + venus_tr_test_generate）；需求文档技能由验证阶段和归档阶段调用（经 spec-archive 的依赖注入与会话级权限放行），本技能 Stage 2.3 直接调用；CLI 缺失时各阶段技能各自降级。',
@@ -409,6 +409,7 @@ via Skill tool 传 change-name（跳过选择）。archive 内部完成 delta sp
 
 ## Guardrails
 
+- **Do enforce exit guard on stage delegation** - 每个 Stage 委派的子代理（Skill tool 调用）完成后 MUST NOT auto-enter plan mode / design mode / propose next steps；genfull 编排器是唯一有权判定 Stage 完成并推进下一 Stage 的角色；子代理 MUST 只执行被委派 Stage 的职责，MUST NOT 越权替代编排器做桥接或阶段收尾决策
 委派不内联（阶段执行委派对应 SKILL，genfull 只编排 + 桥梁，区别于 venus_tr_impl_workflow）；MUST validate prompt before delegating（0.0 提示词校验门，清晰直通 / 不明确须优化并确认，未确认不委派 Stage 1）且幂等（检测到既有提示词基线直接通过，不重复确认）；确认门四条出口不得死锁；桥梁保证完整性（①上下文交接 ②就绪检查 ③完整性校验 ④门决策）；引导式门控（Bridge 1/2/3 暂停确认，frontend 设计/实现确认门与 test 确认门作桥梁点）；前端设计前置（Stage 1.5 仅设计喂入 propose design.md，Stage 3.2 仅实现读 references 生成 JSP，设计与实现分离）；don't skip questioning（grill L1-L5 由 explore 承载）；read-only operations（文件 / CodeGraph / impact）直接执行但桥梁确认门等待确认；auto-mode to apply（Stage 3 传 auto-mode=true，Bridge 2 承载确认避免 Step 5.5 重复）；pass change-name to archive；do converge after verify PASS（深度复查收束后生成需求文档，非交互调用 venus_tr_docs_requirement_doc，失败非阻断 WARN；Stage 4 归档阶段对已存在的需求文档做就地增量对齐保人工域）；impact analysis at Bridge 1（explore 只准备符号，Bridge 1 补跑 codegraph_impact）；exploration.md fallback（缺失补建最小版，verify 硬依赖）；do flowchart fallback（Bridge 1 ①.1 缺失 \`## 功能流程图\` 段时依 Decisions / 边界场景 / Codebase Findings 强制补建并随门决策确认流程基准，确认前不进入 Stage 1.5 / Stage 2）；do flowchart idempotency（已含经用户确认的 \`## 功能流程图\` 段时直接通过，不重复产出或再次要求确认）；actionContext.mode detection（workspace-planning 降级）；MUST preserve source on migration failure；do explore codebase before asking；do show quantified scores；don't lose exploration。Build all paths with \`path.join()\`.`,
     };
 }

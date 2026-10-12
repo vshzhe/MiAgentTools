@@ -1,7 +1,7 @@
 ---
 name: venus_tr_docs_feature_doc
 description: Scan a source project's feature modules and generate a feature requirement implementation document (feature map) covering frontend implementation, backend methods, field-level API contracts, database call chains, and cross-module interactions, driven by a framework profile (built-in Venus4A / Spring MVC / Struts or auto-detected with confirmation). Use when the user wants to scan feature modules of a source project, analyze feature implementation from code, build a project feature map (项目功能地图 / 功能地图), or generate a migration requirement document (迁移需求文档) for framework migration or refactoring. NOT for converting an OpenSpec change proposal into a review requirement document — that is venus_tr_docs_requirement_doc.
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore
+allowed-tools: Read, Write, Edit, Glob, Grep, mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore
 license: MIT
 compatibility: CodeGraph MCP 可选；无索引时自动降级为 Glob/Grep/Read 手动扫描。
 metadata:
@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: tr_docs
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:d7a8961b1860fab1dce5433174161cd252c158a7ab8a4aa53405c5f8bc5bb74c"
+  generatedFingerprint: "sha256:399ff093658a79e69e16fdc990d68a226cfe7e509de43a3feba7417b32927eda"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。

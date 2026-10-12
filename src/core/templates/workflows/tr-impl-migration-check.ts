@@ -12,7 +12,7 @@ export function getTrImplMigrationCheckSkillTemplate(): SkillTemplate {
     return {
         name: 'venus_tr_impl_migration_check',
         description: 'Check functional consistency after migrating a source project to a target project — identify lost functionality, inconsistent implementations, and framework-difference issues across backend layers (Controller/Service/DAO), frontend pages, SQL statements, and database schema. Use when the user wants a migration check, a function comparison between two projects, migration verification after code migration, or a framework-upgrade consistency check. Supports standalone interactive mode and non-interactive invocation from the auto-migration workflow.',
-        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(codegraph:*), ${CODEGRAPH_MCP}`,
+        allowedTools: `Read, Write, Edit, Glob, Grep, ${CODEGRAPH_MCP}`,
         type: 'tr_impl',
         instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 

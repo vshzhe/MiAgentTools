@@ -110,6 +110,16 @@ function renderClearCriterion(dimensions: PromptDimension[]): string {
     return `${blocking.join(' / ')} 均无 \`❌\` 与实质 \`⚠️\``;
 }
 
+/** 门控协议导言：告知 AI Agent 在遇到 ⛔ GATE 标记时必须停止响应的行为契约。
+ * 所有含确认门的技能模板应在正文开头引入此段，以建立"门控 = 硬停止"的行为基线。 */
+export const GATE_PROTOCOL_PREAMBLE = `## ⛔ GATE PROTOCOL — ACTIVE
+
+This skill contains **CONFIRMATION GATES** marked with **⛔ GATE:**. Each gate is a HARD STOP:
+- When you reach a ⛔ GATE, **YOUR RESPONSE ENDS THERE** — output the gate content, then STOP
+- Do NOT execute, describe, or pre-generate steps beyond the gate
+- The user\'s next message is the confirmation signal — resume from AFTER the gate only when they respond
+- **VIOLATION**: executing beyond a gate without user confirmation is a critical error that corrupts the workflow`;
+
 /**
  * 渲染完整提示词校验门文本（Step 1-5 + 入口形态适配）。
  *
@@ -126,7 +136,7 @@ ${renderDimensionTable(dimensions)}
 **Step 2 — 分级判定**
 
 - **清晰**（${renderClearCriterion(dimensions)}）→ 用一句话复述你的理解，然后**直接进入探索**；不输出校验表格、不要求用户确认
-- **不明确**（任一维 \`❌\` 或存在实质 \`⚠️\`）→ 执行 Step 3，并**阻塞等待确认**
+- **不明确**（任一维 \`❌\` 或存在实质 \`⚠️\`）→ 执行 Step 3，并在 Step 4 **强制停止等待确认**
 - **软不明确**（仅细节级歧义，不涉及范围 / 行为契约 / 验收标准）→ 记为 \`[假设]\` 并继续，不进入 Step 3
 
 **Step 3 — 提示词优化**（仅不明确分支）
@@ -136,9 +146,11 @@ ${renderDimensionTable(dimensions)}
 - 输出两部分：\`【优化后提示词】\`（目标 / 对象 / 范围 / 约束 / 验收 / 已知歧义）+ \`【优化说明】\`（改了哪里、为什么）
 - 列出仍需用户补充的信息项
 
-**Step 4 — 确认门（阻塞）**
+**Step 4 — ⛔ GATE: 确认门（强制停止）**
 
-- 呈现 \`【优化后提示词】\` 与 \`【优化说明】\` 后**停下来等待用户确认或修改**
+> **THIS IS A CONFIRMATION GATE. Your response MUST END here. Do NOT continue to any subsequent steps.**
+
+- 呈现 \`【优化后提示词】\` 与 \`【优化说明】\` 后**立即结束本次响应**
 - 用户确认前 MUST NOT 进入探索、创建探索文件、扫描代码库或发起追问
 - 出口有四条，不得只认一条：① 用户确认 → 以优化版为基线；② 用户修改 → 以修改版为基线；③ 用户拒绝优化 → 记录原始提示词，按其原有理解继续；④ 用户显式授权按推断继续（如"你按你的判断来"）→ 将推断项标 \`[推断]\` 记入基线后继续。**MUST NOT 反复要求确认而陷入等待死循环。**
 
@@ -164,7 +176,7 @@ export function buildPromptGateCompact(dimensions: PromptDimension[]): string {
     const dimensionNames = dimensions.map((d) => d.name).join(' / ');
     return `**Prompt Validation Gate (提示词校验门)**: 探索前强制自检用户输入，维度为 ${dimensionNames}。
 - **清晰**（${renderClearCriterion(dimensions)}）→ 一句话复述理解后直通，不输出校验表、不要求确认
-- **不明确**（任一维 \`❌\` 或实质 \`⚠️\`）→ 先做提示词优化，输出 \`【优化后提示词】\`（推断项标 \`[推断]\`、未知项标 \`[待确认]\`）与 \`【优化说明】\`，**阻塞等待用户确认或修改**后才继续；出口有四条：确认 / 修改 / 拒绝（按原理解继续）/ 显式授权按推断（推断项记入基线后继续），**不得陷入等待死循环**
+- **不明确**（任一维 \`❌\` 或实质 \`⚠️\`）→ 先做提示词优化，输出 \`【优化后提示词】\`（推断项标 \`[推断]\`、未知项标 \`[待确认]\`）与 \`【优化说明】\`，**⛔ GATE: 立即结束本次响应并等待用户确认或修改**（本次响应到此结束，收到用户响应后继续；出口：确认 / 修改 / 拒绝 / 显式授权按推断），**不得陷入等待死循环**
 - **软不明确**（仅细节级歧义）→ 记 \`[假设]\` 继续
 - 优化**不篡改原始意图**、不增加用户未提出的需求
 - 校验结论与基线写入探索产物 \`## 提示词基线\` 段，作为下游唯一语义来源

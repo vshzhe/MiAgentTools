@@ -9,7 +9,7 @@ export function getSpecBulkArchiveSkillTemplate(): SkillTemplate {
     return {
         name: 'venus_spec_bulk_archive',
         description: '批量归档变更。当用户要一次归档多个已完成变更时使用。',
-        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*), ${CODEGRAPH_MCP}, ${skillDelegation(['tr_docs_requirement_doc'])}, ${SUBAGENT_DISPATCH}`,
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), ${CODEGRAPH_MCP}, ${skillDelegation(['tr_docs_requirement_doc'])}, ${SUBAGENT_DISPATCH}`,
         type: 'spec',
         instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 

@@ -3,6 +3,7 @@
  * 编排层技能 —— 一站式自动迁移源项目功能到目标项目（四阶段编排）。
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
+import { GATE_PROTOCOL_PREAMBLE } from '../prompt-gate.js';
 import { CODEGRAPH_MCP, SUBAGENT_DISPATCH, skillDelegation } from '../tool-whitelist.js';
 
 export function getTrImplAutoMigrationSkillTemplate(): SkillTemplate {
@@ -14,6 +15,8 @@ export function getTrImplAutoMigrationSkillTemplate(): SkillTemplate {
 One-stop automated feature migration across four phases: source requirement document generation with distilled core-feature confirmation → target-project exploration (incl. target coding-spec loading) + change proposal generation → implementation confirmation gate → review sub-agent migration check with fix loop. The flow structure mirrors the spec-driven workflow (\`/venus:spec-explore\` → \`/venus:spec-propose\` → \`/venus:spec-apply\`) and the one-stop guided workflow \`/venus:tr-impl-workflow\` (exploration → proposal → verification); exploration and proposal generation run automatically (consistency passthrough). Two mid-flow confirmation points, distinct in nature: the **distill confirmation** in Phase 1 (requirement-clarification gate — confirms WHAT to migrate) and the **implementation gate** in Phase 3 (flow gate — confirms HOW to implement); the Phase 2→3 consistency passthrough is unaffected.
 
 **Trigger boundary**: this skill orchestrates the FULL migration pipeline (扫描源项目 → 变更提案 → 实现 → 迁移对比). Standalone source-project scanning belongs to \`venus_tr_docs_feature_doc\`; standalone post-migration comparison belongs to \`venus_tr_impl_migration_check\`.
+
+${GATE_PROTOCOL_PREAMBLE}
 
 ---
 
@@ -110,7 +113,7 @@ Ready for /venus:spec-archive (after review)
   - Adversarial check reports → \`attachments/migration-check/07_对抗检查/\`
   - Other supplement documents → \`attachments/\`
   Build every path with \`path.join()\` (cross-platform).`,
-        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(codegraph:*), ${CODEGRAPH_MCP}, ${skillDelegation(['tr_docs_feature_doc', 'tr_impl_migration_check'])}, ${SUBAGENT_DISPATCH}`,
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), ${CODEGRAPH_MCP}, ${skillDelegation(['tr_docs_feature_doc', 'tr_impl_migration_check'])}, ${SUBAGENT_DISPATCH}`,
         type: 'tr_impl',
         license: 'MIT',
         compatibility: '依赖 venus CLI（spec 命令组）；CLI 缺失时降级为 AI 内联生成（CLI-degraded generation）。',
