@@ -17,13 +17,18 @@ export const claudeAdapter: ToolCommandAdapter = {
         return path.join('.claude', 'commands', TOOL_COMMANDS_SUBDIR, `${commandId}.md`);
     },
 
-    formatFile(content: CommandContent): string {
+    formatFile(content: CommandContent, fingerprintPlaceholder?: string): string {
+        const fpLine = fingerprintPlaceholder !== undefined
+            ? `\n  generatedFingerprint: "${fingerprintPlaceholder}"`
+            : '';
         return `---
 name: ${escapeYamlValue(content.name)}
 description: ${escapeYamlValue(content.description)}
 allowed-tools: ${content.allowedTools}
 category: ${escapeYamlValue(content.category)}
 tags: ${formatTagsArray(content.tags)}
+metadata:
+  generatedBy: "${content.generatedBy || ''}"${fpLine}
 ---
 
 ${content.body}

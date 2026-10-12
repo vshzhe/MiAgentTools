@@ -15,11 +15,11 @@ export const FINGERPRINT_FIELD = 'generatedFingerprint';
 /** 读取 generatedBy（版本号）值的正则；`\r?` 容忍 CRLF 行尾 */
 const GENERATED_BY_RE = /^  generatedBy: "(.+)"\r?$/m;
 
-/** 读取 generatedFingerprint 值的正则；空占位值 `""` 不匹配（视为无指纹） */
-const FINGERPRINT_VALUE_RE = /^  generatedFingerprint: "(.+)"\r?$/m;
+/** 读取 generatedFingerprint 值的正则；空占位值 `""` 不匹配（视为无指纹）；容许 0-2 空格缩进（兼容命令与技能 frontmatter） */
+const FINGERPRINT_VALUE_RE = /^ {0,2}generatedFingerprint: "(.+)"\r?$/m;
 
-/** 匹配 generatedFingerprint 整行（用于哈希前置空、打断自引用） */
-const FINGERPRINT_LINE_RE = /^  generatedFingerprint: ".*"\r?$/m;
+/** 匹配 generatedFingerprint 整行（用于哈希前置空、打断自引用）；容许 0-2 空格缩进 */
+const FINGERPRINT_LINE_RE = /^ {0,2}generatedFingerprint: ".*"\r?$/m;
 
 /**
  * 计算产物内容的指纹。

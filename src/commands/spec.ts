@@ -449,6 +449,11 @@ export function buildSpecCommand(): Command {
                 return;
             }
 
+            // 非 tasks 类型：提示 JSON 才是真源（非阻断，仅提示）
+            if (type !== 'tasks') {
+                console.error(`提示: change.json 是 ${type} 的唯一结构化真源，MD 仅为展示副本。`);
+            }
+
             // tasks 路径：从 tasks.json 确定性渲染 tasks.md
             if (type === 'tasks') {
                 const tasksJsonPath = path.join(changeDir, 'tasks.json');

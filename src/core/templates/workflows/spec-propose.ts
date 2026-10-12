@@ -232,7 +232,7 @@ After completing all artifacts AND Phase 3 verification passes:
 - Follow the \`instruction\` field from \`venus spec instructions\` for each artifact type
 - The schema defines what each artifact should contain - follow it
 - Read dependency artifacts for context before creating new ones
-- **JSON-first**: 先写 JSON 真源（change.json 段 / tasks.json），再 \`venus spec render <type>\` 渲染；\`template\` 仅在渲染不可用的降级路径中作为手写 MD 的结构参考
+- **JSON-first**: 先写 JSON 真源（change.json 段 / tasks.json），再 \`venus spec render tasks\` 渲染 tasks.md；proposal/specs/design 不渲染 MD；\`template\` 仅在渲染不可用的降级路径中作为手写 tasks.md 的结构参考
 - **IMPORTANT**: \`context\` and \`rules\` are constraints for YOU, not content for the file
   - Do NOT copy \`<context>\`, \`<rules>\`, \`<project_context>\` blocks into the artifact
   - These guide what you write, but should never appear in the output
@@ -300,16 +300,20 @@ After completing all artifacts AND Phase 3 verification passes:
    venus spec render tasks --change "<name>"
    \`\`\`
 
-### 3. 渲染 MD（每个 artifact 写完后）
+### 3. 渲染 tasks.md（仅 tasks artifact，供人工检查）
+
+proposal / specs / design 不渲染 MD —— change.json 为唯一真源，MUST NOT 渲染冗余 MD 副本。
 
 \`\`\`bash
-venus spec render <type> --change "<name>"   # type = proposal | specs | design | tasks
+venus spec render tasks --change "<name>"
 \`\`\`
 
 ### 4. 失败处置
 
 - **校验失败（阻断）**：CLI 报错含字段路径（如 \`proposal.whatChanges 必须为数组\`）→ 按报错修正 JSON 真源后重跑渲染；不得为绕过校验而手改 MD
-- **渲染命令不可用（降级）**：CLI 缺失或执行失败 → AI 手写对应 MD（以 \`template\` 为结构、内容与 JSON 真源一致），记 WARN，不阻断后续 artifact
+- **渲染命令不可用（降级）**：
+  - tasks: CLI 缺失或执行失败 → AI 手写 tasks.md（以 \`template\` 为结构），记 WARN，不阻断
+  - proposal / specs / design: MUST NOT 手写 MD —— change.json 为唯一真源，无 MD 降级路径；渲染命令不可用时仅记录 WARN 并继续，不生成冗余 MD 副本
 - tasks.json 是 apply 阶段主执行路径的真源——其缺失会使下游 spec-apply 降级为解析 tasks.md 复选框`,
         license: 'MIT',
         compatibility: '依赖 venus CLI（spec 命令组）与 CodeGraph MCP（可选）。',

@@ -27,6 +27,8 @@ export interface CommandContent {
      * 若不透传配对技能的白名单即类型报错。
      */
     allowedTools: string;
+    /** 生成器版本号（写入 metadata.generatedBy） */
+    generatedBy?: string;
 }
 
 /** 每个目标工具的格式化策略 */
@@ -41,8 +43,9 @@ export interface ToolCommandAdapter {
     /**
      * 格式化完整文件内容（含 frontmatter）。
      * @param content - 工具无关的指令内容
+     * @param fingerprintPlaceholder - 可选指纹占位行（空字符串表示两趟拼装的占位态）
      */
-    formatFile(content: CommandContent): string;
+    formatFile(content: CommandContent, fingerprintPlaceholder?: string): string;
 }
 
 /** 指令文件生成结果 */
@@ -51,6 +54,8 @@ export interface GeneratedCommand {
     path: string;
     /** 完整文件内容（frontmatter + 正文） */
     fileContent: string;
+    /** 产物指纹占位行（供 command 适配器拼接 frontmatter 时回填） */
+    fingerprintPlaceholder: string;
 }
 
 /** SKILL.md 文件生成结果 */

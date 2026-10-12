@@ -66,6 +66,8 @@ export interface UpdateResult {
     skippedModified: string[];
     /** 写入的指令文件数 */
     commandsWritten: number;
+    /** 因用户手改而跳过的指令文件路径（相对项目根） */
+    commandsSkippedModified: string[];
     /** 生效 workflow 集来源：default（未配置用默认集）| user（用户显式配置） */
     workflowsSource: 'default' | 'user';
     /** 依赖注入自动补全的 workflow id（供输出提示） */
@@ -100,6 +102,7 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
     const skippedModified: string[] = [];
     const permissionSettings: MergeResult[] = [];
     let commandsWritten = 0;
+    const commandsSkippedModified: string[] = [];
 
     // 读项目配置，解析生效 workflow 集（未配置用默认集 + 依赖注入补全）
     const projectConfig = readProjectConfig(projectRoot);
@@ -179,24 +182,47 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
             continue;
         }
         for (const { template, id } of getCommandTemplates(undefined, resolved.workflows)) {
-            const content: CommandContent = {
-                id,
-                name: template.name,
-                description: template.description,
-                category: template.category,
-                tags: template.tags,
-                body: template.content,
-                allowedTools: template.allowedTools,
-            };
-            const generated = generateCommand(content, adapter);
-            const commandFile = path.join(projectRoot, generated.path);
-            const existing = readFileIfExists(commandFile);
-            if (existing === generated.fileContent) {
-                continue;
+                const content: CommandContent = {
+                    id,
+                    name: template.name,
+                    description: template.description,
+                    category: template.category,
+                    tags: template.tags,
+                    body: template.content,
+                    allowedTools: template.allowedTools,
+                    generatedBy: packageVersion,
+                };
+                const generated = generateCommand(content, adapter);
+                const commandFile = path.join(projectRoot, generated.path);
+                const existing = readFileIfExists(commandFile);
+                const relativeCommand = path.relative(projectRoot, commandFile);
+
+                if (existing === undefined) {
+                    writeFile(commandFile, generated.fileContent, { force: true });
+                    commandsWritten++;
+                } else if (existing === generated.fileContent) {
+                    continue;
+                } else if (isUnmodified(existing)) {
+                    writeFile(commandFile, generated.fileContent, { force: true });
+                    commandsWritten++;
+                } else if (isLegacyVersionMismatched(existing, packageVersion)) {
+                    writeFile(commandFile, generated.fileContent, { force: true });
+                    commandsWritten++;
+                } else if (
+                    readGeneratedBy(existing) === undefined
+                    && readGeneratedFingerprint(existing) === undefined
+                ) {
+                    // 存量无 metadata 的指令（pre-fingerprint 时代）：安全升级
+                    writeFile(commandFile, generated.fileContent, { force: true });
+                    commandsWritten++;
+                } else if (options.force) {
+                    writeFile(commandFile, generated.fileContent, { force: true });
+                    commandsWritten++;
+                } else {
+                    // 用户手改：跳过保护
+                    commandsSkippedModified.push(relativeCommand);
+                }
             }
-            writeFile(commandFile, generated.fileContent, { force: true });
-            commandsWritten++;
-        }
     }
 
     // reconcile 扫描：已装但不在生效集内的 venus 产物（保留不删，供输出提示）
@@ -209,6 +235,7 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
         updated,
         skippedModified,
         commandsWritten,
+        commandsSkippedModified,
         workflowsSource,
         injectedDeps: resolved.injected,
         reconcileOrphans,

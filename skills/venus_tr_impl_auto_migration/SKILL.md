@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:2e68b7776d41142d0831318b0fe937c2df79e6f51c1ebd211e69782c2e9a10eb"
+  generatedFingerprint: "sha256:45667a9778f3752ba2a314ca0eecdf47a590316677f79f832c36b44636f7c632"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
@@ -17,6 +17,14 @@ metadata:
 One-stop automated feature migration across four phases: source requirement document generation with distilled core-feature confirmation → target-project exploration (incl. target coding-spec loading) + change proposal generation → implementation confirmation gate → review sub-agent migration check with fix loop. The flow structure mirrors the spec-driven workflow (`/venus:spec-explore` → `/venus:spec-propose` → `/venus:spec-apply`) and the one-stop guided workflow `/venus:tr-impl-workflow` (exploration → proposal → verification); exploration and proposal generation run automatically (consistency passthrough). Two mid-flow confirmation points, distinct in nature: the **distill confirmation** in Phase 1 (requirement-clarification gate — confirms WHAT to migrate) and the **implementation gate** in Phase 3 (flow gate — confirms HOW to implement); the Phase 2→3 consistency passthrough is unaffected.
 
 **Trigger boundary**: this skill orchestrates the FULL migration pipeline (扫描源项目 → 变更提案 → 实现 → 迁移对比). Standalone source-project scanning belongs to `venus_tr_docs_feature_doc`; standalone post-migration comparison belongs to `venus_tr_impl_migration_check`.
+
+## ⛔ GATE PROTOCOL — ACTIVE
+
+This skill contains **CONFIRMATION GATES** marked with **⛔ GATE:**. Each gate is a HARD STOP:
+- When you reach a ⛔ GATE, **YOUR RESPONSE ENDS THERE** — output the gate content, then STOP
+- Do NOT execute, describe, or pre-generate steps beyond the gate
+- The user's next message is the confirmation signal — resume from AFTER the gate only when they respond
+- **VIOLATION**: executing beyond a gate without user confirmation is a critical error that corrupts the workflow
 
 ---
 

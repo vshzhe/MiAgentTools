@@ -18,13 +18,18 @@ export const piAdapter: ToolCommandAdapter = {
         return path.join('.pi', 'commands', TOOL_COMMANDS_SUBDIR, `${commandId}.md`);
     },
 
-    formatFile(content: CommandContent): string {
+    formatFile(content: CommandContent, fingerprintPlaceholder?: string): string {
+        const fpLine = fingerprintPlaceholder !== undefined
+            ? `\n  generatedFingerprint: "${fingerprintPlaceholder}"`
+            : '';
         return `---
 name: ${escapeYamlValue(content.name)}
 description: ${escapeYamlValue(content.description)}
 allowed-tools: ${content.allowedTools}
 category: ${escapeYamlValue(content.category)}
 tags: ${formatTagsArray(content.tags)}
+metadata:
+  generatedBy: "${content.generatedBy || ''}"${fpLine}
 ---
 
 ${content.body}

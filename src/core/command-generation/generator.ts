@@ -19,6 +19,9 @@ import { SKILL_PREFIX } from '../config.js';
 /**
  * 生成单个指令文件（工具无关内容 + 工具适配器格式化）。
  *
+ * 两趟拼装：先以空指纹占位生成全文，再算得指纹回填 —— 与
+ * generateSkillContent 同构，使 commands 也具备手改保护能力。
+ *
  * @param content - 工具无关的指令内容
  * @param adapter - 目标工具适配器
  */
@@ -26,9 +29,18 @@ export function generateCommand(
     content: CommandContent,
     adapter: ToolCommandAdapter
 ): GeneratedCommand {
+    // 第一趟：空指纹占位生成全文
+    const placeholder = adapter.formatFile(content, '');
+    // 第二趟：计算指纹回填
+    const fingerprint = fingerprintOf(placeholder);
+    const fileContent = placeholder.replace(
+        `  generatedFingerprint: ""`,
+        `  generatedFingerprint: "${fingerprint}"`,
+    );
     return {
         path: adapter.getFilePath(content.id),
-        fileContent: adapter.formatFile(content),
+        fileContent,
+        fingerprintPlaceholder: `  generatedFingerprint: ""`,
     };
 }
 

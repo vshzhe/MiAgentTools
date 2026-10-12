@@ -5,6 +5,32 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [1.17.0] - 2026-10-12
+
+### Changed
+
+- **Commands 指纹保护**：`venus update` 指令生成循环从 2 路判定（相同跳过/不同覆盖）
+  扩展为完整 6 路指纹决策树（对齐 SKILL.md 保护），用户手动修改的 `.claude/commands/`
+  文件不再被静默覆盖。存量无指纹指令文件首次升级时自动获得指纹。
+- **writeJsonFile 原子写入**：`change.json` 写入从裸 `fs.writeFileSync` 改为原子五步法
+  （序列化 try-catch → 写 .tmp → 验证 JSON.parse → 备份 .bak → rename 原子替换），
+  写入失败不损坏原文件。`readChangeJson` 增加 .bak 自动回退恢复。
+
+### Fixed
+
+- **spec-propose 模板 render 指令矛盾**：Step 4.a 第 3 节 Bash 命令从 `venus spec render <type>`
+  （枚举全部 4 种类型）修正为仅 `venus spec render tasks`，消除 AI agent 误调用
+  产生多余 .md 副本，对齐正文"仅 tasks 渲染 MD"约束。
+- **initChangeJson TOCTOU 竞态**：写入失败时重新读取已有文件，避免并发场景下丢失数据。
+- **`venus spec render` 非 tasks 类型提示**：添加非阻断提示，告知 change.json 才是
+  proposal/specs/design 的唯一结构化真源。
+
+### Added
+
+- **`UpdateResult.commandsSkippedModified`**：新增字段记录因用户手改而跳过的指令文件路径。
+- **`.bak` 备份恢复**：writeJsonFile 原子写入前自动创建 .bak 备份，readChangeJson
+  损坏时自动回退恢复。
+
 ## [1.16.0] - 2026-10-12
 
 ### Added
@@ -725,7 +751,8 @@
 - 项目配置从单文件 `venus.config.yaml` 重构为 `.venus/` 目录结构
   （`config.yaml` 显式引用 `rules/` 下规则文件），重复 init 保留用户全部修改
 
-[Unreleased]: https://github.com/venus-agent-tools/compare/v1.16.0...HEAD
+[Unreleased]: https://github.com/venus-agent-tools/compare/v1.17.0...HEAD
+[1.17.0]: https://github.com/venus-agent-tools/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/venus-agent-tools/compare/v1.15.0...v1.16.0
 [1.15.0]: https://github.com/venus-agent-tools/compare/v1.14.0...v1.15.0
 [1.14.0]: https://github.com/venus-agent-tools/compare/v1.13.0...v1.14.0

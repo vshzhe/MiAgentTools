@@ -413,14 +413,84 @@ function validateSpecsSection(specs: SpecsSection, errors: string[]): void {
 // ── 写入函数 ──────────────────────────────────────────────────────
 
 /**
- * 写入 JSON 到文件（覆盖写），自动创建目录。
+ * 原子写入 JSON 到文件。
+ *
+ * 五步流程确保数据完整性：
+ *   1. JSON.stringify 加 try-catch（避免序列化异常损坏原文件）
+ *   2. 写入 .tmp.<pid>.<timestamp> 临时文件
+ *   3. 回读临时文件验证 JSON.parse 可解析
+ *   4. 原有文件备份到 .bak
+ *   5. rename 原子替换（同盘原子；跨盘失败时 copyFile + unlink 兜底）
+ *
+ * 任一步失败 → 清理 .tmp，保留原文件与 .bak 备份。
+ * 写入成功后删除 .bak。
  */
 function writeJsonFile(filePath: string, data: unknown): void {
+    // 1. JSON 序列化（try-catch 保护，异常不落盘）
+    let json: string;
+    try {
+        json = JSON.stringify(data, null, 2);
+    } catch (error: unknown) {
+        throw new Error(
+            `JSON 序列化失败 (${filePath}): ${(error as Error).message}（原文件未受影响）`,
+        );
+    }
+
+    // 2. 确保目录存在
     const dir = path.dirname(filePath);
     if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
     }
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+
+    // 3. 写入临时文件
+    const tmpPath = filePath + '.tmp.' + process.pid + '.' + Date.now();
+    try {
+        fs.writeFileSync(tmpPath, json, 'utf8');
+    } catch (error: unknown) {
+        // 清理临时文件（忽略清理错误）
+        try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
+        throw new Error(`写入临时文件失败 (${tmpPath}): ${(error as Error).message}`);
+    }
+
+    // 4. 写入验证：回读并解析，确保 JSON 合法
+    try {
+        const verifyContent = fs.readFileSync(tmpPath, 'utf8');
+        JSON.parse(verifyContent);
+    } catch (error: unknown) {
+        // 验证失败：清理临时文件，保留原文件
+        try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
+        throw new Error(`写入后验证失败 (${filePath}): ${(error as Error).message}`);
+    }
+
+    // 5. 备份原有文件
+    const bakPath = filePath + '.bak';
+    if (fs.existsSync(filePath)) {
+        try {
+            fs.copyFileSync(filePath, bakPath);
+        } catch {
+            // 备份失败不阻断（尽力而为），继续写入
+        }
+    }
+
+    // 6. 原子重命名
+    try {
+        fs.renameSync(tmpPath, filePath);
+    } catch {
+        // rename 失败时尝试用 copyFile + unlink 兜底（跨设备/分区场景）
+        try {
+            fs.copyFileSync(tmpPath, filePath);
+            fs.unlinkSync(tmpPath);
+        } catch (copyError: unknown) {
+            // 兜底也失败：清理临时文件，保留原文件与 .bak
+            try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
+            throw new Error(
+                `原子写入失败 (${filePath}): ${(copyError as Error).message}`,
+            );
+        }
+    }
+
+    // 7. 写入成功：删除 .bak
+    try { fs.unlinkSync(bakPath); } catch { /* ignore */ }
 }
 
 /**
@@ -513,16 +583,33 @@ export function writeCapabilitiesJson(
 /**
  * 读取 <changeDir>/change.json。
  *
- * 容错语义：文件缺失或 JSON 解析失败时返回 null（由调用方走降级链，不在此处抛错）。
+ * 容错语义：文件缺失时返回 null；JSON 解析失败时尝试从 .bak 备份恢复，
+ * 恢复失败才返回 null（由调用方走降级链，不在此处抛错）。
  *
  * @param changeDir - 变更目录绝对路径
- * @returns 解析后的 ChangeSchema；文件缺失/损坏时 null
+ * @returns 解析后的 ChangeSchema；文件缺失且无备份时 null
  */
 export function readChangeJson(changeDir: string): ChangeSchema | null {
     const filePath = path.join(changeDir, 'change.json');
+    const bakPath = filePath + '.bak';
+
+    // 主文件缺失：尝试从 .bak 恢复
     if (!fs.existsSync(filePath)) {
+        if (fs.existsSync(bakPath)) {
+            try {
+                fs.copyFileSync(bakPath, filePath);
+                const recovered: unknown = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+                if (recovered !== null && typeof recovered === 'object') {
+                    return recovered as ChangeSchema;
+                }
+            } catch {
+                // 恢复失败，返回 null
+            }
+        }
         return null;
     }
+
+    // 主文件存在：解析
     try {
         const parsed: unknown = JSON.parse(fs.readFileSync(filePath, 'utf8'));
         if (parsed === null || typeof parsed !== 'object') {
@@ -530,7 +617,18 @@ export function readChangeJson(changeDir: string): ChangeSchema | null {
         }
         return parsed as ChangeSchema;
     } catch {
-        // 解析失败视同文件缺失（降级链语义由调用方决定，不在此处阻断）
+        // 解析失败：尝试从 .bak 恢复
+        if (fs.existsSync(bakPath)) {
+            try {
+                fs.copyFileSync(bakPath, filePath);
+                const recovered: unknown = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+                if (recovered !== null && typeof recovered === 'object') {
+                    return recovered as ChangeSchema;
+                }
+            } catch {
+                // 恢复失败，返回 null
+            }
+        }
         return null;
     }
 }
@@ -877,6 +975,7 @@ export function initCapabilitiesJson(changeDir: string): CapabilitiesSchema {
  * 创建空的 change.json 骨架并写入文件（幂等）。
  *
  * 文件已存在时读取现有文件原样返回，不覆盖（保护已写入的段落）。
+ * 写入失败时重新尝试读取（处理并发竞争场景，另一进程可能已写入）。
  *
  * @param changeDir - 变更目录绝对路径
  * @param changeName - 变更名（骨架根字段）
@@ -889,6 +988,18 @@ export function initChangeJson(changeDir: string, changeName: string): ChangeSch
     }
 
     const empty = createEmptyChange(changeName);
-    writeJsonFile(path.join(changeDir, 'change.json'), empty);
+    const filePath = path.join(changeDir, 'change.json');
+
+    try {
+        writeJsonFile(filePath, empty);
+    } catch (error: unknown) {
+        // 写入失败：可能因并发竞争，尝试读取已有文件
+        const retry = readChangeJson(changeDir);
+        if (retry) {
+            return retry;
+        }
+        throw error;
+    }
+
     return empty;
 }

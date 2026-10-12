@@ -16,8 +16,6 @@ import {
     generateSkillContent,
     generateCommand,
     CommandAdapterRegistry,
-    type GeneratedCommand,
-    type ToolCommandAdapter,
     type CommandContent,
 } from '../core/command-generation/index.js';
 import {
@@ -90,31 +88,6 @@ function getPackageVersion(): string {
     }
 }
 
-/** 由指令模板 + 适配器生成 GeneratedCommand */
-function buildCommand(
-    template: {
-        name: string;
-        description: string;
-        category: string;
-        tags: string[];
-        content: string;
-        allowedTools: string;
-    },
-    id: string,
-    adapter: ToolCommandAdapter
-): GeneratedCommand {
-    const content: CommandContent = {
-        id,
-        name: template.name,
-        description: template.description,
-        category: template.category,
-        tags: template.tags,
-        body: template.content,
-        allowedTools: template.allowedTools,
-    };
-    return generateCommand(content, adapter);
-}
-
 /**
  * 执行 init：生成全部技能与指令文件。
  *
@@ -180,7 +153,17 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
             continue;
         }
         for (const { template, id } of getCommandTemplates(undefined, resolved.workflows)) {
-            const generated = buildCommand(template, id, adapter);
+            const content: CommandContent = {
+                id,
+                name: template.name,
+                description: template.description,
+                category: template.category,
+                tags: template.tags,
+                body: template.content,
+                allowedTools: template.allowedTools,
+                generatedBy: packageVersion,
+            };
+            const generated = generateCommand(content, adapter);
             const commandFile = path.join(projectRoot, generated.path);
             if (pathExists(commandFile) && !options.force) {
                 skipped.push(path.relative(projectRoot, commandFile));
