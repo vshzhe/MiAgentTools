@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:c08e3e7715366797ade107d90df56b4801d50183a2d4fc18455f70acef4ad28d"
+  generatedFingerprint: "sha256:7a211b3b1cd998e7a6c2a11e641e973f2318c27d9ee6262ab74a382e29cd65dd"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
@@ -22,6 +22,14 @@ This workflow guides you through:
 3. **Verification phase** - Automatic quality check (automated)
 4. **Auto-Apply phase** - Automatic implementation without confirmation gate
 5. **Auto-Archive phase** - Automatic archiving on completion
+
+## ⛔ GATE PROTOCOL — ACTIVE
+
+This skill contains **CONFIRMATION GATES** marked with **⛔ GATE:**. Each gate is a HARD STOP:
+- When you reach a ⛔ GATE, **YOUR RESPONSE ENDS THERE** — output the gate content, then STOP
+- Do NOT execute, describe, or pre-generate steps beyond the gate
+- The user's next message is the confirmation signal — resume from AFTER the gate only when they respond
+- **VIOLATION**: executing beyond a gate without user confirmation is a critical error that corrupts the workflow
 
 ---
 
@@ -90,7 +98,7 @@ Use `path.join()` for cross-platform compatibility.
 
 **Prompt Validation Gate (提示词校验门)**: 探索前强制自检用户输入，维度为 目标 Goal / 对象 Object / 范围 Scope / 约束 Constraints / 验收 Acceptance / 歧义 Ambiguity。
 - **清晰**（目标 Goal / 对象 Object / 范围 Scope / 歧义 Ambiguity 均无 `❌` 与实质 `⚠️`）→ 一句话复述理解后直通，不输出校验表、不要求确认
-- **不明确**（任一维 `❌` 或实质 `⚠️`）→ 先做提示词优化，输出 `【优化后提示词】`（推断项标 `[推断]`、未知项标 `[待确认]`）与 `【优化说明】`，**阻塞等待用户确认或修改**后才继续；出口有四条：确认 / 修改 / 拒绝（按原理解继续）/ 显式授权按推断（推断项记入基线后继续），**不得陷入等待死循环**
+- **不明确**（任一维 `❌` 或实质 `⚠️`）→ 先做提示词优化，输出 `【优化后提示词】`（推断项标 `[推断]`、未知项标 `[待确认]`）与 `【优化说明】`，**⛔ GATE: 立即结束本次响应并等待用户确认或修改**（本次响应到此结束，收到用户响应后继续；出口：确认 / 修改 / 拒绝 / 显式授权按推断），**不得陷入等待死循环**
 - **软不明确**（仅细节级歧义）→ 记 `[假设]` 继续
 - 优化**不篡改原始意图**、不增加用户未提出的需求
 - 校验结论与基线写入探索产物 `## 提示词基线` 段，作为下游唯一语义来源
@@ -403,7 +411,7 @@ mcp__codegraph__codegraph_impact --symbol <symbol> --direction upstream --maxDep
 - **节点粒度** = 可独立验证的业务操作单元（用户操作 / 业务判定 / 数据写入 / 外部调用）；节点标识在图中与表中 MUST 一致，多流程时全局唯一递增
 - **清单列集**：节点 / 操作 / 触发条件 / 证据位置 / 异常路径
 - **证据追溯（硬约束）**：每节点 MUST 填 `文件:行` 或 类.方法；新建功能标 `[新建]` + 预期产物；无法追溯证据的节点 MUST NOT 进入清单
-- **流程最终确认门（阻塞）**：呈现流程图与清单并等待确认；出口有四条：确认 / 修改 / 拒绝（记未确认状态，提案降级 + 验证该维度 SKIP）/ 显式授权按推断（推断节点标 `[推断]`）——不得陷入等待死锁
+- **⛔ GATE: 流程最终确认门（强制停止）**：呈现流程图与清单并立即结束本次响应，等待确认；出口：确认 / 修改 / 拒绝（记未确认状态，提案降级 + 验证该维度 SKIP）/ 显式授权按推断（推断节点标 `[推断]`）——不得陷入等待死锁
 - **回改规则**：发现遗漏节点 MUST 回探索更新并重新确认，MUST NOT 在任务清单静默补节点
 - 节点数超 50 时按子流程分节；本块 MUST NOT 含任何 Bash 命令示例
 
@@ -431,13 +439,15 @@ Before declaring exploration complete, verify:
 
 3. **FILE CHECK**: exploration.md has all sections populated? Write any missing sections
 
-4. **ANNOUNCE**: "## Exploration Complete ✓" and "Checks passed — generating proposal directly"
+4. **AUTO-PROCEED (MANDATORY — MUST NOT pause between phases)**:
+   - Announce: "## Exploration Complete ✓ — auto-proceeding to Phase 2"
+   - After the three checks above pass (no hard conflicts / L1-L5 all answered / file complete), **immediately execute Phase 2 in the SAME response without pausing, without waiting for any user prompt, and without asking "Ready to proceed?"**. The consistency passthrough means ZERO user interaction between Phase 1 and Phase 2 — the next tool calls you make MUST be the Phase 2 impact analysis and artifact generation steps.
 
 ---
 
 ## Phase 2: Proposal
 
-**Phase 2 executes automatically after Phase 1 completion. No user confirmation needed (consistency passthrough).**
+**⚠️ AUTO-EXECUTE: This phase MUST begin immediately after Phase 1 completion without any pause. If you just completed Phase 1, you MUST now execute Phase 2 steps (2.0 → 2.1 → 2.2 → 2.3) in the same response. Do NOT end the response after the Phase 1 announcement — continue directly into Phase 2.**
 
 ### 2.0 Impact Analysis (Auto-Execute)
 

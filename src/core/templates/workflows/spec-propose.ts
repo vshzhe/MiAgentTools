@@ -3,13 +3,14 @@
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
+import { GATE_PROTOCOL_PREAMBLE } from '../prompt-gate.js';
 import { SUBAGENT_DISPATCH, skillDelegation } from '../tool-whitelist.js';
 
 export function getSpecProposeSkillTemplate(): SkillTemplate {
     return {
         name: 'venus_spec_propose',
         description: '创建变更提案。当用户要快速描述想构建的内容并一步生成包含设计、规格和任务的完整提案时使用。',
-        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), ${skillDelegation(['spec_verify_proposal'])}, ${SUBAGENT_DISPATCH}`,
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), ${skillDelegation(['spec_verify_proposal', 'tr_docs_requirement_doc'])}, ${SUBAGENT_DISPATCH}`,
         type: 'spec',
         instructions: `Propose a new change - create the change and generate all artifacts in one step.
 
@@ -28,6 +29,8 @@ I'll create a change with artifacts:
 ---
 
 **Input**: The user's request should include a change name (kebab-case) OR a description of what they want to build.
+
+${GATE_PROTOCOL_PREAMBLE}
 
 **Steps**
 
@@ -208,7 +211,7 @@ Apply the following naming rules when deriving a change name:
    After all \`applyRequires\` artifacts are done, automatically enter Phase 3 verification (do NOT end the workflow at "Ready for implementation" before verification):
    - Invoke the \`venus_spec_verify_proposal\` **skill** (via Skill tool) for D1-D5 scoring. (\`venus_spec_verify_proposal\` is a skill name, NOT a valid \`venus spec instructions\` artifact ID — do not run it as a CLI instruction.)
    - **Verification review sub-agent**: dispatch an independent read-only review sub-agent (Task tool, subagent_type: "general-purpose") to perform the D1-D5 scoring — the sub-agent reads the change's artifacts without modifying them. On sub-agent dispatch failure: fall back to main-workflow inline scoring with a WARN log (never silently skip verification).
-   - **PASS (≥90%)**: 验证通过后可对提案做一次内联深度复查（由主工作流在通过后直接执行一次 read-only 复查，不依赖专门技能名）。
+   - **PASS (≥90%)**: 验证通过后可对提案做一次内联深度复查（由主工作流在通过后直接执行一次 read-only 复查，不依赖专门技能名）。深度复查收束后，以非交互模式调用 \`venus_tr_docs_requirement_doc\` 生成需求文档于 \`openspec/changes/<change-name>/需求文档.md\`。生成失败不阻塞（WARN + 继续）。
    - **FAIL (<90%)**: auto-generate fixes, apply, re-run; if still FAIL, offer [Manual edit] / [Return to exploration (/venus:spec-explore)] / [View diff] (no skip-to-apply).
    - Fallback if skill unavailable: AI inline D1-D5 scoring + WARN log; never silently skip.
    - 验证使用 90% 通过阈值。
@@ -219,6 +222,7 @@ After completing all artifacts AND Phase 3 verification passes:
 - Change name and location
 - List of artifacts created with brief descriptions
 - Verification result: "Phase 3 verification passed (≥90%). Inline deep review completed."
+- Requirement document: generated at \`openspec/changes/<change-name>/需求文档.md\`（非交互调用 venus_tr_docs_requirement_doc；生成失败 WARN 非阻断）
 - **Downgrade note (if applicable)**: 流程基准缺失或未获用户确认时标注 "流程基准不可用：已降级为仅凭 exploration.md 生成（未确认的流程图未被当作既定前提）"
 - What's ready: "All artifacts created and verified! Ready for implementation."
 - Prompt: "告知我即可开始执行任务。"

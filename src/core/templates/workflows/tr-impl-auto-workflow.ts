@@ -6,6 +6,7 @@ import type { SkillTemplate, CommandTemplate } from '../types.js';
 import {
     buildPromptGateBlock,
     buildPromptGateCompact,
+    GATE_PROTOCOL_PREAMBLE,
     REQUIREMENT_DIMENSIONS,
 } from '../prompt-gate.js';
 import {
@@ -41,6 +42,8 @@ This workflow guides you through:
 3. **Verification phase** - Automatic quality check (automated)
 4. **Auto-Apply phase** - Automatic implementation without confirmation gate
 5. **Auto-Archive phase** - Automatic archiving on completion
+
+${GATE_PROTOCOL_PREAMBLE}
 
 ---
 
@@ -438,13 +441,15 @@ Before declaring exploration complete, verify:
 
 3. **FILE CHECK**: exploration.md has all sections populated? Write any missing sections
 
-4. **ANNOUNCE**: "## Exploration Complete ✓" and "Checks passed — generating proposal directly"
+4. **AUTO-PROCEED (MANDATORY — MUST NOT pause between phases)**:
+   - Announce: "## Exploration Complete ✓ — auto-proceeding to Phase 2"
+   - After the three checks above pass (no hard conflicts / L1-L5 all answered / file complete), **immediately execute Phase 2 in the SAME response without pausing, without waiting for any user prompt, and without asking "Ready to proceed?"**. The consistency passthrough means ZERO user interaction between Phase 1 and Phase 2 — the next tool calls you make MUST be the Phase 2 impact analysis and artifact generation steps.
 
 ---
 
 ## Phase 2: Proposal
 
-**Phase 2 executes automatically after Phase 1 completion. No user confirmation needed (consistency passthrough).**
+**⚠️ AUTO-EXECUTE: This phase MUST begin immediately after Phase 1 completion without any pause. If you just completed Phase 1, you MUST now execute Phase 2 steps (2.0 → 2.1 → 2.2 → 2.3) in the same response. Do NOT end the response after the Phase 1 announcement — continue directly into Phase 2.**
 
 ### 2.0 Impact Analysis (Auto-Execute)
 
@@ -669,7 +674,7 @@ One-stop automated workflow from exploration to archive. **Trigger boundary**: f
 
 ## Phase 1: Exploration (L1-L5 user confirmation)
 
-Create exploration file at \`openspec/explorations/<keyword>-explore-<sequence>.md\` (kebab-case keyword, auto sequence; use \`path.join()\`). Run the mandatory **1.1.2 Prompt Validation Gate（澄清门，确认 WHAT；auto 语义不得跳过或静默通过）**、then the mandatory 1.1.5 CONTEXT.md startup check (load existing 术语表 or mark for creation), initialize the structured format (Background / 提示词基线 / 功能流程图 / Codebase Findings / Questions / 术语表 / 架构决策 / 边界场景 / Decision Process / Decisions / Scope Changes / Pending), then 1.2.0.5 capability memory injection (scan \`openspec/specs/<capability>/explorations.md\` and inject historical decisions). Run the mandatory 1.2.1 CodeGraph base scan (\`codegraph_status\` first; \`codegraph_files\` + \`codegraph_search\`; Glob/Grep fallback only after confirmed unavailable) and the conditional 1.2.1.5 multi-project agent scan (**single sub-agent scanning all projects serially**, switching the codegraph \`projectPath\` per project; not one sub-agent per project; per-project fallback to Glob/Grep + WARN — one project's failure does not affect others; a project path identical to the current project is skipped). Then grill-with-docs questioning (L1 Intent / L2 Solution / L3 Exception / L4 Consistency / L5 Boundary; one question at a time, each with AI recommendation; write answers to exploration.md real-time). Auto-execute keyword-detected analysis (Security / Architecture Flow / Impact Analysis — always run) and \`codegraph_impact\` (parallel for multiple symbols). Completion check: consistency, L1-L5 coverage, file completeness — if no hard conflicts, proceed to Phase 2 directly (consistency passthrough).
+Create exploration file at \`openspec/explorations/<keyword>-explore-<sequence>.md\` (kebab-case keyword, auto sequence; use \`path.join()\`). Run the mandatory **1.1.2 Prompt Validation Gate（澄清门，确认 WHAT；auto 语义不得跳过或静默通过）**、then the mandatory 1.1.5 CONTEXT.md startup check (load existing 术语表 or mark for creation), initialize the structured format (Background / 提示词基线 / 功能流程图 / Codebase Findings / Questions / 术语表 / 架构决策 / 边界场景 / Decision Process / Decisions / Scope Changes / Pending), then 1.2.0.5 capability memory injection (scan \`openspec/specs/<capability>/explorations.md\` and inject historical decisions). Run the mandatory 1.2.1 CodeGraph base scan (\`codegraph_status\` first; \`codegraph_files\` + \`codegraph_search\`; Glob/Grep fallback only after confirmed unavailable) and the conditional 1.2.1.5 multi-project agent scan (**single sub-agent scanning all projects serially**, switching the codegraph \`projectPath\` per project; not one sub-agent per project; per-project fallback to Glob/Grep + WARN — one project's failure does not affect others; a project path identical to the current project is skipped). Then grill-with-docs questioning (L1 Intent / L2 Solution / L3 Exception / L4 Consistency / L5 Boundary; one question at a time, each with AI recommendation; write answers to exploration.md real-time). Auto-execute keyword-detected analysis (Security / Architecture Flow / Impact Analysis — always run) and \`codegraph_impact\` (parallel for multiple symbols). Completion check: consistency, L1-L5 coverage, file completeness — if no hard conflicts, **immediately execute Phase 2 in the SAME response without pausing or asking the user** (consistency passthrough: zero user interaction between phases).
 
 **1.1.2 Prompt Validation Gate (MANDATORY, 澄清门)**:
 

@@ -5,6 +5,48 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [1.16.0] - 2026-10-12
+
+### Added
+
+- **spec-propose 需求文档生成**：`venus_spec_propose` 提案校验通过（≥90%）后，深度复查收束后
+  自动以非交互模式调用 `venus_tr_docs_requirement_doc` 生成需求文档到
+  `openspec/changes/<change-name>/需求文档.md`。生成失败不阻塞（WARN + 继续）。
+
+### Fixed
+
+- **tr-impl-workflow / tr-impl-auto-workflow 探索→提案自动过渡修复**：Phase 1 完成检测段
+  缺少显式"立即执行 Phase 2"指令，AI 在探索完成后宣布完成即停止而不自动进入提案生成。
+  - auto-workflow：1.6 step 4 从 `ANNOUNCE` 改为 `AUTO-PROCEED (MUST NOT pause)`，
+    Phase 2 头部增加 `AUTO-EXECUTE: MUST begin immediately...in the SAME response` 强约束；
+    command 模板 completion check 同步强化。
+  - workflow：移除 1.6 `Do not transition to Phase 2 on completion detection alone` 矛盾句，
+    改为 `Run both checkpoints, then auto-transition...do NOT stop between phases`；
+    Phase 2 进入指令从 `enter Phase 2 immediately` 强化为 `immediately execute all Phase 2 steps...in the SAME response`。
+- **tr-impl-debug Phase 3 自动创建变更**：Phase 3.2 独立 bug 分支从 `Create a new change`
+  改为 `AUTO-CREATE without asking the user`，防止 AI 在关联合适变更后暂停询问而非自动创建；
+  command 模板同步强化。
+- **tr-impl-workflow 需求文档生成矛盾修复**：Guardrails 与输出示例中的"需求文档延迟到归档阶段"
+  表述与 Phase 3.5 Step 5 实际执行"验证通过后立即生成"矛盾，已统一改为验证阶段生成；
+  输出示例同步修正。
+- **tr-impl-genfull 需求文档生成矛盾修复**：command 模板 Stage 2.3 声明
+  `MUST NOT 生成需求文档`，与 skill 模板 Stage 2.3 实际生成需求文档矛盾，且与同模板
+  Bridge 2 的"需求文档已在 Stage 2.3 生成"自相矛盾，统一改为验证后生成、归档阶段对齐。
+  同步修正 description 与 Guardrails 中的过时表述。
+
+## [1.15.0] - 2026-07-16
+
+### Changed
+
+- **门控协议导言（Gate Protocol Preamble）**：在全部含确认门的技能模板正文开头引入
+  `⛔ GATE PROTOCOL` 行为契约段，明确告知 AI Agent 门控标记 `⛔ GATE:` 为强制停止点，
+  必须结束响应并等待用户输入。覆盖 7 个模板：`tr-impl-auto-workflow`、`tr-impl-workflow`、
+  `tr-impl-genfull`、`tr-impl-debug`、`tr-impl-auto-migration`、`spec-explore`、`spec-propose`。
+- **提示词校验门与流程图确认门标记强化**：`buildPromptGateBlock` / `buildPromptGateCompact` /
+  `buildFlowchartBlock` / `buildFlowchartCompact` 中的确认门文本从"阻塞等待"改为
+  `⛔ GATE:` 强制停止标记，增加 `THIS IS A CONFIRMATION GATE. Your response MUST END here.`
+  块引用提示，消除 Agent 跨门控继续执行的"执行分离"问题。
+
 ## [1.14.0] - 2026-10-12
 
 ### Added
@@ -683,7 +725,9 @@
 - 项目配置从单文件 `venus.config.yaml` 重构为 `.venus/` 目录结构
   （`config.yaml` 显式引用 `rules/` 下规则文件），重复 init 保留用户全部修改
 
-[Unreleased]: https://github.com/venus-agent-tools/compare/v1.14.0...HEAD
+[Unreleased]: https://github.com/venus-agent-tools/compare/v1.16.0...HEAD
+[1.16.0]: https://github.com/venus-agent-tools/compare/v1.15.0...v1.16.0
+[1.15.0]: https://github.com/venus-agent-tools/compare/v1.14.0...v1.15.0
 [1.14.0]: https://github.com/venus-agent-tools/compare/v1.13.0...v1.14.0
 [1.13.0]: https://github.com/venus-agent-tools/compare/v1.12.1...v1.13.0
 [1.12.1]: https://github.com/venus-agent-tools/compare/v1.12.0...v1.12.1

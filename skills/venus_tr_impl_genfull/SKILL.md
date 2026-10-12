@@ -1,6 +1,6 @@
 ---
 name: venus_tr_impl_genfull
-description: "Guided full-pipeline orchestrator: explore→[frontend-design]→propose(+verify)→deep-review→apply(+conditional frontend-impl/test)→archive (which generates the requirement document), delegating stage SKILLs with bridge gates between stages to ensure each process completeness. Frontend design (Phase 1) is front-loaded to proposal stage; frontend impl (Phase 2) stays in apply. Triggers: 全流程编排 / genfull / 引导式全流程 / coupled stage workflow. Use when the user wants a guided end-to-end pipeline through archive with per-stage confirmation bridges (coupling explore/frontend/propose/apply/test/archive SKILLs). NOT for inline single-SKILL workflow (use venus_tr_impl_workflow), fully-automated no-gate pipeline (use venus_tr_impl_auto_workflow), or debugging (use venus_tr_impl_debug)."
+description: "Guided full-pipeline orchestrator: explore→[frontend-design]→propose(+verify)→deep-review→apply(+conditional frontend-impl/test)→archive (which aligns the requirement document), delegating stage SKILLs with bridge gates between stages to ensure each process completeness. Frontend design (Phase 1) is front-loaded to proposal stage; frontend impl (Phase 2) stays in apply. Triggers: 全流程编排 / genfull / 引导式全流程 / coupled stage workflow. Use when the user wants a guided end-to-end pipeline through archive with per-stage confirmation bridges (coupling explore/frontend/propose/apply/test/archive SKILLs). NOT for inline single-SKILL workflow (use venus_tr_impl_workflow), fully-automated no-gate pipeline (use venus_tr_impl_auto_workflow), or debugging (use venus_tr_impl_debug)."
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_explore), Skill(tr_impl_frontend), Skill(spec_propose), Skill(tr_impl_review_proposal), Skill(tr_docs_requirement_doc), Skill(spec_apply), Skill(tr_test_generate), Skill(spec_archive)
 license: MIT
 compatibility: 依赖 venus CLI（spec 命令组）与阶段技能（venus_spec_explore/propose/apply/archive + venus_tr_impl_review_proposal + venus_tr_impl_frontend + venus_tr_test_generate）；需求文档技能由验证阶段和归档阶段调用（经 spec-archive 的依赖注入与会话级权限放行），本技能 Stage 2.3 直接调用；CLI 缺失时各阶段技能各自降级。
@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:84b24a3180ebcfe8fff5237b14e6b905eb4114bdbfbeb710e4c44426b16f77d1"
+  generatedFingerprint: "sha256:4d9ee183aae7b2ea8918120bc8f1849ae1f36c5308a653546e33fea889068294"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
@@ -29,6 +29,14 @@ This orchestrator guides you through:
 8. **Bridge 3** - 完整性校验 + 确认门
 9. **Stage 4: 归档** - 委派 venus_spec_archive（需求文档生成 + 记忆闭环）
 
+## ⛔ GATE PROTOCOL — ACTIVE
+
+This skill contains **CONFIRMATION GATES** marked with **⛔ GATE:**. Each gate is a HARD STOP:
+- When you reach a ⛔ GATE, **YOUR RESPONSE ENDS THERE** — output the gate content, then STOP
+- Do NOT execute, describe, or pre-generate steps beyond the gate
+- The user's next message is the confirmation signal — resume from AFTER the gate only when they respond
+- **VIOLATION**: executing beyond a gate without user confirmation is a critical error that corrupts the workflow
+
 ---
 
 ## Phase 0: 初始化
@@ -46,7 +54,7 @@ Use the **TodoWrite tool** to initialize tracking:
 
 **Prompt Validation Gate (提示词校验门)**: 探索前强制自检用户输入，维度为 目标 Goal / 对象 Object / 范围 Scope / 约束 Constraints / 验收 Acceptance / 歧义 Ambiguity。
 - **清晰**（目标 Goal / 对象 Object / 范围 Scope / 歧义 Ambiguity 均无 `❌` 与实质 `⚠️`）→ 一句话复述理解后直通，不输出校验表、不要求确认
-- **不明确**（任一维 `❌` 或实质 `⚠️`）→ 先做提示词优化，输出 `【优化后提示词】`（推断项标 `[推断]`、未知项标 `[待确认]`）与 `【优化说明】`，**阻塞等待用户确认或修改**后才继续；出口有四条：确认 / 修改 / 拒绝（按原理解继续）/ 显式授权按推断（推断项记入基线后继续），**不得陷入等待死循环**
+- **不明确**（任一维 `❌` 或实质 `⚠️`）→ 先做提示词优化，输出 `【优化后提示词】`（推断项标 `[推断]`、未知项标 `[待确认]`）与 `【优化说明】`，**⛔ GATE: 立即结束本次响应并等待用户确认或修改**（本次响应到此结束，收到用户响应后继续；出口：确认 / 修改 / 拒绝 / 显式授权按推断），**不得陷入等待死循环**
 - **软不明确**（仅细节级歧义）→ 记 `[假设]` 继续
 - 优化**不篡改原始意图**、不增加用户未提出的需求
 - 校验结论与基线写入探索产物 `## 提示词基线` 段，作为下游唯一语义来源
@@ -114,7 +122,7 @@ Use the **TodoWrite tool** to initialize tracking:
 - **节点粒度** = 可独立验证的业务操作单元（用户操作 / 业务判定 / 数据写入 / 外部调用）；节点标识在图中与表中 MUST 一致，多流程时全局唯一递增
 - **清单列集**：节点 / 操作 / 触发条件 / 证据位置 / 异常路径
 - **证据追溯（硬约束）**：每节点 MUST 填 `文件:行` 或 类.方法；新建功能标 `[新建]` + 预期产物；无法追溯证据的节点 MUST NOT 进入清单
-- **流程最终确认门（阻塞）**：呈现流程图与清单并等待确认；出口有四条：确认 / 修改 / 拒绝（记未确认状态，提案降级 + 验证该维度 SKIP）/ 显式授权按推断（推断节点标 `[推断]`）——不得陷入等待死锁
+- **⛔ GATE: 流程最终确认门（强制停止）**：呈现流程图与清单并立即结束本次响应，等待确认；出口：确认 / 修改 / 拒绝（记未确认状态，提案降级 + 验证该维度 SKIP）/ 显式授权按推断（推断节点标 `[推断]`）——不得陷入等待死锁
 - **回改规则**：发现遗漏节点 MUST 回探索更新并重新确认，MUST NOT 在任务清单静默补节点
 - 节点数超 50 时按子流程分节；本块 MUST NOT 含任何 Bash 命令示例
 

@@ -10,6 +10,7 @@ import type { SkillTemplate, CommandTemplate } from '../types.js';
 import {
     buildPromptGateBlock,
     buildPromptGateCompact,
+    GATE_PROTOCOL_PREAMBLE,
     REQUIREMENT_DIMENSIONS,
 } from '../prompt-gate.js';
 import {
@@ -34,7 +35,7 @@ const FLOWCHART_FULL = buildFlowchartBlock(REQUIREMENT_FLOW_COLUMNS);
 export function getTrImplGenfullSkillTemplate(): SkillTemplate {
     return {
         name: 'venus_tr_impl_genfull',
-        description: 'Guided full-pipeline orchestrator: explore→[frontend-design]→propose(+verify)→deep-review→apply(+conditional frontend-impl/test)→archive (which generates the requirement document), delegating stage SKILLs with bridge gates between stages to ensure each process completeness. Frontend design (Phase 1) is front-loaded to proposal stage; frontend impl (Phase 2) stays in apply. Triggers: 全流程编排 / genfull / 引导式全流程 / coupled stage workflow. Use when the user wants a guided end-to-end pipeline through archive with per-stage confirmation bridges (coupling explore/frontend/propose/apply/test/archive SKILLs). NOT for inline single-SKILL workflow (use venus_tr_impl_workflow), fully-automated no-gate pipeline (use venus_tr_impl_auto_workflow), or debugging (use venus_tr_impl_debug).',
+        description: 'Guided full-pipeline orchestrator: explore→[frontend-design]→propose(+verify)→deep-review→apply(+conditional frontend-impl/test)→archive (which aligns the requirement document), delegating stage SKILLs with bridge gates between stages to ensure each process completeness. Frontend design (Phase 1) is front-loaded to proposal stage; frontend impl (Phase 2) stays in apply. Triggers: 全流程编排 / genfull / 引导式全流程 / coupled stage workflow. Use when the user wants a guided end-to-end pipeline through archive with per-stage confirmation bridges (coupling explore/frontend/propose/apply/test/archive SKILLs). NOT for inline single-SKILL workflow (use venus_tr_impl_workflow), fully-automated no-gate pipeline (use venus_tr_impl_auto_workflow), or debugging (use venus_tr_impl_debug).',
         instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 引导式全流程编排器 —— 贯穿探索→归档，委派阶段 SKILL + 阶段间桥梁门。
@@ -51,6 +52,8 @@ This orchestrator guides you through:
 7. **Stage 3: 实现** - 委派 venus_spec_apply（auto-mode）+ 条件 frontend 实现/test
 8. **Bridge 3** - 完整性校验 + 确认门
 9. **Stage 4: 归档** - 委派 venus_spec_archive（需求文档生成 + 记忆闭环）
+
+${GATE_PROTOCOL_PREAMBLE}
 
 ---
 
@@ -344,7 +347,7 @@ Stage 1 探索 → Bridge 1 → [Stage 1.5 前端设计（条件）] → Stage 2
 export function getTrImplGenfullCommandTemplate(): CommandTemplate {
     return {
         name: 'Venus: 引导式全流程编排',
-        description: '引导式全流程编排器：探索→[前端设计]→提案(+verify)→深度复查→实现(+条件 frontend 实现/test)→归档（含需求文档生成），委派阶段 SKILL + 桥梁确认门',
+        description: '引导式全流程编排器：探索→[前端设计]→提案(+verify)→深度复查→实现(+条件 frontend 实现/test)→归档（含需求文档对齐），委派阶段 SKILL + 桥梁确认门',
         category: 'Venus / 实现',
         tags: ['venus', 'tr_impl', 'genfull', 'orchestrator', 'full-pipeline'],
         content: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
@@ -384,7 +387,7 @@ ${FLOWCHART}
 
 ## Stage 2: 提案+深度复查
 
-2.1 委派 venus_spec_propose（via Skill tool，传 change-name + 关联 exploration）：内部创建变更目录、按依赖序生成 proposal/specs/design/tasks、迁移 exploration.md、同步 CONTEXT.md、**自动调用 venus_spec_verify_proposal**（D1-D9，90% 阈值，FAIL 内部 auto-fix 闭环，仍 FAIL 暂停供决策）。verify PASS 后：2.2 委派 venus_tr_impl_review_proposal（8 维度只读复查；fallback 内联复查 + WARN）；2.3 收束——**MUST NOT 委派 venus_tr_docs_requirement_doc、MUST NOT 生成需求文档**（由 Stage 4 归档阶段步骤 4.8 生成）。
+2.1 委派 venus_spec_propose（via Skill tool，传 change-name + 关联 exploration）：内部创建变更目录、按依赖序生成 proposal/specs/design/tasks、迁移 exploration.md、同步 CONTEXT.md、**自动调用 venus_spec_verify_proposal**（D1-D9，90% 阈值，FAIL 内部 auto-fix 闭环，仍 FAIL 暂停供决策）。verify PASS 后：2.2 委派 venus_tr_impl_review_proposal（8 维度只读复查；fallback 内联复查 + WARN）；2.3 收束——以非交互模式调用 venus_tr_docs_requirement_doc（via Skill tool）生成需求文档到 openspec/changes/<change-name>/需求文档.md（生成失败非阻断 WARN；Stage 4 归档阶段对已存在的需求文档做就地增量对齐保人工域）。
 
 ## Bridge 2: 提案→实现
 
@@ -406,6 +409,6 @@ via Skill tool 传 change-name（跳过选择）。archive 内部完成 delta sp
 
 ## Guardrails
 
-委派不内联（阶段执行委派对应 SKILL，genfull 只编排 + 桥梁，区别于 venus_tr_impl_workflow）；MUST validate prompt before delegating（0.0 提示词校验门，清晰直通 / 不明确须优化并确认，未确认不委派 Stage 1）且幂等（检测到既有提示词基线直接通过，不重复确认）；确认门四条出口不得死锁；桥梁保证完整性（①上下文交接 ②就绪检查 ③完整性校验 ④门决策）；引导式门控（Bridge 1/2/3 暂停确认，frontend 设计/实现确认门与 test 确认门作桥梁点）；前端设计前置（Stage 1.5 仅设计喂入 propose design.md，Stage 3.2 仅实现读 references 生成 JSP，设计与实现分离）；don't skip questioning（grill L1-L5 由 explore 承载）；read-only operations（文件 / CodeGraph / impact）直接执行但桥梁确认门等待确认；auto-mode to apply（Stage 3 传 auto-mode=true，Bridge 2 承载确认避免 Step 5.5 重复）；pass change-name to archive；do converge after verify PASS（只做深度复查并收束，**MUST NOT 生成需求文档** —— 该文档由归档阶段步骤 4.8 从最终制品生成）；impact analysis at Bridge 1（explore 只准备符号，Bridge 1 补跑 codegraph_impact）；exploration.md fallback（缺失补建最小版，verify 硬依赖）；do flowchart fallback（Bridge 1 ①.1 缺失 \`## 功能流程图\` 段时依 Decisions / 边界场景 / Codebase Findings 强制补建并随门决策确认流程基准，确认前不进入 Stage 1.5 / Stage 2）；do flowchart idempotency（已含经用户确认的 \`## 功能流程图\` 段时直接通过，不重复产出或再次要求确认）；actionContext.mode detection（workspace-planning 降级）；MUST preserve source on migration failure；do explore codebase before asking；do show quantified scores；don't lose exploration。Build all paths with \`path.join()\`.`,
+委派不内联（阶段执行委派对应 SKILL，genfull 只编排 + 桥梁，区别于 venus_tr_impl_workflow）；MUST validate prompt before delegating（0.0 提示词校验门，清晰直通 / 不明确须优化并确认，未确认不委派 Stage 1）且幂等（检测到既有提示词基线直接通过，不重复确认）；确认门四条出口不得死锁；桥梁保证完整性（①上下文交接 ②就绪检查 ③完整性校验 ④门决策）；引导式门控（Bridge 1/2/3 暂停确认，frontend 设计/实现确认门与 test 确认门作桥梁点）；前端设计前置（Stage 1.5 仅设计喂入 propose design.md，Stage 3.2 仅实现读 references 生成 JSP，设计与实现分离）；don't skip questioning（grill L1-L5 由 explore 承载）；read-only operations（文件 / CodeGraph / impact）直接执行但桥梁确认门等待确认；auto-mode to apply（Stage 3 传 auto-mode=true，Bridge 2 承载确认避免 Step 5.5 重复）；pass change-name to archive；do converge after verify PASS（深度复查收束后生成需求文档，非交互调用 venus_tr_docs_requirement_doc，失败非阻断 WARN；Stage 4 归档阶段对已存在的需求文档做就地增量对齐保人工域）；impact analysis at Bridge 1（explore 只准备符号，Bridge 1 补跑 codegraph_impact）；exploration.md fallback（缺失补建最小版，verify 硬依赖）；do flowchart fallback（Bridge 1 ①.1 缺失 \`## 功能流程图\` 段时依 Decisions / 边界场景 / Codebase Findings 强制补建并随门决策确认流程基准，确认前不进入 Stage 1.5 / Stage 2）；do flowchart idempotency（已含经用户确认的 \`## 功能流程图\` 段时直接通过，不重复产出或再次要求确认）；actionContext.mode detection（workspace-planning 降级）；MUST preserve source on migration failure；do explore codebase before asking；do show quantified scores；don't lose exploration。Build all paths with \`path.join()\`.`,
     };
 }
