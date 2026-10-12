@@ -50,16 +50,62 @@ export interface ChangeStatusResult {
 }
 
 /**
- * 检测变更目录下已完成的 artifact（输出存在性判定）。
+ * 检测变更目录下已完成的 artifact。
+ *
+ * change.json 共享 artifact（proposal / specs / design）按段存在性判定；
+ * tasks 按 tasks.json 文件存在性判定。
  *
  * @param changeRoot - 变更目录绝对路径
  * @returns 已完成 artifact id 集合
  */
 export function detectCompleted(changeRoot: string): Set<string> {
     const completed = new Set<string>();
+
+    // change.json 共享 artifact：内容级检测（读取一次，避免重复 IO）
+    const changeJsonPath = path.join(changeRoot, 'change.json');
+    let changeJson: Record<string, unknown> | null = null;
+    const resolveChangeJson = (): Record<string, unknown> => {
+        if (changeJson !== null) {
+            return changeJson;
+        }
+        if (!fs.existsSync(changeJsonPath)) {
+            changeJson = {};
+            return changeJson;
+        }
+        try {
+            const parsed: unknown = JSON.parse(fs.readFileSync(changeJsonPath, 'utf8'));
+            changeJson = (parsed !== null && typeof parsed === 'object') ? (parsed as Record<string, unknown>) : {};
+        } catch {
+            changeJson = {};
+        }
+        return changeJson;
+    };
+
     for (const artifact of SPEC_DRIVEN_SCHEMA.artifacts) {
-        if (artifactOutputExists(changeRoot, artifact.outputPath)) {
-            completed.add(artifact.id);
+        if (artifact.outputPath === 'change.json') {
+            // proposal / specs / design：按 change.json 对应段非空判定
+            const json = resolveChangeJson();
+            if (artifact.id === 'specs') {
+                // specs: change.json specs 段非空 或 旧格式 specs/**/*.md 存在
+                const specs = json.specs;
+                const hasJsonSpecs = Array.isArray(specs) && specs.length > 0;
+                const hasLegacySpecs = artifactOutputExists(changeRoot, 'specs/**/*.md');
+                if (hasJsonSpecs || hasLegacySpecs) {
+                    completed.add(artifact.id);
+                }
+            } else if (json[artifact.id] !== undefined) {
+                completed.add(artifact.id);
+            }
+        } else if (artifact.outputPath === 'tasks.json') {
+            // tasks：按 tasks.json 文件存在性判定
+            if (fs.existsSync(path.join(changeRoot, 'tasks.json'))) {
+                completed.add(artifact.id);
+            }
+        } else {
+            // 兜底：遗留的 outputPath（如旧 schema 定义的 .md 路径），保持文件存在性检查
+            if (artifactOutputExists(changeRoot, artifact.outputPath)) {
+                completed.add(artifact.id);
+            }
         }
     }
     return completed;
@@ -102,8 +148,8 @@ function hasFileWithExtension(dir: string, extension: string): boolean {
 }
 
 /**
- * 解析 tasks.md 的任务进度。
- * 文件不存在时返回 null；存在但无可识别勾选项时返回全零统计（apply 按无任务处理）。
+ * 解析 tasks.json 的任务进度。
+ * 文件不存在时返回 null；解析失败时返回 null。
  *
  * @param changeRoot - 变更目录绝对路径
  */
@@ -112,22 +158,17 @@ export function parseTaskProgress(changeRoot: string): TaskProgress | null {
     if (!fs.existsSync(tasksFile)) {
         return null;
     }
-    const content = fs.readFileSync(tasksFile, 'utf8');
-    let total = 0;
-    let complete = 0;
-    // 匹配 - [ ] / - [x]（容忍首尾空白与列表标记变体）
-    const checkboxPattern = /^\s*[-*]\s+\[([ xX])\]/;
-    for (const line of content.split(/\r?\n/)) {
-        const match = checkboxPattern.exec(line);
-        if (match === null) {
-            continue;
+    try {
+        const tasks = JSON.parse(fs.readFileSync(tasksFile, 'utf8'));
+        if (!Array.isArray(tasks.tasks)) {
+            return null;
         }
-        total += 1;
-        if (match[1] !== ' ') {
-            complete += 1;
-        }
+        const total = tasks.tasks.length;
+        const complete = tasks.tasks.filter((t: { status?: string }) => t.status === 'done').length;
+        return { total, complete, remaining: total - complete };
+    } catch {
+        return null;
     }
-    return { total, complete, remaining: total - complete };
 }
 
 /**

@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:bdd0ba3de131456b4d7747825fd217f622656d9fe086fdf09d3e01044dd4abde"
+  generatedFingerprint: "sha256:d6c61800a417b2abe811258cf12b6b0d89116629b4c096972426e724e06351a9"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
@@ -31,7 +31,7 @@ venus spec status --change "<change-name>" --json
 ```
 
 获取变更状态后，按以下顺序读取提案证据（JSON 优先）：
-- 优先读变更目录下的 `.venus/change.json`（结构化真源）：
+- 优先读变更目录下的 `change.json`（结构化真源）：
   - `proposal` 段 - 需求背景和目标（why / whatChanges / capabilities / impact）
   - `design` 段 - 技术设计（context / goals / nonGoals / decisions[] / risks[]）
   - `specs` 段 - Delta 规格说明（specs[].operations[]：requirement / scenarios）
@@ -639,8 +639,8 @@ if (!StringUtils.isNull(keyword)) {
 发现遗漏场景后，按优先级更新：
 
 1. **P0 必须补充**（影响功能正确性，JSON-first）：
-   - 更新 `.venus/change.json` 的 `specs` 段：对应 capability 的 `operations` 新增 Requirement 与 `scenarios[]`
-   - 更新 `.venus/change.json` 的 `design` 段：`decisions[]` 补充遗漏的设计决策
+   - 更新 `change.json` 的 `specs` 段：对应 capability 的 `operations` 新增 Requirement 与 `scenarios[]`
+   - 更新 `change.json` 的 `design` 段：`decisions[]` 补充遗漏的设计决策
    - 更新 `tasks.json`：新增对应的实现任务（`specRef` 指向补充的需求）
    - 每次更新 JSON 段后运行 `venus spec render <type> --change "<name>"`（`specs` / `design` / `tasks`）重渲染对应 MD 制品
    - **降级（WARN）**：change.json 缺失时直接编辑 MD 制品（`specs/*.md` / `design.md`；tasks.json 缺失时为 `tasks.md`），并在报告中注明 WARN
@@ -915,7 +915,7 @@ venus spec status --change "add-datamask-rule-management" --json
 
 **Phase 6 更新文档**（JSON-first）:
 
-写入 `.venus/change.json` 的 `specs` 段（新增操作与场景），再运行 `venus spec render specs --change "add-datamask-rule-management"` 渲染到 `specs/datamask/spec.md`（渲染后的 MD 内容）:
+写入 `change.json` 的 `specs` 段（新增操作与场景），再运行 `venus spec render specs --change "add-datamask-rule-management"` 渲染到 `specs/datamask/spec.md`（渲染后的 MD 内容）:
 ```markdown
 ### Requirement: 数据库操作规范
 
@@ -934,7 +934,7 @@ venus spec status --change "add-datamask-rule-management" --json
 
 | 改进项 | Phase | 检查内容 |
 |-------|-------|---------|
-| **加载提案** | Phase 1 | 优先读取 `.venus/change.json`（proposal/design/specs 段）+ `tasks.json`；缺失时降级 MD（WARN） |
+| **加载提案** | Phase 1 | 优先读取 `change.json`（proposal/design/specs 段）+ `tasks.json`；缺失时降级 MD（WARN） |
 | **深度探索** | Phase 2-3 | 调用链分析、数据流分析、现有模式对比、8个基础维度检查 |
 | **合规验证** | Phase 4 | 技术栈合规、架构分层合规、命名规范、数据库操作规范 |
 | **特殊功能** | Phase 5 | 导出导入功能、外部回调、并发安全、搜索条件处理 |

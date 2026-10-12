@@ -95,7 +95,7 @@ export const TASKS_TEMPLATE = `# Tasks: <change-name>
 // 供 venus spec instructions 的 jsonTemplate 字段分发；JSONC 注释仅作字段说明，实际写入不得含注释。
 
 /** change.json 的 proposal 段模板（字段与 ChangeSchema/ProposalSection 对齐） */
-export const PROPOSAL_JSON_TEMPLATE = `// change.json 的 proposal 段（文件：openspec/changes/<name>/.venus/change.json）
+export const PROPOSAL_JSON_TEMPLATE = `// change.json 的 proposal 段（文件：openspec/changes/<name>/change.json）
 // JSONC 注释仅作字段说明；实际写入的 JSON 不得含注释
 // 写入前先读取 change.json，保留已有段（design/specs）与根字段现值，再合并写回
 {
@@ -129,7 +129,7 @@ export const PROPOSAL_JSON_TEMPLATE = `// change.json 的 proposal 段（文件�
 `;
 
 /** change.json 的 specs 段模板（字段与 SpecEntry/SpecOperation/ScenarioEntry 对齐） */
-export const SPECS_JSON_TEMPLATE = `// change.json 的 specs 段（文件：openspec/changes/<name>/.venus/change.json）
+export const SPECS_JSON_TEMPLATE = `// change.json 的 specs 段（文件：openspec/changes/<name>/change.json）
 // JSONC 注释仅作字段说明；实际写入的 JSON 不得含注释
 // 写入前先读取 change.json，保留已有段（proposal/design）与根字段现值，再合并写回
 {
@@ -178,7 +178,7 @@ export const SPECS_JSON_TEMPLATE = `// change.json 的 specs 段（文件：open
 `;
 
 /** change.json 的 design 段模板（字段与 DesignSection/DecisionEntry/RiskEntry 对齐） */
-export const DESIGN_JSON_TEMPLATE = `// change.json 的 design 段（文件：openspec/changes/<name>/.venus/change.json）
+export const DESIGN_JSON_TEMPLATE = `// change.json 的 design 段（文件：openspec/changes/<name>/change.json）
 // JSONC 注释仅作字段说明；实际写入的 JSON 不得含注释
 // 写入前先读取 change.json，保留已有段（proposal/specs）与根字段现值，再合并写回
 {

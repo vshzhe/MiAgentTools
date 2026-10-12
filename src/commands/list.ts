@@ -57,6 +57,7 @@ function parseSkillFile(content: string): { type: SkillType | null; description:
  */
 export function scanInstalledSkills(projectRoot: string): InstalledSkillInfo[] {
     const skills: InstalledSkillInfo[] = [];
+    const seen = new Set<string>();
     for (const tool of AI_TOOLS) {
         const skillsRoot = path.join(projectRoot, tool.skillsDir, TOOL_SKILLS_SUBDIR);
         for (const dirName of listSubdirectories(skillsRoot)) {
@@ -64,6 +65,11 @@ export function scanInstalledSkills(projectRoot: string): InstalledSkillInfo[] {
             if (!dirName.startsWith(SKILL_PREFIX)) {
                 continue;
             }
+            // 多工具间去重：同一技能名在不同工具目录中只计一次
+            if (seen.has(dirName)) {
+                continue;
+            }
+            seen.add(dirName);
             const content = readFileIfExists(path.join(skillsRoot, dirName, 'SKILL.md'));
             if (content === undefined) {
                 // 目录存在但无 SKILL.md：仅登记名称

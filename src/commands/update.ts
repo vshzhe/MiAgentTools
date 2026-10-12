@@ -10,6 +10,11 @@
  *
  * 指纹判定（见 core/command-generation/fingerprint.ts）独立于版本号，
  * 因此"模板正文变更但版本号未递增"也能被正确识别为可升级。
+ *
+ * 技能与指令分离架构：
+ *   - 技能：遍历 AI_TOOLS 全部工具生成（不依赖适配器），支持 skills-invocable 工具
+ *   - 指令：仅遍历有适配器的工具生成，无适配器工具（如 Codex）跳过指令生成
+ *   - 权限：每个工具独立合并，不受适配器影响
  */
 
 import path from 'path';
@@ -27,9 +32,8 @@ import {
 import {
     AI_TOOLS,
     TOOL_SKILLS_SUBDIR,
-    type AIToolOption,
 } from '../core/config.js';
-import { readProjectConfig } from '../core/project-config.js';
+import { readProjectConfig, resolveActiveTools } from '../core/project-config.js';
 import { resolveWorkflows } from '../core/profiles.js';
 import { scanReconcileOrphans, type ReconcileOrphans } from '../core/reconcile.js';
 import {
@@ -46,6 +50,8 @@ const SETTINGS_FILE = 'settings.json';
 export interface UpdateOptions {
     /** 覆盖用户手改过的技能 */
     force?: boolean;
+    /** 目标工具 id 列表（逗号分隔，默认全部；优先级高于 config.yaml 的 tools 字段） */
+    tools?: string;
 }
 
 /** update 执行结果 */
@@ -88,7 +94,6 @@ function getPackageVersion(): string {
  * @param options - 命令选项
  */
 export function runUpdate(projectRoot: string, options: UpdateOptions = {}): UpdateResult {
-    const tools: AIToolOption[] = AI_TOOLS;
     const packageVersion = getPackageVersion();
     const installed: string[] = [];
     const updated: string[] = [];
@@ -101,22 +106,19 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
     const resolved = resolveWorkflows(projectConfig?.workflows);
     const workflowsSource = projectConfig && projectConfig.workflows.length > 0 ? 'user' : 'default';
 
+    // 解析生效工具列表（CLI --tools > config tools > 全部 AI_TOOLS）
+    const tools = resolveActiveTools(options.tools, projectConfig?.tools, AI_TOOLS);
+
     // 会话级放行条目：源自生效集技能模板的白名单（与 frontmatter 同源，避免第二份真源）
     const permissionEntries = buildPermissionEntries(
         getSkillTemplates(undefined, resolved.workflows).map((entry) => entry.template.allowedTools)
     );
 
+    // 1. 技能生成（遍历所有工具，不依赖适配器）
     for (const tool of tools) {
-        const adapter = CommandAdapterRegistry.get(tool.value);
-        if (!adapter) {
-            continue;
-        }
         const skillsRoot = path.join(projectRoot, tool.skillsDir, TOOL_SKILLS_SUBDIR);
         ensureDir(skillsRoot);
 
-        // 1. 技能：按内容指纹决策（存量无指纹时回退到版本号判定）
-        // 写入 SKILL.md 时同步重写 references（先清空 references/ 子目录避免旧文件残留）。
-        // SKILL.md 跳过的技能，references 也一并跳过（跟随手改保护决策）。
         const syncReferences = (skillDir: string, references: Array<{ path: string; content: string }> | undefined): void => {
             removeDir(path.join(skillDir, 'references'));
             writeSkillReferences(skillDir, references);
@@ -155,7 +157,27 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
             }
         }
 
-        // 2. 指令：venus 命名空间内存在即刷新（指令无 generatedBy，不做手改保护）
+        // 会话级权限载体：每个工具独立合并，不受适配器影响
+        try {
+            permissionSettings.push(
+                mergePermissions(projectRoot, path.join(tool.skillsDir, SETTINGS_FILE), permissionEntries)
+            );
+        } catch (error) {
+            permissionSettings.push({
+                path: path.join(tool.skillsDir, SETTINGS_FILE).replaceAll('\\', '/'),
+                state: 'preserved-invalid',
+                added: 0,
+                note: `写入失败（已跳过，不影响产物刷新）：${(error as Error).message}`,
+            });
+        }
+    }
+
+    // 2. 指令生成（仅遍历有适配器的工具）
+    for (const tool of tools) {
+        const adapter = CommandAdapterRegistry.get(tool.value);
+        if (!adapter) {
+            continue;
+        }
         for (const { template, id } of getCommandTemplates(undefined, resolved.workflows)) {
             const content: CommandContent = {
                 id,
@@ -174,20 +196,6 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
             }
             writeFile(commandFile, generated.fileContent, { force: true });
             commandsWritten++;
-        }
-
-        // 3. 会话级权限载体（.claude/settings.json）：补齐新增条目，失败仅告警不阻断
-        try {
-            permissionSettings.push(
-                mergePermissions(projectRoot, path.join(tool.skillsDir, SETTINGS_FILE), permissionEntries)
-            );
-        } catch (error) {
-            permissionSettings.push({
-                path: path.join(tool.skillsDir, SETTINGS_FILE).replaceAll('\\', '/'),
-                state: 'preserved-invalid',
-                added: 0,
-                note: `写入失败（已跳过，不影响产物刷新）：${(error as Error).message}`,
-            });
         }
     }
 

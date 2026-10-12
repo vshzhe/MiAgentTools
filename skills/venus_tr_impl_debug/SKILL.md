@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:b9833486152a6a51be3d115279bf4ef5c34cfe315563f9733cca94f8ec4a9cf6"
+  generatedFingerprint: "sha256:b6d74bc400513c21481cba1ac0ce3c14c1de35a51f5450c1c5c6161dc75685d6"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
@@ -437,7 +437,7 @@ After each fix is complete, ask the user:
 
 JSON is the structured source of truth — update the JSON, then re-render the MD; MUST NOT hand-edit the MD as the source of truth:
 
-- **proposal**: append root causes and fix descriptions for ALL bugs in the loop to the change's `.venus/change.json` → `proposal.whatChanges` (one appended entry per bug) — do NOT edit proposal.md directly
+- **proposal**: append root causes and fix descriptions for ALL bugs in the loop to the change's `change.json` → `proposal.whatChanges` (one appended entry per bug) — do NOT edit proposal.md directly
 - **specs**: when any fix changes documented behavior, update `specs[].operations[]` in change.json (structured ADDED/MODIFIED/REMOVED/RENAMED operations with scenarios) — do NOT edit the delta spec MD directly
 - **design**: when any fix changed a documented decision, update the `design` section (`decisions[]`) in change.json
 - **tasks**: update the change's `tasks.json` (change directory root) — set `status: "done"` for the tasks corresponding to all loop fixes; append regression test tasks for each bug if missing (label `测试` + `subLabel`/`priority`); do NOT hand-edit tasks.md checkboxes

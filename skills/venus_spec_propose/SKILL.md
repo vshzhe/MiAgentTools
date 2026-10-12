@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:ac06b312dd4c6a1e8cc1fad4a7acf81ca54cff716cf985fd77317f83c9ee1243"
+  generatedFingerprint: "sha256:101415411068051be7d35ce03ce2422d34b74c48ac0a3cd3aae6c9478a1a6671"
 ---
 
 Propose a new change - create the change and generate all artifacts in one step.
@@ -17,9 +17,8 @@ Propose a new change - create the change and generate all artifacts in one step.
 **Planning Boundary**: 触发此工作流的用户请求授权的是规划——即使请求要求"实现它"或"开始编码"，也只完成规划 artifacts（不编辑项目代码）；全部 artifacts 生成且 Phase 3 验证通过后停止，等待用户发起新请求（/venus:spec-apply）才进入实现；本工作流不启动代码实现。
 
 I'll create a change with artifacts:
-- proposal.md (what & why)
-- design.md (how)
-- tasks.md (implementation steps)
+- change.json (proposal / design / specs — JSON primary)
+- tasks.json + tasks.md (implementation steps)
 
 准备好实现时，告知我即可开始执行任务。
 
@@ -84,10 +83,10 @@ I'll create a change with artifacts:
 
 0.7. **探索内容传递给提案生成**
    - 如果用户选择关联探索文件：
-     - 读取 `exploration.md` 中的 Decisions 章节 → 填充 proposal.md
-     - 读取 Analysis 章节 → 填充 design.md
-     - 读取 Questions 章节 → 填充 specs
-     - 读取 Codebase Findings 章节 → 填充 tasks.md
+     - 读取 `exploration.md` 中的 Decisions 章节 → 填充 change.json proposal 段
+     - 读取 Analysis 章节 → 填充 change.json design 段
+     - 读取 Questions 章节 → 填充 change.json specs 段
+     - 读取 Codebase Findings 章节 → 填充 tasks.json
 <!-- /CMD:SKIP -->
 
 1. **If no clear input provided, ask what they want to build**
@@ -175,8 +174,8 @@ Apply the following naming rules when deriving a change name:
         - `dependencies`: Completed artifacts to read for context
       - **Re-read dependency artifacts from disk**: 生成新 artifact 需读取已完成的依赖 artifact 时，从磁盘重新读取最新内容（用户可能在会话期间手工编辑），不依赖会话缓存
       - Read any completed dependency files for context
-      - **Write JSON truth source**: proposal/specs/design → 更新 `.venus/change.json` 对应段（整文件 Write，保留已有段与根字段现值）；tasks → 写 `tasks.json`（JSON-first 完整步骤见 `openspec/rules/artifact-generation.md` Step G2）
-      - **Render MD**: `venus spec render <artifact-id> --change "<name>"` — 校验失败（报错含字段路径）修正 JSON 后重跑；命令不可用时降级以 `template` 为结构手写 MD（WARN，不阻断）
+      - **Write JSON truth source**: proposal/specs/design → 更新 `change.json` 对应段（整文件 Write，保留已有段与根字段现值）；tasks → 写 `tasks.json`（JSON-first 完整步骤见 `openspec/rules/artifact-generation.md` Step G2）
+      - **Render tasks.md**（仅 tasks）：`venus spec render tasks --change "<name>"` 渲染 tasks.md 供人工检查；校验失败（报错含字段路径）修正 JSON 后重跑；命令不可用时降级以 `template` 为结构手写 tasks.md（WARN，不阻断）。proposal / specs / design 不渲染 MD —— change.json 为唯一真源。
       - Show brief progress: "Created <artifact-id>"
 
    b. **Continue until all required artifacts are complete (apply-ready = applyRequires 传递闭包)**
@@ -191,7 +190,7 @@ Apply the following naming rules when deriving a change name:
       - Then continue with creation
 
    d. **Parallel delta spec generation (multi-capability only)**:
-      - When the `specs` artifact is ready for generation AND the change involves two or more capabilities (per the proposal's Capabilities section): dispatch one sub-agent per capability (Task tool) to generate that capability's delta spec in parallel — every sub-agent takes the completed `proposal.md` as its input
+      - When the `specs` artifact is ready for generation AND the change involves two or more capabilities (per the proposal's Capabilities section): dispatch one sub-agent per capability (Task tool) to generate that capability's delta spec in parallel — every sub-agent takes the completed `change.json` as its input
       - Merge all generated delta specs before proceeding to the next artifact in the dependency order (the proposal → specs → design → tasks chain is unchanged)
       - For a single-capability change: generate the delta spec directly in the artifact loop (automatic serial fallback, no dispatch)
       - On a sub-agent failure: the main workflow regenerates that capability's delta spec serially
@@ -254,9 +253,9 @@ After completing all artifacts AND Phase 3 verification passes:
 
 当关联的 `exploration.md` 含**经用户确认**的 `## 功能流程图` 段时，该流程图即**流程基准**，本技能 MUST 以其为**生成锚点**：
 
-- **design.md 引用而非重建**：design.md MUST 引用该流程图（Mermaid `flowchart TD`）与**关键操作节点清单**（节点 / 操作 / 触发条件 / 证据位置 / 异常路径）；
+- **design 段引用而非重建**：change.json 的 design 段 MUST 引用该流程图（Mermaid `flowchart TD`）与**关键操作节点清单**（节点 / 操作 / 触发条件 / 证据位置 / 异常路径）；
   MUST NOT 在 design 中**重新发明一套流程**——重写流程即偏差引入点
-- **tasks.md 标注节点 id（节点 → 任务的可追溯映射）**：tasks.md 的**每个任务** MUST 标注其对应的节点标识（`[N4]` 形，节点标识与流程图 / 节点清单表保持一致），
+- **tasks 标注节点 id（节点 → 任务的可追溯映射）**：tasks.json 的**每个任务** MUST 标注其对应的节点标识（`[N4]` 形，节点标识与流程图 / 节点清单表保持一致），
   使每个流程节点在任务清单中可被逐一核对
   - 例：`- [ ] [代码] 2.3 实现分批查询 [N4]`
 - **MUST NOT 静默补节点**：任务拆解中发现流程图遗漏的节点时，MUST 回到探索阶段更新流程图并**重新经用户确认**；
@@ -280,7 +279,7 @@ After completing all artifacts AND Phase 3 verification passes:
 
 ### 1. JSON 真源写入（proposal / specs / design → change.json）
 
-- proposal / specs / design 三段写入 `<changeRoot>/.venus/change.json`，按 proposal → specs → design 依赖序累积
+- proposal / specs / design 三段写入 `<changeRoot>/change.json`，按 proposal → specs → design 依赖序累积
 - 每次更新 MUST 整文件 Write，并保留已有段与根字段现值（`changeName` / `createdAt` / `phase`），`updatedAt` 刷新为当前时间
 - 字段结构以 `venus spec instructions` 返回的 `jsonTemplate` 为机器源——MUST NOT 增删字段或改名
 - 可选骨架（也可跳过，直接写全 JSON）：`venus spec sidecar init --change "<name>"`——创建 change.json / tasks.json 空骨架，已存在不覆盖（幂等）

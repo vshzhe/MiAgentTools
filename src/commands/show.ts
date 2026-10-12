@@ -110,6 +110,7 @@ export function findSkills(projectRoot: string, query: string): SkillDetail[] {
 
     const details: SkillDetail[] = [];
     for (const match of matches) {
+        // 遍历工具目录找第一个存在的技能文件（多工具间去重，取第一个命中）
         for (const tool of AI_TOOLS) {
             const file = path.join(projectRoot, tool.skillsDir, TOOL_SKILLS_SUBDIR, match.name, 'SKILL.md');
             const content = readFileIfExists(file);
@@ -126,6 +127,7 @@ export function findSkills(projectRoot: string, query: string): SkillDetail[] {
                 typeName: typeMeta ? `${typeMeta.name}（${typeMeta.id}）` : null,
                 file: path.relative(projectRoot, file),
             });
+            break; // 找到第一个已安装目录即停止，避免多工具重复
         }
     }
     return details;

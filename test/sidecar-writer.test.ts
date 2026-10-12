@@ -438,7 +438,7 @@ describe('sidecar-writer 模块', () => {
                     expect(result.updatedAt).not.toBe('2000-01-01T00:00:00.000Z');
                     expect(Date.parse(result.updatedAt)).toBeGreaterThan(Date.parse('2000-01-01T00:00:00.000Z'));
 
-                    const fpath = path.join(dir, '.venus', 'change.json');
+                    const fpath = path.join(dir, 'change.json');
                     expect(fs.existsSync(fpath)).toBe(true);
                     const parsed = JSON.parse(fs.readFileSync(fpath, 'utf8'));
                     expect(parsed.changeName).toBe('test-change');
@@ -462,7 +462,7 @@ describe('sidecar-writer 模块', () => {
                     });
                     expect(() => writeChangeJson(dir, data)).toThrow(/proposal\.whatChanges/);
                     // 校验失败不落盘
-                    expect(fs.existsSync(path.join(dir, '.venus', 'change.json'))).toBe(false);
+                    expect(fs.existsSync(path.join(dir, 'change.json'))).toBe(false);
                 } finally {
                     fs.rmSync(dir, { recursive: true, force: true });
                 }
@@ -554,7 +554,7 @@ describe('sidecar-writer 模块', () => {
                     expect(change.design).toBeUndefined();
                     expect(change.specs).toBeUndefined();
 
-                    const fpath = path.join(dir, '.venus', 'change.json');
+                    const fpath = path.join(dir, 'change.json');
                     expect(fs.existsSync(fpath)).toBe(true);
                     expect(JSON.parse(fs.readFileSync(fpath, 'utf8')).changeName).toBe('demo-change');
                 } finally {
@@ -566,7 +566,7 @@ describe('sidecar-writer 模块', () => {
                 const dir = tempDir();
                 try {
                     writeChangeJson(dir, makeChange({ changeName: 'existing-change', proposal: makeProposal() }));
-                    const fpath = path.join(dir, '.venus', 'change.json');
+                    const fpath = path.join(dir, 'change.json');
                     const before = fs.readFileSync(fpath, 'utf8');
 
                     const change = initChangeJson(dir, 'other-name');

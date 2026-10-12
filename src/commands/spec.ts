@@ -500,7 +500,7 @@ export function buildSpecCommand(): Command {
                 const created: string[] = [];
                 if (options.type === 'change' || options.type === 'all') {
                     initChangeJson(changeDir, options.change);
-                    created.push('.venus/change.json');
+                    created.push('change.json');
                 }
                 if (options.type === 'tasks' || options.type === 'all') {
                     initTasksJson(changeDir);
@@ -533,7 +533,7 @@ function isRenderType(value: string): value is RenderType {
 function renderChangeSection(changeDir: string, type: 'proposal' | 'specs' | 'design'): void {
     const changeJson = readChangeJson(changeDir);
     if (changeJson === null) {
-        console.error(`change.json 不存在，请先写入 .venus/change.json 的 ${type} 段`);
+        console.error(`change.json 不存在，请先写入 change.json 的 ${type} 段`);
         process.exitCode = 1;
         return;
     }
@@ -1126,10 +1126,10 @@ export function getApplyInstructions(projectRoot: string, changeName: string): A
 
     // contextFiles：已创建 → 绝对路径；未创建 → 空字符串
     const contextFiles = {
-        proposal: completed.has('proposal') ? path.join(changeRoot, 'proposal.md') : '',
-        specs: specsExist ? path.join(changeRoot, 'specs') : '',
-        design: completed.has('design') ? path.join(changeRoot, 'design.md') : '',
-        tasks: completed.has('tasks') ? path.join(changeRoot, 'tasks.md') : '',
+        proposal: completed.has('proposal') ? path.join(changeRoot, 'change.json') : '',
+        specs: specsExist ? path.join(changeRoot, 'change.json') : '',
+        design: completed.has('design') ? path.join(changeRoot, 'change.json') : '',
+        tasks: completed.has('tasks') ? path.join(changeRoot, 'tasks.json') : '',
     };
 
     // progress：tasks.md 不存在时返回全零（不报错）
@@ -1195,9 +1195,9 @@ export function getApplyInstructions(projectRoot: string, changeName: string): A
 }
 
 /**
- * 解析 tasks.md 为任务列表。
- * 每项含原始行文本、勾选状态与缩进层级。
- * tasks.md 不存在时返回空数组。
+ * 解析 tasks.json 为任务列表。
+ * 每项含格式化文本、勾选状态与缩进层级。
+ * tasks.json 不存在或解析失败时返回空数组。
  *
  * @param changeRoot - 变更目录绝对路径
  */
@@ -1206,21 +1206,17 @@ function parseTaskList(changeRoot: string): TaskListItem[] {
     if (!fs.existsSync(tasksFile)) {
         return [];
     }
-    const content = fs.readFileSync(tasksFile, 'utf8');
-    const items: TaskListItem[] = [];
-    // 匹配 - [ ] / - [x]（容忍首尾空白与列表标记变体 -/*）
-    const pattern = /^(\s*)[-*]\s+\[([ xX])\]/;
-    for (const line of content.split(/\r?\n/)) {
-        const match = pattern.exec(line);
-        if (match === null) {
-            continue;
+    try {
+        const tasks = JSON.parse(fs.readFileSync(tasksFile, 'utf8'));
+        if (!Array.isArray(tasks.tasks)) {
+            return [];
         }
-        const [, indent, mark] = match;
-        items.push({
-            text: line,
-            checked: mark !== ' ',
-            indent: indent.length,
-        });
+        return tasks.tasks.map((task: { id?: string; label?: string; description?: string; status?: string }) => ({
+            text: `- [${task.status === 'done' ? 'x' : ' '}] [${task.label ?? ''}] ${task.id ?? ''} ${task.description ?? ''}`,
+            checked: task.status === 'done',
+            indent: 0,
+        }));
+    } catch {
+        return [];
     }
-    return items;
 }

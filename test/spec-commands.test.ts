@@ -72,8 +72,18 @@ describe('venus spec archive（previewArchive / executeArchive）', () => {
 
     it('预览：未完成任务与未完成制品均产出警告', () => {
         const { changeDir } = createChange(projectRoot, 'incomplete-change');
-        fs.writeFileSync(path.join(changeDir, 'proposal.md'), '# 提案\n');
-        fs.writeFileSync(path.join(changeDir, 'tasks.md'), '- [ ] 1.1 待办任务\n');
+        // 仅创建 change.json proposal 段，不写 specs/design/tasks（未完成）
+        fs.writeFileSync(path.join(changeDir, 'change.json'), JSON.stringify({
+            $schema: 'venus/change/v1', changeName: 'incomplete-change',
+            createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+            phase: 'proposal',
+            proposal: { why: '测试', whatChanges: ['变更'], capabilities: { new: [], modified: [] }, impact: { files: [], breaking: false, compatibility: '兼容' } },
+        }, null, 2));
+        fs.writeFileSync(path.join(changeDir, 'tasks.json'), JSON.stringify({
+            $schema: 'venus/tasks/v1',
+            tasks: [{ id: '1', label: '代码', description: '待办任务', status: 'pending', dependencies: [], files: [] }],
+            progress: { total: 1, complete: 0, remaining: 1 },
+        }, null, 2));
         const preview = previewArchive(projectRoot, 'incomplete-change');
         expect(preview.warnings.some((w) => w.includes('未完成的规划制品'))).toBe(true);
         expect(preview.tasksRemaining).toBe(1);
@@ -83,11 +93,19 @@ describe('venus spec archive（previewArchive / executeArchive）', () => {
 
     it('执行：变更目录移动至 archive/<日期前缀>-<名称>', () => {
         const { changeDir } = createChange(projectRoot, 'done-change');
-        fs.writeFileSync(path.join(changeDir, 'proposal.md'), '# 提案\n');
-        fs.writeFileSync(path.join(changeDir, 'design.md'), '# 设计\n');
-        fs.mkdirSync(path.join(changeDir, 'specs', 'auth'), { recursive: true });
-        fs.writeFileSync(path.join(changeDir, 'specs', 'auth', 'spec.md'), '## ADDED\n');
-        fs.writeFileSync(path.join(changeDir, 'tasks.md'), '- [x] 1.1 完成\n');
+        fs.writeFileSync(path.join(changeDir, 'change.json'), JSON.stringify({
+            $schema: 'venus/change/v1', changeName: 'done-change',
+            createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+            phase: 'proposal',
+            proposal: { why: '测试', whatChanges: ['变更'], capabilities: { new: [], modified: [] }, impact: { files: [], breaking: false, compatibility: '兼容' } },
+            specs: [{ name: 'auth', path: 'specs/auth/spec.md', operations: [] }],
+            design: { context: '上下文', goals: [], nonGoals: [], decisions: [], risks: [] },
+        }, null, 2));
+        fs.writeFileSync(path.join(changeDir, 'tasks.json'), JSON.stringify({
+            $schema: 'venus/tasks/v1',
+            tasks: [{ id: '1', label: '代码', description: '完成', status: 'done', dependencies: [], files: [] }],
+            progress: { total: 1, complete: 1, remaining: 0 },
+        }, null, 2));
         const result = executeArchive(projectRoot, 'done-change');
         expect(fs.existsSync(result.archivedPath)).toBe(true);
         expect(path.basename(result.archivedPath)).toMatch(/^\d{4}-\d{2}-\d{2}-done-change$/);
@@ -96,7 +114,19 @@ describe('venus spec archive（previewArchive / executeArchive）', () => {
 
     it('名称已含日期前缀：不叠加', () => {
         const { changeDir } = createChange(projectRoot, '2026-01-01-named-change');
-        fs.writeFileSync(path.join(changeDir, 'tasks.md'), '- [x] 1.1 完成\n');
+        fs.writeFileSync(path.join(changeDir, 'change.json'), JSON.stringify({
+            $schema: 'venus/change/v1', changeName: '2026-01-01-named-change',
+            createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+            phase: 'proposal',
+            proposal: { why: '测试', whatChanges: ['变更'], capabilities: { new: [], modified: [] }, impact: { files: [], breaking: false, compatibility: '兼容' } },
+            specs: [{ name: 'auth', path: 'specs/auth/spec.md', operations: [] }],
+            design: { context: '上下文', goals: [], nonGoals: [], decisions: [], risks: [] },
+        }, null, 2));
+        fs.writeFileSync(path.join(changeDir, 'tasks.json'), JSON.stringify({
+            $schema: 'venus/tasks/v1',
+            tasks: [{ id: '1', label: '代码', description: '完成', status: 'done', dependencies: [], files: [] }],
+            progress: { total: 1, complete: 1, remaining: 0 },
+        }, null, 2));
         const result = executeArchive(projectRoot, '2026-01-01-named-change');
         expect(path.basename(result.archivedPath)).toBe('2026-01-01-named-change');
     });

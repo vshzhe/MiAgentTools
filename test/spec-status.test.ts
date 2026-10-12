@@ -1,5 +1,8 @@
 /**
  * spec 状态机测试：依赖图判定、进度统计、模板分发、.openspec.yaml 容错。
+ *
+ * 更新：JSON-primary 化后，proposal/specs/design 按 change.json 段存在性判定，
+ * tasks 按 tasks.json 存在性判定。
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -20,6 +23,55 @@ function makeChange(projectRoot: string, changeName: string): string {
     const changeDir = path.join(projectRoot, 'openspec', 'changes', changeName);
     fs.mkdirSync(changeDir, { recursive: true });
     return changeDir;
+}
+
+/** 构造最小合法 change.json（proposal 段） */
+function writeChangeJson(changeDir: string, sections: { proposal?: boolean; specs?: boolean; design?: boolean }): void {
+    const json: Record<string, unknown> = {
+        $schema: 'venus/change/v1',
+        changeName: path.basename(changeDir),
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        phase: 'proposal',
+    };
+    if (sections.proposal) {
+        json.proposal = {
+            why: '测试原因',
+            whatChanges: ['变更项'],
+            capabilities: { new: [], modified: [] },
+            impact: { files: [], breaking: false, compatibility: '兼容' },
+        };
+    }
+    if (sections.specs) {
+        json.specs = [{ name: 'test-cap', path: 'specs/test-cap/spec.md', operations: [] }];
+    }
+    if (sections.design) {
+        json.design = {
+            context: '测试上下文',
+            goals: [],
+            nonGoals: [],
+            decisions: [],
+            risks: [],
+        };
+    }
+    fs.writeFileSync(path.join(changeDir, 'change.json'), JSON.stringify(json, null, 2));
+}
+
+/** 构造最小合法 tasks.json */
+function writeTasksJson(changeDir: string, tasks: Array<{ id: string; status: string }>): void {
+    const json = {
+        $schema: 'venus/tasks/v1',
+        tasks: tasks.map((t) => ({
+            id: t.id,
+            label: '代码',
+            description: `任务 ${t.id}`,
+            status: t.status,
+            dependencies: [],
+            files: [],
+        })),
+        progress: { total: tasks.length, complete: tasks.filter((t) => t.status === 'done').length, remaining: tasks.filter((t) => t.status !== 'done').length },
+    };
+    fs.writeFileSync(path.join(changeDir, 'tasks.json'), JSON.stringify(json, null, 2));
 }
 
 describe('spec 依赖图（schema）', () => {
@@ -45,9 +97,9 @@ describe('spec 状态判定（status）', () => {
         fs.rmSync(projectRoot, { recursive: true, force: true });
     });
 
-    it('仅 proposal.md 存在：proposal done，specs/design ready，tasks blocked', () => {
+    it('仅 change.json proposal 段存在：proposal done，specs/design ready，tasks blocked', () => {
         const changeDir = makeChange(projectRoot, 'change-a');
-        fs.writeFileSync(path.join(changeDir, 'proposal.md'), '# 提案\n');
+        writeChangeJson(changeDir, { proposal: true });
         const status = getChangeStatus(projectRoot, 'change-a');
         const byId = new Map(status.artifacts.map((a) => [a.id, a]));
         expect(byId.get('proposal')?.status).toBe('done');
@@ -58,43 +110,37 @@ describe('spec 状态判定（status）', () => {
         expect(status.isPlanningComplete).toBe(false);
     });
 
-    it('specs 目录存在 .md 文件即判定 specs done（glob 匹配）', () => {
+    it('change.json specs 段存在非空数组即判定 specs done（内容级检测）', () => {
         const changeDir = makeChange(projectRoot, 'change-b');
-        fs.writeFileSync(path.join(changeDir, 'proposal.md'), '# 提案\n');
-        fs.mkdirSync(path.join(changeDir, 'specs', 'auth'), { recursive: true });
-        fs.writeFileSync(path.join(changeDir, 'specs', 'auth', 'spec.md'), '## ADDED\n');
+        writeChangeJson(changeDir, { proposal: true, specs: true });
         const completed = detectCompleted(changeDir);
         expect(completed.has('specs')).toBe(true);
     });
 
     it('全部 artifact 完成时 isPlanningComplete 为 true', () => {
         const changeDir = makeChange(projectRoot, 'change-c');
-        fs.writeFileSync(path.join(changeDir, 'proposal.md'), '# 提案\n');
-        fs.writeFileSync(path.join(changeDir, 'design.md'), '# 设计\n');
-        fs.mkdirSync(path.join(changeDir, 'specs', 'auth'), { recursive: true });
-        fs.writeFileSync(path.join(changeDir, 'specs', 'auth', 'spec.md'), '## ADDED\n');
-        fs.writeFileSync(path.join(changeDir, 'tasks.md'), '# Tasks\n');
+        writeChangeJson(changeDir, { proposal: true, specs: true, design: true });
+        writeTasksJson(changeDir, [{ id: '1', status: 'pending' }]);
         expect(getChangeStatus(projectRoot, 'change-c').isPlanningComplete).toBe(true);
     });
 
-    it('tasks.md 进度统计：5 未勾 + 3 已勾', () => {
+    it('tasks.json 进度统计：5 pending + 3 done', () => {
         const changeDir = makeChange(projectRoot, 'change-d');
-        const lines = [
-            '# Tasks',
-            ...Array.from({ length: 5 }, (_, i) => `- [ ] 1.${i + 1} 待办`),
-            ...Array.from({ length: 3 }, (_, i) => `- [x] 2.${i + 1} 完成`),
+        const tasks = [
+            ...Array.from({ length: 5 }, (_, i) => ({ id: `${i + 1}`, status: 'pending' })),
+            ...Array.from({ length: 3 }, (_, i) => ({ id: `${i + 6}`, status: 'done' })),
         ];
-        fs.writeFileSync(path.join(changeDir, 'tasks.md'), `${lines.join('\n')}\n`);
+        writeTasksJson(changeDir, tasks);
         expect(parseTaskProgress(changeDir)).toEqual({ total: 8, complete: 3, remaining: 5 });
     });
 
-    it('tasks.md 存在但无勾选项：全零统计不报错', () => {
+    it('tasks.json 存在但 tasks 为空数组：全零统计不报错', () => {
         const changeDir = makeChange(projectRoot, 'change-e');
-        fs.writeFileSync(path.join(changeDir, 'tasks.md'), '# Tasks\n\n纯文字无任务\n');
+        writeTasksJson(changeDir, []);
         expect(parseTaskProgress(changeDir)).toEqual({ total: 0, complete: 0, remaining: 0 });
     });
 
-    it('tasks.md 不存在：进度为 null', () => {
+    it('tasks.json 不存在：进度为 null', () => {
         const changeDir = makeChange(projectRoot, 'change-f');
         expect(parseTaskProgress(changeDir)).toBeNull();
     });

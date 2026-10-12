@@ -443,7 +443,7 @@ After each fix is complete, ask the user:
 
 JSON is the structured source of truth — update the JSON, then re-render the MD; MUST NOT hand-edit the MD as the source of truth:
 
-- **proposal**: append root causes and fix descriptions for ALL bugs in the loop to the change's \`.venus/change.json\` → \`proposal.whatChanges\` (one appended entry per bug) — do NOT edit proposal.md directly
+- **proposal**: append root causes and fix descriptions for ALL bugs in the loop to the change's \`change.json\` → \`proposal.whatChanges\` (one appended entry per bug) — do NOT edit proposal.md directly
 - **specs**: when any fix changes documented behavior, update \`specs[].operations[]\` in change.json (structured ADDED/MODIFIED/REMOVED/RENAMED operations with scenarios) — do NOT edit the delta spec MD directly
 - **design**: when any fix changed a documented decision, update the \`design\` section (\`decisions[]\`) in change.json
 - **tasks**: update the change's \`tasks.json\` (change directory root) — set \`status: "done"\` for the tasks corresponding to all loop fixes; append regression test tasks for each bug if missing (label \`测试\` + \`subLabel\`/\`priority\`); do NOT hand-edit tasks.md checkboxes
@@ -682,7 +682,7 @@ After each fix, ask: "还有相关 bug 需要修复吗？" [有] [没有]
 
 ## Phase 6: Synchronize Proposal (同步提案) — 汇总所有修复
 
-- JSON-first update: 根因+修复追加到 \`.venus/change.json\` 的 \`proposal.whatChanges\`；行为变化更新 \`specs[].operations[]\`、决策变化更新 \`design\` 段；\`tasks.json\` 置对应任务 \`status: "done"\`、缺失的回归测试任务以 \`测试\` 类型条目追加
+- JSON-first update: 根因+修复追加到 \`change.json\` 的 \`proposal.whatChanges\`；行为变化更新 \`specs[].operations[]\`、决策变化更新 \`design\` 段；\`tasks.json\` 置对应任务 \`status: "done"\`、缺失的回归测试任务以 \`测试\` 类型条目追加
 - Re-render after each JSON update: \`venus spec render <type> --change "<name>"\`（type = proposal | specs | design | tasks）；渲染失败或 change.json 缺失 → 降级直接编辑 MD（WARN），不阻断
 - Persist ALL root cause analyses to the change's \`exploration.md\`, organized per bug — 含每个 bug 的**分级判定结果**（三条信号取值 / 所选路径 / 是否降级）
 - Validate the JSON truth after sync (render success = format valid; change.json sections per contract) — MD 格式由渲染器保证；降级路径保留旧 MD 格式检查。Fix violations before Phase 7.

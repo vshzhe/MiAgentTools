@@ -27,10 +27,10 @@ afterAll(() => {
 });
 
 describe('venus init', () => {
-    it('生成 27 个 SKILL.md 与 27 个指令文件到 .claude/', () => {
+    it('生成 81 个 SKILL.md（3 工具 × 27 模板）与 54 个指令文件（2 适配器 × 27 模板）', () => {
         const result = runInit(tempRoot);
-        expect(result.skillsInstalled.length).toBe(27);
-        expect(result.commandsInstalled.length).toBe(27);
+        expect(result.skillsInstalled.length).toBe(81);
+        expect(result.commandsInstalled.length).toBe(54);
         expect(result.skipped.length).toBe(0);
 
         // 技能文件实际存在且内容合法
@@ -51,10 +51,10 @@ describe('venus init', () => {
     it('重复 init 跳过已存在文件，--force 覆盖', () => {
         const skipped = runInit(tempRoot);
         expect(skipped.skillsInstalled.length).toBe(0);
-        expect(skipped.skipped.length).toBe(54); // 27*2 已存在
+        expect(skipped.skipped.length).toBe(135); // 81 技能 + 54 指令已存在
 
         const forced = runInit(tempRoot, { force: true });
-        expect(forced.skillsInstalled.length).toBe(27);
+        expect(forced.skillsInstalled.length).toBe(81);
         expect(forced.skipped.length).toBe(0);
     });
 
@@ -162,13 +162,13 @@ describe('workflows 过滤（profile 生效）', () => {
         return fs.mkdtempSync(path.join(os.tmpdir(), 'venus-wf-'));
     }
 
-    it('未配置 workflows 时 init 装默认集 8 显式项 + 1 注入 = 9 个', () => {
+    it('未配置 workflows 时 init 装默认集 8 显式项 + 1 注入 = 9 个（每工具）', () => {
         const root = freshRoot();
         try {
             const result = runInit(root);
             expect(result.workflowsSource).toBe('default');
-            expect(result.skillsInstalled.length).toBe(9);
-            expect(result.commandsInstalled.length).toBe(9);
+            expect(result.skillsInstalled.length).toBe(27); // 9 templates × 3 tools
+            expect(result.commandsInstalled.length).toBe(18); // 9 templates × 2 adapters
             // spec-archive 在默认集内，其依赖 tr-docs-requirement-doc 被注入
             expect(result.injectedDeps).toEqual(['tr-docs-requirement-doc']);
             // 默认集内技能存在
@@ -193,8 +193,8 @@ describe('workflows 过滤（profile 生效）', () => {
             writeWorkflowsToConfig(root, ['spec-propose', 'spec-explore']);
             const result = runInit(root);
             expect(result.workflowsSource).toBe('user');
-            // spec-propose 注入 spec-verify-proposal：2 项 + 1 注入 = 3
-            expect(result.skillsInstalled.length).toBe(3);
+            // spec-propose 注入 spec-verify-proposal：2 项 + 1 注入 = 3（每工具）
+            expect(result.skillsInstalled.length).toBe(9); // 3 templates × 3 tools
             expect(result.injectedDeps).toEqual(['spec-verify-proposal']);
             expect(
                 fs.existsSync(path.join(root, '.claude', 'skills', 'venus_spec_verify_proposal', 'SKILL.md'))
@@ -215,9 +215,9 @@ describe('workflows 过滤（profile 生效）', () => {
             writeWorkflowsToConfig(root, ['spec-explore']);
             const result = runInit(root, { force: true });
             expect(result.workflowsSource).toBe('user');
-            // 遗留 26 个技能 + 26 个指令（27 - spec-explore），保留未删
-            expect(result.reconcileOrphans.skills.length).toBe(26);
-            expect(result.reconcileOrphans.commands.length).toBe(26);
+            // 遗留 26 个技能 × 3 工具 = 78，26 个指令 × 2 适配器 = 52
+            expect(result.reconcileOrphans.skills.length).toBe(78);
+            expect(result.reconcileOrphans.commands.length).toBe(52);
             expect(
                 result.reconcileOrphans.skills.some((s) => s.includes('venus_tr_impl_feature'))
             ).toBe(true);
@@ -343,7 +343,9 @@ describe('指令白名单继承与会话级权限载体（端到端）', () => {
         const before = fs.readFileSync(settingsPath(), 'utf8');
         const result = runInit(tempRoot, { force: true });
 
-        expect(result.permissionSettings.length).toBe(1);
+        // 每个工具独立合并权限：claude + pi + codex = 3
+        expect(result.permissionSettings.length).toBe(3);
+        // claude 工具 settings.json 内容不变
         expect(result.permissionSettings[0].state).toBe('unchanged');
         expect(result.permissionSettings[0].added).toBe(0);
         expect(fs.readFileSync(settingsPath(), 'utf8')).toBe(before);

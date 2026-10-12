@@ -2,7 +2,7 @@
  * Artifact JSON Schema 类型定义（合并主产物 + 遗留 sidecar）。
  *
  * 主产物（JSON-primary —— JSON 为结构化数据真源，Markdown 由代码渲染）：
- *   openspec/changes/<name>/.venus/change.json  —— proposal / design / specs 三段合并
+ *   openspec/changes/<name>/change.json          —— proposal / design / specs 三段合并
  *   openspec/changes/<name>/tasks.json          —— 任务清单（独立，不并入）
  *
  * 渲染：sidecar-writer.ts 的 renderProposalMd / renderDesignMd / renderSpecsMd / renderTasksMd。

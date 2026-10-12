@@ -5,6 +5,23 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [1.14.0] - 2026-10-12
+
+### Added
+
+- **Pi/Codex 多工具适配**：`AI_TOOLS` 新增 `pi`（pi.dev）和 `codex`（OpenAI Codex CLI）工具条目，
+  `venus init` / `venus update` 现在为三种工具统一生成技能文件（`.claude/skills/`、`.pi/skills/`、
+  `.codex/skills/`），Pi 额外生成指令文件（`.pi/commands/venus/`），Codex 为 skills-invocable 模式
+  不生成指令文件。
+- **Pi 指令适配器**：新建 `piAdapter`（`src/core/command-generation/adapters/pi.ts`），
+  格式与 `claudeAdapter` 同构，写入 `.pi/commands/venus/<id>.md`。
+
+### Changed
+
+- **技能-指令生成解耦**：`init.ts` 和 `update.ts` 将技能生成与指令生成分离为独立循环，
+  技能遍历全部 `AI_TOOLS` 生成，指令仅遍历有适配器的工具生成。`list.ts`、`validate.ts`、
+  `show.ts` 的扫描逻辑加入多工具间去重。
+
 ## [1.10.0] - 2026-10-10
 
 ### Changed
@@ -666,7 +683,8 @@
 - 项目配置从单文件 `venus.config.yaml` 重构为 `.venus/` 目录结构
   （`config.yaml` 显式引用 `rules/` 下规则文件），重复 init 保留用户全部修改
 
-[Unreleased]: https://github.com/venus-agent-tools/compare/v1.13.0...HEAD
+[Unreleased]: https://github.com/venus-agent-tools/compare/v1.14.0...HEAD
+[1.14.0]: https://github.com/venus-agent-tools/compare/v1.13.0...v1.14.0
 [1.13.0]: https://github.com/venus-agent-tools/compare/v1.12.1...v1.13.0
 [1.12.1]: https://github.com/venus-agent-tools/compare/v1.12.0...v1.12.1
 [1.12.0]: https://github.com/venus-agent-tools/compare/v1.10.0...v1.12.0

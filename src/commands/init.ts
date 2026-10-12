@@ -1,9 +1,11 @@
 /**
  * venus init 命令。
  *
- * 将全部内置技能（SKILL.md）与斜杠指令生成到当前项目的 .claude/ 目录：
- *   .claude/skills/venus_<type>_<name>/SKILL.md
- *   .claude/commands/venus/<type>-<name>.md
+ * 将全部内置技能（SKILL.md）与斜杠指令生成到各目标工具目录：
+ *   技能：<skillsDir>/skills/venus_<type>_<name>/SKILL.md（所有工具）
+ *   指令：<commandsDir>/venus/<id>.md（仅有适配器的工具）
+ *
+ * 技能与指令分离架构：参见 update.ts 同构结构。
  */
 
 import path from 'path';
@@ -23,7 +25,7 @@ import {
     TOOL_SKILLS_SUBDIR,
     type AIToolOption,
 } from '../core/config.js';
-import { ensureProjectConfig, readProjectConfig } from '../core/project-config.js';
+import { ensureProjectConfig, readProjectConfig, resolveActiveTools } from '../core/project-config.js';
 import { resolveWorkflows } from '../core/profiles.js';
 import { scanReconcileOrphans, type ReconcileOrphans } from '../core/reconcile.js';
 import {
@@ -88,20 +90,6 @@ function getPackageVersion(): string {
     }
 }
 
-/** 解析 --tools 参数为工具对象列表（非法值直接抛错） */
-function resolveTools(toolsArg?: string): AIToolOption[] {
-    const ids = toolsArg ? toolsArg.split(',').map((t) => t.trim()) : AI_TOOLS.map((t) => t.value);
-    const resolved: AIToolOption[] = [];
-    for (const id of ids) {
-        const tool = AI_TOOLS.find((t) => t.value === id);
-        if (!tool) {
-            throw new Error(`未知的工具标识：${id}（可选：${AI_TOOLS.map((t) => t.value).join(', ')}）`);
-        }
-        resolved.push(tool);
-    }
-    return resolved;
-}
-
 /** 由指令模板 + 适配器生成 GeneratedCommand */
 function buildCommand(
     template: {
@@ -134,15 +122,15 @@ function buildCommand(
  * @param options - 命令选项
  */
 export function runInit(projectRoot: string, options: InitOptions = {}): InitResult {
-    const tools = resolveTools(options.tools);
+    // 读项目配置，解析生效 workflow 集（未配置用默认集 + 依赖注入补全）
+    const projectConfig = readProjectConfig(projectRoot);
+    const tools = resolveActiveTools(options.tools, projectConfig?.tools, AI_TOOLS);
     const packageVersion = getPackageVersion();
     const skillsInstalled: string[] = [];
     const commandsInstalled: string[] = [];
     const skipped: string[] = [];
     const permissionSettings: MergeResult[] = [];
 
-    // 读项目配置，解析生效 workflow 集（未配置用默认集 + 依赖注入补全）
-    const projectConfig = readProjectConfig(projectRoot);
     const resolved = resolveWorkflows(projectConfig?.workflows);
     const workflowsSource = projectConfig && projectConfig.workflows.length > 0 ? 'user' : 'default';
 
@@ -151,13 +139,8 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
         getSkillTemplates(undefined, resolved.workflows).map((entry) => entry.template.allowedTools)
     );
 
+    // 1. 技能生成（遍历所有工具，不依赖适配器）
     for (const tool of tools) {
-        const adapter = CommandAdapterRegistry.get(tool.value);
-        if (!adapter) {
-            throw new Error(`工具 '${tool.value}' 没有注册的指令适配器`);
-        }
-
-        // 1. 生成 SKILL.md（.claude/skills/venus_<type>_<name>/SKILL.md）
         const skillsRoot = path.join(projectRoot, tool.skillsDir, TOOL_SKILLS_SUBDIR);
         ensureDir(skillsRoot);
         for (const { template } of getSkillTemplates(undefined, resolved.workflows)) {
@@ -175,19 +158,7 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
             skillsInstalled.push(path.relative(projectRoot, skillFile));
         }
 
-        // 2. 生成斜杠指令（.claude/commands/venus/<type>-<name>.md）
-        for (const { template, id } of getCommandTemplates(undefined, resolved.workflows)) {
-            const generated = buildCommand(template, id, adapter);
-            const commandFile = path.join(projectRoot, generated.path);
-            if (pathExists(commandFile) && !options.force) {
-                skipped.push(path.relative(projectRoot, commandFile));
-                continue;
-            }
-            writeFile(commandFile, generated.fileContent, { force: true });
-            commandsInstalled.push(path.relative(projectRoot, commandFile));
-        }
-
-        // 3. 会话级权限载体（.claude/settings.json）：非破坏合并，失败仅告警不阻断安装
+        // 会话级权限载体：每个工具独立合并，不受适配器影响
         try {
             permissionSettings.push(
                 mergePermissions(projectRoot, path.join(tool.skillsDir, SETTINGS_FILE), permissionEntries)
@@ -199,6 +170,24 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
                 added: 0,
                 note: `写入失败（已跳过，不影响技能与指令安装）：${(error as Error).message}`,
             });
+        }
+    }
+
+    // 2. 指令生成（仅遍历有适配器的工具）
+    for (const tool of tools) {
+        const adapter = CommandAdapterRegistry.get(tool.value);
+        if (!adapter) {
+            continue;
+        }
+        for (const { template, id } of getCommandTemplates(undefined, resolved.workflows)) {
+            const generated = buildCommand(template, id, adapter);
+            const commandFile = path.join(projectRoot, generated.path);
+            if (pathExists(commandFile) && !options.force) {
+                skipped.push(path.relative(projectRoot, commandFile));
+                continue;
+            }
+            writeFile(commandFile, generated.fileContent, { force: true });
+            commandsInstalled.push(path.relative(projectRoot, commandFile));
         }
     }
 

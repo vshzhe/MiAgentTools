@@ -138,6 +138,7 @@ function validateSkillContent(
 export function runValidate(projectRoot: string): ValidateResult {
     const results: SkillValidationResult[] = [];
     const issues: ValidationIssue[] = [];
+    const seen = new Set<string>();
 
     for (const tool of AI_TOOLS) {
         const skillsRoot = path.join(projectRoot, tool.skillsDir, TOOL_SKILLS_SUBDIR);
@@ -146,6 +147,11 @@ export function runValidate(projectRoot: string): ValidateResult {
             if (!dirName.startsWith(SKILL_PREFIX)) {
                 continue;
             }
+            // 多工具间去重：同一技能名在不同工具目录中只校验一次
+            if (seen.has(dirName)) {
+                continue;
+            }
+            seen.add(dirName);
             const skillFile = path.join(skillsRoot, dirName, 'SKILL.md');
             const relativeFile = path.relative(projectRoot, skillFile);
             const content = readFileIfExists(skillFile);

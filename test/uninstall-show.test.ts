@@ -32,8 +32,8 @@ describe('venus uninstall', () => {
         runGenerate(tempRoot, { type: 'tr_tools', name: 'extra-one' });
 
         const preview = previewUninstall(tempRoot);
-        expect(preview.removedSkills.length).toBe(28); // 27 内置 + 1 生成
-        expect(preview.removedCommands.length).toBe(27); // 27 内置一一对应
+        expect(preview.removedSkills.length).toBe(84); // (27 内置 + 1 生成) × 3 工具
+        expect(preview.removedCommands.length).toBe(54); // 27 内置 × 2 适配器
         // 未删除：文件仍在
         expect(fs.existsSync(path.join(tempRoot, '.claude', 'skills', 'venus_tr_tools_pwd', 'SKILL.md'))).toBe(true);
     });
@@ -44,7 +44,7 @@ describe('venus uninstall', () => {
         fs.writeFileSync(path.join(otherDir, 'SKILL.md'), 'other', 'utf8');
 
         const result = runUninstall(tempRoot, { yes: true });
-        expect(result.removedSkills.length).toBe(28);
+        expect(result.removedSkills.length).toBe(84);
         expect(result.skipped.some((s) => s.includes('other_tool_skill'))).toBe(true);
         // 其他技能保留
         expect(fs.existsSync(path.join(otherDir, 'SKILL.md'))).toBe(true);

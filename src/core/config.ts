@@ -77,6 +77,18 @@ export const AI_TOOLS: AIToolOption[] = [
         skillsDir: '.claude',
         commandsDir: '.claude/commands',
     },
+    {
+        value: 'pi',
+        name: 'Pi',
+        skillsDir: '.pi',
+        commandsDir: '.pi/commands',
+    },
+    {
+        value: 'codex',
+        name: 'Codex',
+        skillsDir: '.codex',
+        commandsDir: '',
+    },
 ];
 
 /** 工具目录中的技能安装子目录（Agent Skills 规范） */

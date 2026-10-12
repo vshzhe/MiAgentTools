@@ -139,8 +139,13 @@ export function buildProgram(): Command {
     program
         .command('update')
         .description('更新已安装技能到内置模板最新版（手改过的技能会跳过保护）')
+        .addOption(
+            new Option('--tools <ids>', `目标工具，逗号分隔（默认全部：${TOOL_IDS}）`).choices(
+                AI_TOOLS.map((t) => t.value)
+            )
+        )
         .option('--force', '覆盖用户手改过的技能')
-        .action((options: { force?: boolean }) => {
+        .action((options: { tools?: string; force?: boolean }) => {
             const result = runUpdate(process.cwd(), options);
             console.log(`Venus 更新完成（工具：${result.tools.join(', ')}）`);
             console.log(`  新安装：${result.installed.length} 个`);

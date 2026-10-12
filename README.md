@@ -1,6 +1,6 @@
 # VenusAgentTools
 
-AI Agent 技能生成与管理 CLI —— 按生命周期类型（`tr_*`）分类生成 `venus_` 前缀的 SKILL 与斜杠指令，安装到目标项目的 `.claude/` 目录。
+AI Agent 技能生成与管理 CLI —— 按生命周期类型（`tr_*`）分类生成 `venus_` 前缀的 SKILL 与斜杠指令，安装到目标项目的 AI 工具目录（`.claude/`、`.pi/`、`.codex/`）。
 
 架构参考 [OpenSpec](https://github.com/Fission-AI/OpenSpec) 的"模板层 → 生成层（适配器）→ 命令层"三层设计。
 
@@ -26,7 +26,7 @@ pnpm link --global
 验证安装：
 
 ```bash
-venus --version    # 输出 1.13.0
+venus --version    # 输出 1.14.0
 venus --help       # 查看全部命令
 ```
 
@@ -57,10 +57,13 @@ pnpm exec venus init
 ```bash
 cd your-project
 
-# 生成全部技能与指令到 .claude/
+# 生成全部技能与指令到所有工具目录（.claude/ .pi/ .codex/）
 venus init
 
-# 查看已安装技能（按 7 类分组）
+# 只生成指定工具
+venus init --tools claude,pi
+
+# 查看已安装技能（按类型分组，多工具间去重）
 venus list
 
 # 校验技能规范符合性
@@ -70,21 +73,51 @@ venus validate
 venus generate --type tr_tools --name env-check --desc "环境检查"
 ```
 
-### 如何在 Claude Code 中使用关联指令
+### 支持的目标工具
 
-`venus init` 会在目标项目生成 **SKILL 与斜杠指令两套入口**，Claude Code 均可直接调用：
+| 工具 | 技能目录 | 指令目录 | 说明 |
+| :--- | :--- | :--- | :--- |
+| Claude Code | `.claude/skills/` | `.claude/commands/venus/` | YAML frontmatter + Markdown |
+| Pi | `.pi/skills/` | `.pi/commands/venus/` | 格式同 Claude Code |
+| Codex | `.codex/skills/` | —（skills-invocable） | 仅生成技能，通过 `$` 前缀调用 |
 
-| 使用方式 | 输入形式 | 说明 |
-| :--- | :--- | :--- |
-| 斜杠指令 | `/venus:tools-pwd` | 输入 `/` 后补全列表中选择，回车触发 |
-| 技能自动触发 | 直接说"看下当前目录在哪" | Claude 按技能 description 自动匹配调用 |
+### 工具选择配置
 
-**使用步骤**（以查看当前路径为例）：
+通过 `--tools` 参数（一次性）或 `.venus/config.yaml`（持久化）控制生成哪些工具的适配产物：
 
-1. 在目标项目执行 `venus init`（生成 `.claude/` 产物）
-2. 打开该项目的 Claude Code 会话
-3. 输入 `/venus:tools-pwd`，或直接提问"当前目录是什么"
-4. Claude 按技能指引运行 `pwd`（Windows cmd 环境自动降级 `echo %CD%`）并展示绝对路径
+```yaml
+# .venus/config.yaml
+tools:
+  - claude
+  - pi
+  # 注释掉 codex 即不生成 Codex 适配产物
+```
+
+优先级：`--tools` CLI 参数 > config.yaml `tools` 字段 > 全部工具。
+
+```bash
+# CLI 一次性指定
+venus init --tools claude,pi
+
+# 未传 --tools 时自动读取 .venus/config.yaml 的 tools 字段
+venus init
+
+# update 同样支持
+venus update --tools claude
+
+`venus init` 会在目标项目生成 **SKILL 与斜杠指令两套入口**（Pi、Codex 工具同理）：
+
+| 使用方式 | Claude Code | Pi | Codex |
+| :--- | :--- | :--- | :--- |
+| 斜杠指令 | `/venus:tools-pwd` | `/venus:tools-pwd` | —（skills-only） |
+| 技能触发 | 按 description 自动匹配 | 按 description 自动匹配 | `$venus_tr_tools_pwd` |
+
+**使用步骤**（以 Claude Code 为例）：
+
+1. 在目标项目执行 `venus init`
+2. 打开该项目的 Claude Code / Pi / Codex 会话
+3. 输入 `/venus:tools-pwd`（Codex 用 `$venus_tr_tools_pwd`），或直接提问"当前目录是什么"
+4. AI 按技能指引运行 `pwd` 并展示绝对路径
 
 全部 8 个斜杠指令对照：
 
@@ -113,15 +146,20 @@ venus generate --type tr_tools --name env-check --desc "环境检查"
 | `tr_release` | 版本 | `venus_tr_release_version` | `/venus:release-version` |
 | `tr_tools` | 工具 | `venus_tr_tools_pwd`、`venus_tr_tools_list` | `/venus:tools-pwd` 等 |
 
-安装产物结构：
+安装产物结构（以 Claude Code 为例，Pi/Codex 目录对称）：
 
 ```text
 your-project/
-└── .claude/
-    ├── skills/
-    │   └── venus_<type>_<name>/SKILL.md    # Agent Skill（中文正文）
-    └── commands/
-        └── venus/<type>-<name>.md          # 斜杠指令（frontmatter + 正文）
+├── .claude/
+│   ├── skills/
+│   │   └── venus_<type>_<name>/SKILL.md    # Agent Skill（中文正文）
+│   └── commands/
+│       └── venus/<type>-<name>.md          # 斜杠指令（frontmatter + 正文）
+├── .pi/                                     # Pi 工具（同上结构）
+│   ├── skills/
+│   └── commands/
+└── .codex/                                  # Codex 工具（仅 skills）
+    └── skills/
 ```
 
 ## CLI 命令
@@ -129,10 +167,10 @@ your-project/
 | 命令 | 说明 | 主要参数 |
 | :--- | :--- | :--- |
 | `venus init` | 生成全部技能 + 指令到当前项目，并检测安装依赖（codegraph / openspec） | `--tools <ids>`、`--force`、`--no-deps`、`--onboarding` |
-| `venus list` | 列出已安装技能（按类型分组） | `--json` |
+| `venus list` | 列出已安装技能（按类型分组，多工具间去重） | `--json` |
 | `venus show <query>` | 查看技能详情（frontmatter / 类型 / 白名单 / 正文预览） | `--json` |
-| `venus validate` | 校验已安装技能规范符合性（frontmatter / 类型 / 命名） | `--json` |
-| `venus update` | 更新技能到内置模板最新版（手改保护） | `--force` |
+| `venus validate` | 校验已安装技能规范符合性（frontmatter / 类型 / 命名，多工具间去重） | `--json` |
+| `venus update` | 更新技能到内置模板最新版（手改保护） | `--tools <ids>`、`--force` |
 | `venus generate` | 按类型生成新技能骨架（写入 `skills/` 并安装） | `--type`、`--name`、`--desc`、`--force` |
 | `venus uninstall` | 移除 venus 技能与指令（非 venus 技能不碰） | `--yes`、`--purge-config` |
 | `venus completion` | 安装/卸载 shell 补全 | `<install\|uninstall>`、`--shell <bash\|powershell>` |
@@ -202,6 +240,11 @@ context: |                       # 项目背景 —— generate 骨架时注入�
 rules:                           # 引用 rules/ 下的文件，顺序即注入顺序
   - tr_impl                     # 删除某行即停用对应规则
   - tr_test                     # 新增类型：在 rules/ 建 tr_xxx.md 并在此登记
+
+tools:                           # 目标 AI 工具（venus init/update 据此过滤生成）
+  - claude                       # 未配置或为空时默认全部（claude, pi, codex）
+  - pi
+  - codex
 ```
 
 规则文件格式（`.venus/rules/tr_impl.md`）：
@@ -237,18 +280,21 @@ rules:                           # 引用 rules/ 下的文件，顺序即注入�
 src/core/templates/workflows/tr-*.ts   模板层：7 类技能模板（内容，中文）
             │
 src/core/command-generation/           生成层：格式化 + 路径解析
-  ├── adapters/claude.ts               ToolCommandAdapter 接口（预留多工具扩展）
+  ├── adapters/
+  │   ├── claude.ts                    Claude Code 适配器（.claude/commands/venus/）
+  │   └── pi.ts                        Pi 适配器（.pi/commands/venus/）
   ├── generator.ts                     generateCommand / generateSkillContent
   └── yaml.ts                          YAML 转义
             │
-src/cli/index.ts + src/commands/        命令层：venus init / list / generate
+src/cli/index.ts + src/commands/        命令层：venus init / list / generate / update
 ```
 
-设计要点（继承自 OpenSpec）：
+设计要点：
 
 - **内容与形式分离**：模板层定义工具无关的技能内容；适配器负责目标工具的路径与 frontmatter 格式
-- **适配器可扩展**：新增 AI 工具只需实现 `ToolCommandAdapter` 并在 `CommandAdapterRegistry` 注册
-- **指令 id 派生**：`venus_tr_tools_pwd` → `tr-tools-pwd`（`.claude/commands/venus/tr-tools-pwd.md`）
+- **适配器可扩展**：新增 AI 工具只需实现 `ToolCommandAdapter` 并在 `CommandAdapterRegistry` 注册；skills-invocable 工具（如 Codex）无需适配器，仅生成技能
+- **指令 id 派生**：`venus_tr_tools_pwd` → `tr-tools-pwd`（`<工具目录>/commands/venus/tr-tools-pwd.md`）
+- **工具选择**：`--tools` CLI 参数或 `.venus/config.yaml` 的 `tools` 字段控制生成哪些工具的产物
 
 ### 本地开发调试（修改本项目代码后）
 

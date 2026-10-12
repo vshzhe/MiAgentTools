@@ -45,7 +45,7 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
 
    运行 \`venus spec status --change "<name>" --json\` 获取进度统计（progress），并按以下顺序读取制品：
 
-   - **优先读**变更目录下的 \`.venus/change.json\`（结构化真源）：
+   - **优先读**变更目录下的 \`change.json\`（结构化真源）：
      - \`specs\` 段（\`specs[].operations[]\`）：需求与场景清单，用于完整性 / 正确性验证
      - \`design\` 段：设计一致性核对（decisions / risks）
      - \`proposal\` 段：需求背景（why / whatChanges / impact）
@@ -75,7 +75,7 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
 
    **Spec 覆盖（逐需求对比 tasks.json）**：
    - 需求清单来源（JSON 优先）：
-     - 优先：\`.venus/change.json\` 的 \`specs[].operations[].requirement\`（逐条需求）
+     - 优先：\`change.json\` 的 \`specs[].operations[].requirement\`（逐条需求）
      - 降级（WARN）：specs/*.md 中以 "### Requirement:" 标记的需求
    - 对每条需求，在 tasks.json 中匹配覆盖任务（按以下信号依次判定）：
      1. \`specRef\` 与需求名精确匹配
@@ -117,7 +117,7 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
 
    **设计遵循**：
    - 若存在 design 制品：
-     - 优先：\`.venus/change.json\` 的 \`design\` 段，直接读取 \`decisions[]\`（id / title / choice / rationale）与 \`risks[]\`
+     - 优先：\`change.json\` 的 \`design\` 段，直接读取 \`decisions[]\`（id / title / choice / rationale）与 \`risks[]\`
      - 降级（WARN）：design.md 中查找 "Decision:" / "Approach:" / "Architecture:" 等段落
      - 验证实现是否遵循这些决策
      - 若检测到矛盾：

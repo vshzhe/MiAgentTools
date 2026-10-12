@@ -511,7 +511,7 @@ export function writeCapabilitiesJson(
 // ── change.json 读写（合并主产物） ────────────────────────────────
 
 /**
- * 读取 <changeDir>/.venus/change.json。
+ * 读取 <changeDir>/change.json。
  *
  * 容错语义：文件缺失或 JSON 解析失败时返回 null（由调用方走降级链，不在此处抛错）。
  *
@@ -519,7 +519,7 @@ export function writeCapabilitiesJson(
  * @returns 解析后的 ChangeSchema；文件缺失/损坏时 null
  */
 export function readChangeJson(changeDir: string): ChangeSchema | null {
-    const filePath = path.join(changeDir, SIDECAR_DIR, 'change.json');
+    const filePath = path.join(changeDir, 'change.json');
     if (!fs.existsSync(filePath)) {
         return null;
     }
@@ -536,7 +536,7 @@ export function readChangeJson(changeDir: string): ChangeSchema | null {
 }
 
 /**
- * 写入 <changeDir>/.venus/change.json（合并主产物）。
+ * 写入 <changeDir>/change.json（合并主产物）。
  *
  * 写入前做 schema 校验（失败抛错，错误信息含字段路径），
  * 校验通过后自动刷新 data.updatedAt 为当前时间。
@@ -554,8 +554,7 @@ export function writeChangeJson(changeDir: string, data: ChangeSchema): ChangeSc
 
     data.updatedAt = new Date().toISOString();
 
-    const sidecarDir = ensureSidecarDir(changeDir);
-    writeJsonFile(path.join(sidecarDir, 'change.json'), data);
+    writeJsonFile(path.join(changeDir, 'change.json'), data);
     return data;
 }
 
@@ -890,7 +889,6 @@ export function initChangeJson(changeDir: string, changeName: string): ChangeSch
     }
 
     const empty = createEmptyChange(changeName);
-    const sidecarDir = ensureSidecarDir(changeDir);
-    writeJsonFile(path.join(sidecarDir, 'change.json'), empty);
+    writeJsonFile(path.join(changeDir, 'change.json'), empty);
     return empty;
 }

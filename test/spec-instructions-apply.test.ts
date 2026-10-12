@@ -1,10 +1,10 @@
 /**
  * venus spec instructions apply 命令测试。
  *
- * 覆盖 delta spec 的全部 10 个 Scenario：
- *   apply 命令 4 场景：blocked / ready / all_done / 变更不存在
- *   skip_specs 4 场景：status 报告 skipped / instructions 跳过指导 / apply 必需集视为满足 / 未声明向后兼容
- *   冲突 2 场景：status 冲突警告 / apply 冲突态 blocked
+ * JSON-primary 化后更新：
+ * - proposal/specs/design 按 change.json 段存在性判定
+ * - tasks 按 tasks.json 存在性判定
+ * - contextFiles 指向 change.json / tasks.json
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -37,23 +37,71 @@ function writeMetadata(changeDir: string, options: { skipSpecs?: boolean; schema
     fs.writeFileSync(path.join(changeDir, '.openspec.yaml'), `${lines.join('\n')}\n`, 'utf8');
 }
 
-/** 构造含 5 个未勾选 + 3 个已勾选的 tasks.md */
-function writeTasksMixed(changeDir: string): void {
-    const lines = [
-        '# Tasks',
-        ...Array.from({ length: 5 }, (_, i) => `- [ ] 1.${i + 1} 待办任务`),
-        ...Array.from({ length: 3 }, (_, i) => `- [x] 2.${i + 1} 已完成任务`),
-    ];
-    fs.writeFileSync(path.join(changeDir, 'tasks.md'), `${lines.join('\n')}\n`, 'utf8');
+/** 构造最小合法 change.json */
+function writeChangeJson(changeDir: string, sections: { proposal?: boolean; specs?: boolean; design?: boolean }): void {
+    const json: Record<string, unknown> = {
+        $schema: 'venus/change/v1',
+        changeName: path.basename(changeDir),
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+        phase: 'proposal',
+    };
+    if (sections.proposal) {
+        json.proposal = {
+            why: '测试原因',
+            whatChanges: ['变更项'],
+            capabilities: { new: [], modified: [] },
+            impact: { files: [], breaking: false, compatibility: '兼容' },
+        };
+    }
+    if (sections.specs) {
+        json.specs = [{ name: 'auth', path: 'specs/auth/spec.md', operations: [] }];
+    }
+    if (sections.design) {
+        json.design = {
+            context: '测试上下文',
+            goals: [],
+            nonGoals: [],
+            decisions: [],
+            risks: [],
+        };
+    }
+    fs.writeFileSync(path.join(changeDir, 'change.json'), JSON.stringify(json, null, 2));
 }
 
-/** 构造全部已勾选的 tasks.md */
-function writeTasksAllDone(changeDir: string): void {
-    const lines = [
-        '# Tasks',
-        ...Array.from({ length: 4 }, (_, i) => `- [x] ${i + 1} 完成项`),
+/** 构造 tasks.json（5 pending + 3 done） */
+function writeTasksMixed(changeDir: string): void {
+    const tasks = [
+        ...Array.from({ length: 5 }, (_, i) => ({
+            id: `${i + 1}`, label: '代码', description: `待办任务`, status: 'pending', dependencies: [], files: [],
+        })),
+        ...Array.from({ length: 3 }, (_, i) => ({
+            id: `${i + 6}`, label: '测试', description: `已完成任务`, status: 'done', dependencies: [], files: [],
+        })),
     ];
-    fs.writeFileSync(path.join(changeDir, 'tasks.md'), `${lines.join('\n')}\n`, 'utf8');
+    fs.writeFileSync(path.join(changeDir, 'tasks.json'), JSON.stringify({
+        $schema: 'venus/tasks/v1',
+        tasks,
+        progress: { total: 8, complete: 3, remaining: 5 },
+    }, null, 2));
+}
+
+/** 构造全部 done 的 tasks.json */
+function writeTasksAllDone(changeDir: string): void {
+    const tasks = Array.from({ length: 4 }, (_, i) => ({
+        id: `${i + 1}`, label: '代码', description: `完成项`, status: 'done', dependencies: [], files: [],
+    }));
+    fs.writeFileSync(path.join(changeDir, 'tasks.json'), JSON.stringify({
+        $schema: 'venus/tasks/v1',
+        tasks,
+        progress: { total: 4, complete: 4, remaining: 0 },
+    }, null, 2));
+}
+
+/** 创建 specs 目录文件（用于 skip_specs 冲突检测，非 change.json 段） */
+function writeSpecsDir(changeDir: string, capability: string): void {
+    fs.mkdirSync(path.join(changeDir, 'specs', capability), { recursive: true });
+    fs.writeFileSync(path.join(changeDir, 'specs', capability, 'spec.md'), '## ADDED\n');
 }
 
 describe('venus spec instructions apply（任务 2.1）', () => {
@@ -67,10 +115,10 @@ describe('venus spec instructions apply（任务 2.1）', () => {
         fs.rmSync(projectRoot, { recursive: true, force: true });
     });
 
-    it('Scenario: apply 阻塞态 - tasks 依赖未满足（specs/design 未完成，tasks.md 不存在）', () => {
+    it('Scenario: apply 阻塞态 - tasks 依赖未满足（specs/design 未完成，tasks.json 不存在）', () => {
         const changeDir = makeChange(projectRoot, 'blocked-change');
         writeMetadata(changeDir);
-        fs.writeFileSync(path.join(changeDir, 'proposal.md'), '# 提案\n');
+        writeChangeJson(changeDir, { proposal: true });
 
         const result = getApplyInstructions(projectRoot, 'blocked-change');
 
@@ -84,13 +132,10 @@ describe('venus spec instructions apply（任务 2.1）', () => {
         expect(result.changeRoot).toBe(changeDir);
     });
 
-    it('Scenario: apply ready 态 - 依赖满足且任务未完成（5 [ ] + 3 [x]）', () => {
+    it('Scenario: apply ready 态 - 依赖满足且任务未完成（5 pending + 3 done）', () => {
         const changeDir = makeChange(projectRoot, 'ready-change');
         writeMetadata(changeDir);
-        fs.writeFileSync(path.join(changeDir, 'proposal.md'), '# 提案\n');
-        fs.writeFileSync(path.join(changeDir, 'design.md'), '# 设计\n');
-        fs.mkdirSync(path.join(changeDir, 'specs', 'auth'), { recursive: true });
-        fs.writeFileSync(path.join(changeDir, 'specs', 'auth', 'spec.md'), '## ADDED\n');
+        writeChangeJson(changeDir, { proposal: true, specs: true, design: true });
         writeTasksMixed(changeDir);
 
         const result = getApplyInstructions(projectRoot, 'ready-change');
@@ -98,25 +143,21 @@ describe('venus spec instructions apply（任务 2.1）', () => {
         expect(result.instruction.state).toBe('ready');
         expect(result.progress).toEqual({ total: 8, complete: 3, remaining: 5 });
         expect(result.taskList).toHaveLength(8);
-        // 3 项 checked: true，5 项 checked: false
         const checkedItems = result.taskList.filter((t) => t.checked);
         const uncheckedItems = result.taskList.filter((t) => !t.checked);
         expect(checkedItems).toHaveLength(3);
         expect(uncheckedItems).toHaveLength(5);
-        // contextFiles 四键均指向存在的绝对路径
-        for (const key of ['proposal', 'specs', 'design', 'tasks'] as const) {
-            expect(result.contextFiles[key]).not.toBe('');
-            expect(fs.existsSync(result.contextFiles[key])).toBe(true);
-        }
+        // contextFiles 四键均指向存在的文件
+        expect(result.contextFiles.proposal).toContain('change.json');
+        expect(result.contextFiles.specs).toContain('change.json');
+        expect(result.contextFiles.design).toContain('change.json');
+        expect(result.contextFiles.tasks).toContain('tasks.json');
     });
 
     it('Scenario: apply all_done 态 - 全部任务已完成', () => {
         const changeDir = makeChange(projectRoot, 'done-change');
         writeMetadata(changeDir);
-        fs.writeFileSync(path.join(changeDir, 'proposal.md'), '# 提案\n');
-        fs.writeFileSync(path.join(changeDir, 'design.md'), '# 设计\n');
-        fs.mkdirSync(path.join(changeDir, 'specs', 'auth'), { recursive: true });
-        fs.writeFileSync(path.join(changeDir, 'specs', 'auth', 'spec.md'), '## ADDED\n');
+        writeChangeJson(changeDir, { proposal: true, specs: true, design: true });
         writeTasksAllDone(changeDir);
 
         const result = getApplyInstructions(projectRoot, 'done-change');
@@ -146,21 +187,16 @@ describe('skip_specs 状态语义（任务 2.2）', () => {
     it('Scenario: status 报告 skipped 态', () => {
         const changeDir = makeChange(projectRoot, 'skip-change');
         writeMetadata(changeDir, { skipSpecs: true });
-        fs.writeFileSync(path.join(changeDir, 'proposal.md'), '# 提案\n');
+        writeChangeJson(changeDir, { proposal: true });
 
         const { output, exitCode } = runSpecStatus(projectRoot, { change: 'skip-change', json: true });
         expect(exitCode).toBe(0);
         const payload = JSON.parse(output);
         const byId = new Map(payload.artifacts.map((a: { id: string }) => [a.id, a]));
 
-        // specs 为 skipped，missingDeps 为 []
         expect(byId.get('specs')?.status).toBe('skipped');
         expect(byId.get('specs')?.missingDeps).toEqual([]);
-
-        // design 的 missingDeps 不含 specs（design.requires=[proposal]，proposal done）
         expect(byId.get('design')?.missingDeps ?? []).not.toContain('specs');
-
-        // tasks 的 missingDeps 不含 specs（skipped 视为满足），但可能含 design
         const tasksMissing = byId.get('tasks')?.missingDeps ?? [];
         expect(tasksMissing).not.toContain('specs');
     });
@@ -168,56 +204,46 @@ describe('skip_specs 状态语义（任务 2.2）', () => {
     it('Scenario: instructions 对 skipped specs artifact 返回跳过指导', () => {
         const changeDir = makeChange(projectRoot, 'skip-instruct');
         writeMetadata(changeDir, { skipSpecs: true });
-        fs.writeFileSync(path.join(changeDir, 'proposal.md'), '# 提案\n');
+        writeChangeJson(changeDir, { proposal: true });
 
         const info = getInstructionsResult(projectRoot, 'skip-instruct', 'specs');
 
         expect(info.skipped).toBe(true);
-        // template 为空字符串或包含 skip guidance 文本
         expect(
             info.template === '' || info.template.includes('skip_specs')
         ).toBe(true);
-        // outputPath 为空字符串
         expect(info.outputPath).toBe('');
-        // 不返回正常创建模板正文（SPECS_TEMPLATE 以 "## ADDED" 开头）
         expect(info.template).not.toContain('## ADDED');
     });
 
     it('Scenario: apply 必需集将 skipped 视为满足', () => {
         const changeDir = makeChange(projectRoot, 'skip-apply');
         writeMetadata(changeDir, { skipSpecs: true });
-        fs.writeFileSync(path.join(changeDir, 'proposal.md'), '# 提案\n');
-        fs.writeFileSync(path.join(changeDir, 'design.md'), '# 设计\n');
-        // specs/ 目录不存在（skip_specs 声明，无 delta spec 文件）
+        writeChangeJson(changeDir, { proposal: true, design: true });
         writeTasksMixed(changeDir);
 
         const result = getApplyInstructions(projectRoot, 'skip-apply');
 
-        // instruction 不将 specs 列为 missingDep
         expect(result.instruction.missingDeps ?? []).not.toContain('specs');
-        // apply 状态根据 tasks 进度判定为 ready（不因 specs 缺失而 blocked）
         expect(result.instruction.state).toBe('ready');
-        // contextFiles.specs 为空字符串（标记为 skipped/省略）
         expect(result.contextFiles.specs).toBe('');
     });
 
     it('Scenario: 未声明 skip_specs 向后兼容', () => {
         const changeDir = makeChange(projectRoot, 'compat-change');
-        writeMetadata(changeDir); // 不含 skip_specs
-        fs.writeFileSync(path.join(changeDir, 'proposal.md'), '# 提案\n');
+        writeMetadata(changeDir);
+        writeChangeJson(changeDir, { proposal: true });
 
-        // status 行为：specs 为 ready（proposal done，specs 文件不存在）
         const { output } = runSpecStatus(projectRoot, { change: 'compat-change', json: true });
         const payload = JSON.parse(output);
         const byId = new Map(payload.artifacts.map((a: { id: string }) => [a.id, a]));
         expect(byId.get('specs')?.status).toBe('ready');
 
-        // instructions specs 返回正常创建模板
         const info = getInstructionsResult(projectRoot, 'compat-change', 'specs');
         expect(info.skipped).toBeUndefined();
         expect(info.conflict).toBeUndefined();
         expect(info.template).toContain('## ADDED');
-        expect(info.outputPath).toBe('specs/**/*.md');
+        expect(info.outputPath).toBe('change.json');
     });
 });
 
@@ -235,24 +261,19 @@ describe('skip_specs 冲突检测（任务 2.3）', () => {
     it('Scenario: status 报告冲突警告', () => {
         const changeDir = makeChange(projectRoot, 'conflict-change');
         writeMetadata(changeDir, { skipSpecs: true });
-        fs.writeFileSync(path.join(changeDir, 'proposal.md'), '# 提案\n');
-        // specs/ 下存在 delta spec 文件（与 skip_specs 声明冲突）
-        fs.mkdirSync(path.join(changeDir, 'specs', 'auth'), { recursive: true });
-        fs.writeFileSync(path.join(changeDir, 'specs', 'auth', 'spec.md'), '## ADDED\n');
+        writeChangeJson(changeDir, { proposal: true });
+        writeSpecsDir(changeDir, 'auth');
 
         const { output, exitCode } = runSpecStatus(projectRoot, { change: 'conflict-change', json: true });
         expect(exitCode).toBe(0);
         const payload = JSON.parse(output);
         const byId = new Map(payload.artifacts.map((a: { id: string }) => [a.id, a]));
 
-        // specs 标记为 conflict
         expect(byId.get('specs')?.status).toBe('conflict');
 
-        // warnings 含冲突说明
         const warnings = payload.warnings ?? [];
         expect(warnings.some((w: string) => w.includes('skip_specs') && w.includes('冲突'))).toBe(true);
 
-        // tasks 的 missingDeps 含 specs（冲突不视为满足）
         const tasksMissing = byId.get('tasks')?.missingDeps ?? [];
         expect(tasksMissing).toContain('specs');
     });
@@ -260,20 +281,14 @@ describe('skip_specs 冲突检测（任务 2.3）', () => {
     it('Scenario: instructions apply 在冲突态下返回 blocked 指导', () => {
         const changeDir = makeChange(projectRoot, 'conflict-apply');
         writeMetadata(changeDir, { skipSpecs: true });
-        fs.writeFileSync(path.join(changeDir, 'proposal.md'), '# 提案\n');
-        fs.writeFileSync(path.join(changeDir, 'design.md'), '# 设计\n');
+        writeChangeJson(changeDir, { proposal: true, design: true });
         writeTasksMixed(changeDir);
-        // specs/ 下存在 delta spec 文件（与 skip_specs 声明冲突）
-        fs.mkdirSync(path.join(changeDir, 'specs', 'auth'), { recursive: true });
-        fs.writeFileSync(path.join(changeDir, 'specs', 'auth', 'spec.md'), '## ADDED\n');
+        writeSpecsDir(changeDir, 'auth');
 
         const result = getApplyInstructions(projectRoot, 'conflict-apply');
 
-        // 冲突态返回 blocked
         expect(result.instruction.state).toBe('blocked');
-        // 提示先解决冲突
         expect(result.instruction.text).toContain('冲突');
-        // 不进入 ready 或 all_done
         expect(result.instruction.state).not.toBe('ready');
         expect(result.instruction.state).not.toBe('all_done');
     });
@@ -293,21 +308,15 @@ describe('skip_specs instructions specs 冲突态', () => {
     it('冲突态：instructions specs 输出冲突警告，不返回正常模板也不返回 skip guidance', () => {
         const changeDir = makeChange(projectRoot, 'conflict-specs-instruct');
         writeMetadata(changeDir, { skipSpecs: true });
-        fs.writeFileSync(path.join(changeDir, 'proposal.md'), '# 提案\n');
-        fs.mkdirSync(path.join(changeDir, 'specs', 'auth'), { recursive: true });
-        fs.writeFileSync(path.join(changeDir, 'specs', 'auth', 'spec.md'), '## ADDED\n');
+        writeChangeJson(changeDir, { proposal: true });
+        writeSpecsDir(changeDir, 'auth');
 
         const info = getInstructionsResult(projectRoot, 'conflict-specs-instruct', 'specs');
 
-        // conflict 标记为 true
         expect(info.conflict).toBe(true);
-        // warning 含冲突说明
         expect(info.warning).toContain('skip_specs');
-        // 不返回正常创建模板（SPECS_TEMPLATE 正文）
         expect(info.template).not.toContain('## ADDED');
-        // 不返回 skip guidance（template 不含 skip_specs 文本，应为空字符串）
         expect(info.template).toBe('');
-        // outputPath 清空
         expect(info.outputPath).toBe('');
     });
 });

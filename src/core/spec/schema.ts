@@ -47,39 +47,39 @@ export const SPEC_DRIVEN_SCHEMA: SpecSchema = {
         {
             id: 'proposal',
             description: '变更提案：为什么需要这个变更、改什么、影响是什么',
-            outputPath: 'proposal.md',
+            outputPath: 'change.json',
             requires: [],
             instruction:
-                '先写 JSON：change.json 的 proposal 段（openspec/changes/<name>/.venus/change.json，schema 示例见 jsonTemplate），聚焦"为什么"：问题背景、变更内容清单、涉及能力、影响面；实现细节留给 design 段。再运行 venus spec render proposal --change <name> 渲染 proposal.md；渲染失败时按报错字段路径修正 JSON，仍无法渲染则降级手写 proposal.md（WARN，不阻断）。',
+                '写 JSON：change.json 的 proposal 段（openspec/changes/<name>/change.json，schema 示例见 jsonTemplate），聚焦"为什么"：问题背景、变更内容清单、涉及能力、影响面；实现细节留给 design 段。',
         },
         {
             id: 'specs',
             description: '能力规格：每个能力一个 spec 文件，定义系统应当做什么',
-            outputPath: 'specs/**/*.md',
+            outputPath: 'change.json',
             requires: ['proposal'],
             instruction:
-                '先写 JSON：change.json 的 specs 段（openspec/changes/<name>/.venus/change.json，schema 示例见 jsonTemplate），按提案的 Capabilities 章节逐能力声明 ADDED/MODIFIED/REMOVED/RENAMED 需求操作，每条需求至少一个场景（scenarios：name/given/when/then）。再运行 venus spec render specs --change <name> 逐能力渲染 specs/<name>/spec.md；渲染失败时按报错字段路径修正 JSON，仍无法渲染则降级手写 spec.md（WARN，不阻断）。',
+                '写 JSON：change.json 的 specs 段（openspec/changes/<name>/change.json，schema 示例见 jsonTemplate），按提案的 Capabilities 章节逐能力声明 ADDED/MODIFIED/REMOVED/RENAMED 需求操作，每条需求至少一个场景（scenarios：name/given/when/then）。',
         },
         {
             id: 'design',
             description: '技术设计：上下文、目标、技术决策与风险（跨切面变更时创建）',
-            outputPath: 'design.md',
+            outputPath: 'change.json',
             requires: ['proposal'],
             instruction:
-                '先写 JSON：change.json 的 design 段（openspec/changes/<name>/.venus/change.json，schema 示例见 jsonTemplate）：context（相关代码/架构）、goals/nonGoals、decisions（决策点+选择+理由+备选+风险+相关文件）、risks（风险+缓解）。仅跨切面/新依赖/迁移类变更需要。再运行 venus spec render design --change <name> 渲染 design.md；渲染失败时按报错字段路径修正 JSON，仍无法渲染则降级手写 design.md（WARN，不阻断）。',
+                '写 JSON：change.json 的 design 段（openspec/changes/<name>/change.json，schema 示例见 jsonTemplate）：context（相关代码/架构）、goals/nonGoals、decisions（决策点+选择+理由+备选+风险+相关文件）、risks（风险+缓解）。仅跨切面/新依赖/迁移类变更需要。',
         },
         {
             id: 'tasks',
             description: '实现任务清单：带类型标签的可勾选任务列表',
-            outputPath: 'tasks.md',
+            outputPath: 'tasks.json',
             requires: ['specs', 'design'],
             instruction:
-                '先写 JSON：tasks.json（openspec/changes/<name>/tasks.json，schema 示例见 jsonTemplate），将规格映射为实现任务：每任务含 label（代码/测试/DB脚本/使用说明）、description（含涉及文件与验证方式）与 files；[测试] 任务 MUST 带 subLabel（单元/功能）与 priority（P0/P1/P2）；可测规格场景 MUST 产出对应 [测试] 任务，不可测场景也 MUST 产出 [测试] 任务记录"已评估、判定无需测试"的依据。再运行 venus spec render tasks --change <name> 渲染 tasks.md；渲染失败时按报错字段路径修正 JSON，仍无法渲染则降级手写 tasks.md（WARN，不阻断）。',
+                '先写 JSON：tasks.json（openspec/changes/<name>/tasks.json，schema 示例见 jsonTemplate），将规格映射为实现任务：每任务含 label（代码/测试/DB脚本/使用说明）、description（含涉及文件与验证方式）与 files；[测试] 任务 MUST 带 subLabel（单元/功能）与 priority（P0/P1/P2）；可测规格场景 MUST 产出对应 [测试] 任务，不可测场景也 MUST 产出 [测试] 任务记录"已评估、判定无需测试"的依据。再运行 venus spec render tasks --change <name> 渲染 tasks.md 供人工检查；渲染失败时按报错字段路径修正 JSON，仍无法渲染则降级手写 tasks.md（WARN，不阻断）。',
         },
     ],
     apply: {
         requires: ['tasks'],
-        tracks: 'tasks.md',
+        tracks: 'tasks.json',
     },
 };
 

@@ -6,12 +6,14 @@
 
 import type { ToolCommandAdapter } from '../types.js';
 import { claudeAdapter } from './claude.js';
+import { piAdapter } from './pi.js';
 
 export class CommandAdapterRegistry {
     private static adapters: Map<string, ToolCommandAdapter> = new Map();
 
     static {
         CommandAdapterRegistry.register(claudeAdapter);
+        CommandAdapterRegistry.register(piAdapter);
     }
 
     /** 注册适配器 */

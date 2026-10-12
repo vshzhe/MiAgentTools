@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: tr_docs
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:d4fc2c28fe66e2ce96bb231a43f28fdc2054df92f6931b8b9c08ee6db78fedc3"
+  generatedFingerprint: "sha256:96eb6a4b0edec26ef5285f85b0fcabc2d73612a96242ef683a7b82e8baeb5b56"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
@@ -52,7 +52,7 @@ Record the archive status from where the proposal files are found — it determi
 
 Read in priority order (skip missing files gracefully):
 
-1. `.venus/change.json` — structured primary source (JSON-primary): `proposal` (why / whatChanges / capabilities / impact), `design` (context / goals / nonGoals / decisions / risks), `specs` (requirement operations + scenarios)
+1. `change.json` — structured primary source (JSON-primary): `proposal` (why / whatChanges / capabilities / impact), `design` (context / goals / nonGoals / decisions / risks), `specs` (requirement operations + scenarios)
 2. `tasks.json` (at the change directory root, not under `.venus/`) — structured task groups, page/table/schedule details
 3. **MD fallback (WARN)**: `proposal.md` / `design.md` / `tasks.md` + `specs/*.md` — used only when `change.json` is missing or the required section is absent; log a WARN stating the fallback reason (non-blocking)
 
@@ -74,7 +74,7 @@ The legacy `.venus/decisions.json` sidecar is deprecated (absorbed into `design.
 | **七、影响分析** | change.json → proposal.impact | 直接映射模块/客户/调度影响 |
 | **八、评审记录** | 空模板 | 待评审后填写 |
 
-**JSON-first extraction**: Read structured data from `.venus/change.json` and `tasks.json` before parsing any markdown:
+**JSON-first extraction**: Read structured data from `change.json` and `tasks.json` before parsing any markdown:
 - `design.decisions[]` → render the 关键技术决策 table directly by iterating entries (no AI inference from prose)
 - `tasks.json` → structured task data for 需求拆解 / 页面设计 / 表结构设计
 - `proposal.capabilities` + `specs[].operations[].scenarios` → capability→scenario mapping for 场景分组

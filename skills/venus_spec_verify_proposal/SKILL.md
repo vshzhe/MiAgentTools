@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:2195658bc5a160a03ae68a168e50f88fbbb96f03f1b13b5a18b7d65b47ba4536"
+  generatedFingerprint: "sha256:a476749dbae3b9019e9cb484711d3fef0b08ad4baaf68a91ff4fefcad2b9059f"
 ---
 
 **Before verifying, read openspec/rules/ai-coding.md for verification criteria.**
@@ -25,7 +25,7 @@ This skill performs enhanced 10-dimension verification with quantified scoring a
 ## Prerequisites
 
 **Required files**:
-- `openspec/changes/<change-name>/.venus/change.json` - Structured primary source (`proposal` / `design` / `specs` sections)
+- `openspec/changes/<change-name>/change.json` - Structured primary source (`proposal` / `design` / `specs` sections)
 - `openspec/changes/<change-name>/tasks.json` - Structured task list (specRef / node annotations)
 - `openspec/changes/<change-name>/exploration.md` - Exploration results
 - `openspec/config.yaml` - Project configuration (for tech stack detection)
@@ -40,7 +40,7 @@ This skill performs enhanced 10-dimension verification with quantified scoring a
 
 All dimension checks below read scoring evidence from the structured JSON artifacts first:
 
-- `.venus/change.json` (change directory) - structured source of truth:
+- `change.json` (change directory) - structured source of truth:
   - `proposal` section: `why` / `whatChanges` / `capabilities`
   - `design` section: `context` / `goals` / `nonGoals` / `decisions[]` / `risks[]`
   - `specs` section: `specs[].operations[]` (`requirement` / `scenarios` / `type`)
@@ -117,7 +117,7 @@ Non-triggered dimensions are marked "不适用" and skipped in scoring.
 
 ### Dimension 1: Requirement Coverage
 
-**Check**: Every declared change item in the `proposal` section of `.venus/change.json` (`why` / `whatChanges` / `capabilities`) → corresponding requirement in the `specs` section (`specs[].operations[].requirement`).
+**Check**: Every declared change item in the `proposal` section of `change.json` (`why` / `whatChanges` / `capabilities`) → corresponding requirement in the `specs` section (`specs[].operations[].requirement`).
 
 **PASS condition**:
 - Each decision has matching spec requirement
@@ -134,7 +134,7 @@ D1 Score = (matched decisions / total decisions) * 100%
 
 ### Dimension 2: Technical Consistency
 
-**Check**: Technical choices → reflected in the `design` section of `.venus/change.json` (`context` / `goals` / `decisions[]`).
+**Check**: Technical choices → reflected in the `design` section of `change.json` (`context` / `goals` / `decisions[]`).
 
 **PASS condition**:
 - All technical decisions appear in design
@@ -542,7 +542,7 @@ venus spec status --change "<name>" --json
 ```
 
 Check for `exploration.md` in change directory using `artifactPaths` from status.
-Read structured evidence first: `<change-dir>/.venus/change.json` (proposal / design / specs sections) and `<change-dir>/tasks.json`; if missing, fall back to MD parsing (WARN).
+Read structured evidence first: `<change-dir>/change.json` (proposal / design / specs sections) and `<change-dir>/tasks.json`; if missing, fall back to MD parsing (WARN).
 <!-- /CMD:SKIP -->
 
 ---
@@ -553,6 +553,6 @@ Read structured evidence first: `<change-dir>/.venus/change.json` (proposal / de
 - **Tech stack detection**: Parse openspec/config.yaml context field
 - **Inline deep review**: After pass, run read-only deep check inline (no dedicated skill)
 - **Auto-fix loop**: On FAIL, auto-generate and apply fixes, re-score; if still FAIL, offer [手动编辑]/[返回探索]/[查看差异]
-- **JSON-first evidence**: Read `.venus/change.json` (proposal / design / specs) + `tasks.json` before any MD parsing; missing JSON degrades to MD with a WARN (non-blocking)
+- **JSON-first evidence**: Read `change.json` (proposal / design / specs) + `tasks.json` before any MD parsing; missing JSON degrades to MD with a WARN (non-blocking)
 - **No exploration**: Cannot verify, report and exit
 - **Cross-platform**: Use `path.join()` for file paths

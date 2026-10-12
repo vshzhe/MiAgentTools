@@ -21,7 +21,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { isSkillType, type SkillType } from './config.js';
+import { isSkillType, type SkillType, type AIToolOption } from './config.js';
 
 /** 配置目录名（项目根下） */
 export const VENUS_DIR_NAME = '.venus';
@@ -40,6 +40,8 @@ export interface ProjectConfig {
     rules: SkillType[];
     /** 用户选择的 workflow id 列表（空=未配置，用默认集） */
     workflows: string[];
+    /** 用户选择的目标工具 id 列表（空=未配置，用全部工具） */
+    tools: string[];
 }
 
 /** 解析后的完整配置（rules 文件内容已展开） */
@@ -51,6 +53,8 @@ export interface ResolvedProjectConfig {
     missingRuleFiles: SkillType[];
     /** 用户选择的 workflow id 列表（空=未配置，用默认集） */
     workflows: string[];
+    /** 用户选择的目标工具 id 列表（空=未配置，用全部工具） */
+    tools: string[];
 }
 
 /** 默认 config.yaml 内容 */
@@ -82,6 +86,13 @@ workflows:
   - spec-archive
   - spec-verify
   - spec-verify-proposal
+
+# 选择要生成适配的目标 AI 工具（venus init/update 据此过滤生成）
+# 未配置或为空时默认全部工具（当前：claude, pi, codex）
+tools:
+  - claude
+  - pi
+  - codex
 `;
 }
 
@@ -124,7 +135,7 @@ function readConfigRaw(projectRoot: string): string | null {
  */
 export function parseProjectConfig(raw: string): ProjectConfig {
     const lines = raw.split(/\r?\n/);
-    const config: ProjectConfig = { context: '', rules: [], workflows: [] };
+    const config: ProjectConfig = { context: '', rules: [], workflows: [], tools: [] };
 
     let i = 0;
     while (i < lines.length) {
@@ -164,6 +175,18 @@ export function parseProjectConfig(raw: string): ProjectConfig {
             }
             continue;
         }
+        // tools 列表（目标 AI 工具 id，如 claude / pi / codex）
+        if (/^tools:/.test(line)) {
+            i++;
+            while (i < lines.length && /^\s+-\s/.test(lines[i])) {
+                const item = lines[i].replace(/^\s+-\s/, '').trim();
+                if (item.length > 0) {
+                    config.tools.push(item);
+                }
+                i++;
+            }
+            continue;
+        }
         i++;
     }
     return config;
@@ -190,8 +213,8 @@ export function readProjectConfig(projectRoot: string): ResolvedProjectConfig | 
     if (raw === null) {
         return null;
     }
-    const { context, rules, workflows } = parseProjectConfig(raw);
-    const resolved: ResolvedProjectConfig = { context, rules: {}, missingRuleFiles: [], workflows };
+    const { context, rules, workflows, tools } = parseProjectConfig(raw);
+    const resolved: ResolvedProjectConfig = { context, rules: {}, missingRuleFiles: [], workflows, tools };
 
     for (const type of rules) {
         const ruleFile = path.join(projectRoot, RULES_DIR_NAME, `${type}.md`);
@@ -373,4 +396,55 @@ export function writeContextToConfig(projectRoot: string, context: string): void
             }
         }
     );
+}
+
+/**
+ * 更新 config.yaml 的 tools 字段（保留其他段不动）。
+ * 若 config.yaml 不存在则先创建目录与默认配置，再写入指定 tools。
+ *
+ * @param projectRoot - 项目根目录
+ * @param tools - 要写入的工具 id 列表
+ */
+export function writeToolsToConfig(projectRoot: string, tools: string[]): void {
+    replaceConfigSection(
+        projectRoot,
+        /^tools:/,
+        findWorkflowListEnd,
+        (out) => {
+            out.push('tools:');
+            for (const t of tools) {
+                out.push(`  - ${t}`);
+            }
+        }
+    );
+}
+
+/**
+ * 解析生效的工具列表：CLI --tools >  config tools > 全部 AI_TOOLS。
+ *
+ * @param cliTools - CLI --tools 参数值（逗号分隔字符串，可选）
+ * @param configTools - .venus/config.yaml 的 tools 列表（可选）
+ * @param allTools - AI_TOOLS 全量列表
+ * @returns 生效的工具对象列表；非法 id 直接抛错
+ */
+export function resolveActiveTools(
+    cliTools: string | undefined,
+    configTools: string[] | undefined,
+    allTools: AIToolOption[]
+): AIToolOption[] {
+    const raw: string[] = cliTools
+        ? cliTools.split(',').map((t) => t.trim())
+        : configTools && configTools.length > 0
+            ? configTools
+            : allTools.map((t) => t.value);
+
+    const resolved: AIToolOption[] = [];
+    for (const id of raw) {
+        const tool = allTools.find((t) => t.value === id);
+        if (!tool) {
+            throw new Error(`未知的工具标识：${id}（可选：${allTools.map((t) => t.value).join(', ')}）`);
+        }
+        resolved.push(tool);
+    }
+    return resolved;
 }

@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: tr_impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:aeeffb32aeec6974f6a3b66924dabb5c395dc60f8cb1f9df554c137f87a03d9d"
+  generatedFingerprint: "sha256:c08e3e7715366797ade107d90df56b4801d50183a2d4fc18455f70acef4ad28d"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
@@ -469,7 +469,7 @@ Proceed directly to inline artifact generation (no complexity evaluation, no met
 
 1. Run `venus spec status --change "<name>" --json`
 2. Loop through artifacts in dependency order: proposal → specs → design → tasks
-3. For each artifact: `venus spec instructions <artifact-id> --change "<name>" --json` → **write the JSON truth source** per `jsonTemplate`: proposal / specs / design → update the matching section of `<changeRoot>/.venus/change.json` (whole-file Write, MUST preserve existing sections and root fields `changeName` / `createdAt` / `phase`); tasks → write `<changeRoot>/tasks.json` (task labels without brackets — the renderer wraps them). MUST NOT hand-write MD as a substitute for the JSON truth source
+3. For each artifact: `venus spec instructions <artifact-id> --change "<name>" --json` → **write the JSON truth source** per `jsonTemplate`: proposal / specs / design → update the matching section of `<changeRoot>/change.json` (whole-file Write, MUST preserve existing sections and root fields `changeName` / `createdAt` / `phase`); tasks → write `<changeRoot>/tasks.json` (task labels without brackets — the renderer wraps them). MUST NOT hand-write MD as a substitute for the JSON truth source
 4. Render MD: `venus spec render <artifact-id> --change "<name>"`
    - Validation/render failure (CLI error names the field path, e.g. `proposal.whatChanges 必须为数组`) → fix the JSON and re-run the render; MUST NOT bypass validation by hand-editing MD
    - Render command unavailable → degrade to AI hand-written MD (structure per `template`, content consistent with the JSON truth source), log WARN, non-blocking

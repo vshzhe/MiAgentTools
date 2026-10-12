@@ -60,7 +60,7 @@ Implement tasks from a change's artifacts (proposal/specs/design/tasks) under op
    **JSON-first artifact context (PRIMARY source for proposal/design/specs — applies to both paths):**
 
    For the structured content of proposal / design / specs, prefer the change's merged JSON main artifact over MD prose:
-   1. MUST read \`openspec/changes/<name>/.venus/change.json\` first — its \`proposal\` / \`design\` / \`specs\` sections are the structured source of truth (why, what changes, decisions, operations, scenarios); use them directly instead of re-parsing MD prose
+   1. MUST read \`openspec/changes/<name>/change.json\` first — its \`proposal\` / \`design\` / \`specs\` sections are the structured source of truth (why, what changes, decisions, operations, scenarios); use them directly instead of re-parsing MD prose
    2. If change.json is missing → fall back to reading the MD artifacts (\`proposal.md\`, \`specs/*.md\`, \`design.md\`) and record a WARN stating the fallback reason
 
    **Fallback path (old CLI without \`instructions apply\`):**
@@ -95,7 +95,7 @@ After completing a batch of tasks, update tasks.json then re-render tasks.md:
 4. **Read context files**
 
    Follow the JSON-first rule from Step 3 — read the structured sections first:
-   - **\`.venus/change.json\`**: \`proposal\` (why, what changes) / \`design\` (decisions, architecture, module dependencies — used to infer task batch plan) / \`specs\` (delta requirements)
+   - **\`change.json\`**: \`proposal\` (why, what changes) / \`design\` (decisions, architecture, module dependencies — used to infer task batch plan) / \`specs\` (delta requirements)
    - **\`tasks.json\` / \`tasks.md\`: task list with status
 
    **MD fallback** (only when change.json is missing — log a WARN): read the artifact files under the change directory:
