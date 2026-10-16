@@ -1,6 +1,6 @@
 ---
 name: iagent_spec_bulk_archive
-description: 批量归档变更。当用户要一次归档多个已完成变更时使用。
+description: "批量归档变更。当用户要一次归档多个已完成变更时使用；触发词\"批量归档 / bulk archive / 归档多个\"；NOT for 单个变更归档（改用 iagent_spec_archive）。"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(requirement_doc), Agent, Task
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）与 CodeGraph CLI（可选）。
@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:f0c06c7c6f328c75532b5a1fd8cbd5a707aafe56126abbe560ab7980e0c663d7"
+  generatedFingerprint: "sha256:9367be591ab2f6bc559cc1bf41c32127535744f1db8ac62dbb171cc52af0a087"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。

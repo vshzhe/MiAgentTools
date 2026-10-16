@@ -7,6 +7,56 @@
 
 ## [Unreleased]
 
+## [6.2.0] - 2026-10-16
+
+### Added
+
+- `iagent_spec_explore` 新增 `references/exploration-guidance.md`（上游衍生的探索指南）与三个协议子 references（`multi-project-scan.md` / `grill-playbook.md` / `deep-analysis.md`）；主协议按需 `Read` 加载。
+- 新增回归锁定：探索主文件 ≤ 250 行、分层 references 齐备且被引用、门预算与门合并、专有断言不因下沉丢失、探索指南标注上游来源。
+
+### Changed
+
+- `iagent_spec_explore` 主 SKILL.md 渐进披露：上游衍生探索散文下沉 `references/exploration-guidance.md`，主文件从 409 行缩减至 ≤ 250 行（实际 125 行）。
+- `exploration-protocol.md` 按关注点分层：多项目 CodeGraph 扫描 / grill 问题库 / 深度分析 拆为独立子 references。
+- grill L1-L5 由逐决策增量门合并为 **≤ 2 批量确认轮次**（L1-L3、L4-L5），保留最低确认深度 L3；L4 无矛盾时自动直通。
+- 定义门预算：每阶段至多 1 个流程级阻塞确认门；探索阶段以功能流程图门为唯一流程级阻塞门。
+- `iagent_workflow` 实现确认桥与测试计划确认门合并为单一「实现 + 测试桥」（含 `Implementation + Test Bridge` 标题）；实现阶段仅一个阻塞门。
+- 聚合一致性门（1.6.6）显式声明默认直通（non-blocking）：无硬冲突自动通过并继续，仅硬冲突暂停；门保留作为 L4 增量检查的兜底。
+
+### Fixed
+
+- 消除探索协议单文件巨石（874 行）与主 SKILL.md 上游散文复制面带来的上下文膨胀与静默漂移风险。
+
+## [6.1.0] - 2026-10-16
+
+### Added
+
+- 新增跨切面一致性回归锁 `test/template-consistency.test.ts`：锁定「调用类白名单与正文委派双向一致」「门控导言单一源」「references 无孤儿」「提案验证维度契约唯一」。
+- 加宽 `test/markdown-first-regression.test.ts`：扫描全部技能模板、指令模板与 references 正文中 `tasks.json` / `change.json` 的写动词（legacy 只读句式白名单豁免）。
+
+### Changed
+
+- `iagent_auto_workflow` Phase 4/5 由内联执行改为经 Skill 工具委派 `iagent_spec_apply`（`auto-mode=true`）/ `iagent_spec_archive`（`change-name`），条件委派 `iagent_test`；白名单补齐 `Skill(spec_apply/spec_archive/spec_verify/test)`。
+- `DEPS['auto-workflow']` 移除冗余 `workflow` 依赖，改为直接列出其阶段技能；`auto-workflow` 不再连带安装 `workflow`。
+- 提案验证维度契约统一为 `iagent_spec_verify_proposal` 唯一源（D1-D5 核心 + D6-D10 条件，统一 90% 阈值）；删除 `workflow` / `debug` 等技能中的 `D1-D6` / `D1-D9` 子集表述。
+- `iagent_proposal_review` 定位为评分门 PASS 后的非重叠深度层；Phase 5-8 下沉 references 的指针明确化。
+- `iagent_workflow` / `iagent_auto_workflow` / `iagent_debug` 的门控导言改用共享 `GATE_PROTOCOL_PREAMBLE` 常量。
+- `iagent_workflow` / `iagent_auto_workflow` 增加实现验证桥接：apply→archive 之间委派 `iagent_spec_verify`，不可用时显式声明省略理由。
+- 全部技能 description 统一为「中文用途 + 触发词（中英）+ `NOT for` 排歧」结构。
+- `docs/skills-manual.md` 版本号（4.0.0 → 6.1.0）、类型表（impl 4 / review 3 / docs 2 / spec 7）与 workflow 描述同步。
+
+### Fixed
+
+- 修复 `iagent_migration` Phase 4 修复循环把 `tasks.json` 当任务真源并重渲染的反 Markdown-first 残留：改为直接编辑 `tasks.md`。
+- 修复 `iagent_spec_explore` 残留的 JSON 捕获指引：制品捕获目标由 `change.json 的 design/proposal 段` 改为 `design.md` / `proposal.md`。
+- 修复 `iagent_workflow` 与 Phase 2.3 委派相矛盾的 stale Examples 与 Guardrail（`MUST use inline generation for artifacts` / `Executing inline artifact generation`）。
+- 修复 `prompt-gate.ts` / `flowchart-gate.ts` 文档注释把 `iagent_workflow` 重复计两次的 typo。
+- 修复 `iagent spec` shell 补全缺 `migrate` / `validate` 子命令。
+
+### Removed
+
+- 删除 `iagent_workflow` / `iagent_auto_workflow` 携带但从未被正文引用的孤儿 `references/prompt-gate.md` / `references/flowchart-gate.md`。
+
 ## [6.0.0] - 2026-10-16
 
 ### BREAKING
@@ -1038,7 +1088,9 @@
 [2.0.0]: https://github.com/mi-agent-tools/compare/v1.18.1...v2.0.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/mi-agent-tools/compare/v6.0.0...HEAD
+[Unreleased]: https://github.com/mi-agent-tools/compare/v6.2.0...HEAD
+[6.2.0]: https://github.com/mi-agent-tools/compare/v6.1.0...v6.2.0
+[6.1.0]: https://github.com/mi-agent-tools/compare/v6.0.0...v6.1.0
 [6.0.0]: https://github.com/mi-agent-tools/compare/v5.0.0...v6.0.0
 [5.0.0]: https://github.com/mi-agent-tools/compare/v4.0.0...v5.0.0
 [1.17.0]: https://github.com/mi-agent-tools/compare/v1.16.0...v1.17.0

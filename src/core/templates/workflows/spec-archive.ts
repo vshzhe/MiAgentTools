@@ -8,7 +8,7 @@ import { CODEGRAPH_MCP, skillDelegation } from '../tool-whitelist.js';
 export function getSpecArchiveChangeSkillTemplate(): SkillTemplate {
     return {
         name: 'iagent_spec_archive',
-        description: '归档变更。当用户要归档已实现完成的变更、结束变更工作流时使用。',
+        description: '归档变更。当用户要归档已实现完成的变更、结束变更工作流时使用；触发词"归档 / archive / 结束变更"；NOT for 一次归档多个变更（改用 iagent_spec_bulk_archive）。',
         allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(ls:*), ${CODEGRAPH_MCP}, ${skillDelegation(['requirement_doc'])}`,
         type: 'spec',
         instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。

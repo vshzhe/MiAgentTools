@@ -1,6 +1,6 @@
 ---
 name: iagent_debug
-description: "一站式调试工作流 reproduce→investigate root cause with CodeGraph and capability memory→change association→fix with mandatory regression test→compile check→synchronize proposal→verify；触发词\"调试 / debug / 修复 bug / bug 报告 / 复现 / 根因\"；NOT-for：新功能开发用 iagent_workflow、单一阶段探索用 iagent_spec_explore"
+description: "一站式调试工作流 reproduce→investigate root cause with CodeGraph and capability memory→change association→fix with mandatory regression test→compile check→synchronize proposal→verify；触发词\"调试 / debug / 修复 bug / bug 报告 / 复现 / 根因\"；NOT for：新功能开发用 iagent_workflow、单一阶段探索用 iagent_spec_explore"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_verify_proposal), Skill(proposal_review)
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）与 iagent_spec_verify_proposal / iagent_proposal_review 技能；CodeGraph MCP 可选（不可用时降级 Glob/Grep）。
@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:b720a32485a1f94f8bb86bffb046000e0f1720b18c617b1e0624e694681953f5"
+  generatedFingerprint: "sha256:8ee99cda58790e675ebba6f3ad0f20688eba6b5966ff9119190e16fe63c59253"
 ---
 
 
@@ -367,9 +367,9 @@ Proceed to Phase 7 only after artifacts reflect all implemented fixes.
 Execute verification by **invoking the `iagent_spec_verify_proposal` skill** (via the Skill tool) for change `<name>`:
 
 - `iagent_spec_verify_proposal` is a SKILL name, NOT a valid `iagent spec instructions` artifact ID — do not run it as a CLI instruction
-- The skill performs D1–D9 scoring by reading the artifacts and exploration.md
+- The skill performs D1-D5 核心 + D6-D10 条件 scoring by reading the artifacts and exploration.md
 
-**Fallback (skill unavailable)**: If the skill is not installed or its invocation fails, fall back to AI inline reading of the artifacts with manual D1–D9 scoring, and emit WARN: "iagent_spec_verify_proposal skill unavailable, degraded to inline scoring". Do NOT silently skip verification.
+**Fallback (skill unavailable)**: If the skill is not installed or its invocation fails, fall back to AI inline reading of the artifacts with manual D1-D5 核心 + D6-D10 条件 scoring, and emit WARN: "iagent_spec_verify_proposal skill unavailable, degraded to inline scoring". Do NOT silently skip verification.
 
 ### 7.2 Verification FAIL → auto-fix loop
 
@@ -385,7 +385,7 @@ When ANY dimension scores below the threshold (<90%):
 
 After verification passes:
 
-1. **Auto-invoke the `iagent_proposal_review` skill** (via Skill tool) for a deep read-only review of the proposal (a deep consistency and coverage audit beyond the D1–D9 scoring). The review runs automatically (no [Yes/No] prompt). User MAY interrupt to skip; otherwise it runs.
+1. **Auto-invoke the `iagent_proposal_review` skill** (via Skill tool) for a deep read-only review of the proposal (a deep consistency and coverage audit beyond the D1-D5 核心 + D6-D10 条件 scoring). The review runs automatically (no [Yes/No] prompt). User MAY interrupt to skip; otherwise it runs.
    - **Fallback (skill unavailable)**: If the skill is not installed or its invocation fails, fall back to AI inline read-only deep review with a WARN: "iagent_proposal_review skill unavailable, degraded to inline review". Do NOT silently skip the deep review.
 2. **Converge — the requirement document is NOT part of this workflow (⚠️ MANDATORY prohibition)**: after the deep review completes, converge the debug workflow and report that the change is ready for archive. This skill MUST NOT:
    - generate a requirement document (regardless of whether `openspec/changes/<change-name>/需求文档.md` exists),

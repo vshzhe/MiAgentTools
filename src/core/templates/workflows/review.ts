@@ -6,7 +6,7 @@ import type { SkillTemplate, CommandTemplate } from '../types.js';
 export function getReviewSkillTemplate(): SkillTemplate {
     return {
         name: 'iagent_review',
-        description: '审查代码。当用户要检查代码质量、核对编码规范、审查变更或合并请求时使用。',
+        description: '审查代码。当用户要检查代码质量、核对编码规范、审查变更或合并请求时使用；触发词"代码审查 / review / code review / 检查代码 / 规范核对"；NOT for 提案完整性复查（改用 iagent_proposal_review）或迁移一致性检查（改用 iagent_migration_check）。',
         allowedTools: 'Bash(git diff:*), Bash(git log:*), Bash(git status:*), Read, Glob, Grep',
         type: 'review',
         instructions: `审查代码 —— 按维度检查，只报告经过验证的问题，严重程度分级呈现。

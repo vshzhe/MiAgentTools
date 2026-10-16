@@ -1,6 +1,6 @@
 ---
 name: iagent_project_init
-description: 初始化项目。当用户要创建新项目、搭建目录结构、生成配置文件或准备开发环境时使用。
+description: "初始化项目。当用户要创建新项目、搭建目录结构、生成配置文件、初始化知识文档或准备开发环境时使用；触发词\"初始化项目 / project init / 搭建项目 / 生成配置\"；NOT for 扫描源项目功能模块（改用 iagent_feature_doc）。"
 allowed-tools: Bash(ls:*), Bash(pwd:*), Read, Write, Glob, Grep, mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(feature_doc)
 license: MIT
 compatibility: 无特殊依赖，通用环境可用。CodeGraph 索引与文档能力技能均为可选增强，缺失时自动降级。
@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: init
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:93015318d0591fc17adbdf8e5cd26d5f4d166b3bfa3f1cd5a26c73fd69594106"
+  generatedFingerprint: "sha256:db147317112f239c2637927cb2d5cd7a040486d12f10dfdd5947287f0c152790"
 ---
 
 初始化项目 —— 读扫描基线 → 五类语义扫描 → 逐份确认 → 落盘 → 回写 context。

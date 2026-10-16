@@ -414,7 +414,7 @@ const REPORT_TEMPLATE_FULL = `## 输出格式
 export function getProposalReviewSkillTemplate(): SkillTemplate {
     return {
         name: 'iagent_proposal_review',
-        description: '检查变更提案完整性与实现合规性——深度代码库探索、8 维度完整性检查、合规性验证、量化评分与遗漏场景补充。触发词"检查提案 / 检查设计 / review proposal / 检查遗漏 / 提案完整性 / 检查合规性 / 验证实现方式"；在 /iagent:spec-propose 或 /iagent:workflow 验证通过后自动调用，也可手动调用',
+        description: '检查变更提案完整性与实现合规性——深度代码库探索、8 维度完整性检查、合规性验证、量化评分与遗漏场景补充。触发词"检查提案 / 检查设计 / review proposal / 检查遗漏 / 提案完整性 / 检查合规性 / 验证实现方式"；在 /iagent:spec-propose 或 /iagent:workflow 验证通过后自动调用，也可手动调用；NOT for 代码审查（改用 iagent_review）',
         instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 检查变更提案完整性与实现合规性——深度代码库探索、8 维度完整性检查、合规性验证、量化评分与遗漏场景补充。在 /iagent:spec-propose 创建提案后，或经过 /iagent:spec-explore 探索分析后，使用此 skill 验证提案是否完整覆盖需求场景、是否符合项目规范。确保每个变更提案都经过完整性验证和合规性检查后再进入实现阶段。
@@ -424,6 +424,8 @@ export function getProposalReviewSkillTemplate(): SkillTemplate {
 2. 实现方式符合项目规范
 3. 代码设计符合框架模式
 4. 安全性和性能考虑充分
+
+**职责边界（双门非重叠）**：本 skill 是提案验证的**深度层**——应在 \`iagent_spec_verify_proposal\`（D1-D5 核心 + D6-D10 条件维度，统一 90% 阈值）PASS（≥90%）之后调用；本 skill 只做深度代码库探索、多维完整性/合规复查与遗漏场景补充，MUST NOT 重复 D1-DN 量化评分（那是 spec_verify_proposal 的职责）。
 
 ---
 
@@ -670,7 +672,7 @@ iagent spec status --change "<change-name>" --json
 
 > **细节检查下沉（Phase 5–8）**：特殊功能场景 / 页面设计细节 / 逻辑实现细节 / 量化评分细则见 \`references/detail-checks.md\`。
 
-## Phase 9: 发现遗漏时更新文档
+## Phase 9: 发现遗漏时更新文档（承接 Phase 5–8，相位细则见 references/detail-checks.md）
 
 发现遗漏场景后，按优先级更新：
 
@@ -884,7 +886,7 @@ export function getProposalReviewCommandTemplate(): CommandTemplate {
 ## Phase 8: 量化评分
 11 维度覆盖率 + 合规率评分 + 总体评分（>=90% 可进入实现，70%-90% 补充 P0，<70% 重新完善）。
 
-## Phase 9: 发现遗漏时更新文档
+## Phase 9: 发现遗漏时更新文档（Phase 5–8 见 references/detail-checks.md）
 P0 必须补充（更新 specs/**/*.md / design.md / tasks.md；运行 \`iagent spec validate --change <name>\`；历史 JSON-only 变更仅只读降级并 WARN）、P1 建议补充、P2 可选补充。
 
 ## 输出格式

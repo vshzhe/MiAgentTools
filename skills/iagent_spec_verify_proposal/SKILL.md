@@ -1,6 +1,6 @@
 ---
 name: iagent_spec_verify_proposal
-description: 提案验证门。在变更提案生成后、实现开始前，对制品做量化评分（D1-D5 核心维度 + D6-D10 条件维度，统一 90% 阈值），检测技术栈并按需执行技术特定检查，通过后可做内联只读深度复查。用于确保提案质量后再进入实现。
+description: "提案验证门。在变更提案生成后、实现开始前，对制品做量化评分（D1-D5 核心维度 + D6-D10 条件维度，统一 90% 阈值），检测技术栈并按需执行技术特定检查，通过后可做内联只读深度复查。用于确保提案质量后再进入实现。触发词\"提案验证 / verify proposal / 评分门 / D1-D10\"；NOT for 实现完成后的实现验证（改用 iagent_spec_verify）。"
 allowed-tools: Read, Glob, Grep, Bash(iagent:*)
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）。
@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:f8a3c0d232e01a052fd27d8e7d2d529e250b7b61ca7235d9d1bf9b1b8b201ad9"
+  generatedFingerprint: "sha256:e562f522b4701590cfca52bad8869a6de057fc90c93b588866b73b648fba6b73"
 ---
 
 **Before verifying, read openspec/rules/ai-coding.md for verification criteria.**

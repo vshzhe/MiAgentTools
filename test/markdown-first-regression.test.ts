@@ -70,4 +70,26 @@ describe('Markdown-first 回归锁', () => {
             fs.rmSync(root, { recursive: true, force: true });
         }
     });
+
+    it('全模板无 JSON 写动词残留（legacy 只读白名单外）', () => {
+        const WRITE = /\b(sync|write|re-?render|update|create)\b/i;
+        const ARTIFACT = /(tasks\.json|change\.json)/;
+        const LEGACY = /legacy|历史|只读|read-only|WARN|降级|迁移|do not|MUST NOT|禁止|avoid|不创建|不更新/i;
+        const bodies = [
+            ...getSkillTemplates().flatMap(({ template }) => [
+                { name: `${template.name}/skill`, body: template.instructions },
+                ...(template.references ?? []).map((r) => ({ name: `${template.name}/${r.path}`, body: r.content })),
+            ]),
+            ...getCommandTemplates().map(({ template, id }) => ({ name: `${id}/cmd`, body: template.content })),
+        ];
+        const offenders: string[] = [];
+        for (const { name, body } of bodies) {
+            for (const line of body.split('\n')) {
+                if (ARTIFACT.test(line) && WRITE.test(line) && !LEGACY.test(line)) {
+                    offenders.push(`${name}: ${line.trim().slice(0, 120)}`);
+                }
+            }
+        }
+        expect(offenders).toEqual([]);
+    });
 });

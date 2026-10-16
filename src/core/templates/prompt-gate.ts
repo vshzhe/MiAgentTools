@@ -1,8 +1,8 @@
 /**
  * 提示词校验门文本唯一源。
  *
- * 5 个工作流技能（iagent_spec_explore / iagent_workflow /
- * iagent_auto_workflow / iagent_debug / iagent_workflow）
+ * 4 个工作流技能（iagent_spec_explore / iagent_workflow /
+ * iagent_auto_workflow / iagent_debug）
  * 在探索动作之前统一执行本门：按维度自检用户输入清晰度，清晰则零打扰直通，
  * 不明确则先做提示词优化并阻塞等待用户确认，确认后的「提示词基线」成为
  * 下游唯一语义来源。

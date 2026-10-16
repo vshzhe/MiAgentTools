@@ -1,18 +1,11 @@
 /**
  * impl 类型技能模板：一站式引导工作流（探索→提案→验证→实现→归档）。
- * 引导式工作流 —— 结构化探索（grill 追问 L1-L5）→ 提案内联生成 → 自动验证门 → 深度复查收束
+ * 引导式工作流 —— 结构化探索（grill 追问 L1-L5）→ 提案委派生成 → 自动验证门 → 深度复查收束
  * → 实现（委派 spec_apply）→ 归档（委派 spec_archive）。合并自原 iagent_full_workflow。
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
-import { buildPromptGateBlock, REQUIREMENT_DIMENSIONS } from '../prompt-gate.js';
-import { buildFlowchartBlock, REQUIREMENT_FLOW_COLUMNS } from '../flowchart-gate.js';
+import { GATE_PROTOCOL_PREAMBLE } from '../prompt-gate.js';
 import { CODEGRAPH_MCP, SUBAGENT_DISPATCH, skillDelegation } from '../tool-whitelist.js';
-
-/** 提示词校验门全文（写入 references/prompt-gate.md，AI 在 Gate 触发时按需读取） */
-const PROMPT_GATE_FULL = buildPromptGateBlock(REQUIREMENT_DIMENSIONS);
-
-/** 功能流程图全文（写入 references/flowchart-gate.md，AI 在流程生成时按需读取） */
-const FLOWCHART_FULL = buildFlowchartBlock(REQUIREMENT_FLOW_COLUMNS);
 
 const VERIFICATION_PROTOCOL_FULL = `### 3.1 Auto-Execute Verification (No User Prompt)
 
@@ -46,7 +39,7 @@ Execute 5-dimension verification:
 3. **D3: Task Completeness** — Spec requirements → tasks
 4. **D4: Boundary Coverage** — Questions/edge cases → spec scenarios
 5. **D5: Pending Resolution** — Pending items → resolved
-6. **D6: Deep Analysis Coverage** — Deep analysis completeness → Implementation Deep-Dive section
+6. **D6-D10: 条件维度** — Interaction Detail / API Contract / DB Mapping / Business Steps / Flowchart Node Coverage，由 \`iagent_spec_verify_proposal\` 按变更类型自动触发；未触发维度不计分
 
 ### 3.3 Quantified Score Report
 
@@ -62,7 +55,7 @@ Display verification results with scores:
 | D3: Tasks | 100% | PASS |
 | D4: Boundaries | 70% | FAIL |
 | D5: Pending | 100% | PASS |
-| D6: Deep Analysis | N/A | PASS |
+| D6-D10: 条件维度 | N/A | SKIP（无触发） |
 
 **Overall Score**: 89%
 \`\`\`
@@ -139,7 +132,7 @@ When ANY dimension FAILS (<90%), system MUST auto-fix:
 export function getWorkflowSkillTemplate(): SkillTemplate {
     return {
         name: 'iagent_workflow',
-        description: 'One-stop guided workflow from exploration to archive. Creates persistent exploration files, asks clarifying questions until clear (grill-with-docs, L1-L5 per-level gates), generates all artifacts inline, auto-verifies, then delegates implementation (iagent_spec_apply) and archive (iagent_spec_archive) with confirmation bridges. Use when the user wants a guided end-to-end pipeline with追问 (grill-with-docs) questioning and automatic quality verification (一站式引导工作流 / guided workflow / workflow from exploration / 引导式全流程). NOT for fully automated no-gate pipeline (use iagent_auto_workflow), single-stage exploration (use iagent_spec_explore), or debugging (use iagent_debug).',
+        description: 'One-stop guided workflow from exploration to archive. Creates persistent exploration files, asks clarifying questions until clear (grill-with-docs, L1-L5 per-level gates), delegates artifact generation (iagent_spec_propose), auto-verifies, then delegates implementation (iagent_spec_apply) and archive (iagent_spec_archive) with confirmation bridges. Use when the user wants a guided end-to-end pipeline with追问 (grill-with-docs) questioning and automatic quality verification (triggers: 一站式引导工作流 / guided workflow / workflow from exploration / 引导式全流程). NOT for fully automated no-gate pipeline (use iagent_auto_workflow), single-stage exploration (use iagent_spec_explore), or debugging (use iagent_debug).',
         instructions: `
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
@@ -148,19 +141,13 @@ One-stop guided workflow from exploration to archive with verification and confi
 This workflow guides you through:
 1. **Exploration phase** - Persistent file + grill-with-docs questioning
 2. **Proposal phase** - Create change with all artifacts
-3. **Verification phase** - Automatic quality check (D1-D6) + deep review + requirement doc
+3. **Verification phase** - Automatic quality check (D1-D10) + deep review + requirement doc
 4. **Implementation phase** - Confirmation bridge → delegate iagent_spec_apply（条件测试子阶段）
 5. **Archive phase** - Confirmation bridge → delegate iagent_spec_archive
 
 探索与提案内联执行（无 Skill 委派断层），验证通过后委派阶段 SKILL 实现与归档，阶段间以确认桥保证完整性。区别于 iagent_auto_workflow（全自动无门）。
 
-## ⛔ GATE PROTOCOL — ACTIVE
-
-This skill contains **CONFIRMATION GATES** marked with **⛔ GATE:**. Each gate is a HARD STOP:
-- When you reach a ⛔ GATE, **YOUR RESPONSE ENDS THERE** — output the gate content, then STOP
-- Do NOT execute, describe, or pre-generate steps beyond the gate
-- The user's next message is the confirmation signal — resume from AFTER the gate only when they respond
-- **VIOLATION**: executing beyond a gate without user confirmation is a critical error that corrupts the workflow
+${GATE_PROTOCOL_PREAMBLE}
 
 ---
 ## Phase 1: Exploration（委派 iagent_spec_explore）
@@ -322,13 +309,13 @@ After all artifacts are generated and validated in Phase 2.5, automatically ente
 
 > **Phase 3 细则下沉**：自动执行、量化评分、技术栈检测、通过/失败处理见 \`references/verification-protocol.md\`；执行 Phase 3 前 MUST 先 \`Read\` 该文件。
 
-## Phase 3.7: Implementation Bridge (MANDATORY CHECKPOINT)
+## Phase 3.7: Implementation + Test Bridge (MANDATORY CHECKPOINT)
 
-**⛔ GATE: 实现确认门（强制停止）** — 验证与深度复查收束后，呈现「提案摘要 + 验证评分 + 深度复查结论 + 条件测试子阶段预告」，等待用户确认「进入实现」。
+**⛔ GATE: 实现 + 测试桥（强制停止，单一阻塞门）** — 验证与深度复查收束后，**一次呈现**「提案摘要 + 验证评分 + 深度复查结论 + 实现方案 + 测试计划预告」，等待用户**一次确认**后进入实现（含条件测试生成）。MUST NOT 在实现阶段再设第二个确认门（测试计划确认已并入本桥）。
 
 - 就绪检查：proposal.md / design.md / specs/**/*.md / tasks.md 齐全；验证 PASS（≥90%）；深度复查完成；apply instruction = ready（\`iagent spec instructions apply --change "<name>" --json\`；CLI 不可用读 tasks.md 推断）
 - workspace-planning 变更不支持 apply/archive：在此停止，仅保留探索+提案+深度复查结果
-- 出口：确认（进入 Phase 4）／修改（回 Phase 2 调整制品或回 Phase 1 补决策）／拒绝（记录未确认状态并停止，不进入实现）
+- 出口：确认（进入 Phase 4，含条件测试生成）／修改（回 Phase 2 调整制品或回 Phase 1 补决策）／拒绝（记录未确认状态并停止，不进入实现）
 - 需求文档已在 Phase 3.5 生成，不在此重复，也不作为本桥阻塞项
 
 ---
@@ -339,17 +326,23 @@ After all artifacts are generated and validated in Phase 2.5, automatically ente
 - apply 内部完成：分层代码生成（Entity/DTO → Mapper/DAO → Service → Controller）、tasks.md 勾选更新、编译检查
 - 后端架构规则由 apply 按 \`openspec/rules/ai-coding.md\` 自行处理，workflow 不干预
 
-### 4.1 条件测试子阶段（tasks.md 含 \`[测试]\` 任务时）
+### 4.1 条件测试子阶段（tasks.md 含 \`[测试]\` 任务时；计划已在 3.7「实现 + 测试桥」一次确认）
 
 - 委派 \`iagent_test\` 技能（via Skill tool，多 schema 自动检测 Java/Node）
-- **测试计划确认门 = 桥梁点**：用户确认计划后生成测试代码
+- **计划确认已在 Phase 3.7 实现 + 测试桥完成**：本子阶段 MUST NOT 再设独立确认门，直接生成测试代码
 - 输出测试代码到项目测试源树并运行验证
 
 ### 4.2 实现错误处理
 
 - 编译失败（apply 自动修复 3 次后）：暂停等待用户，不进入归档
-- 测试确认门拒绝：回退到 Phase 3.7 重新确认实现范围
+- 测试生成阶段拒绝：回退到 Phase 3.7 实现 + 测试桥重新确认实现范围
 - 子代理失败：retry 一次，仍失败暂停报告
+
+### 4.3 实现验证桥接（apply → archive 之间，MANDATORY）
+
+- 实现与条件测试完成后，MUST 委派 \`iagent_spec_verify\` 技能（via Skill tool）验证实现与制品（specs/tasks/design）一致性
+- 通过 → 进入 Phase 5 归档桥；失败 → 回 Phase 4 修复，MUST NOT 进入归档
+- **省略声明（fallback）**：若 \`iagent_spec_verify\` 不可用或项目约定不单独跑实现验证，MUST 在归档桥就绪检查中显式声明「实现验证由 apply 编译检查 + 归档一致性承担」并记录该决策；MUST NOT 静默省略
 
 ---
 ## Phase 5: Archive（委派 iagent_spec_archive）
@@ -357,7 +350,7 @@ After all artifacts are generated and validated in Phase 2.5, automatically ente
 ### 5.1 Archive Bridge (MANDATORY CHECKPOINT)
 
 **⛔ GATE: 归档确认门（强制停止）**
-- 就绪检查：tasks.md 全部 \`- [x]\`；编译检查通过；条件测试子阶段完成
+- 就绪检查：tasks.md 全部 \`- [x]\`；编译检查通过；条件测试子阶段完成；实现验证（\`iagent_spec_verify\`）通过或已显式声明省略
 - 呈现：实现摘要 + 编译结果 + 测试通过率 + 条件子阶段产物
 - 出口：确认（进入归档）／拒绝（返回 Phase 4 继续实现，不归档）
 
@@ -405,17 +398,17 @@ Checks passed — generating proposal directly
 ✓ Verified: openspec/explorations/user-auth-explore-001.md exists
 ✓ Validated: File has Background and Decisions sections
 
-**Checkpoint: Direct transition to inline generation (Phase 2.1)**
+**Checkpoint: Delegated proposal generation (Phase 2.3)**
 ✓ Skipped complexity evaluation (removed)
 ✓ Skipped method selection (removed)
-✓ Proceeding directly to inline propose-style generation
+✓ Delegating iagent_spec_propose (mode=delegated + exploration-file)
 
-**Checkpoint: Artifact generation (Phase 2.4)**
+**Checkpoint: Artifact generation (delegated spec_propose)**
 ✓ Created change directory: openspec/changes/add-user-auth/
-✓ Executing inline artifact generation
-✓ Created: proposal 段 (1/4)
+✓ Delegated skill generated artifacts
+✓ Generated: proposal.md (1/4)
 ✓ Generated: specs/auth/spec.md (2/4)
-✓ Created: design 段 (3/4)
+✓ Generated: design.md (3/4)
 ✓ Generated: tasks.md (4/4)
 ✓ All artifacts complete
 
@@ -434,7 +427,7 @@ Running 5-dimension verification...
 | D3: Tasks | 100% | PASS |
 | D4: Boundaries | 70% | FAIL |
 | D5: Pending | 100% | PASS |
-| D6: Deep Analysis | N/A | PASS |
+| D6-D10: 条件维度 | N/A | SKIP（无触发） |
 
 Overall Score: 89% (<90%, FAIL)
 
@@ -472,17 +465,17 @@ Checks passed — generating proposal directly
 **Checkpoint: Pre-migration verification**
 ✓ Verified: exploration.md exists
 
-**Checkpoint: Direct transition to inline generation (Phase 2.1)**
+**Checkpoint: Delegated proposal generation (Phase 2.3)**
 ✓ Skipped complexity evaluation (removed)
 ✓ Skipped method selection (removed)
 
-**Checkpoint: Artifact generation (Phase 2.4)**
+**Checkpoint: Artifact generation (delegated spec_propose)**
 ✓ Created change: openspec/changes/complex-refactor/
-✓ Executing inline artifact generation
-✓ Created: proposal 段 (1/4)
+✓ Delegated skill generated artifacts
+✓ Generated: proposal.md (1/4)
 ✓ Generated: specs/module1/spec.md (2/4)
 ✓ Generated: specs/module2/spec.md (3/4)
-✓ Created: design 段 (4/4)
+✓ Generated: design.md (4/4)
 ✓ All artifacts complete
 
 ## Verification Phase
@@ -500,7 +493,7 @@ Running 5-dimension verification...
 | D3: Tasks | 100% | PASS |
 | D4: Boundaries | 90% | PASS |
 | D5: Pending | 100% | PASS |
-| D6: Deep Analysis | N/A | PASS |
+| D6-D10: 条件维度 | N/A | SKIP（无触发） |
 
 Overall Score: 95% (≥90%, PASS) → auto-triggering iagent_proposal_review deep check...
 
@@ -546,8 +539,8 @@ All artifacts ready! Proceeding to the Phase 4 implementation bridge...
 - **MUST NOT silently add nodes in tasks** - 发现遗漏节点 MUST 回到委派的 spec_explore 更新流程图并重新经用户确认，MUST NOT 在 tasks.md 中静默补节点
 - **MUST verify file before migration** - Phase 2 checkpoint is mandatory
 - **MUST preserve source on migration failure** - Never lose user data
-- **MUST NOT offer method selection** - Phase 2 proceeds directly to inline propose-style generation (complexity evaluation and method selection removed)
-- **MUST use inline generation for artifacts** - Phase 2.4 uses inline CLI commands following shared protocol, no Skill delegation
+- **MUST NOT offer method selection** - Phase 2 proceeds directly to delegated spec_propose generation (complexity evaluation and method selection removed)
+- **MUST delegate artifact generation** - Phase 2.3 delegates \`iagent_spec_propose\` (mode=delegated + exploration-file) for artifact generation; MUST NOT inline-generate proposal artifacts
 - **Do explore codebase** - Before asking, check if codebase answers the question
 - **Do provide recommendations** - Every question includes AI's recommendation
 - **Do update file real-time** - After each exchange, write to exploration file
@@ -561,16 +554,14 @@ All artifacts ready! Proceeding to the Phase 4 implementation bridge...
 - **Do enforce exit guard on delegation** - 委派的阶段子技能（spec_apply / spec_archive / test）完成后 MUST NOT 自行进入 plan/design 模式或推进阶段；workflow 是唯一有权判定阶段完成并推进下一阶段（桥梁）的角色
 - **Do pass auto-mode to apply** - Phase 4 向 spec_apply 传 auto-mode=true，由 Phase 3.7 实现桥承载确认，避免 apply 内部设计确认门重复
 - **Do pass change-name to archive** - Phase 5 向 spec_archive 传 change-name 跳过选择
-- **Do conditional test delegation** - tasks.md 含 \`[测试]\` 任务时委派 iagent_test，并以其测试计划确认门为桥梁点
+- **Do conditional test delegation** - tasks.md 含 \`[测试]\` 任务时委派 iagent_test；测试计划已在 Phase 3.7 实现 + 测试桥一次确认，MUST NOT 再设独立门
 `,
-        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(git:*), Bash(ls:*), ${CODEGRAPH_MCP}, ${skillDelegation(['spec_explore', 'spec_propose', 'spec_verify_proposal', 'proposal_review', 'requirement_doc', 'spec_apply', 'test', 'spec_archive'])}, ${SUBAGENT_DISPATCH}`,
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(git:*), Bash(ls:*), ${CODEGRAPH_MCP}, ${skillDelegation(['spec_explore', 'spec_propose', 'spec_verify_proposal', 'proposal_review', 'requirement_doc', 'spec_apply', 'spec_verify', 'test', 'spec_archive'])}, ${SUBAGENT_DISPATCH}`,
         type: 'impl',
         license: 'MIT',
         compatibility: '依赖 iagent CLI（spec 命令组）与阶段技能（iagent_spec_apply / iagent_spec_archive，条件 iagent_test）；CLI 缺失时探索/提案降级为 AI 内联生成（CLI-degraded generation）。',
         metadata: { author: 'mi-agent-tools', version: '1.0' },
         references: [
-            { path: 'references/prompt-gate.md', content: PROMPT_GATE_FULL },
-            { path: 'references/flowchart-gate.md', content: FLOWCHART_FULL },
             { path: 'references/verification-protocol.md', content: VERIFICATION_PROTOCOL_FULL },
         ],
     };
@@ -589,7 +580,7 @@ One-stop guided workflow from exploration to archive with verification and confi
 This workflow guides you through:
 1. **Exploration phase** - Keyword detection + analysis + grill-with-docs questioning
 2. **Proposal phase** - Impact analysis + artifact generation
-3. **Verification phase** - Automatic quality check (D1-D6) + deep review + requirement doc
+3. **Verification phase** - Automatic quality check (D1-D10) + deep review + requirement doc
 4. **Implementation phase** - Confirmation bridge → delegate iagent_spec_apply（条件测试子阶段）
 5. **Archive phase** - Confirmation bridge → delegate iagent_spec_archive
 
@@ -607,7 +598,9 @@ Phase 1 SHALL 经 Skill 工具委派 \`iagent_spec_explore\`（传 \`mode=delega
 
 ## Phase 2: Proposal
 
-### 2.0 Pre-Artifact Impact Analysis
+### 2.0 Pre-Migration Verification + Impact Analysis
+
+**Pre-migration check (MANDATORY)**: verify the exploration file exists; if present, validate \`openspec/CONTEXT.md\` against the exploration 术语表 (auto-sync missing terms; auto-generate if absent). If no exploration file exists (after one path-resolution retry), log a WARN and skip the CONTEXT.md check only — the delegated spec_explore consistency gate is NOT exempted. On migration failure, preserve the source file and report the reason.
 
 **Check for impact symbols** in Pending "For Phase 2 Impact Analysis".
 
@@ -670,15 +663,16 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 
 ## Phase 4: Implementation（委派 iagent_spec_apply）
 
-⛔ GATE 实现确认门：验证 + 深度复查收束后，呈现「提案摘要 + 评分 + 复查结论 + 条件测试子阶段预告」，等待确认后进入实现。就绪检查：proposal.md / design.md / specs/**/*.md / tasks.md 齐全、验证 PASS、apply instruction = ready；workspace-planning 变更在此停止。
+⛔ GATE 实现 + 测试桥（单一阻塞门）：验证 + 深度复查收束后，一次呈现「提案摘要 + 评分 + 复查结论 + 实现方案 + 测试计划预告」，等待一次确认后进入实现（含条件测试生成）。就绪检查：proposal.md / design.md / specs/**/*.md / tasks.md 齐全、验证 PASS、apply instruction = ready；workspace-planning 变更在此停止。
 
 - 委派 iagent_spec_apply（via Skill tool，传 change-name + auto-mode=true；确认由本桥承载，避免 apply 内部设计确认门重复）：分层代码生成、tasks.md 勾选更新、编译检查
-- 条件测试子阶段（tasks.md 含 [测试] 任务时）：委派 iagent_test（多 schema 自动检测），测试计划确认门 = 桥梁点
+- 条件测试子阶段（tasks.md 含 [测试] 任务时）：委派 iagent_test（多 schema 自动检测）；测试计划已在上述实现 + 测试桥一次确认，MUST NOT 再设独立门
+- 实现验证桥接（MANDATORY）：实现与条件测试完成后委派 iagent_spec_verify（via Skill tool）验证实现与制品一致性；失败回 Phase 4 修复、不进入归档；不可用时 MUST 在归档桥就绪检查中显式声明「由 apply 编译检查 + 归档一致性承担」并记录决策
 - 错误处理：编译失败（3 次后）暂停不归档；拒绝回退本桥；子代理失败 retry 一次
 
 ## Phase 5: Archive（委派 iagent_spec_archive）
 
-⛔ GATE 归档确认门：tasks.md 全 \`- [x]\` + 编译通过 + 条件子阶段完成，呈现实现摘要后确认进入归档。
+⛔ GATE 归档确认门：tasks.md 全 \`- [x]\` + 编译通过 + 条件子阶段完成 + 实现验证通过（或已显式声明省略），呈现实现摘要后确认进入归档。
 
 - 委派 iagent_spec_archive（via Skill tool，传 change-name 跳过选择）：delta spec 合并主规格、CONTEXT.md 与探索记忆同步、需求文档就地增量对齐（步骤 4.8）、目录迁移 archive/、ARCHIVE-INDEX.md 更新、需求文档迁移 devdocs/；sync 检查点 non-blocking
 - 记忆闭环：archive 写 specs/<cap>/explorations.md 供下一轮提案读取，输出全流程总结
@@ -708,7 +702,7 @@ Auto-verification running...
 | D3: Tasks | 100% | PASS |
 | D4: Boundaries | 70% | FAIL |
 | D5: Pending | 100% | PASS |
-| D6: Deep Analysis | N/A | PASS |
+| D6-D10: 条件维度 | N/A | SKIP（无触发） |
 
 Overall: 89%
 
@@ -746,7 +740,7 @@ Phase 4 实现 + Phase 5 归档完成
 - Don't auto-proceed on conflict - phase transitions proceed automatically when the 1.6 consistency checks pass (consistency passthrough); ask the user only when a hard conflict is detected
 - Do execute read-only operations directly - file reading, CodeGraph queries, and analysis steps (Semgrep, impact analysis) run without asking the user for confirmation
 - Read-only passthrough does not cover clarification gates - grill L1-L5 clarification gates still wait for user confirmation
-- Don't offer method selection - Phase 2 proceeds directly to inline propose-style generation
+- Don't offer method selection - Phase 2 proceeds directly to delegated spec_propose generation
 - Do auto-verify - automatically verify after proposal
 - Do converge after the deep review - after full pass, generate the requirement document (non-interactive iagent_requirement_doc; failure non-blocking WARN) and proceed to the Phase 4 implementation bridge
 - Do inject capability memory - Phase 1 reads specs/<capability>/explorations.md when it exists
@@ -766,7 +760,7 @@ Phase 4 实现 + Phase 5 归档完成
 - **Do enforce exit guard on stage delegation** - 委派的阶段子技能（spec_apply / spec_archive / test）完成后 MUST NOT 自行进入 plan/design 模式或推进阶段；workflow 是唯一有权判定阶段完成并推进的角色
 - **Do pass auto-mode to apply** - Phase 4 向 spec_apply 传 auto-mode=true，由实现桥承载确认
 - **Do pass change-name to archive** - Phase 5 向 spec_archive 传 change-name 跳过选择
-- **Do conditional test delegation** - tasks.md 含 [测试] 任务时委派 iagent_test，以其测试计划确认门为桥梁点
+- **Do conditional test delegation** - tasks.md 含 [测试] 任务时委派 iagent_test；测试计划已在实现 + 测试桥一次确认，MUST NOT 再设独立门
 `,
     };
 }

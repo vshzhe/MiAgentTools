@@ -38,8 +38,9 @@ export const DEFAULT_WORKFLOWS: readonly string[] = [
  *    （一站式引导工作流：内联探索/提案/验证，验证阶段委派 spec-verify-proposal 评分门与
  *     proposal-review 深度复查；验证通过后委派 spec-apply 实现、spec-archive 归档；
  *     requirement-doc 由 spec-archive 传递注入，不在此重复列出）
- *  - auto-workflow ⇒ workflow + requirement-doc
- *    （Phase 1-3 与引导工作流同构；Phase 5 内联执行归档步骤，其中包含需求文档生成检查点，仍委派该技能）
+ *  - auto-workflow ⇒ spec-explore + spec-propose + spec-verify-proposal + proposal-review + spec-apply + spec-archive
+ *    （Phase 1-3 与引导工作流同构；Phase 4/5 经 Skill 工具委派 spec-apply / spec-archive；
+ *     spec-verify / requirement-doc 由 spec-archive 传递注入；auto-workflow 不委派 workflow 技能，故不再注入 workflow）
  *  - debug ⇒ spec-verify-proposal
  *    （P7 验证调用；需求文档不在 debug 范围内，故不再注入该技能）
  *  - spec-apply 不注入（apply 时假设 propose 阶段已过评分门，避免冗余） */
@@ -49,7 +50,7 @@ export const DEPS: Record<string, readonly string[]> = {
     'spec-bulk-archive': ['spec-verify', 'requirement-doc'],
     'migration': ['feature-doc', 'migration-check'],
     'workflow': ['spec-explore', 'spec-propose', 'spec-verify-proposal', 'proposal-review', 'spec-apply', 'spec-archive'],
-    'auto-workflow': ['workflow', 'spec-explore', 'spec-propose', 'requirement-doc'],
+    'auto-workflow': ['spec-explore', 'spec-propose', 'spec-verify-proposal', 'proposal-review', 'spec-apply', 'spec-archive'],
     'debug': ['spec-verify-proposal'],
 };
 

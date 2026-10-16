@@ -1,8 +1,8 @@
 /**
  * 功能流程图制品文本唯一源。
  *
- * 5 个工作流技能（iagent_spec_explore / iagent_workflow /
- * iagent_auto_workflow / iagent_debug / iagent_workflow）
+ * 4 个工作流技能（iagent_spec_explore / iagent_workflow /
+ * iagent_auto_workflow / iagent_debug）
  * 在探索阶段产出本制品：把探索发现的业务功能流程固化为「Mermaid 流程图 +
  * 关键操作节点清单」，经流程最终确认门确认后成为 propose / verify 的流程基准
  * —— 独立于提案自身的交叉验证锚点。

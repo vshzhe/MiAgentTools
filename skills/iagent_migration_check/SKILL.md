@@ -1,6 +1,6 @@
 ---
 name: iagent_migration_check
-description: 检查源项目迁移到目标项目后的功能一致性（migration check）：识别丢失功能、实现不一致与框架差异问题，覆盖后端分层（Controller/Service/DAO）、前端页面、SQL 语句与数据库 schema。当用户要迁移检查、两项目功能对比、代码迁移后验证或框架升级一致性检查时使用。支持独立交互模式与来自自动迁移工作流的非交互调用。NOT for 完整自动迁移编排——那用 iagent_migration。
+description: "检查源项目迁移到目标项目后的功能一致性（migration check）：识别丢失功能、实现不一致与框架差异问题，覆盖后端分层（Controller/Service/DAO）、前端页面、SQL 语句与数据库 schema。当用户要迁移检查、两项目功能对比、代码迁移后验证或框架升级一致性检查时使用；触发词\"迁移检查 / migration check / 两项目对比 / 一致性检查\"；支持独立交互模式与来自自动迁移工作流的非交互调用。NOT for 完整自动迁移编排——那用 iagent_migration。"
 allowed-tools: Read, Write, Edit, Glob, Grep, mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore
 license: MIT
 compatibility: 依赖 CodeGraph MCP（可选，调用链验证时使用）。
@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: review
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:3ba0f140d943e0d684d93c962afe2f8bd604437c99caabd24d1e184d66697e13"
+  generatedFingerprint: "sha256:55b290974bb6d1235bc832c8ca18a447f4cbafc98c32702fa87cf8a3e409d8ac"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。

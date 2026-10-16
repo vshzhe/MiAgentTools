@@ -62,9 +62,9 @@ const IAGENT_COMMANDS: { name: string; description: string; flags: string[]; sub
     { name: 'config', description: '配置要安装的 workflow', flags: ['--set', '--show'] },
     {
         name: 'spec',
-        description: '规格驱动工作流（new/status/instructions/archive/reindex/render/sidecar）',
+        description: '规格驱动工作流（new/status/migrate/validate/instructions/archive/reindex/render/sidecar）',
         flags: [],
-        subcommands: ['new', 'status', 'instructions', 'archive', 'reindex', 'render', 'sidecar'],
+        subcommands: ['new', 'status', 'migrate', 'validate', 'instructions', 'archive', 'reindex', 'render', 'sidecar'],
     },
 ];
 

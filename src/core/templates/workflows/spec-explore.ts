@@ -334,55 +334,9 @@ After structured format initialization, system MUST execute mandatory CodeGraph 
 - If CodeGraph AND Glob/Grep both fail, system MUST warn but NOT block
 - Scan results MUST be written to exploration file before proceeding
 
-### 1.2.1.5 Multi-Project CodeGraph Agent Scan (条件触发 — 检测到其他项目路径时执行)
+### 1.2.1.5 Multi-Project CodeGraph Agent Scan（条件触发 — 检测到其他项目路径时执行）
 
-**⚠️ CONDITIONAL: Only executes when exploration context contains other project paths**
-
-After the 1.2.1 base scan (current project), system MUST check if the exploration context contains paths to other projects (e.g., user-specified \`--project-path\`, auto-migration SOURCE_PROJECT/TARGET_PROJECT, or paths confirmed during conversation).
-
-**When other project paths are detected**:
-
-1. **Check CodeGraph initialization** for each other project path:
-   - Run Bash \`ls <path>/.codegraph/\` to check whether the target project has a \`.codegraph/\` directory (directory contents listed — including codegraph.db — means CodeGraph is initialized). Do NOT use Glob to check dot-prefixed directories (Glob returns false negatives for them)
-   - If initialized (ls succeeds): proceed with Agent scan
-   - If not initialized (ls fails — directory does not exist): log WARN "Other project <path> does not have CodeGraph initialized — falling back to Glob/Grep" and fall back to Glob/Grep
-
-2. **Single sub-agent serial scan across all detected projects**:
-   - Spawn **ONE** sub-agent that scans ALL detected projects **serially** inside itself; the system MUST NOT spawn a separate sub-agent for each project path (this removes the N repeated cold starts)
-   - The sub-agent SHALL call the CodeGraph MCP tools once for each project, switching the \`projectPath\` parameter to that project's path on every call
-   - For each project, execute \`codegraph_files\` for file structure, \`codegraph_search\` for symbol search, \`codegraph_context\` for context understanding
-   - Limit scan depth: \`maxDepth: 3\`, \`maxNodes: 20\` to prevent excessive results
-   - The sub-agent MUST NOT modify any files
-
-   - **⛔ EXIT GUARD**: the sub-agent MUST stop and return findings immediately after scanning all projects — MUST NOT enter plan mode / design mode / propose next steps / suggest implementation; the sub-agent is a scanner only, its sole output is the structured findings per project; the orchestrator alone owns flow advancement
-   - **MUST only query incrementally**: the sub-agent MUST limit scanning to what was NOT already covered by the 1.2.1 base scan; it MUST NOT re-derive information already available in the current project's exploration file   - Apply a 120s budget for each project (budget exceeded → per-project WARN fallback to Glob/Grep)
-
-3. **Per-project degradation (project granularity)**:
-   - If one project's CodeGraph is not initialized, its scan fails, or it exceeds the 120s budget: **only that project** falls back to Glob/Grep with a WARN log — the other projects continue their scan normally
-   - One project's failure MUST NOT affect other projects
-   - If an other-project path is identical to the current project path, the sub-agent SHALL skip that project
-   - If the runtime provides no sub-agent capability at all: ALL projects fall back to Glob/Grep with a WARN log
-
-4. **Merge results** into exploration.md:
-   - Write to \`## Codebase Findings > ### Other Project Findings\` subsection
-   - Prefix results with project path for clear attribution
-   - Results include: discovered files, identified symbols, and call chains
-
-5. **When no other project paths detected**:
-   - Do NOT trigger the multi-project Agent scan
-   - Proceed with the existing 1.2.2 flow unchanged
-
-**Fallback**: If Agent spawn fails, sub-agent times out, or CodeGraph is not initialized in the target project:
-- WARN log with specific failure reason
-- Fall back to Glob/Grep for that project
-- Do NOT retry the failed Agent scan
-- This fallback does NOT affect the current project's scan results
-
-**Checkpoint Enforcement**:
-- System MUST execute this check after 1.2.1 base scan completes
-- If other project paths exist, system MUST attempt Agent scan (with fallback)
-- Results MUST be written to exploration.md before proceeding to 1.2.2
-- This check MUST NOT block the main workflow — failures degrade gracefully
+> 完整细则见 \`references/multi-project-scan.md\`；检测到其他项目路径时 MUST 先 \`Read\` 该文件。
 
 ### 1.2.2 Smart Detection: New Feature vs Modify Existing Code
 
@@ -439,6 +393,206 @@ After base scan (and deep analysis if triggered):
 
 ### 1.3 Grill-With-Docs Questioning
 
+> 完整 grill 问题库与 L1-L5 细则（含批量确认规则）见 \`references/grill-playbook.md\`；执行 1.3 前 MUST 先 \`Read\` 该文件。
+
+### 1.4 Keyword Detection and Analysis
+
+> 完整关键词分析与实现深潜细则见 \`references/deep-analysis.md\`；执行 1.4 前 MUST 先 \`Read\` 该文件。
+
+### 1.5 Update Exploration File
+
+**After each exchange, perform these steps in order**:
+
+**Step 1 — Write to CONTEXT.md (MANDATORY if term resolved)**:
+- If a term was resolved in this exchange, MUST write to \`openspec/CONTEXT.md\` NOW
+- Use format: \`**<Term>**: <definition>\\\\n_Avoid_: <synonyms>\`
+- If CONTEXT.md does not exist, create it lazily now
+
+**Step 2 — Update exploration.md sections**:
+
+| Content type | Section |
+|--------------|---------|
+| User's original input | Background |
+| Analysis results (if run) | Analysis |
+| Resolved terminology (from CONTEXT.md) | 术语表 |
+| AI's questions + user answers | Questions |
+| ADRs created | 架构决策 |
+| Constructed boundary scenarios | 边界场景 |
+| Confirmed choices | Decisions |
+| Unresolved items | Pending |
+
+Use markdown format with proper syntax.
+
+### 1.5.5 Functional Flowchart & Flow Final Confirmation Gate (MANDATORY CHECKPOINT)
+
+**⚠️ MANDATORY: 探索分析完成后必须强制产出功能流程图，并经流程最终确认门确认后才进入 1.6。**
+
+触发点：1.3 grill L1-L5 与 1.4 关键词分析均已执行、1.5 探索文件已更新之后。本制品是**强制产出**——不因"本次判定无流程"而跳过，也 MUST NOT 留空。
+
+**功能流程图（Functional Flowchart）**: 把探索发现的业务功能流程固化为探索产物 \`## 功能流程图\` 段（Mermaid \`flowchart TD\` + 关键操作节点清单表）。
+- **节点粒度** = 可独立验证的业务操作单元（用户操作 / 业务判定 / 数据写入 / 外部调用）；节点标识在图中与表中 MUST 一致，多流程时全局唯一递增
+- **清单列集**：节点 / 操作 / 触发条件 / 证据位置 / 异常路径
+- **证据追溯（硬约束）**：每节点 MUST 填 \`文件:行\` 或 类.方法；新建功能标 \`[新建]\` + 预期产物；无法追溯证据的节点 MUST NOT 进入清单
+- **⛔ GATE: 流程最终确认门（强制停止）**：呈现流程图与清单并立即结束本次响应，等待确认；出口：确认 / 修改 / 拒绝（记未确认状态，提案降级 + 验证该维度 SKIP）/ 显式授权按推断（推断节点标 \`[推断]\`）——不得陷入等待死锁
+- **回改规则**：发现遗漏节点 MUST 回探索更新并重新确认，MUST NOT 在任务清单静默补节点
+- 节点数超 50 时按子流程分节；本块 MUST NOT 含任何 Bash 命令示例
+
+> **完整流程图细则**见 references/flowchart-gate.md。**仅在流程浮现时**读取全文细则。
+
+**本技能内的执行要求**：
+
+- **强制产出**：把探索发现的业务功能流程固化为探索文件 1.2 结构中的 \`## 功能流程图\` 段（该段已在 1.2 预留）；Mermaid 流程图与节点清单表的节点 id MUST 稳定一致
+- **节点证据追溯**：每节点 MUST 填证据位置——既有代码标 \`文件:行\` 或 类.方法，**新建功能**节点标 \`[新建]\` 并写明预期产物（新增哪个类 / 页面 / 接口）；**无法追溯证据的节点 MUST NOT 进入清单**
+- **四出口确认门**：呈现流程图与节点清单后停止等待确认，出口四条（确认 / 修改 / 拒绝后记录未确认状态并按原理解继续 / 显式授权按推断继续），**MUST NOT 反复要求确认或陷入等待死锁**
+- **回改规则**：探索或提案阶段发现**遗漏节点**时 MUST 回到本步骤（1.5.5）更新流程图与节点清单并**重新经用户确认**；MUST NOT 在 tasks.md 中静默补节点——静默补全正是偏差的主要来源
+- **节点数超 50**：按子流程分节，主流程图以子流程节点聚合、子流程各自展开清单表
+- **确认前不得推进**：用户确认前 MUST NOT 进入 1.6 探索完成检测，MUST NOT 向提案阶段传递流程基准
+- **流程基准用途**：确认后的流程图 = **流程基准**，随探索文件迁移（Phase 2.3）一并进入变更目录，由 1.6.6 聚合一致性门与下游 propose / verify 共同消费
+
+### 1.6 Exploration Completion Detection
+
+When all ambiguities resolved:
+- Pending section empty OR all items have answers
+- User confirms clarity (or says "that's enough")
+
+**Consistency passthrough (replaces the transition confirmation prompt)**:
+
+1. Run the 1.6.5 CONTEXT.md checkpoint and the 1.6.6 aggregate consistency gate
+2. **Both pass (no hard conflicts across decisions)**: announce "Checks passed — generating proposal directly" and enter Phase 2 immediately — do NOT ask "Ready to proceed to proposal?"
+3. **Hard conflict detected**: present the conflicting decisions (list the conflicting decision pair) and ask the user which direction to follow; continue only after the conflict is resolved
+4. grill L1-L5 requirement-clarification gates (1.3.4) still wait for user confirmation; 1.7 abandon handling (user-initiated stop) is preserved
+
+### 1.6.5 CONTEXT.md Checkpoint — Phase 1 End (MANDATORY CHECKPOINT)
+
+**⚠️ MANDATORY: CONTEXT.md validation before Phase 1 ends**
+
+After user confirms exploration complete, system MUST validate CONTEXT.md:
+
+1. **Check if \`openspec/CONTEXT.md\` exists** using Glob or Read tool
+
+2. **If EXISTS**: Validate all terms in exploration.md 术语表 section are written to CONTEXT.md
+   - Read CONTEXT.md content
+   - Compare with exploration.md 术语表 section
+   - If terms missing from CONTEXT.md, auto-sync them (write missing terms)
+   - Log: "CONTEXT.md validated — <N> terms synced"
+
+3. **If NOT EXISTS**: Auto-generate CONTEXT.md from exploration.md 术语表 section
+   - Create \`openspec/CONTEXT.md\` with all resolved terms
+   - Format: \`**<Term>**: <definition>\\\\n_Avoid_: <synonyms>\`
+   - Log: "CONTEXT.md created — <N> terms from exploration"
+
+4. **Compatibility check** (Task 12.1, narrowed): If no exploration file exists (e.g., running \`iagent:spec-apply\` on existing change):
+   - Before declaring "no exploration file", retry path resolution at least once (handle transient path-resolution failures that could falsely indicate absence)
+   - If genuinely no exploration file: this skip applies **ONLY to the CONTEXT.md check** — log WARN (not silent info): "WARN: Skipping CONTEXT.md check: no exploration file"
+   - This skip does **NOT** extend to the 1.6.6 aggregate consistency gate (see 1.6.6 for no-exemption handling)
+   - Do NOT block the workflow at this checkpoint
+
+**Checkpoint Enforcement**:
+- System MUST execute CONTEXT.md check before allowing Phase 1→Phase 2 transition
+- If CONTEXT.md is missing and no exploration file, the CONTEXT.md check may be skipped with a WARN log (not a blocker); the 1.6.6 aggregate consistency gate is NOT exempt
+- Log all actions (including skips) for transparency
+
+### 1.6.6 Aggregate Consistency Gate — Phase 1 End (MANDATORY CHECKPOINT)
+
+**⚠️ MANDATORY: Cross-decision aggregate consistency scan before Phase 1 ends**
+
+**默认直通语义（non-blocking）**: 本门是兜底门——**无硬冲突时自动直通**（记录日志后继续，**不计入用户停顿**），仅在检测到硬冲突时暂停呈现。该门 MUST NOT 被删除（它是 1.3.4 增量 L4 检查的兜底）。
+
+This gate is the backstop for the per-decision L4 check (1.3.4). The L4 check runs incrementally per new decision and auto-marks "no conflict" silently — late Scope Changes can introduce cross-decision contradictions that L4 never re-scans. This gate reads ALL recorded Decisions together and catches such residual contradictions. **This gate is NOT exempt** by the Task 12.1 "no exploration file" skip.
+
+After the 1.6.5 CONTEXT.md checkpoint, system MUST execute the aggregate scan:
+
+1. **Read all Decisions** from exploration.md \`## Decisions\` section
+
+2. **If exploration.md missing or Decisions section empty**:
+   - Log WARN: "Aggregate consistency gate: exploration.md/Decisions empty — nothing to scan, gate passed by vacuity"
+   - Do NOT silently skip (distinct from the CONTEXT.md skip) — record the vacuity-pass explicitly
+   - Proceed to Phase 2
+
+3. **If Decisions present**: scan every decision pair for three hard-conflict types:
+   - **Technical-selection conflict**: e.g., Decision A selects SQLite, Decision B relies on Postgres-specific features
+   - **Dependency-direction conflict**: e.g., Decision A depends on B's output, but Decision B depends on A's output (circular)
+   - **Constraint mutual exclusion**: e.g., Decision A mandates IE compatibility (no ES6+), Decision B requires ES6+ syntax
+
+4. **If a hard conflict is found**:
+   - Pause and surface the conflict to the user: "Decision A <X> conflicts with Decision B <Y> — which direction should we follow?"
+   - MUST NOT auto-resolve or silently proceed
+   - Record the resolution in exploration.md \`## Scope Changes\` / \`## Decisions\`
+
+5. **If no hard conflict**: log "Aggregate consistency gate passed — <N> decisions scanned, 0 hard conflicts" and proceed to Phase 2
+
+**Checkpoint Enforcement**:
+- System MUST execute this gate after 1.6.5 and before 1.7 / Phase 2
+- This gate MUST NOT be skipped via the Task 12.1 "no exploration file" exemption (that exemption is CONTEXT.md-only)
+- Soft inconsistencies (style, naming) do NOT block; only the three hard-conflict types block
+
+### 1.7 Abandon Exploration Handling
+
+If user says "abandon", "stop", "cancel":
+> "Delete exploration file or keep it?"
+> [Delete] [Keep]
+
+- **Delete**: Remove file from \`openspec/explorations/\`
+- **Keep**: File remains for future reference
+
+---
+
+`;
+
+const MULTI_PROJECT_SCAN_FULL = `### 1.2.1.5 Multi-Project CodeGraph Agent Scan (条件触发 — 检测到其他项目路径时执行)
+
+**⚠️ CONDITIONAL: Only executes when exploration context contains other project paths**
+
+After the 1.2.1 base scan (current project), system MUST check if the exploration context contains paths to other projects (e.g., user-specified \`--project-path\`, auto-migration SOURCE_PROJECT/TARGET_PROJECT, or paths confirmed during conversation).
+
+**When other project paths are detected**:
+
+1. **Check CodeGraph initialization** for each other project path:
+   - Run Bash \`ls <path>/.codegraph/\` to check whether the target project has a \`.codegraph/\` directory (directory contents listed — including codegraph.db — means CodeGraph is initialized). Do NOT use Glob to check dot-prefixed directories (Glob returns false negatives for them)
+   - If initialized (ls succeeds): proceed with Agent scan
+   - If not initialized (ls fails — directory does not exist): log WARN "Other project <path> does not have CodeGraph initialized — falling back to Glob/Grep" and fall back to Glob/Grep
+
+2. **Single sub-agent serial scan across all detected projects**:
+   - Spawn **ONE** sub-agent that scans ALL detected projects **serially** inside itself; the system MUST NOT spawn a separate sub-agent for each project path (this removes the N repeated cold starts)
+   - The sub-agent SHALL call the CodeGraph MCP tools once for each project, switching the \`projectPath\` parameter to that project's path on every call
+   - For each project, execute \`codegraph_files\` for file structure, \`codegraph_search\` for symbol search, \`codegraph_context\` for context understanding
+   - Limit scan depth: \`maxDepth: 3\`, \`maxNodes: 20\` to prevent excessive results
+   - The sub-agent MUST NOT modify any files
+
+   - **⛔ EXIT GUARD**: the sub-agent MUST stop and return findings immediately after scanning all projects — MUST NOT enter plan mode / design mode / propose next steps / suggest implementation; the sub-agent is a scanner only, its sole output is the structured findings per project; the orchestrator alone owns flow advancement
+   - **MUST only query incrementally**: the sub-agent MUST limit scanning to what was NOT already covered by the 1.2.1 base scan; it MUST NOT re-derive information already available in the current project's exploration file   - Apply a 120s budget for each project (budget exceeded → per-project WARN fallback to Glob/Grep)
+
+3. **Per-project degradation (project granularity)**:
+   - If one project's CodeGraph is not initialized, its scan fails, or it exceeds the 120s budget: **only that project** falls back to Glob/Grep with a WARN log — the other projects continue their scan normally
+   - One project's failure MUST NOT affect other projects
+   - If an other-project path is identical to the current project path, the sub-agent SHALL skip that project
+   - If the runtime provides no sub-agent capability at all: ALL projects fall back to Glob/Grep with a WARN log
+
+4. **Merge results** into exploration.md:
+   - Write to \`## Codebase Findings > ### Other Project Findings\` subsection
+   - Prefix results with project path for clear attribution
+   - Results include: discovered files, identified symbols, and call chains
+
+5. **When no other project paths detected**:
+   - Do NOT trigger the multi-project Agent scan
+   - Proceed with the existing 1.2.2 flow unchanged
+
+**Fallback**: If Agent spawn fails, sub-agent times out, or CodeGraph is not initialized in the target project:
+- WARN log with specific failure reason
+- Fall back to Glob/Grep for that project
+- Do NOT retry the failed Agent scan
+- This fallback does NOT affect the current project's scan results
+
+**Checkpoint Enforcement**:
+- System MUST execute this check after 1.2.1 base scan completes
+- If other project paths exist, system MUST attempt Agent scan (with fallback)
+- Results MUST be written to exploration.md before proceeding to 1.2.2
+- This check MUST NOT block the main workflow — failures degrade gracefully
+
+`;
+
+const GRILL_PLAYBOOK_FULL = `### 1.3 Grill-With-Docs Questioning
+
 Apply the full grill-with-docs discipline: grilling primitive (decision tree walk) + domain-modeling (CONTEXT.md glossary, ADRs, code cross-validation, scenario construction).
 
 #### 1.3.1 Decision Tree Building
@@ -494,44 +648,28 @@ For each confirmed decision, verify coverage across 6 dimensions:
 - 状态转换完整 → 所有路径
 - 模块契约明确 → 入参/出参
 
-Apply 5-level depth model with **Per-Level Confirmation Gates**. Ask ONE question per level and WAIT for user confirmation before proceeding to the next level:
+Apply the 5-level depth model with **two batch confirmation rounds** (L1-L3 in batch 1, L4-L5 in batch 2). Each round presents the pending items **one per line** with the AI recommendation, then WAIT for user confirmation of the whole batch. This keeps all five dimensions while capping the grill at **≤2 user stops**.
 
-**L1 — 意图 (What to do?)**:
-- Ask: "What exactly should this feature do? My recommendation: <proposal>"
-- Wait for user confirmation
-- ✅ Confirmed → record in Decisions, proceed to L2
+**批量 1 — L1-L3（意图 / 方案 / 异常）**:
+- 逐条列出（每条一行，附 AI 建议）：
+  - L1 意图 (What to do?): <proposal>
+  - L2 方案 (How to do it?): <approach with rationale>
+  - L3 异常 (What if it fails?): <error strategy>
+- Wait for user confirmation of the batch
+- ✅ Confirmed → record all three in Decisions
+- 用户可对任一条单独修改后再确认（逐条列出便于逐项裁决）
 
-**L2 — 方案 (How to do it?)**:
-- Ask: "What technical approach? My recommendation: <approach with rationale>"
-- Wait for user confirmation
-- ✅ Confirmed → record in Decisions, proceed to L3
-
-**L3 — 异常 (What if it fails?)**:
-- Ask: "How should errors be handled? My recommendation: <error strategy>"
-- Wait for user confirmation
-- ✅ Confirmed → record, proceed to L4 (may be skipped if user says "enough")
-
-**L4 — 一致性 (Is it consistent?)**:
-- **Cross-decision consistency check**: Read all recorded Decisions from exploration.md
-  - For each decision pair, check for contradictions (e.g., Decision A selects SQLite, Decision B relies on Postgres features)
-  - If contradiction found: "Decision A uses <X> but Decision B depends on <Y> which conflicts. Which direction should we follow?"
-  - Wait for user confirmation
-  - If no contradiction found, auto-mark as consistent (no user prompt needed)
-- **Codebase cross-validation**: Cross-validate against existing code patterns (read files, don't ask unless needed)
-  - If inconsistency found: "This conflicts with <existing pattern>. Which direction should we follow?"
-  - Wait for user confirmation
-- ✅ Confirmed → record, proceed to L5
-
-**L5 — 边界 (When does it NOT apply?)**:
-- Construct at least 1 boundary scenario and ask: "What about <edge case>? My recommendation: <handling>"
-- Wait for user confirmation
+**批量 2 — L4-L5（一致性 / 边界）**:
+- **L4 一致性（cross-decision + codebase）**: Read all recorded Decisions; report 任何矛盾（跨决策矛盾 / 与既有代码模式冲突）；**无矛盾时 SHALL 自动标记一致（non-blocking，无用户提示，不计入停顿）**
+- **L5 边界**: 构造 ≥1 边界场景，逐条列出 + 建议
+- Wait for user confirmation of the batch（L4 无矛盾时该批仅呈现 L5）
 - ✅ Confirmed → decision is complete
 
 **Gate rules**:
-- Each level = ONE question at a time, NO multi-question batches
-- User MUST explicitly confirm (or skip) before next level
-- Minimum depth: L3 (L1+L2+L3 all confirmed) before decision can be marked complete
-- User can say "skip remaining levels" at any point — record skipped levels in Pending
+- 追问 SHALL 至多 **2 个批量确认轮次**（L1-L3、L4-L5）；每轮内逐条列出待确认项
+- **最低深度 L3**: L1+L2+L3 全部确认后 decision 方可标记完成；用户明确“够了”时可提前结束
+- L4 无矛盾时 SHALL 自动直通，不作为额外停顿
+- 跳过的层级 SHALL 记入 Pending（MUST NOT 静默丢弃）
 
 #### 1.3.5 Artifact Synchronization
 
@@ -540,7 +678,9 @@ Sync grill-with-docs outputs to exploration.md in real-time:
 - ADRs → exploration.md 架构决策 section
 - Boundary scenarios → exploration.md 边界场景 section
 
-### 1.4 Keyword Detection and Analysis
+`;
+
+const DEEP_ANALYSIS_FULL = `### 1.4 Keyword Detection and Analysis
 
 **Scan user input for keywords** before or during grill-with-docs questioning.
 
@@ -758,193 +898,11 @@ AI: "Security analysis found XSS vulnerability in sanitizeInput() at user-utils.
 Sub-sections with no findings are marked \`<!-- No findings -->\`.
 The entire section is conditionally shown — only when deep analysis is triggered.
 
-### 1.5 Update Exploration File
-
-**After each exchange, perform these steps in order**:
-
-**Step 1 — Write to CONTEXT.md (MANDATORY if term resolved)**:
-- If a term was resolved in this exchange, MUST write to \`openspec/CONTEXT.md\` NOW
-- Use format: \`**<Term>**: <definition>\\\\n_Avoid_: <synonyms>\`
-- If CONTEXT.md does not exist, create it lazily now
-
-**Step 2 — Update exploration.md sections**:
-
-| Content type | Section |
-|--------------|---------|
-| User's original input | Background |
-| Analysis results (if run) | Analysis |
-| Resolved terminology (from CONTEXT.md) | 术语表 |
-| AI's questions + user answers | Questions |
-| ADRs created | 架构决策 |
-| Constructed boundary scenarios | 边界场景 |
-| Confirmed choices | Decisions |
-| Unresolved items | Pending |
-
-Use markdown format with proper syntax.
-
-### 1.5.5 Functional Flowchart & Flow Final Confirmation Gate (MANDATORY CHECKPOINT)
-
-**⚠️ MANDATORY: 探索分析完成后必须强制产出功能流程图，并经流程最终确认门确认后才进入 1.6。**
-
-触发点：1.3 grill L1-L5 与 1.4 关键词分析均已执行、1.5 探索文件已更新之后。本制品是**强制产出**——不因"本次判定无流程"而跳过，也 MUST NOT 留空。
-
-**功能流程图（Functional Flowchart）**: 把探索发现的业务功能流程固化为探索产物 \`## 功能流程图\` 段（Mermaid \`flowchart TD\` + 关键操作节点清单表）。
-- **节点粒度** = 可独立验证的业务操作单元（用户操作 / 业务判定 / 数据写入 / 外部调用）；节点标识在图中与表中 MUST 一致，多流程时全局唯一递增
-- **清单列集**：节点 / 操作 / 触发条件 / 证据位置 / 异常路径
-- **证据追溯（硬约束）**：每节点 MUST 填 \`文件:行\` 或 类.方法；新建功能标 \`[新建]\` + 预期产物；无法追溯证据的节点 MUST NOT 进入清单
-- **⛔ GATE: 流程最终确认门（强制停止）**：呈现流程图与清单并立即结束本次响应，等待确认；出口：确认 / 修改 / 拒绝（记未确认状态，提案降级 + 验证该维度 SKIP）/ 显式授权按推断（推断节点标 \`[推断]\`）——不得陷入等待死锁
-- **回改规则**：发现遗漏节点 MUST 回探索更新并重新确认，MUST NOT 在任务清单静默补节点
-- 节点数超 50 时按子流程分节；本块 MUST NOT 含任何 Bash 命令示例
-
-> **完整流程图细则**见 references/flowchart-gate.md。**仅在流程浮现时**读取全文细则。
-
-**本技能内的执行要求**：
-
-- **强制产出**：把探索发现的业务功能流程固化为探索文件 1.2 结构中的 \`## 功能流程图\` 段（该段已在 1.2 预留）；Mermaid 流程图与节点清单表的节点 id MUST 稳定一致
-- **节点证据追溯**：每节点 MUST 填证据位置——既有代码标 \`文件:行\` 或 类.方法，**新建功能**节点标 \`[新建]\` 并写明预期产物（新增哪个类 / 页面 / 接口）；**无法追溯证据的节点 MUST NOT 进入清单**
-- **四出口确认门**：呈现流程图与节点清单后停止等待确认，出口四条（确认 / 修改 / 拒绝后记录未确认状态并按原理解继续 / 显式授权按推断继续），**MUST NOT 反复要求确认或陷入等待死锁**
-- **回改规则**：探索或提案阶段发现**遗漏节点**时 MUST 回到本步骤（1.5.5）更新流程图与节点清单并**重新经用户确认**；MUST NOT 在 tasks.md 中静默补节点——静默补全正是偏差的主要来源
-- **节点数超 50**：按子流程分节，主流程图以子流程节点聚合、子流程各自展开清单表
-- **确认前不得推进**：用户确认前 MUST NOT 进入 1.6 探索完成检测，MUST NOT 向提案阶段传递流程基准
-- **流程基准用途**：确认后的流程图 = **流程基准**，随探索文件迁移（Phase 2.3）一并进入变更目录，由 1.6.6 聚合一致性门与下游 propose / verify 共同消费
-
-### 1.6 Exploration Completion Detection
-
-When all ambiguities resolved:
-- Pending section empty OR all items have answers
-- User confirms clarity (or says "that's enough")
-
-**Consistency passthrough (replaces the transition confirmation prompt)**:
-
-1. Run the 1.6.5 CONTEXT.md checkpoint and the 1.6.6 aggregate consistency gate
-2. **Both pass (no hard conflicts across decisions)**: announce "Checks passed — generating proposal directly" and enter Phase 2 immediately — do NOT ask "Ready to proceed to proposal?"
-3. **Hard conflict detected**: present the conflicting decisions (list the conflicting decision pair) and ask the user which direction to follow; continue only after the conflict is resolved
-4. grill L1-L5 requirement-clarification gates (1.3.4) still wait for user confirmation; 1.7 abandon handling (user-initiated stop) is preserved
-
-### 1.6.5 CONTEXT.md Checkpoint — Phase 1 End (MANDATORY CHECKPOINT)
-
-**⚠️ MANDATORY: CONTEXT.md validation before Phase 1 ends**
-
-After user confirms exploration complete, system MUST validate CONTEXT.md:
-
-1. **Check if \`openspec/CONTEXT.md\` exists** using Glob or Read tool
-
-2. **If EXISTS**: Validate all terms in exploration.md 术语表 section are written to CONTEXT.md
-   - Read CONTEXT.md content
-   - Compare with exploration.md 术语表 section
-   - If terms missing from CONTEXT.md, auto-sync them (write missing terms)
-   - Log: "CONTEXT.md validated — <N> terms synced"
-
-3. **If NOT EXISTS**: Auto-generate CONTEXT.md from exploration.md 术语表 section
-   - Create \`openspec/CONTEXT.md\` with all resolved terms
-   - Format: \`**<Term>**: <definition>\\\\n_Avoid_: <synonyms>\`
-   - Log: "CONTEXT.md created — <N> terms from exploration"
-
-4. **Compatibility check** (Task 12.1, narrowed): If no exploration file exists (e.g., running \`iagent:spec-apply\` on existing change):
-   - Before declaring "no exploration file", retry path resolution at least once (handle transient path-resolution failures that could falsely indicate absence)
-   - If genuinely no exploration file: this skip applies **ONLY to the CONTEXT.md check** — log WARN (not silent info): "WARN: Skipping CONTEXT.md check: no exploration file"
-   - This skip does **NOT** extend to the 1.6.6 aggregate consistency gate (see 1.6.6 for no-exemption handling)
-   - Do NOT block the workflow at this checkpoint
-
-**Checkpoint Enforcement**:
-- System MUST execute CONTEXT.md check before allowing Phase 1→Phase 2 transition
-- If CONTEXT.md is missing and no exploration file, the CONTEXT.md check may be skipped with a WARN log (not a blocker); the 1.6.6 aggregate consistency gate is NOT exempt
-- Log all actions (including skips) for transparency
-
-### 1.6.6 Aggregate Consistency Gate — Phase 1 End (MANDATORY CHECKPOINT)
-
-**⚠️ MANDATORY: Cross-decision aggregate consistency scan before Phase 1 ends**
-
-This gate is the backstop for the per-decision L4 check (1.3.4). The L4 check runs incrementally per new decision and auto-marks "no conflict" silently — late Scope Changes can introduce cross-decision contradictions that L4 never re-scans. This gate reads ALL recorded Decisions together and catches such residual contradictions. **This gate is NOT exempt** by the Task 12.1 "no exploration file" skip.
-
-After the 1.6.5 CONTEXT.md checkpoint, system MUST execute the aggregate scan:
-
-1. **Read all Decisions** from exploration.md \`## Decisions\` section
-
-2. **If exploration.md missing or Decisions section empty**:
-   - Log WARN: "Aggregate consistency gate: exploration.md/Decisions empty — nothing to scan, gate passed by vacuity"
-   - Do NOT silently skip (distinct from the CONTEXT.md skip) — record the vacuity-pass explicitly
-   - Proceed to Phase 2
-
-3. **If Decisions present**: scan every decision pair for three hard-conflict types:
-   - **Technical-selection conflict**: e.g., Decision A selects SQLite, Decision B relies on Postgres-specific features
-   - **Dependency-direction conflict**: e.g., Decision A depends on B's output, but Decision B depends on A's output (circular)
-   - **Constraint mutual exclusion**: e.g., Decision A mandates IE compatibility (no ES6+), Decision B requires ES6+ syntax
-
-4. **If a hard conflict is found**:
-   - Pause and surface the conflict to the user: "Decision A <X> conflicts with Decision B <Y> — which direction should we follow?"
-   - MUST NOT auto-resolve or silently proceed
-   - Record the resolution in exploration.md \`## Scope Changes\` / \`## Decisions\`
-
-5. **If no hard conflict**: log "Aggregate consistency gate passed — <N> decisions scanned, 0 hard conflicts" and proceed to Phase 2
-
-**Checkpoint Enforcement**:
-- System MUST execute this gate after 1.6.5 and before 1.7 / Phase 2
-- This gate MUST NOT be skipped via the Task 12.1 "no exploration file" exemption (that exemption is CONTEXT.md-only)
-- Soft inconsistencies (style, naming) do NOT block; only the three hard-conflict types block
-
-### 1.7 Abandon Exploration Handling
-
-If user says "abandon", "stop", "cancel":
-> "Delete exploration file or keep it?"
-> [Delete] [Keep]
-
-- **Delete**: Remove file from \`openspec/explorations/\`
-- **Keep**: File remains for future reference
-
----
-
 `;
 
-export function getSpecExploreSkillTemplate(): SkillTemplate {
-    return {
-        name: 'iagent_spec_explore',
-        description: '进入探索模式。当用户想要在变更前或变更中思考问题、调研代码库、明确需求时使用。',
-        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(git:*), ${CODEGRAPH_MCP}`,
-        type: 'spec',
-        instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
-Enter explore mode. Think deeply. Visualize freely. Follow the conversation wherever it goes.
 
-**IMPORTANT: Explore mode is for thinking, not implementing.** You may read files, search code, and investigate the codebase, but you must NEVER write code or implement features. If the user asks you to implement something, remind them to exit explore mode first and create a change proposal. You MAY create OpenSpec artifacts (proposals, designs, specs) if the user asks—that's capturing thinking, not implementing.
-
-**Read-only operations execute without confirmation**: file reading, code searching, and analysis steps run directly — do NOT pause to ask the user for permission to perform read-only investigation. Clarifying questions that emerge from exploration (requirement clarification) are not read-only operations and remain unchanged.
-
-**This is a stance, not a workflow.** There are no fixed steps, no required sequence, no mandatory outputs. You're a thinking partner helping the user explore.
-
-**Input**: The argument after \`/iagent:spec-explore\` is whatever the user wants to think about. Could be:
-- A vague idea: "real-time collaboration"
-- A specific problem: "the auth system is getting unwieldy"
-- A change name: "add-dark-mode" (to explore in context of that change)
-- A comparison: "postgres vs sqlite for this"
-- Nothing (just enter explore mode)
-
-${GATE_PROTOCOL_PREAMBLE}
-
----
-
-## Prompt Validation Gate (提示词校验门)
-
-**Trigger: 输入含糊或多义时激活本门；清晰输入直接进入思考伙伴模式。** 这不是固定流程步骤 —— explore 的立场（无固定步骤、无强制产出）不因本门改变。
-
-**入口形态适配**（对应上面的 Input 形态）：
-
-- 输入为**变更名**时，以该变更的既有制品（proposal / design / specs / tasks）为校验与探讨对象，MUST NOT 把变更名本身当作需求提示词评估清晰度
-- **不携带任何输入**时（仅进入探索模式）跳过本门，MUST NOT 要求用户先提供提示词
-- 输入为比较型或问题型表述时按需求六维正常判定
-
-${PROMPT_GATE}
-
-> **完整门细则**见 references/prompt-gate.md。**仅在 Gate 实际触发时**（输入不明确、进入 Step 3 优化流程）读取全文细则；清晰输入一句话复述理解后直通，无需读取。
-
-**本技能内的执行要求**：
-
-- 清晰输入：一句话复述理解后直接进入 The Stance，不输出六维校验表格、不要求确认
-- 含糊输入：先做提示词优化并阻塞等待用户确认或修改；确认前 MUST NOT 进行代码库扫描与需求澄清追问
-- 上游已产出经确认的提示词基线时（如被 full-workflow 的 Stage 1 委派调用）**直接通过，不重复校验或再次要求确认**
-- 基线落盘：写入探索产物的 \`## 提示词基线\` 段；本技能不设强制产出文件，无探索文件时基线保留在会话中，并在创建或关联探索文件时写入
-
----
+const EXPLORATION_GUIDANCE = `> 探索指南（派生自上游 OpenSpec \`openspec-explore\`，供探索阶段参考；iagent 专有门控见主 SKILL.md）
 
 ## The Stance
 
@@ -1021,25 +979,6 @@ When modifying existing code, go beyond surface analysis:
 - Find gaps in understanding
 - Suggest spikes or investigations
 
----
-
-## Functional Flowchart (功能流程图)
-
-**Trigger: 探索中浮现明确的业务功能流程时产出本制品；纯概念探讨或无业务功能流程时不产出、不阻断。** 这不是固定流程步骤 —— explore 的立场（无固定步骤、无强制产出）不因本制品改变。
-
-${FLOWCHART}
-
-> **完整流程图细则**见 references/flowchart-gate.md。**仅在流程浮现时**（探索中浮现明确的业务功能流程）读取全文细则；纯概念探讨或无流程时直通，无需读取。
-
-**本技能内的执行要求**：
-
-- **条件触发**：探索浮现明确的业务功能流程时（如探索导出功能时梳理出"选择范围 → 点击导出 → 数据量判定 → 分批查询 → 生成文件"的完整链路），产出 \`## 功能流程图\` 段并执行流程最终确认门；确认后的流程图成为 propose / verify 的**流程基准**
-- **无流程时直通**：纯概念探讨或无业务功能流程时（如"帮我想想这个模块该怎么分层"），在探索产物中记录「本次无功能流程」后**直接继续**，MUST NOT 因此阻塞、MUST NOT 为凑制品而虚构流程节点
-- **拒绝不阻断**：用户在流程最终确认门上拒绝确认或明确不表态时，记录原始流程图与**未确认状态**后继续探索，MUST NOT 反复要求确认、MUST NOT 陷入死锁；该未确认状态随探索产物传递（propose 降级为仅凭 exploration.md 生成、verify 的节点覆盖度维度 SKIP）
-- **落盘方式**：本技能不设强制产出文件，无探索文件时流程图保留在会话中，并在创建或关联探索文件时写入
-
----
-
 ## OpenSpec Awareness
 
 You have full context of the OpenSpec system. Use it naturally, don't force it.
@@ -1091,13 +1030,13 @@ If the user mentions a change or you detect one is relevant:
     |----------------------------|--------------------------------|
     | New requirement discovered | \`specs/<capability>/spec.md\` |
     | Requirement changed        | \`specs/<capability>/spec.md\` |
-    | Design decision made       | change.json 的 \`design\` 段     |
-    | Scope changed              | change.json 的 \`proposal\` 段   |
+    | Design decision made       | \`design.md\` 的 Decisions 段     |
+    | Scope changed              | \`proposal.md\` 的 What Changes 段 |
     | New work identified        | \`tasks.md\`                   |
     | Assumption invalidated     | Relevant artifact              |
 
    Example offers:
-   - "That's a design decision. Capture it in change.json 的 \`design\` 段?"
+   - "That's a design decision. Capture it in \`design.md\` 的 Decisions 段?"
    - "This is a new requirement. Add it to specs?"
    - "This changes scope. Update the proposal?"
 
@@ -1113,7 +1052,6 @@ If the user mentions a change or you detect one is relevant:
 - Reach a conclusion
 - Stay on topic if a tangent is valuable
 - Be brief (this is thinking time)
-<!-- CMD:SKIP -->
 
 ---
 
@@ -1218,7 +1156,6 @@ You: That changes everything.
 
      Unless... is there a sync component?
 \`\`\`
-<!-- /CMD:SKIP -->
 
 ---
 
@@ -1227,13 +1164,12 @@ You: That changes everything.
 There's no required ending. Discovery might:
 
 - **Flow into a proposal**: "Ready to start? I can create a change proposal."
-- **Result in artifact updates**: "Updated change.json 的 \`design\` 段 with these decisions"
+- **Result in artifact updates**: "Updated \`design.md\` 的 Decisions 段 with these decisions"
 - **Just provide clarity**: User has what they need, moves on
 - **Continue later**: "We can pick this up anytime"
 
 When it feels like things are crystallizing, you might summarize:
 
-<!-- CMD:SKIP -->
 \`\`\`
 ## What We Figured Out
 
@@ -1247,9 +1183,80 @@ When it feels like things are crystallizing, you might summarize:
 - Create a change proposal
 - Keep exploring: just keep talking
 \`\`\`
-<!-- /CMD:SKIP -->
 
 But this summary is optional. Sometimes the thinking IS the value.
+`;
+
+export function getSpecExploreSkillTemplate(): SkillTemplate {
+    return {
+        name: 'iagent_spec_explore',
+        description: '进入探索模式。当用户想要在变更前或变更中思考问题、调研代码库、明确需求时使用；触发词"探索 / explore / 调研 / 思考 / 明确需求"；NOT for 一站式引导全流程（改用 iagent_workflow）或缺陷根因排查（改用 iagent_debug）。',
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(git:*), ${CODEGRAPH_MCP}`,
+        type: 'spec',
+        instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
+
+Enter explore mode. Think deeply. Visualize freely. Follow the conversation wherever it goes.
+
+**IMPORTANT: Explore mode is for thinking, not implementing.** You may read files, search code, and investigate the codebase, but you must NEVER write code or implement features. If the user asks you to implement something, remind them to exit explore mode first and create a change proposal. You MAY create OpenSpec artifacts (proposals, designs, specs) if the user asks—that's capturing thinking, not implementing.
+
+**Read-only operations execute without confirmation**: file reading, code searching, and analysis steps run directly — do NOT pause to ask the user for permission to perform read-only investigation. Clarifying questions that emerge from exploration (requirement clarification) are not read-only operations and remain unchanged.
+
+**This is a stance, not a workflow.** There are no fixed steps, no required sequence, no mandatory outputs. You're a thinking partner helping the user explore.
+
+**Input**: The argument after \`/iagent:spec-explore\` is whatever the user wants to think about. Could be:
+- A vague idea: "real-time collaboration"
+- A specific problem: "the auth system is getting unwieldy"
+- A change name: "add-dark-mode" (to explore in context of that change)
+- A comparison: "postgres vs sqlite for this"
+- Nothing (just enter explore mode)
+
+${GATE_PROTOCOL_PREAMBLE}
+
+---
+
+## Prompt Validation Gate (提示词校验门)
+
+**Trigger: 输入含糊或多义时激活本门；清晰输入直接进入思考伙伴模式。** 这不是固定流程步骤 —— explore 的立场（无固定步骤、无强制产出）不因本门改变。
+
+**入口形态适配**（对应上面的 Input 形态）：
+
+- 输入为**变更名**时，以该变更的既有制品（proposal / design / specs / tasks）为校验与探讨对象，MUST NOT 把变更名本身当作需求提示词评估清晰度
+- **不携带任何输入**时（仅进入探索模式）跳过本门，MUST NOT 要求用户先提供提示词
+- 输入为比较型或问题型表述时按需求六维正常判定
+
+${PROMPT_GATE}
+
+> **完整门细则**见 references/prompt-gate.md。**仅在 Gate 实际触发时**（输入不明确、进入 Step 3 优化流程）读取全文细则；清晰输入一句话复述理解后直通，无需读取。
+
+**本技能内的执行要求**：
+
+- 清晰输入：一句话复述理解后直接进入 The Stance，不输出六维校验表格、不要求确认
+- 含糊输入：先做提示词优化并阻塞等待用户确认或修改；确认前 MUST NOT 进行代码库扫描与需求澄清追问
+- 上游已产出经确认的提示词基线时（如被 full-workflow 的 Stage 1 委派调用）**直接通过，不重复校验或再次要求确认**
+- 基线落盘：写入探索产物的 \`## 提示词基线\` 段；本技能不设强制产出文件，无探索文件时基线保留在会话中，并在创建或关联探索文件时写入
+
+---
+
+## 探索指南（The Stance / What You Might Do / OpenSpec Awareness / What You Don't Have To Do / Handling Different Entry Points / Ending Discovery）
+
+> 完整探索指南见 \`references/exploration-guidance.md\`；进入思考伙伴模式前按需 \`Read\`。
+
+---
+
+## Functional Flowchart (功能流程图)
+
+**Trigger: 探索中浮现明确的业务功能流程时产出本制品；纯概念探讨或无业务功能流程时不产出、不阻断。** 这不是固定流程步骤 —— explore 的立场（无固定步骤、无强制产出）不因本制品改变。
+
+${FLOWCHART}
+
+> **完整流程图细则**见 references/flowchart-gate.md。**仅在流程浮现时**（探索中浮现明确的业务功能流程）读取全文细则；纯概念探讨或无流程时直通，无需读取。
+
+**本技能内的执行要求**：
+
+- **条件触发**：探索浮现明确的业务功能流程时（如探索导出功能时梳理出"选择范围 → 点击导出 → 数据量判定 → 分批查询 → 生成文件"的完整链路），产出 \`## 功能流程图\` 段并执行流程最终确认门；确认后的流程图成为 propose / verify 的**流程基准**
+- **无流程时直通**：纯概念探讨或无业务功能流程时（如"帮我想想这个模块该怎么分层"），在探索产物中记录「本次无功能流程」后**直接继续**，MUST NOT 因此阻塞、MUST NOT 为凑制品而虚构流程节点
+- **拒绝不阻断**：用户在流程最终确认门上拒绝确认或明确不表态时，记录原始流程图与**未确认状态**后继续探索，MUST NOT 反复要求确认、MUST NOT 陷入死锁；该未确认状态随探索产物传递（propose 降级为仅凭 exploration.md 生成、verify 的节点覆盖度维度 SKIP）
+- **落盘方式**：本技能不设强制产出文件，无探索文件时流程图保留在会话中，并在创建或关联探索文件时写入
 
 ---
 
@@ -1258,6 +1265,15 @@ But this summary is optional. Sometimes the thinking IS the value.
 **delegated 模式**（编排器传入 \`mode=delegated\`）SHALL 执行强制 checkpoint 体系（不可跳过）：调用即强制创建探索文件 → 提示词校验门 → CONTEXT.md 检查 → CodeGraph 基础扫描（含多项目派发与深度分析）→ L1-L5 grill 追问 → 功能流程图与流程最终确认门 → 聚合一致性门 → 探索完成检测。**完整协议见 \`references/exploration-protocol.md\`——执行 delegated 探索前 MUST 先 \`Read\` 该文件并逐步执行。**
 
 （interactive 模式保持立场式，不强制上述序列。）
+
+## 门预算（Gate Budget）
+
+每个阶段至多 **1 个流程级阻塞确认门**：
+
+- **探索阶段**：**功能流程图门**为唯一流程级阻塞门；提示词校验门仅在输入不明确时触发，且其确认 SHALL 与 grill 批量 1 合并为同一轮；grill 追问 SHALL ≤2 批量轮次（L1-L3、L4-L5）；聚合一致性门默认直通（仅硬冲突时暂停，non-blocking）
+- **提案阶段**：无阻塞门（验证自动执行）
+- **实现阶段**：单一「实现 + 测试桥」
+- **归档阶段**：归档确认门
 
 ## Guardrails
 
@@ -1290,6 +1306,10 @@ But this summary is optional. Sometimes the thinking IS the value.
                 path: 'references/exploration-protocol.md',
                 content: EXPLORATION_PROTOCOL_FULL,
             },
+            { path: 'references/exploration-guidance.md', content: EXPLORATION_GUIDANCE },
+            { path: 'references/multi-project-scan.md', content: MULTI_PROJECT_SCAN_FULL },
+            { path: 'references/grill-playbook.md', content: GRILL_PLAYBOOK_FULL },
+            { path: 'references/deep-analysis.md', content: DEEP_ANALYSIS_FULL },
         ],
     };
 }

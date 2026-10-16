@@ -1,6 +1,6 @@
 ---
 name: iagent_migration
-description: 一站式自动化功能迁移（auto migration / 功能迁移）：经 feature_doc 蒸馏源项目 + 用户确认核心功能清单 → 加载目标项目编码规范 → 生成标准 OpenSpec 变更提案 → 实现门后按规范实现 → 独立复查代理交叉核对源/目标功能并产出报告 + P0/P1 修复循环（via iagent_migration_check）。当用户要把源项目的功能或模块自动迁移到当前（目标）项目时使用。NOT for 单独的源项目扫描（用 iagent_feature_doc）或单独迁移后对比（用 iagent_migration_check）。
+description: "一站式自动化功能迁移（auto migration / 功能迁移）：经 feature_doc 蒸馏源项目 + 用户确认核心功能清单 → 加载目标项目编码规范 → 生成标准 OpenSpec 变更提案 → 实现门后按规范实现 → 独立复查代理交叉核对源/目标功能并产出报告 + P0/P1 修复循环（via iagent_migration_check）。当用户要把源项目的功能或模块自动迁移到当前（目标）项目时使用；触发词\"功能迁移 / auto migration / 迁移功能 / 源项目迁移\"；NOT for 单独的源项目扫描（用 iagent_feature_doc）或单独迁移后对比（用 iagent_migration_check）。"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(feature_doc), Skill(migration_check), Agent, Task
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）；CLI 缺失时降级为 AI 内联生成（CLI-degraded generation）。
@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:aeb3aabdbe17757e5c1201a1619dede3d23e44382089764ba5ce601fe8bcffc4"
+  generatedFingerprint: "sha256:e28d510a94f1629110c40a9f85c10c8a4c741551dd8aaa94379377bb9ba4901f"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
@@ -85,7 +85,7 @@ All paths MUST be built with `path.join()` (cross-platform: Windows drive letter
 2. **Review-sub-agent failure degradation chain** (never silently skip the review): serial retry once → still failing, degrade to invoking iagent_migration_check directly from the main flow (non-interactive, same injected parameters) → still failing, output WARN and end the flow as COMPLETE-WITH-WARNING.
 3. Read the check report (P0/P1/P2 problem lists).
 4. Fix loop:
-    - **P0/P1 found** → present the problem list + fix suggestions → ask the user to confirm the fixes → apply fixes (update code AND sync the change `tasks.json` with new/updated tasks, then re-render tasks.md) → re-run the migration check (back to step 1 of this phase). Repeat until no P0/P1 remain.
+    - **P0/P1 found** → present the problem list + fix suggestions → ask the user to confirm the fixes → apply fixes (update code AND directly edit the change `tasks.md` — tick completed tasks and append new/updated tasks; MUST NOT write or re-render `tasks.json`) → re-run the migration check (back to step 1 of this phase). Repeat until no P0/P1 remain.
     - **User stops the loop or the retry limit is reached** → output the current problem-list snapshot, log a WARN, and end the flow as COMPLETE-WITH-WARNING (not a failure).
     - **Only P2 found** → record the problems in the report and end the flow normally; P2 never blocks.
 5. Final output: change name, implemented task summary, source requirement document path, migration check report path, remaining P2 problems (if any).

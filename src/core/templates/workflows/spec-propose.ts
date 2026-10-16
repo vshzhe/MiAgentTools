@@ -9,7 +9,7 @@ import { SUBAGENT_DISPATCH, skillDelegation } from '../tool-whitelist.js';
 export function getSpecProposeSkillTemplate(): SkillTemplate {
     return {
         name: 'iagent_spec_propose',
-        description: '创建变更提案。当用户要快速描述想构建的内容并一步生成包含设计、规格和任务的完整提案时使用。',
+        description: '创建变更提案。当用户要快速描述想构建的内容并一步生成包含设计、规格和任务的完整提案时使用；触发词"提案 / propose / 创建变更 / 生成规格"；NOT for 直接实现变更（改用 iagent_spec_apply）或一站式引导全流程（改用 iagent_workflow）。',
         allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), ${skillDelegation(['spec_verify_proposal', 'requirement_doc'])}, ${SUBAGENT_DISPATCH}`,
         type: 'spec',
         instructions: `Propose a new change - create the change and generate all artifacts in one step.

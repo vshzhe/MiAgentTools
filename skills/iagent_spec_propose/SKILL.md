@@ -1,6 +1,6 @@
 ---
 name: iagent_spec_propose
-description: 创建变更提案。当用户要快速描述想构建的内容并一步生成包含设计、规格和任务的完整提案时使用。
+description: "创建变更提案。当用户要快速描述想构建的内容并一步生成包含设计、规格和任务的完整提案时使用；触发词\"提案 / propose / 创建变更 / 生成规格\"；NOT for 直接实现变更（改用 iagent_spec_apply）或一站式引导全流程（改用 iagent_workflow）。"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Skill(spec_verify_proposal), Skill(requirement_doc), Agent, Task
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）与 CodeGraph MCP（可选）。
@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:6c5ae8e86b7d032c9a4c98c98cce640e638411dad848799471f14c52219ece3a"
+  generatedFingerprint: "sha256:ef56989888bccaa30f261a24ce2a7ed341b83e222e63e9983cbcae004d25527a"
 ---
 
 Propose a new change - create the change and generate all artifacts in one step.

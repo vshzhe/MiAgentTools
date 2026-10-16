@@ -7,7 +7,7 @@ import { CODEGRAPH_MCP } from '../tool-whitelist.js';
 export function getFeatureDocSkillTemplate(): SkillTemplate {
     return {
         name: 'iagent_feature_doc',
-        description: '扫描源项目功能模块并生成功能需求实现文档（项目功能地图 / feature map）：覆盖前端实现、后端方法、字段级 API 契约、数据库调用链与跨模块交互，框架档案按项目实际探测。当用户要扫描源项目功能模块、从代码分析功能实现、构建项目功能地图、或为框架迁移/重构生成迁移需求文档（migration requirement document）时使用。NOT for 把 OpenSpec 变更提案转为评审需求文档——那是 iagent_requirement_doc。',
+        description: '扫描源项目功能模块并生成功能需求实现文档（项目功能地图 / feature map）：覆盖前端实现、后端方法、字段级 API 契约、数据库调用链与跨模块交互，框架档案按项目实际探测。当用户要扫描源项目功能模块、从代码分析功能实现、构建项目功能地图、或为框架迁移/重构生成迁移需求文档（migration requirement document）时使用；触发词"功能地图 / feature map / 扫描源项目 / 功能实现文档"；NOT for 把 OpenSpec 变更提案转为评审需求文档——那是 iagent_requirement_doc。',
         allowedTools: `Read, Write, Edit, Glob, Grep, ${CODEGRAPH_MCP}`,
         type: 'docs',
         instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。

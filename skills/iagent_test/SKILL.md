@@ -1,6 +1,6 @@
 ---
 name: iagent_test
-description: 生成测试。当用户要为新功能或已有代码编写测试用例、补充测试覆盖时使用。多 schema 模式：自动检测 Java（Maven/Gradle）或 Node（Vitest/Jest/Mocha）项目，加载对应框架模板。Java 覆盖 JUnit4/5+Mockito/EasyMock/AssertJ，Node 覆盖 Vitest/Jest/Mocha。
+description: "生成测试。当用户要为新功能或已有代码编写测试用例、补充测试覆盖时使用；触发词\"写测试 / 生成测试 / 测试用例 / test / 覆盖率\"；NOT for 验证实现与制品一致性（改用 iagent_spec_verify）。多 schema 模式：自动检测 Java（Maven/Gradle）或 Node（Vitest/Jest/Mocha）项目，加载对应框架模板。Java 覆盖 JUnit4/5+Mockito/EasyMock/AssertJ，Node 覆盖 Vitest/Jest/Mocha。"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(pnpm:*), Bash(npm:*), Bash(node:*), Bash(mvn:*), Bash(gradle:*), Bash(mkdir:*), Bash(ls:*), Bash(find:*), Bash(cat:*), Bash(cp:*), Bash(grep:*), Bash(echo:*)
 license: MIT
 compatibility: 无特殊依赖，通用环境可用。多 schema 自动适配：Java（Maven/Gradle + JUnit4/5/Mockito/EasyMock/AssertJ）与 Node（Vitest/Jest/Mocha/Jasmine）。
@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: test
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:38a51e8291095de4a2af7316ed7904595dcfa1bfff75b5073a21245414a75dad"
+  generatedFingerprint: "sha256:fa77d0b43501f68ff5092459b46fc47f9944cc9d351cb5c89815e6e4b2f9c792"
 ---
 
 生成测试 —— 多 schema 模式：检测语言/框架 → 加载对应 schema → BCDE 场景矩阵 → 分层编写 → 运行验证。

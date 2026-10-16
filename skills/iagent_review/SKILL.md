@@ -1,6 +1,6 @@
 ---
 name: iagent_review
-description: 审查代码。当用户要检查代码质量、核对编码规范、审查变更或合并请求时使用。
+description: "审查代码。当用户要检查代码质量、核对编码规范、审查变更或合并请求时使用；触发词\"代码审查 / review / code review / 检查代码 / 规范核对\"；NOT for 提案完整性复查（改用 iagent_proposal_review）或迁移一致性检查（改用 iagent_migration_check）。"
 allowed-tools: Bash(git diff:*), Bash(git log:*), Bash(git status:*), Read, Glob, Grep
 license: MIT
 compatibility: 无特殊依赖，通用环境可用。
@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: review
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:30955c0321a71a72b2e8d08bf1142ee0e1e859abc27f438f0cb0ef7920b81776"
+  generatedFingerprint: "sha256:251db0339a1ede4f85456ef743fc5d656469c6afe01b7b0be2a50f409330d1c5"
 ---
 
 审查代码 —— 按维度检查，只报告经过验证的问题，严重程度分级呈现。

@@ -10,7 +10,7 @@ export function getSvnCommitSkillTemplate(): SkillTemplate {
             'SVN 交互式提交（四环节确认：范围→清单与描述→知识库推送→最终确认），含编译产物排除、' +
             'UTF-8 注释落盘、凭据处理、提交后双验证、知识库推送。支持提案分类提交：按点名提案将变更' +
             '自动归类为功能代码/测试代码/文档，分类分批提交并在每笔提交信息尾行标注来源提案。' +
-            '当用户在 SVN 项目要提交代码、提交提案产出、按类型分类提交时使用；Git 项目提交用 iagent_commit。',
+            '当用户在 SVN 项目要提交代码、提交提案产出、按类型分类提交时使用；触发词"SVN 提交 / svn commit / 分类提交"；NOT for Git 项目提交（改用 iagent_commit）。',
         allowedTools: 'Bash(svn:*), Bash(powershell:*), Read, Write, Glob, Grep',
         type: 'commit',
         instructions: `SVN 提交注释生成与执行（iagent_svn_commit）—— 四环节确认提交 + 提案分类提交。

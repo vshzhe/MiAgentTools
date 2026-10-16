@@ -1,6 +1,6 @@
 ---
 name: iagent_spec_apply
-description: 实现变更。当 openspec/changes/ 下已有变更制品（proposal/specs/design/tasks），需要基于规格驱动实现任务清单时使用；用户直接描述需求而无变更制品时，应使用 iagent_workflow 引导生成变更制品后再实现。
+description: "实现变更。当 openspec/changes/ 下已有变更制品（proposal/specs/design/tasks），需要基于规格驱动实现任务清单时使用；触发词\"实现变更 / apply / 执行任务 / 按规格实现\"；NOT for 无变更制品时直接描述需求（改用 iagent_workflow 引导生成制品后再实现）。"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(ant:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), Agent, Task
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）。
@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:d31b1556fd2f5943a8c46461d6dfefaabf9b35df25ef0de38e60c56e92ac6990"
+  generatedFingerprint: "sha256:073bf7f60dc9663c5976f28567caf80ba59f647e1e0c77370560bf16ac566565"
 ---
 
 **Before implementing, read openspec/rules/ai-coding.md for AI coding guardrails.** Never guess database fields, API params, or business rules — mark as **[待确认]** and ask the user.

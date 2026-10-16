@@ -136,8 +136,8 @@ D10 Score = (被 design/tasks 覆盖的节点数 / 流程图总节点数) * 100%
 
 **PASS condition**: 覆盖度 ≥ 90%（与统一阈值一致）。
 
-**纳入既有总分（triggered 集合）**: 本维度纳入既有总分公式的 `triggered` 集合，与 D1-D9 **同权重**参与平均分：
-`Overall Score = (D1 + … + D5 + sum(triggered)) / (5 + triggered_count)`。既有 D1-D9 的算法核心与公式本身 MUST NOT 被本维度改动。
+**纳入既有总分（triggered 集合）**: 本维度纳入既有总分公式的 `triggered` 集合，与 D1-D5 核心维度、D6-D10 条件维度**同权重**参与平均分：
+`Overall Score = (D1 + … + D5 + sum(triggered)) / (5 + triggered_count)`。既有核心+条件维度累加的算法核心与公式本身 MUST NOT 被本维度改动。
 
 **与 D9 的职责分离（自证 vs 他证）**: D9（Business Steps）检查提案**自身**是否拆解复杂操作（**自证**，SHALL 保留不动，MUST NOT 被本维度替换或缩窄）；
 本维度检查提案与**外部流程基准**（经用户确认的功能流程图）的偏差（**他证**）。两者互补：D9 查"是否拆了"，本维度查"是否拆对 / 拆全"。

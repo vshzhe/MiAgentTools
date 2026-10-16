@@ -6,7 +6,7 @@ import type { SkillTemplate, CommandTemplate } from '../types.js';
 export function getCommitSkillTemplate(): SkillTemplate {
     return {
         name: 'iagent_commit',
-        description: '提交变更。当用户要提交代码，需要检查变更、生成规范的提交信息并提交时使用。',
+        description: '提交变更。当用户要提交代码，需要检查变更、生成规范的提交信息并提交时使用；触发词"提交 / commit / git 提交 / 生成提交信息"；NOT for SVN 项目提交（改用 iagent_svn_commit）。',
         allowedTools: 'Bash(git status:*), Bash(git diff:*), Bash(git add:*), Bash(git commit:*), Bash(git log:*), Read, Glob, Grep',
         type: 'commit',
         instructions: `提交变更 —— 提交前必须核对变更内容，提交信息必须符合规范。

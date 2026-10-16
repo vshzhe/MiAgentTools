@@ -146,7 +146,7 @@ const DOC_SECURITY = `## 安全规范文档骨架（docs/project/security/安全
 export function getProjectInitSkillTemplate(): SkillTemplate {
     return {
         name: 'iagent_project_init',
-        description: '初始化项目。当用户要创建新项目、搭建目录结构、生成配置文件或准备开发环境时使用。',
+        description: '初始化项目。当用户要创建新项目、搭建目录结构、生成配置文件、初始化知识文档或准备开发环境时使用；触发词"初始化项目 / project init / 搭建项目 / 生成配置"；NOT for 扫描源项目功能模块（改用 iagent_feature_doc）。',
         allowedTools:
             'Bash(ls:*), Bash(pwd:*), Read, Write, Glob, Grep, ' +
             CODEGRAPH_MCP +

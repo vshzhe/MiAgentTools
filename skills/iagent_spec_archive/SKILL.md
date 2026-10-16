@@ -1,6 +1,6 @@
 ---
 name: iagent_spec_archive
-description: 归档变更。当用户要归档已实现完成的变更、结束变更工作流时使用。
+description: "归档变更。当用户要归档已实现完成的变更、结束变更工作流时使用；触发词\"归档 / archive / 结束变更\"；NOT for 一次归档多个变更（改用 iagent_spec_bulk_archive）。"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(ls:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(requirement_doc)
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）与 CodeGraph CLI（可选）。
@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:26c2a81a6bd6e428769cc0745c9f365d8912edbeafe6bce2f7a42a911b765793"
+  generatedFingerprint: "sha256:52b3145b2bd154913e0558255745c3a2fe3acb8e7f4c477b7398091f6a528515"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。

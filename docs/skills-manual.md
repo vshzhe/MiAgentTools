@@ -1,6 +1,6 @@
 # iAgent 技能使用说明书
 
-> 适用版本：4.0.0 ｜ 技能总数：**20** ｜ 类型：**9 类**
+> 适用版本：6.1.0 ｜ 技能总数：**20** ｜ 类型：**9 类**
 > 技能快照来源：`skills/` 目录（由 `pnpm build && pnpm generate:skills` 生成，**禁止手工编辑**）
 > 本文是导读索引；每个技能的完整正文以对应 `skills/<name>/SKILL.md` 为准。
 
@@ -27,10 +27,10 @@ MiAgentTools 是 AI Agent 技能生成与管理 CLI，按技能类型生成 `iag
 | 类型 | 中文名 | 技能数 | 技能清单 |
 | :--- | :--- | :--- | :--- |
 | `init` | 初始化 | 1 | `project-init` |
-| `impl` | 实现 | 6 | `workflow` / `auto-workflow` / `debug` / `proposal-review` / `migration` / `migration-check` |
+| `impl` | 实现 | 4 | `workflow` / `auto-workflow` / `debug` / `migration` |
 | `test` | 测试 | 1 | `test`（多 schema：Java/Node 自动适配） |
 | `commit` | 提交 | 2 | `commit` / `svn-commit` |
-| `review` | 审查 | 1 | `review` |
+| `review` | 审查 | 3 | `review` / `proposal-review` / `migration-check` |
 | `docs` | 文档 | 2 | `feature-doc` / `requirement-doc` |
 | `spec` | 规格 | 7 | `spec-explore` / `spec-propose` / `spec-apply` / `spec-archive` / `spec-bulk-archive` / `spec-verify` / `spec-verify-proposal` |
 | `release` | 版本 | 0 | 保留类型，供 `iagent generate --type release` 扩展 |
@@ -120,7 +120,7 @@ MiAgentTools 是 AI Agent 技能生成与管理 CLI，按技能类型生成 `iag
 
 | 技能 | 斜杠指令 | 作用 |
 | :--- | :--- | :--- |
-| `iagent_workflow` | `/iagent:workflow` | **一站式引导工作流**：内联探索（grill 追问）→ 提案内联生成 → 自动验证门（D1-D6）→ 深度复查收束 + 需求文档 → 实现桥委派 `spec_apply` → 归档桥委派 `spec_archive`。全流程有确认桥。 |
+| `iagent_workflow` | `/iagent:workflow` | **一站式引导工作流**：委派 `spec_explore`（探索，grill 追问）→ 委派 `spec_propose`（提案生成）→ 自动验证门（D1-D10）→ 深度复查收束 + 需求文档 → 实现桥委派 `spec_apply` → 实现验证 `spec_verify` → 归档桥委派 `spec_archive`。全流程有确认桥。 |
 | `iagent_auto_workflow` | `/iagent:auto-workflow` | **全自动管线**：探索→提案→验证→自动实现→自动归档，仅在 L1-L5 用户确认后全自动，无中途确认门。 |
 | `iagent_debug` | `/iagent:debug` | **一站式调试**：复现 → CodeGraph + 能力记忆定位根因 → 关联变更 → 修复（强制回归测试）→ 编译检查 → 同步提案 → 验证。 |
 | `iagent_proposal_review` | `/iagent:proposal-review` | **提案深度复查**：深度代码库探索 + 8 维度完整性检查 + 合规性验证 + 量化评分与遗漏场景补充。 |

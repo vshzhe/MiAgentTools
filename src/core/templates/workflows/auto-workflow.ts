@@ -3,15 +3,8 @@
  * 编排层技能 —— 一站式全自动工作流，L1-L5 用户确认后全自动化。
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
-import { buildPromptGateBlock, REQUIREMENT_DIMENSIONS } from '../prompt-gate.js';
-import { buildFlowchartBlock, REQUIREMENT_FLOW_COLUMNS } from '../flowchart-gate.js';
+import { GATE_PROTOCOL_PREAMBLE } from '../prompt-gate.js';
 import { CODEGRAPH_MCP, SUBAGENT_DISPATCH, skillDelegation } from '../tool-whitelist.js';
-
-/** 提示词校验门全文（写入 references/prompt-gate.md，AI 在 Gate 触发时按需读取） */
-const PROMPT_GATE_FULL = buildPromptGateBlock(REQUIREMENT_DIMENSIONS);
-
-/** 功能流程图全文（写入 references/flowchart-gate.md，AI 在流程生成时按需读取） */
-const FLOWCHART_FULL = buildFlowchartBlock(REQUIREMENT_FLOW_COLUMNS);
 
 export function getAutoWorkflowSkillTemplate(): SkillTemplate {
     return {
@@ -29,13 +22,7 @@ This workflow guides you through:
 4. **Auto-Apply phase** - Automatic implementation without confirmation gate
 5. **Auto-Archive phase** - Automatic archiving on completion
 
-## ⛔ GATE PROTOCOL — ACTIVE
-
-This skill contains **CONFIRMATION GATES** marked with **⛔ GATE:**. Each gate is a HARD STOP:
-- When you reach a ⛔ GATE, **YOUR RESPONSE ENDS THERE** — output the gate content, then STOP
-- Do NOT execute, describe, or pre-generate steps beyond the gate
-- The user's next message is the confirmation signal — resume from AFTER the gate only when they respond
-- **VIOLATION**: executing beyond a gate without user confirmation is a critical error that corrupts the workflow
+${GATE_PROTOCOL_PREAMBLE}
 
 ---
 ## Phase 1: Exploration（委派 iagent_spec_explore）
@@ -112,15 +99,14 @@ After verification passes (≥90%) and the deep review has converged:
 - Construct the apply context with:
   - \`auto-mode=true\` — to skip the design confirmation gate (consistent with iagent_spec_apply: Input passes auto-mode=true; Step 5.5 confirmation gate is skipped in auto-mode, directly entering Step 6 batch scheduling)
   - \`change-name\` — the current change name from the workflow context
-- Execute the apply workflow logic (following the iagent_spec_apply skill's Step 6+ batch scheduling behavior with auto-mode=true)
-- **Inherit the dispatch protocol and shared-resource protocol of \`iagent_spec_apply\`** — Phase 4 inherits both protocols in full and reuses the same four carriers:
+- **Delegate via the Skill tool**: invoke the \`iagent_spec_apply\` skill with \`auto-mode=true\` + \`change-name\`; the delegated skill owns the apply protocol in full
   - **shared context pack**（共享上下文包）— the single must-read artifact \`context-pack.md\` (six sections), produced once and appended per batch
   - **output ledger**（产出登记表）— the pack's \`## 已产出（跨单元可见）\` section, appended by the coordinator after each batch
   - **minimal receipt**（回执最小化）— the fixed four-column receipt \`<task id> | <status> | <output file> | <public signature>\`, with no code body pasted
   - **shared instruction prefix**（共享指令前缀）— the fixed order "shared prefix (pack path / spec-points reference / receipt format / prohibitions) → unit delta (task list)"
-- Phase 4 **MUST NOT define a separate dispatch-instruction format or re-declare the protocol text** — the protocol's single source stays in \`iagent_spec_apply\`; this skill only references it
+- Phase 4 **MUST NOT re-declare or inline the apply protocol text** — the protocol's single source stays in \`iagent_spec_apply\`; this skill only delegates to it (MUST NOT "execute the apply workflow logic" inline, which would contradict this single-source rule)
 - \`auto-mode=true\` **only** skips the design confirmation gate — the shared-resource protocol stays in effect (auto semantics MUST NOT waive it)
-- All apply tasks are implemented automatically with the existing batch scheduling
+- All apply tasks are implemented automatically by the delegated skill with its existing batch scheduling
 
 ### 4.2 Auto-Apply Error Handling
 
@@ -139,21 +125,31 @@ Phase 4 inherits \`iagent_spec_apply\`'s **test execution gate** and passes it *
 - **Still failing after 3 attempts** → pause and report to the user. MUST NOT silently pass, MUST NOT proceed to archive
 - No test framework in the project → log a WARN, skip the gate, continue
 
+**Conditional test sub-phase**: when the change's \`tasks.md\` contains \`[测试]\` tasks, delegate the \`iagent_test\` skill (Skill tool) to generate the change-scope tests before the test execution gate; the gate verdict still applies (in-scope failures auto-retry then pause).
+
+### 4.4 Implementation Verification Bridge (delegated, MANDATORY)
+
+After the test execution gate passes, MUST delegate the \`iagent_spec_verify\` skill (Skill tool) to verify implementation vs artifacts (specs/tasks/design):
+
+- **Verification passes** → proceed to Phase 5 (Auto-Archive)
+- **Verification fails** → return to Phase 4 fixes; MUST NOT proceed to archive
+- **Fallback (\`iagent_spec_verify\` unavailable)**: log a WARN and record the explicit omission decision ("implementation verification carried by apply compile check + archive consistency") — MUST NOT silently skip
+
 ---
 ## Phase 5: Auto-Archive
 
-**Phase 5 executes automatically after Phase 4 (auto-apply) completes and compile check passes. No user confirmation needed.**
+**Phase 5 executes automatically after Phase 4 (auto-apply) completes, the compile check and test gate pass, and the implementation verification bridge (§4.4) has passed or been explicitly omitted. No user confirmation needed.**
 
 ### 5.1 Auto-Execute Archive
 
-After apply completes and compile check passes:
+After apply completes and compile check passes (verification bridge passed or explicitly omitted):
 - Announce: "## Auto-Archive Phase" with a clear header
 - Display: "Apply complete — automatically entering archive phase"
 - Construct the archive context with:
   - \`change-name\` — the current change name (skips the change selection prompt)
-- Execute the archive workflow logic (following the iagent_spec_archive skill template)
-- All archive steps execute automatically: delta spec sync, CONTEXT.md sync, CodeGraph check, exploration memory sync, **requirement document alignment (if present; if absent, generate for backward compat — the document was already generated by Phase 3 for new-flow changes)**, directory move, requirement document migration to devdocs, ARCHIVE-INDEX.md update
-- **Requirement document alignment (single-source rule)**: this step is NOT re-defined here — it follows the SAME rule as \`iagent_spec_archive\` step 4.8: BEFORE the directory move, check whether \`openspec/changes/<change-name>/需求文档.md\` exists; if present, perform an in-place incremental alignment (人工域 \`## 基本信息\` and \`## 八、评审记录\` preserved verbatim, sections 一~七 re-derived) and MUST NOT call the skill; if absent (backward compat — the change was created before the Phase 3 generation rule), non-interactively delegate \`iagent_requirement_doc\` to generate it. The document then migrates to \`openspec/devdocs/\` via the existing step 6. MUST NOT copy the branch rule text here — reference the archive skill's step 4.8.
+- **Delegate via the Skill tool**: invoke the \`iagent_spec_archive\` skill with \`change-name\`; the delegated skill owns the archive protocol in full (delta spec sync, CONTEXT.md sync, CodeGraph check, exploration memory sync, requirement document alignment step 4.8, directory move, requirement document migration to devdocs, ARCHIVE-INDEX.md update) — this skill MUST NOT re-declare or inline that protocol text
+- All archive steps execute automatically inside the delegated skill
+- **requirement document alignment (single-source rule)**: owned by the delegated \`iagent_spec_archive\` step 4.8 (present → in-place incremental alignment preserving 人工域 \`## 基本信息\` / \`## 八、评审记录\` verbatim; absent → non-interactively delegate \`iagent_requirement_doc\`). This skill MUST NOT copy the branch rule text — it only references step 4.8
 
 ### 5.2 Auto-Archive Error Handling
 
@@ -205,15 +201,11 @@ After auto-archive completes:
 - **Do scan other projects with CodeGraph** - When exploration context contains other project paths, spawn sub-agent to scan them using CodeGraph projectPath parameter; fall back to Glob/Grep on failure
 - **Don't lose exploration** - File persists even on abandon (unless deleted)
 `,
-        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(mvn:*), Bash(gradle:*), Bash(ant:*), Bash(go:*), Bash(cargo:*), Bash(git:*), Bash(ls:*), Bash(mv:*), ${CODEGRAPH_MCP}, ${skillDelegation(['spec_explore', 'spec_propose', 'spec_verify_proposal', 'proposal_review', 'requirement_doc'])}, ${SUBAGENT_DISPATCH}`,
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(mvn:*), Bash(gradle:*), Bash(ant:*), Bash(go:*), Bash(cargo:*), Bash(git:*), Bash(ls:*), Bash(mv:*), ${CODEGRAPH_MCP}, ${skillDelegation(['spec_explore', 'spec_propose', 'spec_verify_proposal', 'proposal_review', 'requirement_doc', 'spec_apply', 'spec_verify', 'test', 'spec_archive'])}, ${SUBAGENT_DISPATCH}`,
         type: 'impl',
         license: 'MIT',
         compatibility: '依赖 iagent CLI（spec 命令组）与 spec 系列技能（iagent_spec_apply / iagent_spec_archive）；CLI 缺失时降级为 AI 内联生成。',
         metadata: { author: 'mi-agent-tools', version: '1.0' },
-        references: [
-            { path: 'references/prompt-gate.md', content: PROMPT_GATE_FULL },
-            { path: 'references/flowchart-gate.md', content: FLOWCHART_FULL },
-        ],
     };
 }
 
@@ -248,13 +240,13 @@ Auto-execute D1-D5 verification: invoke the \`iagent_spec_verify_proposal\` skil
 
 ## Phase 4: Auto-Apply (automated, auto-mode=true)
 
-After verification passes and the deep review has converged: announce "## Auto-Apply Phase"; construct apply context with \`auto-mode=true\` (skip design confirmation gate — consistent with iagent_spec_apply: Step 5.5 gate skipped in auto-mode, directly Step 6 batch scheduling) and \`change-name\`; execute apply workflow logic following the iagent_spec_apply skill's Step 6+ batch scheduling behavior with auto-mode=true; Phase 4 inherits the dispatch protocol and the shared-resource protocol of \`iagent_spec_apply\` (shared context pack / output ledger / minimal receipt / shared instruction prefix) and MUST NOT define its own dispatch-instruction format or re-declare the protocol text; auto-mode=true only skips the design confirmation gate — the shared-resource protocol stays in effect; all tasks implemented automatically with existing batch scheduling. **Test execution gate inherited from iagent_spec_apply §9 and auto-passed**: change-scope tests only; in-scope failures auto-retry up to 3 times then pause and report; pre-existing out-of-scope failures are WARN only and must not block; no test framework → WARN and skip; a failing in-scope gate MUST pause before archive. Error handling: compile check fails (after 3 auto-fix attempts) → pause and wait for user, do NOT proceed to archive; in-scope test gate still failing after 3 attempts → pause and report, MUST NOT silently pass, MUST NOT proceed to archive; sub-agent fails → auto-retry once, then pause and report; user interrupts → complete current batch, mark remaining as incomplete, then pause.
+After verification passes and the deep review has converged: announce "## Auto-Apply Phase"; construct apply context with \`auto-mode=true\` (skip design confirmation gate — consistent with iagent_spec_apply: Step 5.5 gate skipped in auto-mode, directly Step 6 batch scheduling) and \`change-name\`; **delegate via the Skill tool to the \`iagent_spec_apply\` skill** — the delegated skill owns the apply protocol in full (dispatch protocol / shared-resource protocol: shared context pack / output ledger / minimal receipt / shared instruction prefix / batch scheduling); this skill MUST NOT define its own dispatch-instruction format or re-declare or inline the protocol text; auto-mode=true only skips the design confirmation gate — the shared-resource protocol stays in effect; all tasks implemented automatically with existing batch scheduling. **Test execution gate inherited from iagent_spec_apply §9 and auto-passed**: change-scope tests only; in-scope failures auto-retry up to 3 times then pause and report; pre-existing out-of-scope failures are WARN only and must not block; no test framework → WARN and skip; a failing in-scope gate MUST pause before archive. Error handling: compile check fails (after 3 auto-fix attempts) → pause and wait for user, do NOT proceed to archive; in-scope test gate still failing after 3 attempts → pause and report, MUST NOT silently pass, MUST NOT proceed to archive; sub-agent fails → auto-retry once, then pause and report; user interrupts → complete current batch, mark remaining as incomplete, then pause. **Implementation verification bridge (MANDATORY)**: after the test gate, delegate the \`iagent_spec_verify\` skill before Phase 5; verification failure returns to Phase 4 (MUST NOT proceed to archive); if unavailable, log a WARN and record the explicit omission decision — MUST NOT silently skip.
 
 - **⛔ EXIT GUARD (MANDATORY)**: every sub-agent dispatch instruction MUST carry the exit guard — 完成分配任务后立即停止返回回执，MUST NOT enter plan mode / design mode / propose next steps / continue beyond assigned scope；编排器是唯一有权判停、汇总、推进阶段的角色；子代理 MUST NOT 越权替代编排器做阶段收尾决策
 - **MUST FIRST read pack**: sub-agent dispatch instruction MUST enforce that the sub-agent reads the context pack FIRST before any other action — MUST NOT re-read proposal/specs/design or re-run CodeGraph queries already covered by the pack；仅做增量查询
 ## Phase 5: Auto-Archive (automated)
 
-After apply completes and compile check passes: announce "## Auto-Archive Phase"; construct archive context with \`change-name\` (skips selection prompt); execute archive workflow logic following the iagent_spec_archive skill template; all steps automatic (delta spec sync, CONTEXT.md sync, CodeGraph check, exploration memory sync, **requirement document alignment (if present; if absent, generate for backward compat — the document was already generated by Phase 3 for new-flow changes; same single-source rule as archive step 4.8: present → in-place incremental alignment preserving 人工域, MUST NOT call the skill; absent → non-interactively delegate iagent_requirement_doc)**, directory move, requirement document migration to devdocs, ARCHIVE-INDEX.md update). Error handling: delta spec sync conflict → auto-merge with conflict markers (non-blocking); CONTEXT.md sync fails → WARN, continue; CodeGraph not initialized → skip CodeGraph steps, continue; exploration memory sync fails → WARN, continue; requirement document generation/alignment fails → WARN (target path + reason), continue; archive target already exists → fail with error, suggest renaming. Completion: display full summary and "## Auto-Workflow Complete ✓".
+After apply completes and compile check passes (and the implementation verification bridge passed or was explicitly omitted): announce "## Auto-Archive Phase"; construct archive context with \`change-name\` (skips selection prompt); **delegate via the Skill tool to the \`iagent_spec_archive\` skill** with change-name — the delegated skill owns the archive protocol in full (delta spec sync, CONTEXT.md sync, CodeGraph check, exploration memory sync, requirement document alignment per step 4.8 [present → in-place incremental alignment preserving 人工域; absent → non-interactively delegate iagent_requirement_doc], directory move, requirement document migration to devdocs, ARCHIVE-INDEX.md update); this skill MUST NOT re-declare or inline that protocol text. Error handling: delta spec sync conflict → auto-merge with conflict markers (non-blocking); CONTEXT.md sync fails → WARN, continue; CodeGraph not initialized → skip CodeGraph steps, continue; exploration memory sync fails → WARN, continue; requirement document generation/alignment fails → WARN (target path + reason), continue; archive target already exists → fail with error, suggest renaming. Completion: display full summary and "## Auto-Workflow Complete ✓".
 
 ---
 ## Guardrails

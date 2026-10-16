@@ -27,6 +27,8 @@ const CONDITIONAL_DELEGATIONS: Record<string, readonly string[]> = {
     iagent_project_init: ['feature-doc'],
     // workflow：仅当 tasks 含 [测试] 任务时条件委派 test
     iagent_workflow: ['test'],
+    // auto-workflow：仅当 tasks 含 [测试] 任务时条件委派 test
+    iagent_auto_workflow: ['test'],
     // debug：深度复查委派 proposal_review，不可用时内联复查（模板含 Fallback）
     iagent_debug: ['proposal-review'],
     // spec-propose：Phase 3 委派 requirement_doc 生成需求文档，失败 WARN 非阻断

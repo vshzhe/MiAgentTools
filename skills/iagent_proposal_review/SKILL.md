@@ -1,6 +1,6 @@
 ---
 name: iagent_proposal_review
-description: "检查变更提案完整性与实现合规性——深度代码库探索、8 维度完整性检查、合规性验证、量化评分与遗漏场景补充。触发词\"检查提案 / 检查设计 / review proposal / 检查遗漏 / 提案完整性 / 检查合规性 / 验证实现方式\"；在 /iagent:spec-propose 或 /iagent:workflow 验证通过后自动调用，也可手动调用"
+description: "检查变更提案完整性与实现合规性——深度代码库探索、8 维度完整性检查、合规性验证、量化评分与遗漏场景补充。触发词\"检查提案 / 检查设计 / review proposal / 检查遗漏 / 提案完整性 / 检查合规性 / 验证实现方式\"；在 /iagent:spec-propose 或 /iagent:workflow 验证通过后自动调用，也可手动调用；NOT for 代码审查（改用 iagent_review）"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*)
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组，可选加载变更）；检查点语言无关，语言/框架专项检查按项目特征与项目实际信息触发。
@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: review
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:a366a53be399c62879bf0b484e6477e1dc654049c05ebd578e99de5224277d34"
+  generatedFingerprint: "sha256:5a2cc55309a6043c9aa3066730d3c116c57e70a9601fa8f885e1f6498c17b435"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
@@ -20,6 +20,8 @@ metadata:
 2. 实现方式符合项目规范
 3. 代码设计符合框架模式
 4. 安全性和性能考虑充分
+
+**职责边界（双门非重叠）**：本 skill 是提案验证的**深度层**——应在 `iagent_spec_verify_proposal`（D1-D5 核心 + D6-D10 条件维度，统一 90% 阈值）PASS（≥90%）之后调用；本 skill 只做深度代码库探索、多维完整性/合规复查与遗漏场景补充，MUST NOT 重复 D1-DN 量化评分（那是 spec_verify_proposal 的职责）。
 
 ---
 
@@ -266,7 +268,7 @@ iagent spec status --change "<change-name>" --json
 
 > **细节检查下沉（Phase 5–8）**：特殊功能场景 / 页面设计细节 / 逻辑实现细节 / 量化评分细则见 `references/detail-checks.md`。
 
-## Phase 9: 发现遗漏时更新文档
+## Phase 9: 发现遗漏时更新文档（承接 Phase 5–8，相位细则见 references/detail-checks.md）
 
 发现遗漏场景后，按优先级更新：
 

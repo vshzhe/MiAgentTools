@@ -119,19 +119,21 @@ describe('resolveWorkflows', () => {
     it('auto-workflow 连带补全传递依赖（不动点迭代）', () => {
         const result = resolveWorkflows(['auto-workflow']);
         expect(result.workflows).toContain('auto-workflow');
-        expect(result.workflows).toContain('workflow');
+        expect(result.workflows).not.toContain('workflow');
         expect(result.workflows).toContain('requirement-doc');
         expect(result.workflows).toContain('proposal-review');
+        expect(result.workflows).toContain('spec-apply');
+        expect(result.workflows).toContain('spec-archive');
+        expect(result.workflows).toContain('spec-verify');
         expect(result.injected).toEqual([
-            'workflow',
             'spec-explore',
             'spec-propose',
-            'requirement-doc',
             'spec-verify-proposal',
             'proposal-review',
             'spec-apply',
             'spec-archive',
             'spec-verify',
+            'requirement-doc',
         ]);
     });
 

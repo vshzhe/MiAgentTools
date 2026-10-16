@@ -58,4 +58,24 @@ describe('技能 description 结构与长度约束', () => {
             expect(byName.get(name), name).toContain('NOT for');
         }
     });
+
+    it('结构统一：全部技能含触发词标记（触发词 / triggers:）', () => {
+        const offenders: string[] = [];
+        for (const { template } of skills) {
+            if (!/(触发词|triggers:)/.test(template.description)) {
+                offenders.push(template.name);
+            }
+        }
+        expect(offenders).toEqual([]);
+    });
+
+    it('结构统一：全部技能含 NOT for 排歧', () => {
+        const offenders: string[] = [];
+        for (const { template } of skills) {
+            if (!template.description.includes('NOT for')) {
+                offenders.push(template.name);
+            }
+        }
+        expect(offenders).toEqual([]);
+    });
 });

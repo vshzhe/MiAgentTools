@@ -25,6 +25,7 @@ import {
 } from '../src/core/project-config.js';
 import { runInit } from '../src/commands/init.js';
 import { runGenerate } from '../src/commands/generate.js';
+import { buildSpecCommand } from '../src/commands/spec.js';
 
 let tempRoot: string;
 
@@ -50,6 +51,16 @@ describe('shell 补全脚本生成', () => {
         expect(script).toContain('--type');
         expect(script).toContain('--force');
         expect(script).toContain('--json');
+    });
+
+    it('spec 第二级补全覆盖全部已注册子命令（含 migrate/validate）', () => {
+        const script = generateBashCompletion();
+        const names = buildSpecCommand().commands.map((c) => c.name());
+        expect(names).toEqual(expect.arrayContaining(['migrate', 'validate']));
+        const match = script.match(/spec\)[\s\S]*?COMP_CWORD -eq 2[\s\S]*?compgen -W "([^"]*)"/);
+        expect(match, '未找到 spec 子命令补全块').not.toBeNull();
+        const listed = match![1].trim().split(/\s+/).sort();
+        expect(listed).toEqual([...names].sort());
     });
 
     it('PowerShell 脚本包含 Register-ArgumentCompleter', () => {

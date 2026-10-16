@@ -48,4 +48,33 @@ describe('SKILL.md 渐进披露与尺寸预算', () => {
             }
         }
     });
+
+    it('iagent_spec_explore 主文件 ≤ 250 行（收紧预算）', () => {
+        const entry = skills.find((s) => s.template.name === 'iagent_spec_explore');
+        expect(entry).toBeDefined();
+        const lines = generateSkillContent(entry!.template, 'snapshot').fileContent.split('\n').length;
+        expect(lines).toBeLessThanOrEqual(250);
+    });
+
+    it('spec_explore 分层 references 齐备且被正确引用', () => {
+        const entry = skills.find((s) => s.template.name === 'iagent_spec_explore');
+        const refs = new Map((entry?.template.references ?? []).map((r) => [r.path, r.content]));
+        for (const p of [
+            'references/exploration-guidance.md',
+            'references/multi-project-scan.md',
+            'references/grill-playbook.md',
+            'references/deep-analysis.md',
+        ]) {
+            expect(refs.has(p), p).toBe(true);
+        }
+        expect(entry?.template.instructions).toContain('references/exploration-guidance.md');
+        const proto = refs.get('references/exploration-protocol.md') ?? '';
+        for (const p of [
+            'references/multi-project-scan.md',
+            'references/grill-playbook.md',
+            'references/deep-analysis.md',
+        ]) {
+            expect(proto, `主协议未引用 ${p}`).toContain(p);
+        }
+    });
 });

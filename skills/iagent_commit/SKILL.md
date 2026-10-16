@@ -1,6 +1,6 @@
 ---
 name: iagent_commit
-description: 提交变更。当用户要提交代码，需要检查变更、生成规范的提交信息并提交时使用。
+description: "提交变更。当用户要提交代码，需要检查变更、生成规范的提交信息并提交时使用；触发词\"提交 / commit / git 提交 / 生成提交信息\"；NOT for SVN 项目提交（改用 iagent_svn_commit）。"
 allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git add:*), Bash(git commit:*), Bash(git log:*), Read, Glob, Grep
 license: MIT
 compatibility: 需要 git 环境。
@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: commit
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:33a226f66e217345c1903d5baba5c19c63d160c4ceb06e51a5f8a2f0c1af315f"
+  generatedFingerprint: "sha256:d70cf97eedcba8e269ed37b191344f93d66911fc16d0c6ffd51c1fd3f0f793c2"
 ---
 
 提交变更 —— 提交前必须核对变更内容，提交信息必须符合规范。

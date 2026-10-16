@@ -8,7 +8,7 @@ import { CODEGRAPH_MCP, SUBAGENT_DISPATCH, skillDelegation } from '../tool-white
 export function getSpecBulkArchiveSkillTemplate(): SkillTemplate {
     return {
         name: 'iagent_spec_bulk_archive',
-        description: '批量归档变更。当用户要一次归档多个已完成变更时使用。',
+        description: '批量归档变更。当用户要一次归档多个已完成变更时使用；触发词"批量归档 / bulk archive / 归档多个"；NOT for 单个变更归档（改用 iagent_spec_archive）。',
         allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), ${CODEGRAPH_MCP}, ${skillDelegation(['requirement_doc'])}, ${SUBAGENT_DISPATCH}`,
         type: 'spec',
         instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。

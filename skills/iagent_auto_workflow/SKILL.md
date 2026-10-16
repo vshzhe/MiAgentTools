@@ -1,14 +1,14 @@
 ---
 name: iagent_auto_workflow
 description: "One-stop automated workflow exploration→proposal→verification→auto-apply→auto-archive, L1-L5 user confirmation then full automation; triggers: 全自动工作流 / auto workflow / fully automated pipeline. Use when the user wants a fully automated pipeline without manual apply/archive steps. NOT for interactive guided workflow (use iagent_workflow)."
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(mvn:*), Bash(gradle:*), Bash(ant:*), Bash(go:*), Bash(cargo:*), Bash(git:*), Bash(ls:*), Bash(mv:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_explore), Skill(spec_propose), Skill(spec_verify_proposal), Skill(proposal_review), Skill(requirement_doc), Agent, Task
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(mvn:*), Bash(gradle:*), Bash(ant:*), Bash(go:*), Bash(cargo:*), Bash(git:*), Bash(ls:*), Bash(mv:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_explore), Skill(spec_propose), Skill(spec_verify_proposal), Skill(proposal_review), Skill(requirement_doc), Skill(spec_apply), Skill(spec_verify), Skill(test), Skill(spec_archive), Agent, Task
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）与 spec 系列技能（iagent_spec_apply / iagent_spec_archive）；CLI 缺失时降级为 AI 内联生成。
 metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:9e6942acfc2b4266c6b16c5ec2abe5b66f8790bebcd03b2582035bffcaf8e77c"
+  generatedFingerprint: "sha256:dcb77695b26683f29cce99f43726501890bf9c76851b28821937a99c4b792913"
 ---
 
 
@@ -106,15 +106,14 @@ After verification passes (≥90%) and the deep review has converged:
 - Construct the apply context with:
   - `auto-mode=true` — to skip the design confirmation gate (consistent with iagent_spec_apply: Input passes auto-mode=true; Step 5.5 confirmation gate is skipped in auto-mode, directly entering Step 6 batch scheduling)
   - `change-name` — the current change name from the workflow context
-- Execute the apply workflow logic (following the iagent_spec_apply skill's Step 6+ batch scheduling behavior with auto-mode=true)
-- **Inherit the dispatch protocol and shared-resource protocol of `iagent_spec_apply`** — Phase 4 inherits both protocols in full and reuses the same four carriers:
+- **Delegate via the Skill tool**: invoke the `iagent_spec_apply` skill with `auto-mode=true` + `change-name`; the delegated skill owns the apply protocol in full
   - **shared context pack**（共享上下文包）— the single must-read artifact `context-pack.md` (six sections), produced once and appended per batch
   - **output ledger**（产出登记表）— the pack's `## 已产出（跨单元可见）` section, appended by the coordinator after each batch
   - **minimal receipt**（回执最小化）— the fixed four-column receipt `<task id> | <status> | <output file> | <public signature>`, with no code body pasted
   - **shared instruction prefix**（共享指令前缀）— the fixed order "shared prefix (pack path / spec-points reference / receipt format / prohibitions) → unit delta (task list)"
-- Phase 4 **MUST NOT define a separate dispatch-instruction format or re-declare the protocol text** — the protocol's single source stays in `iagent_spec_apply`; this skill only references it
+- Phase 4 **MUST NOT re-declare or inline the apply protocol text** — the protocol's single source stays in `iagent_spec_apply`; this skill only delegates to it (MUST NOT "execute the apply workflow logic" inline, which would contradict this single-source rule)
 - `auto-mode=true` **only** skips the design confirmation gate — the shared-resource protocol stays in effect (auto semantics MUST NOT waive it)
-- All apply tasks are implemented automatically with the existing batch scheduling
+- All apply tasks are implemented automatically by the delegated skill with its existing batch scheduling
 
 ### 4.2 Auto-Apply Error Handling
 
@@ -133,21 +132,31 @@ Phase 4 inherits `iagent_spec_apply`'s **test execution gate** and passes it **a
 - **Still failing after 3 attempts** → pause and report to the user. MUST NOT silently pass, MUST NOT proceed to archive
 - No test framework in the project → log a WARN, skip the gate, continue
 
+**Conditional test sub-phase**: when the change's `tasks.md` contains `[测试]` tasks, delegate the `iagent_test` skill (Skill tool) to generate the change-scope tests before the test execution gate; the gate verdict still applies (in-scope failures auto-retry then pause).
+
+### 4.4 Implementation Verification Bridge (delegated, MANDATORY)
+
+After the test execution gate passes, MUST delegate the `iagent_spec_verify` skill (Skill tool) to verify implementation vs artifacts (specs/tasks/design):
+
+- **Verification passes** → proceed to Phase 5 (Auto-Archive)
+- **Verification fails** → return to Phase 4 fixes; MUST NOT proceed to archive
+- **Fallback (`iagent_spec_verify` unavailable)**: log a WARN and record the explicit omission decision ("implementation verification carried by apply compile check + archive consistency") — MUST NOT silently skip
+
 ---
 ## Phase 5: Auto-Archive
 
-**Phase 5 executes automatically after Phase 4 (auto-apply) completes and compile check passes. No user confirmation needed.**
+**Phase 5 executes automatically after Phase 4 (auto-apply) completes, the compile check and test gate pass, and the implementation verification bridge (§4.4) has passed or been explicitly omitted. No user confirmation needed.**
 
 ### 5.1 Auto-Execute Archive
 
-After apply completes and compile check passes:
+After apply completes and compile check passes (verification bridge passed or explicitly omitted):
 - Announce: "## Auto-Archive Phase" with a clear header
 - Display: "Apply complete — automatically entering archive phase"
 - Construct the archive context with:
   - `change-name` — the current change name (skips the change selection prompt)
-- Execute the archive workflow logic (following the iagent_spec_archive skill template)
-- All archive steps execute automatically: delta spec sync, CONTEXT.md sync, CodeGraph check, exploration memory sync, **requirement document alignment (if present; if absent, generate for backward compat — the document was already generated by Phase 3 for new-flow changes)**, directory move, requirement document migration to devdocs, ARCHIVE-INDEX.md update
-- **Requirement document alignment (single-source rule)**: this step is NOT re-defined here — it follows the SAME rule as `iagent_spec_archive` step 4.8: BEFORE the directory move, check whether `openspec/changes/<change-name>/需求文档.md` exists; if present, perform an in-place incremental alignment (人工域 `## 基本信息` and `## 八、评审记录` preserved verbatim, sections 一~七 re-derived) and MUST NOT call the skill; if absent (backward compat — the change was created before the Phase 3 generation rule), non-interactively delegate `iagent_requirement_doc` to generate it. The document then migrates to `openspec/devdocs/` via the existing step 6. MUST NOT copy the branch rule text here — reference the archive skill's step 4.8.
+- **Delegate via the Skill tool**: invoke the `iagent_spec_archive` skill with `change-name`; the delegated skill owns the archive protocol in full (delta spec sync, CONTEXT.md sync, CodeGraph check, exploration memory sync, requirement document alignment step 4.8, directory move, requirement document migration to devdocs, ARCHIVE-INDEX.md update) — this skill MUST NOT re-declare or inline that protocol text
+- All archive steps execute automatically inside the delegated skill
+- **requirement document alignment (single-source rule)**: owned by the delegated `iagent_spec_archive` step 4.8 (present → in-place incremental alignment preserving 人工域 `## 基本信息` / `## 八、评审记录` verbatim; absent → non-interactively delegate `iagent_requirement_doc`). This skill MUST NOT copy the branch rule text — it only references step 4.8
 
 ### 5.2 Auto-Archive Error Handling
 

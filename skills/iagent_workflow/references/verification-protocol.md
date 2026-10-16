@@ -30,7 +30,7 @@ Execute 5-dimension verification:
 3. **D3: Task Completeness** — Spec requirements → tasks
 4. **D4: Boundary Coverage** — Questions/edge cases → spec scenarios
 5. **D5: Pending Resolution** — Pending items → resolved
-6. **D6: Deep Analysis Coverage** — Deep analysis completeness → Implementation Deep-Dive section
+6. **D6-D10: 条件维度** — Interaction Detail / API Contract / DB Mapping / Business Steps / Flowchart Node Coverage，由 `iagent_spec_verify_proposal` 按变更类型自动触发；未触发维度不计分
 
 ### 3.3 Quantified Score Report
 
@@ -46,7 +46,7 @@ Display verification results with scores:
 | D3: Tasks | 100% | PASS |
 | D4: Boundaries | 70% | FAIL |
 | D5: Pending | 100% | PASS |
-| D6: Deep Analysis | N/A | PASS |
+| D6-D10: 条件维度 | N/A | SKIP（无触发） |
 
 **Overall Score**: 89%
 ```

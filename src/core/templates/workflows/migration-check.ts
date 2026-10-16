@@ -11,7 +11,7 @@ import { CODEGRAPH_MCP } from '../tool-whitelist.js';
 export function getMigrationCheckSkillTemplate(): SkillTemplate {
     return {
         name: 'iagent_migration_check',
-        description: '检查源项目迁移到目标项目后的功能一致性（migration check）：识别丢失功能、实现不一致与框架差异问题，覆盖后端分层（Controller/Service/DAO）、前端页面、SQL 语句与数据库 schema。当用户要迁移检查、两项目功能对比、代码迁移后验证或框架升级一致性检查时使用。支持独立交互模式与来自自动迁移工作流的非交互调用。NOT for 完整自动迁移编排——那用 iagent_migration。',
+        description: '检查源项目迁移到目标项目后的功能一致性（migration check）：识别丢失功能、实现不一致与框架差异问题，覆盖后端分层（Controller/Service/DAO）、前端页面、SQL 语句与数据库 schema。当用户要迁移检查、两项目功能对比、代码迁移后验证或框架升级一致性检查时使用；触发词"迁移检查 / migration check / 两项目对比 / 一致性检查"；支持独立交互模式与来自自动迁移工作流的非交互调用。NOT for 完整自动迁移编排——那用 iagent_migration。',
         allowedTools: `Read, Write, Edit, Glob, Grep, ${CODEGRAPH_MCP}`,
         type: 'review',
         instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
