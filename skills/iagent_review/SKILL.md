@@ -6,10 +6,9 @@ license: MIT
 compatibility: 无特殊依赖，通用环境可用。
 metadata:
   author: mi-agent-tools
-  version: "1.0"
   type: review
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:de0ce52508e66edb9062aead421ed744c36a19c0d97b618c55933830e156c3cf"
+  generatedFingerprint: "sha256:30955c0321a71a72b2e8d08bf1142ee0e1e859abc27f438f0cb0ef7920b81776"
 ---
 
 审查代码 —— 按维度检查，只报告经过验证的问题，严重程度分级呈现。

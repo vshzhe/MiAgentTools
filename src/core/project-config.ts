@@ -106,6 +106,9 @@ export function defaultRuleFileContent(type: SkillType): string {
             '（待补充）实现类需补充 JavaDoc/方法注释',
         ],
         test: ['（待补充）测试框架与既有用例保持一致'],
+        review: [
+            '（待补充）审查/检查类技能的项目约束：评审与检查走只读，不在审查阶段改码',
+        ],
         spec: [
             '变更制品位于 openspec/changes/，按 spec-driven 依赖序生成（proposal → specs/design → tasks）',
             '提案实现前必须通过 iagent_spec_verify_proposal 评分门（阈值 90%）',

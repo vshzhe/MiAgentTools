@@ -6,10 +6,9 @@ license: MIT
 compatibility: 无特殊依赖，通用环境可用。CodeGraph 索引与文档能力技能均为可选增强，缺失时自动降级。
 metadata:
   author: mi-agent-tools
-  version: "2.0"
   type: init
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:22ee379b7a82ef735da88699be8b800ef61bf9a0f5509583c79bcf908674964a"
+  generatedFingerprint: "sha256:93015318d0591fc17adbdf8e5cd26d5f4d166b3bfa3f1cd5a26c73fd69594106"
 ---
 
 初始化项目 —— 读扫描基线 → 五类语义扫描 → 逐份确认 → 落盘 → 回写 context。

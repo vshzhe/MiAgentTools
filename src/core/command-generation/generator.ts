@@ -82,7 +82,6 @@ license: ${template.license || 'MIT'}
 compatibility: ${escapeYamlValue(template.compatibility || '无特殊依赖，通用环境可用。')}
 metadata:
   author: ${template.metadata?.author || 'mi-agent-tools'}
-  version: "${template.metadata?.version || '1.0'}"
   type: ${template.type}
   generatedBy: "${generatedByVersion}"
 ${EMPTY_FINGERPRINT_LINE}

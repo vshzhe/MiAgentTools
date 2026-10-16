@@ -55,7 +55,7 @@ export function getCommitSkillTemplate(): SkillTemplate {
 - 禁止提交：密钥、.env、构建产物、用户明确排除的文件`,
         license: 'MIT',
         compatibility: '需要 git 环境。',
-        metadata: { author: 'mi-agent-tools', version: '1.0' },
+        metadata: { author: 'mi-agent-tools' },
     };
 }
 
@@ -67,7 +67,7 @@ export function getCommitCommandTemplate(): CommandTemplate {
         tags: ['iagent', 'commit', 'git', 'commit'],
         content: `提交变更 —— 提交前必须核对变更内容，提交信息必须符合规范。
 
-**输入**：\`/iagent:commit-change\` 后可跟提交信息建议或说明（可省略，省略时自动生成后展示确认）。
+**输入**：\`/iagent:commit\` 后可跟提交信息建议或说明（可省略，省略时自动生成后展示确认）。
 
 ## 执行步骤
 

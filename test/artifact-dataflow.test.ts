@@ -18,11 +18,11 @@ import { resolveWorkflows } from '../src/core/profiles.js';
 const skills = getSkillTemplates();
 const byName = new Map(skills.map((s) => [s.template.name, s]));
 
-/** 探索文件「移动语义」的两个实现技能 */
-const MOVE_SEMANTICS_SKILLS = ['iagent_workflow', 'iagent_auto_workflow'];
+/** 探索文件「移动语义」的实现技能（委派化后迁移职责归 iagent_spec_propose） */
+const MOVE_SEMANTICS_SKILLS = ['iagent_spec_propose'];
 
 /** 迁移探索文件的全部链路技能（含提案侧） */
-const MIGRATING_SKILLS = [...MOVE_SEMANTICS_SKILLS, 'iagent_spec_propose'];
+const MIGRATING_SKILLS = ['iagent_spec_propose'];
 
 /** 取技能正文；技能未注册时立即失败，避免断言静默空转 */
 function instructions(name: string): string {
@@ -49,13 +49,13 @@ function linesContaining(body: string, keywords: readonly string[]): string[] {
 }
 
 describe('A1 探索文件移动语义（成功删源 / 失败保留）', () => {
-    it('两个实现技能均声明删除源的移动语义', () => {
+    it('迁移实现技能（spec_propose）声明删除源的移动语义', () => {
         for (const name of MOVE_SEMANTICS_SKILLS) {
             const body = instructions(name);
-            expect(body, `${name} 未声明移动语义`).toMatch(/move semantics/i);
+            expect(body, `${name} 未声明移动语义`).toMatch(/move semantics|移动/i);
             // 删源语义：移动成功后源文件不再存在（只保留变更目录内的一份）
             expect(body, `${name} 未声明「单份驻留」的删源结果`).toMatch(
-                /DELETE|DELETED|NOT kept|no original copy/i
+                /DELETE|DELETED|NOT kept|no original copy|删除源文件|不留原件/i
             );
         }
     });
@@ -75,7 +75,7 @@ describe('A1 探索文件移动语义（成功删源 / 失败保留）', () => {
         }
     });
 
-    it('三处迁移均保留「迁移失败保留源文件」语义', () => {
+    it('迁移链路保留「迁移失败保留源文件」语义', () => {
         for (const name of MIGRATING_SKILLS) {
             expect(instructions(name), `${name} 缺少失败保留源文件语义`).toMatch(
                 /preserve the source file|保留源文件/i

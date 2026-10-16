@@ -18,13 +18,14 @@
 import { describe, it, expect } from 'vitest';
 import { getSkillTemplates, getCommandTemplates } from '../src/core/templates/index.js';
 
-/** 按技能名取模板正文（渲染后的 instructions）。 */
+/** 按技能名取模板正文（渲染后的 instructions + references 全文）。 */
 function skillBody(name: string): string {
     const entry = getSkillTemplates().find((s) => s.template.name === name);
     if (!entry) {
         throw new Error(`技能模板缺失: ${name}`);
     }
-    return entry.template.instructions;
+    const refs = (entry.template.references ?? []).map((r) => r.content).join('\n');
+    return `${entry.template.instructions}\n${refs}`;
 }
 
 /** 按 workflow id 取指令正文（command 版 content）。 */
@@ -88,44 +89,28 @@ describe('A1–A4 · spec-apply 共享资源协议（单一源正文）', () => 
     });
 });
 
-describe('A5 · 多项目扫描单代理化（两技能 skill + command 四处）', () => {
-    const AW_SKILL = 'iagent_auto_workflow';
-    const WF_SKILL = 'iagent_workflow';
+describe('A5 · 多项目扫描单代理化（探索委派后归 spec_explore）', () => {
+    const SKILL = 'iagent_spec_explore';
+    const REQ = [
+        'Spawn **ONE** sub-agent that scans ALL detected projects **serially** inside itself',
+        'MUST NOT spawn a separate sub-agent for each project path',
+    ];
 
-    it('全自动工作流 skill 版：单子代理串行扫描全部项目', () => {
-        const body = skillBody(AW_SKILL);
-        expect(body).toContain('Spawn ONE sub-agent that scans ALL detected projects serially inside itself');
-        expect(body).toContain('MUST NOT spawn one sub-agent per project');
+    it('spec_explore skill 版：单子代理串行扫描全部项目', () => {
+        const body = skillBody(SKILL);
+        for (const text of REQ) {
+            expect(body).toContain(text);
+        }
     });
 
-    it('全自动工作流 command 版：语义与 skill 版一致', () => {
-        const body = commandBody('auto-workflow');
-        expect(body).toContain('single sub-agent scanning all projects serially');
-        expect(body).toContain('per-project fallback');
+    it('spec_explore command 版：引用探索协议全文', () => {
+        const body = commandBody('spec-explore');
+        // 强制 checkpoint 体系已下沉 references/，指令版以指针引用
+        expect(body).toContain('references/exploration-protocol.md');
     });
 
-    it('交互式工作流 skill 版：单子代理串行扫描全部项目', () => {
-        const body = skillBody(WF_SKILL);
-        expect(body).toContain('**ONE**');
-        expect(body).toContain('**serially**');
-        expect(body).toContain('MUST NOT spawn a separate sub-agent for each project path');
-    });
-
-    it('交互式工作流 command 版：语义与 skill 版一致', () => {
-        const body = commandBody('workflow');
-        expect(body).toContain('**ONE**');
-        expect(body).toContain('**serially**');
-        expect(body).toContain('separate sub-agent for each project path');
-    });
-
-    it('两技能全文均无「每项目一个子代理」残留', () => {
-        // skill 版 + command 版全文（模板源含命令版正文，故按技能正文与指令正文分别断言）
-        const bodies = [
-            skillBody(AW_SKILL),
-            commandBody('auto-workflow'),
-            skillBody(WF_SKILL),
-            commandBody('workflow'),
-        ];
+    it('全文无「每项目一个子代理」残留', () => {
+        const bodies = [skillBody(SKILL), commandBody('spec-explore')];
         for (const body of bodies) {
             expect(body).not.toContain('one per project');
             expect(body).not.toContain('Spawn sub-agents sequentially');

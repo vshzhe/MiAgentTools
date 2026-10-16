@@ -454,7 +454,7 @@ No active changes found. Create a new change to get started.
 - Skip workspace-scoped changes from index update`,
         license: 'MIT',
         compatibility: '依赖 iagent CLI（spec 命令组）与 CodeGraph CLI（可选）。',
-        metadata: { author: 'mi-agent-tools', version: '1.0' },
+        metadata: { author: 'mi-agent-tools' },
     };
 }
 

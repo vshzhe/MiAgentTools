@@ -1,15 +1,14 @@
 ---
 name: iagent_migration_check
-description: Check functional consistency after migrating a source project to a target project — identify lost functionality, inconsistent implementations, and framework-difference issues across backend layers (Controller/Service/DAO), frontend pages, SQL statements, and database schema. Use when the user wants a migration check, a function comparison between two projects, migration verification after code migration, or a framework-upgrade consistency check. Supports standalone interactive mode and non-interactive invocation from the auto-migration workflow.
+description: 检查源项目迁移到目标项目后的功能一致性（migration check）：识别丢失功能、实现不一致与框架差异问题，覆盖后端分层（Controller/Service/DAO）、前端页面、SQL 语句与数据库 schema。当用户要迁移检查、两项目功能对比、代码迁移后验证或框架升级一致性检查时使用。支持独立交互模式与来自自动迁移工作流的非交互调用。NOT for 完整自动迁移编排——那用 iagent_migration。
 allowed-tools: Read, Write, Edit, Glob, Grep, mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore
 license: MIT
 compatibility: 依赖 CodeGraph MCP（可选，调用链验证时使用）。
 metadata:
   author: mi-agent-tools
-  version: "1.0"
-  type: impl
+  type: review
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:fd78807f107166bc4bebe6a3739406905a2ddd27bb661703d363e03ca94394ad"
+  generatedFingerprint: "sha256:3ba0f140d943e0d684d93c962afe2f8bd604437c99caabd24d1e184d66697e13"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。

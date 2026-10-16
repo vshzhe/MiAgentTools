@@ -11,7 +11,7 @@
 import path from 'path';
 import * as fs from 'fs';
 import { createRequire } from 'node:module';
-import { getSkillTemplates, getCommandTemplates } from '../core/templates/index.js';
+import { getSkillTemplates, getCommandTemplates, getKnownCommandIds, rewriteCommandRefs } from '../core/templates/index.js';
 import {
     generateSkillContent,
     generateCommand,
@@ -131,13 +131,16 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
     const permissionEntries = buildPermissionEntries(
         getSkillTemplates(undefined, resolved.workflows).map((entry) => entry.template.allowedTools)
     );
+    // 已知指令 id：正文引用按工具布局改写时使用（单一源，派生自注册表）
+    const knownCommandIds = getKnownCommandIds();
 
     // 1. 技能生成（遍历所有工具，不依赖适配器）
     for (const tool of tools) {
         const skillsRoot = path.join(projectRoot, tool.skillsDir, TOOL_SKILLS_SUBDIR);
         ensureDir(skillsRoot);
         for (const { template } of getSkillTemplates(undefined, resolved.workflows)) {
-            const generated = generateSkillContent(template, packageVersion);
+            const instructions = rewriteCommandRefs(template.instructions, tool.commandsLayout, knownCommandIds);
+            const generated = generateSkillContent({ ...template, instructions }, packageVersion);
             const skillDir = path.join(skillsRoot, generated.dirName);
             const skillFile = path.join(skillDir, 'SKILL.md');
             if (pathExists(skillFile) && !options.force) {
@@ -179,7 +182,7 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
                 description: template.description,
                 category: template.category,
                 tags: template.tags,
-                body: template.content,
+                body: rewriteCommandRefs(template.content, tool.commandsLayout, knownCommandIds),
                 allowedTools: template.allowedTools,
                 generatedBy: packageVersion,
             };

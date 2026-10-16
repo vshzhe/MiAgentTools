@@ -97,14 +97,16 @@ describe('resolveWorkflows', () => {
     it('workflow 注入验证/实现/归档技能并连带补全传递依赖', () => {
         const result = resolveWorkflows(['workflow']);
         expect(result.workflows).toContain('workflow');
-        // 4 个显式依赖：验证评分门 + 深度复查 + 实现 + 归档
-        for (const dep of ['spec-verify-proposal', 'proposal-review', 'spec-apply', 'spec-archive']) {
+        // 6 个显式依赖：探索 + 提案生成 + 验证评分门 + 深度复查 + 实现 + 归档
+        for (const dep of ['spec-explore', 'spec-propose', 'spec-verify-proposal', 'proposal-review', 'spec-apply', 'spec-archive']) {
             expect(result.workflows).toContain(dep);
         }
         // 传递注入：spec-verify 与 requirement-doc（via spec-archive）
         expect(result.workflows).toContain('spec-verify');
         expect(result.workflows).toContain('requirement-doc');
         expect(result.injected).toEqual([
+            'spec-explore',
+            'spec-propose',
             'spec-verify-proposal',
             'proposal-review',
             'spec-apply',
@@ -122,6 +124,8 @@ describe('resolveWorkflows', () => {
         expect(result.workflows).toContain('proposal-review');
         expect(result.injected).toEqual([
             'workflow',
+            'spec-explore',
+            'spec-propose',
             'requirement-doc',
             'spec-verify-proposal',
             'proposal-review',

@@ -118,7 +118,7 @@ function validateSkillContent(
     if (!typeMatch) {
         critical('frontmatter 缺少 metadata.type 字段（无法归类）');
     } else if (!isSkillType(typeMatch[1])) {
-        critical(`metadata.type 非法（${typeMatch[1]}），必须为 9 类之一：${SKILL_TYPE_IDS.join(', ')}`);
+        critical(`metadata.type 非法（${typeMatch[1]}），必须为 9 类之一（含 2 类预留：release / tools）：${SKILL_TYPE_IDS.join(', ')}`);
     }
 
     // 正文

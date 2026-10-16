@@ -6,7 +6,7 @@ import type { SkillTemplate, CommandTemplate } from '../types.js';
 export function getRequirementDocSkillTemplate(): SkillTemplate {
     return {
         name: 'iagent_requirement_doc',
-        description: 'Convert change artifacts (proposal.md / design.md / specs/**/*.md + tasks.md) into a standard eight-section requirement document for human review. Use when the user wants to 生成需求文档 / 需求单 / 转换提案为需求文档 / requirement document from change. NOT for source-project feature scanning to generate a migration requirement document (use iagent_feature_doc).',
+        description: '把变更制品（proposal.md / design.md / specs/**/*.md + tasks.md）转换为标准八章节需求文档（requirement document）供人工评审。当用户要生成需求文档 / 需求单 / 转换提案为需求文档时使用。NOT for 扫描源项目生成迁移需求文档——那用 iagent_feature_doc。',
         instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 Convert an OpenSpec change proposal into a standard requirement document for human review.
@@ -250,7 +250,7 @@ After generation, check:
         type: 'docs',
         license: 'MIT',
         compatibility: '纯文件读取与生成，无 CLI 硬依赖（iagent spec status 为可选加载方式）；支持 standalone 交互与非交互工作流集成双模式。',
-        metadata: { author: 'mi-agent-tools', version: '1.0' },
+        metadata: { author: 'mi-agent-tools' },
     };
 }
 

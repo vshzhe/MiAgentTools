@@ -6,10 +6,9 @@ license: MIT
 compatibility: 需要 SVN 环境（工作副本 .svn 存在或 svn info 可用）；提案分类提交需要 openspec/changes/ 变更结构。
 metadata:
   author: mi-agent-tools
-  version: "1.0"
   type: commit
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:edb0932231b1e49db6bea27e55c59f1beb8a893e5f200e7b2aa9f409f6f67cef"
+  generatedFingerprint: "sha256:e2e0790c2386e285e423b385e389c61a7b160200afef442421a4c9c3678a3c4b"
 ---
 
 SVN 提交注释生成与执行（iagent_svn_commit）—— 四环节确认提交 + 提案分类提交。

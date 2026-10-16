@@ -971,7 +971,7 @@ fi
         license: 'MIT',
         compatibility:
             '无特殊依赖，通用环境可用。多 schema 自动适配：Java（Maven/Gradle + JUnit4/5/Mockito/EasyMock/AssertJ）与 Node（Vitest/Jest/Mocha/Jasmine）。',
-        metadata: { author: 'mi-agent-tools', version: '3.0' },
+        metadata: { author: 'mi-agent-tools' },
         references: [
             { path: 'references/schema-java.md', content: SCHEMA_JAVA },
             { path: 'references/schema-node.md', content: SCHEMA_NODE },

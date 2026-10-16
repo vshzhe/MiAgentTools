@@ -11,9 +11,9 @@ import { CODEGRAPH_MCP } from '../tool-whitelist.js';
 export function getMigrationCheckSkillTemplate(): SkillTemplate {
     return {
         name: 'iagent_migration_check',
-        description: 'Check functional consistency after migrating a source project to a target project — identify lost functionality, inconsistent implementations, and framework-difference issues across backend layers (Controller/Service/DAO), frontend pages, SQL statements, and database schema. Use when the user wants a migration check, a function comparison between two projects, migration verification after code migration, or a framework-upgrade consistency check. Supports standalone interactive mode and non-interactive invocation from the auto-migration workflow.',
+        description: '检查源项目迁移到目标项目后的功能一致性（migration check）：识别丢失功能、实现不一致与框架差异问题，覆盖后端分层（Controller/Service/DAO）、前端页面、SQL 语句与数据库 schema。当用户要迁移检查、两项目功能对比、代码迁移后验证或框架升级一致性检查时使用。支持独立交互模式与来自自动迁移工作流的非交互调用。NOT for 完整自动迁移编排——那用 iagent_migration。',
         allowedTools: `Read, Write, Edit, Glob, Grep, ${CODEGRAPH_MCP}`,
-        type: 'impl',
+        type: 'review',
         instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
 Check functional consistency after migrating a source project to a target project. Identify lost functionality, inconsistent implementations, and framework-difference issues across the backend (Controller / Service / DAO), frontend pages, SQL statements, and database schema. Every comparison result MUST be written into documents containing actual data — creating empty directories or template-only documents is forbidden.
@@ -347,7 +347,7 @@ After the check completes, verify:
 - Use \`path.join()\` for all file paths`,
         license: 'MIT',
         compatibility: '依赖 CodeGraph MCP（可选，调用链验证时使用）。',
-        metadata: { author: 'mi-agent-tools', version: '1.0' },
+        metadata: { author: 'mi-agent-tools' },
     };
 }
 

@@ -6,10 +6,9 @@ license: MIT
 compatibility: 无特殊依赖，通用环境可用。多 schema 自动适配：Java（Maven/Gradle + JUnit4/5/Mockito/EasyMock/AssertJ）与 Node（Vitest/Jest/Mocha/Jasmine）。
 metadata:
   author: mi-agent-tools
-  version: "3.0"
   type: test
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:1e5cd300faacf6b638715d4a0e77255a7091818cf0272c9192435b67aba15e79"
+  generatedFingerprint: "sha256:38a51e8291095de4a2af7316ed7904595dcfa1bfff75b5073a21245414a75dad"
 ---
 
 生成测试 —— 多 schema 模式：检测语言/框架 → 加载对应 schema → BCDE 场景矩阵 → 分层编写 → 运行验证。

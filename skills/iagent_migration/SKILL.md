@@ -1,15 +1,14 @@
 ---
 name: iagent_migration
-description: One-stop automated feature migration — distill the source project (via iagent_feature_doc + user-confirmed core-feature list), load the target project coding specs, create a standard OpenSpec change proposal and implement it under those specs after the implementation gate, then an independent review agent cross-checks source vs target functionality and generates a report with a P0/P1 fix loop (via iagent_migration_check). Use when the user wants to migrate a feature or module from a source project into the current (target) project automatically (自动迁移 / 功能迁移 / auto migration / migrate feature to this project). NOT for standalone source-project scanning (use iagent_feature_doc) or standalone post-migration comparison (use iagent_migration_check).
+description: 一站式自动化功能迁移（auto migration / 功能迁移）：经 feature_doc 蒸馏源项目 + 用户确认核心功能清单 → 加载目标项目编码规范 → 生成标准 OpenSpec 变更提案 → 实现门后按规范实现 → 独立复查代理交叉核对源/目标功能并产出报告 + P0/P1 修复循环（via iagent_migration_check）。当用户要把源项目的功能或模块自动迁移到当前（目标）项目时使用。NOT for 单独的源项目扫描（用 iagent_feature_doc）或单独迁移后对比（用 iagent_migration_check）。
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(feature_doc), Skill(migration_check), Agent, Task
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）；CLI 缺失时降级为 AI 内联生成（CLI-degraded generation）。
 metadata:
   author: mi-agent-tools
-  version: "1.0"
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:9e2c4d1ed923fd1067516f6623ea6b6a265e3ef5eba8a496155a81dad5077983"
+  generatedFingerprint: "sha256:aeb3aabdbe17757e5c1201a1619dede3d23e44382089764ba5ce601fe8bcffc4"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。

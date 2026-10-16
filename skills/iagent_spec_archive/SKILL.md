@@ -6,10 +6,9 @@ license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）与 CodeGraph CLI（可选）。
 metadata:
   author: mi-agent-tools
-  version: "1.0"
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:5b26cc52440384d9ea9a8320150789effac51dde591435f8a766261ec3afe926"
+  generatedFingerprint: "sha256:26c2a81a6bd6e428769cc0745c9f365d8912edbeafe6bce2f7a42a911b765793"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。

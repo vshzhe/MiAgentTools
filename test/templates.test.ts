@@ -100,7 +100,8 @@ describe('模板注册表', () => {
         expect(counts.get('tools')).toBe(0);
         expect(counts.get('release')).toBe(0);
         expect(counts.get('init')).toBe(1);
-        expect(counts.get('impl')).toBe(6);
+        expect(counts.get('impl')).toBe(4);
+        expect(counts.get('review')).toBe(3);
         expect(counts.get('test')).toBe(1);
         expect(counts.get('docs')).toBe(2);
         expect(counts.get('spec')).toBe(7);
@@ -115,16 +116,14 @@ describe('模板注册表', () => {
 describe('功能流程图制品内联', () => {
     const skills = getSkillTemplates();
 
-    /** 4 个接入本制品的工作流技能 → 期望的场景列集特征 */
+    /** 接入本制品的技能 → 期望的场景列集特征（探索委派后 workflow/auto-workflow 正文不再内联，门归 spec_explore） */
     const FLOWCHART_SKILLS: ReadonlyArray<{ name: string; scenarioMark: string }> = [
         { name: 'iagent_spec_explore', scenarioMark: '异常路径' },
-        { name: 'iagent_workflow', scenarioMark: '异常路径' },
-        { name: 'iagent_auto_workflow', scenarioMark: '异常路径' },
         // 调试技能用缺陷链路变体：列集以「标记」+ 根因标记语义区分
         { name: 'iagent_debug', scenarioMark: '🟠根因' },
     ];
 
-    it('4 个技能正文均内联来自 flowchart-gate.ts 的功能流程图文本', () => {
+    it('接入本制品的技能正文均内联来自 flowchart-gate.ts 的功能流程图文本', () => {
         for (const { name } of FLOWCHART_SKILLS) {
             const skill = skills.find((s) => s.template.name === name);
             expect(skill, `技能 ${name} 未注册`).toBeDefined();
@@ -140,9 +139,9 @@ describe('功能流程图制品内联', () => {
         // 需求版必须含「触发条件 / 异常路径」两列，缺陷链路版不含「异常路径」列
         const debugInstructions =
             skills.find((s) => s.template.name === 'iagent_debug')?.template.instructions ?? '';
-        const workflowInstructions =
-            skills.find((s) => s.template.name === 'iagent_workflow')?.template.instructions ?? '';
-        expect(workflowInstructions).toContain('异常路径');
+        const exploreInstructions =
+            skills.find((s) => s.template.name === 'iagent_spec_explore')?.template.instructions ?? '';
+        expect(exploreInstructions).toContain('异常路径');
         expect(debugInstructions).not.toContain('| 异常路径 |');
     });
 
@@ -203,8 +202,6 @@ describe('对话级确认门未被白名单改动侵蚀', () => {
     /** 接入两个确认门的 4 个工作流技能 */
     const GATED_SKILLS = [
         'iagent_spec_explore',
-        'iagent_workflow',
-        'iagent_auto_workflow',
         'iagent_debug',
     ];
 
@@ -244,7 +241,7 @@ describe('对话级确认门未被白名单改动侵蚀', () => {
     }
 
     it('4 个含门技能的提示词校验门与功能流程图门标识句仍然存在', () => {
-        expect(GATED_SKILLS.length).toBe(4);
+        expect(GATED_SKILLS.length).toBe(2);
         for (const name of GATED_SKILLS) {
             const skill = skills.find((s) => s.template.name === name);
             expect(skill, `技能 ${name} 未注册`).toBeDefined();

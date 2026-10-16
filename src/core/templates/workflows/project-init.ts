@@ -287,7 +287,7 @@ export function getProjectInitSkillTemplate(): SkillTemplate {
 - 生成的文档只记录配置**键名**，MUST NOT 记录任何取值`,
         license: 'MIT',
         compatibility: '无特殊依赖，通用环境可用。CodeGraph 索引与文档能力技能均为可选增强，缺失时自动降级。',
-        metadata: { author: 'mi-agent-tools', version: '2.0' },
+        metadata: { author: 'mi-agent-tools' },
         references: [
             { path: 'references/doc-architecture.md', content: DOC_ARCHITECTURE },
             { path: 'references/doc-modules.md', content: DOC_MODULES },

@@ -19,7 +19,7 @@
 
 import path from 'path';
 import { createRequire } from 'node:module';
-import { getSkillTemplates, getCommandTemplates } from '../core/templates/index.js';
+import { getSkillTemplates, getCommandTemplates, getKnownCommandIds, rewriteCommandRefs } from '../core/templates/index.js';
 import {
     generateSkillContent,
     generateCommand,
@@ -141,6 +141,8 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
     const permissionEntries = buildPermissionEntries(
         getSkillTemplates(undefined, resolved.workflows).map((entry) => entry.template.allowedTools)
     );
+    // 已知指令 id：正文引用按工具布局改写时使用（单一源，派生自注册表）
+    const knownCommandIds = getKnownCommandIds();
 
     // 1. 技能生成（遍历所有工具，不依赖适配器）
     for (const tool of tools) {
@@ -152,7 +154,8 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
             writeSkillReferences(skillDir, references);
         };
         for (const { template } of getSkillTemplates(undefined, resolved.workflows)) {
-            const generated = generateSkillContent(template, packageVersion);
+            const instructions = rewriteCommandRefs(template.instructions, tool.commandsLayout, knownCommandIds);
+            const generated = generateSkillContent({ ...template, instructions }, packageVersion);
             const skillDir = path.join(skillsRoot, generated.dirName);
             const skillFile = path.join(skillDir, 'SKILL.md');
             const existing = readFileIfExists(skillFile);
@@ -213,7 +216,7 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
                     description: template.description,
                     category: template.category,
                     tags: template.tags,
-                    body: template.content,
+                    body: rewriteCommandRefs(template.content, tool.commandsLayout, knownCommandIds),
                     allowedTools: template.allowedTools,
                     generatedBy: packageVersion,
                 };

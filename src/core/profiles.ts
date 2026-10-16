@@ -48,8 +48,8 @@ export const DEPS: Record<string, readonly string[]> = {
     'spec-archive': ['spec-verify', 'requirement-doc'],
     'spec-bulk-archive': ['spec-verify', 'requirement-doc'],
     'migration': ['feature-doc', 'migration-check'],
-    'workflow': ['spec-verify-proposal', 'proposal-review', 'spec-apply', 'spec-archive'],
-    'auto-workflow': ['workflow', 'requirement-doc'],
+    'workflow': ['spec-explore', 'spec-propose', 'spec-verify-proposal', 'proposal-review', 'spec-apply', 'spec-archive'],
+    'auto-workflow': ['workflow', 'spec-explore', 'spec-propose', 'requirement-doc'],
     'debug': ['spec-verify-proposal'],
 };
 

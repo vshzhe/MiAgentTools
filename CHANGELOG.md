@@ -7,6 +7,59 @@
 
 ## [Unreleased]
 
+## [6.0.0] - 2026-10-16
+
+### BREAKING
+
+- 移除产物 frontmatter 的遗留字段 `metadata.version`（只写不读）：产物版本统一由 `metadata.generatedBy`
+  承担；`iagent update` 的手改保护基于内容指纹，存量产物升级无需 `--force`。
+- 检查类技能的 `metadata.type` 由 `impl` 归位为 `review`（`iagent_proposal_review` / `iagent_migration_check`）；
+  `review` 类型语义扩展为「审查 / 检查」。
+
+### Added
+
+- 新增模板正文指令引用单一源 `src/core/templates/command-references.ts`（`commandRef` / `KNOWN_COMMAND_IDS` /
+  `rewriteCommandRefs`）：引用以规范形 `/iagent:<id>` 书写，生成期按工具布局改写（Claude 保持不变、Pi 改写为
+  `/iagent-<id>`），仅改写已知 id，未知名原样保留。
+- 新增死引用回归锁 `test/command-reference-refs.test.ts`：未注册指令 id、未注册委派技能、无条件委派未经 `DEPS`
+  覆盖均失败。
+- 新增 `test/tool-whitelist-constants.test.ts`（调用类白名单条目必须经共享常量构造）、
+  `test/description-format.test.ts`（description 结构与长度约束）、`test/skill-type-taxonomy.test.ts`。
+- 新增 `test/skill-size-budget.test.ts`（主 SKILL.md ≤ 500 行 + references 引用存在性）。
+- `SkillTypeMeta` 新增 `reserved` 标记，`release` / `tools` 标为预留类型。
+- `iagent_spec_propose` 新增 `delegated` 执行模式：跳过 Step 0 用户提示（直接迁移 `exploration-file`）、
+  抑制自身 Phase 3 验证（由编排器超集承担）、抑制结尾规划边界停点并输出结构化回执；`interactive` 默认行为不变。
+- `DEPS` 注入 `workflow` / `auto-workflow` ⇒ `spec-propose` 与 `spec-explore`；两编排器白名单补 `Skill(spec_propose)`。
+- `iagent_spec_explore` 新增 `delegated` 执行模式，承接 Phase 1 强制 checkpoint 体系（强制建探索文件、提示词校验门、
+  CONTEXT.md 检查、CodeGraph 基础扫描含多项目派发与深度分析、L1-L5 grill 追问、功能流程图与流程最终确认门、
+  聚合一致性门、探索完成检测）与结构化 handoff；`interactive` 保持立场式。
+
+### Changed
+
+- 渐进披露：6 个技能主 `SKILL.md` 下沉细则至 `references/`（`spec_explore` 探索协议、`proposal_review` 细节检查与报告模板、
+  `debug` 排查协议、`spec_verify_proposal` D6-D10 条件维度、`spec_apply` 批调度协议、`workflow` 验证协议），
+  主文件均 ≤ 500 行；主文件保留触发/阶段骨架/确认门/委派清单/护栏，以 `Read references/<topic>.md` 引导按需加载。
+- `iagent_workflow` / `iagent_auto_workflow` 的 Phase 2（提案生成）改为经 Skill 工具委派 `iagent_spec_propose`
+  （`mode=delegated` + `exploration-file`），删除两份内联提案生成真源；编排器保留 Phase 2.0 预迁移验证与影响分析、
+  Phase 3 验证超集（`spec_verify_proposal` + `proposal_review` + 非交互 `requirement_doc`）。
+- `iagent_workflow` / `iagent_auto_workflow` 的 Phase 1（探索）改为经 Skill 工具委派 `iagent_spec_explore`
+  （`mode=delegated`），删除两份内联探索真源；强制 checkpoint 体系（强制建探索文件 / 多项目 CodeGraph 扫描 /
+  L1-L5 grill / 聚合一致性门 / 完成检测）统一由 `iagent_spec_explore` 的 delegated 模式承载。
+- `workflow` / `auto-workflow` / `debug` 的调用类白名单条目改经 `tool-whitelist.ts` 共享常量构造（值等价，
+  消除手写字面量漂移）。
+- 4 个纯英文技能 description（feature-doc / migration / migration-check / requirement-doc）规范化为中文优先并
+  保留英文触发关键词。
+- `iagent validate` 非法类型文案区分在用 / 预留类型。
+
+### Fixed
+
+- 修复两处指令引用断链：`commit` 指令正文 `/iagent:commit-change` → `/iagent:commit`；`review` 指令正文
+  `/iagent:review-code` → `/iagent:review`（旧品牌改名遗留）。
+
+### Removed
+
+- 移除 `metadata.version`（`SkillTemplate.metadata` 不再含该字段；生成器不再写入）。
+
 ## [5.0.0] - 2026-10-16
 
 ### BREAKING
@@ -979,14 +1032,14 @@
 - 项目配置从单文件 `venus.config.yaml` 重构为 `.venus/` 目录结构
   （`config.yaml` 显式引用 `rules/` 下规则文件），重复 init 保留用户全部修改
 
-[Unreleased]: https://github.com/mi-agent-tools/compare/v4.0.0...HEAD
 [4.0.0]: https://github.com/mi-agent-tools/compare/v3.0.0...v4.0.0
 [3.0.0]: https://github.com/mi-agent-tools/compare/v2.1.0...v3.0.0
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/mi-agent-tools/compare/v1.18.1...v2.0.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/mi-agent-tools/compare/v5.0.0...HEAD
+[Unreleased]: https://github.com/mi-agent-tools/compare/v6.0.0...HEAD
+[6.0.0]: https://github.com/mi-agent-tools/compare/v5.0.0...v6.0.0
 [5.0.0]: https://github.com/mi-agent-tools/compare/v4.0.0...v5.0.0
 [1.17.0]: https://github.com/mi-agent-tools/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/mi-agent-tools/compare/v1.15.0...v1.16.0

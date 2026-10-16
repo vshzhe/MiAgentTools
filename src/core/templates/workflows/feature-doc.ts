@@ -7,7 +7,7 @@ import { CODEGRAPH_MCP } from '../tool-whitelist.js';
 export function getFeatureDocSkillTemplate(): SkillTemplate {
     return {
         name: 'iagent_feature_doc',
-        description: 'Scan a source project\'s feature modules and generate a feature requirement implementation document (feature map) covering frontend implementation, backend methods, field-level API contracts, database call chains, and cross-module interactions, driven by a framework profile detected from the source project (auto-detected from project structure files and confirmed with the user, or supplied by the caller). Use when the user wants to scan feature modules of a source project, analyze feature implementation from code, build a project feature map (项目功能地图 / 功能地图), or generate a migration requirement document (迁移需求文档) for framework migration or refactoring. NOT for converting an OpenSpec change proposal into a review requirement document — that is iagent_requirement_doc.',
+        description: '扫描源项目功能模块并生成功能需求实现文档（项目功能地图 / feature map）：覆盖前端实现、后端方法、字段级 API 契约、数据库调用链与跨模块交互，框架档案按项目实际探测。当用户要扫描源项目功能模块、从代码分析功能实现、构建项目功能地图、或为框架迁移/重构生成迁移需求文档（migration requirement document）时使用。NOT for 把 OpenSpec 变更提案转为评审需求文档——那是 iagent_requirement_doc。',
         allowedTools: `Read, Write, Edit, Glob, Grep, ${CODEGRAPH_MCP}`,
         type: 'docs',
         instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
@@ -427,7 +427,7 @@ After generation, self-check:
 - Use \`path.join()\` for all file paths`,
         license: 'MIT',
         compatibility: 'CodeGraph MCP 可选；无索引时自动降级为 Glob/Grep/Read 手动扫描。',
-        metadata: { author: 'mi-agent-tools', version: '1.0' },
+        metadata: { author: 'mi-agent-tools' },
     };
 }
 

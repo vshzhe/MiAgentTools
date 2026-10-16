@@ -172,6 +172,16 @@ export function getCommandTemplates(
 }
 
 /**
+ * 全部已知指令 id 的集合（由注册表派生，单一真源）。
+ *
+ * 供模板正文引用校验（`test/command-reference-refs.test.ts`）与生成期按布局改写
+ * （`rewriteCommandRefs`）使用。派生规则与 `deriveCommandId` 一致。
+ */
+export function getKnownCommandIds(): Set<string> {
+    return new Set(WORKFLOW_PAIRS.map((p) => deriveCommandId(p.skill.name)));
+}
+
+/**
  * 按类型统计技能数量（list 命令展示用）。
  */
 export function countSkillsByType(): Map<SkillType, number> {

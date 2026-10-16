@@ -28,13 +28,15 @@ I'll create a change with OpenSpec Markdown artifacts:
 
 ---
 
-**Input**: The user's request should include a change name (kebab-case) OR a description of what they want to build.
+**Input**: The user's request should include a change name (kebab-case) OR a description of what they want to build. 编排器可传 \`mode=delegated\`（委派执行模式）与 \`exploration-file=<path>\`：delegated 模式下**跳过 Step 0 的用户选择提示**（直接迁移 \`exploration-file\`）、**抑制结尾规划边界停点**、**抑制自身 Phase 3 验证**（由编排器的验证超集承担），并输出**结构化回执**。默认 \`mode=interactive\` 行为与既有完全一致（保留 Step 0 提示、自身 Phase 3、结尾停点）。\`iagent_spec_apply\` 既有的 \`auto-mode=true\` 为 \`mode=delegated\` 的等价别名。
 
 ${GATE_PROTOCOL_PREAMBLE}
 
 **Steps**
 
 **Step 0: 探索文件检测**
+
+> **delegated 模式分支**：若以 \`mode=delegated\` + \`exploration-file=<path>\` 被编排器委派，**跳过下面的用户选择提示**，直接对该文件执行迁移语义（移入变更目录为 \`exploration.md\`，成功后删除源文件），并在回执中报告迁移结果；\`interactive\` 模式保留下面的提示流程。
 
 在创建变更前，MUST 扫描并关联探索文件：
 
@@ -206,6 +208,7 @@ Apply the following naming rules when deriving a change name:
    \`\`\`
 
 6. **Phase 3 Verification (auto — MANDATORY, no skip)**
+   > **delegated 模式分支**：若 \`mode=delegated\`，**抑制本节**——不调用 \`iagent_spec_verify_proposal\`、不生成需求文档（编排器的 Phase 3 为其超集，含 \`proposal_review\` 深度复查），直接输出结构化回执交回编排器。\`interactive\` 模式照常执行本节。
    After all \`applyRequires\` artifacts are done, automatically enter Phase 3 verification (do NOT end the workflow at "Ready for implementation" before verification):
    - Invoke the \`iagent_spec_verify_proposal\` **skill** (via Skill tool) for D1-D5 scoring. (\`iagent_spec_verify_proposal\` is a skill name, NOT a valid \`iagent spec instructions\` artifact ID — do not run it as a CLI instruction.)
    - **Verification review sub-agent**: dispatch an independent read-only review sub-agent (Task tool, subagent_type: "general-purpose") to perform the D1-D5 scoring — the sub-agent reads the change's artifacts without modifying them. On sub-agent dispatch failure: fall back to main-workflow inline scoring with a WARN log (never silently skip verification).
@@ -215,6 +218,8 @@ Apply the following naming rules when deriving a change name:
    - 验证使用 90% 通过阈值。
 
 **Output**
+
+> **delegated 模式分支**：若 \`mode=delegated\`，输出**结构化回执**（change-name、生成制品清单、apply-ready 状态、探索文件迁移结果），MUST NOT 输出"等待用户确认"停点——阶段推进主权归编排器。下述 interactive 输出仅适用于默认模式。
 
 After completing all artifacts AND Phase 3 verification passes:
 - Change name and location
@@ -270,7 +275,7 @@ After completing all artifacts AND Phase 3 verification passes:
 - Always read dependency artifacts before creating a new one
 - If context is critically unclear, mark as **[待确认]** and ask the user. Never guess!
 - **Material ambiguity划分**: 影响范围/行为契约/向后兼容性/验收标准的歧义 MUST 表面化并向用户提问（标记 [待确认]）；细节性歧义可做合理假设并记录到 planning artifacts
-- After all artifacts are created, display a design blueprint summary and wait for user confirmation before suggesting implementation.
+- After all artifacts are created, display a design blueprint summary and wait for user confirmation before suggesting implementation.（**delegated 模式例外**：抑制该停点，改输出结构化回执并交回主权）
 - If a change with that name already exists, ask if user wants to continue it or create a new one
 - Verify each artifact file exists after writing before proceeding to next
 

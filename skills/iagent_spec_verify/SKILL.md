@@ -6,10 +6,9 @@ license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）。
 metadata:
   author: mi-agent-tools
-  version: "1.0"
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:2e0b30a3b1e986b199a8179302ad2ff48566d589685eb233a8a6de1a4549b4da"
+  generatedFingerprint: "sha256:21c031403c3a08f3d00511e0dd4e88045ae5b3b052d43e28d7a7ef3053bc64d2"
 ---
 
 **验证前先阅读 openspec/rules/ai-coding.md 中的验证标准。** 重点检查未定义数据字段、架构分层违规、前端 UI 状态覆盖。

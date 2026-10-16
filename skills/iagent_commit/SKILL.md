@@ -6,10 +6,9 @@ license: MIT
 compatibility: 需要 git 环境。
 metadata:
   author: mi-agent-tools
-  version: "1.0"
   type: commit
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:463c4a6052d0f14beba50a2a15ad7c790ec934f5c5e8949b872cb747b492d3d2"
+  generatedFingerprint: "sha256:33a226f66e217345c1903d5baba5c19c63d160c4ceb06e51a5f8a2f0c1af315f"
 ---
 
 提交变更 —— 提交前必须核对变更内容，提交信息必须符合规范。

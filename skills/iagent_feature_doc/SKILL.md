@@ -1,15 +1,14 @@
 ---
 name: iagent_feature_doc
-description: Scan a source project's feature modules and generate a feature requirement implementation document (feature map) covering frontend implementation, backend methods, field-level API contracts, database call chains, and cross-module interactions, driven by a framework profile detected from the source project (auto-detected from project structure files and confirmed with the user, or supplied by the caller). Use when the user wants to scan feature modules of a source project, analyze feature implementation from code, build a project feature map (项目功能地图 / 功能地图), or generate a migration requirement document (迁移需求文档) for framework migration or refactoring. NOT for converting an OpenSpec change proposal into a review requirement document — that is iagent_requirement_doc.
+description: 扫描源项目功能模块并生成功能需求实现文档（项目功能地图 / feature map）：覆盖前端实现、后端方法、字段级 API 契约、数据库调用链与跨模块交互，框架档案按项目实际探测。当用户要扫描源项目功能模块、从代码分析功能实现、构建项目功能地图、或为框架迁移/重构生成迁移需求文档（migration requirement document）时使用。NOT for 把 OpenSpec 变更提案转为评审需求文档——那是 iagent_requirement_doc。
 allowed-tools: Read, Write, Edit, Glob, Grep, mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore
 license: MIT
 compatibility: CodeGraph MCP 可选；无索引时自动降级为 Glob/Grep/Read 手动扫描。
 metadata:
   author: mi-agent-tools
-  version: "1.0"
   type: docs
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:91ebee80accd3241142052e0c33e3ff62eda112b12a6d324b4ca68e054b37f76"
+  generatedFingerprint: "sha256:62d891e200d890789ef335f35fbad1b96c1d61f07098e56693edecb0ced12227"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。

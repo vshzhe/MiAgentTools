@@ -57,7 +57,7 @@ export function getReviewSkillTemplate(): SkillTemplate {
 - 发现优点也可以简短肯定，但重点是问题`,
         license: 'MIT',
         compatibility: '无特殊依赖，通用环境可用。',
-        metadata: { author: 'mi-agent-tools', version: '1.0' },
+        metadata: { author: 'mi-agent-tools' },
     };
 }
 
@@ -69,7 +69,7 @@ export function getReviewCommandTemplate(): CommandTemplate {
         tags: ['iagent', 'review', 'code-review', 'quality'],
         content: `审查代码 —— 按维度检查，只报告经过验证的问题，严重程度分级呈现。
 
-**输入**：\`/iagent:review-code\` 后跟审查范围（文件路径、分支名或 PR 标识；可省略，默认审查未提交变更）。
+**输入**：\`/iagent:review\` 后跟审查范围（文件路径、分支名或 PR 标识；可省略，默认审查未提交变更）。
 
 ## 审查维度（按优先级）
 

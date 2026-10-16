@@ -28,17 +28,19 @@ export interface SkillTypeMeta {
     id: SkillType;
     name: string;
     description: string;
+    /** 预留类型：已注册但当前无内置技能，供 `iagent generate --type` 扩展 */
+    reserved?: boolean;
 }
 
 /** 全部技能类型的注册表（顺序即文档展示顺序） */
 export const SKILL_TYPES: SkillTypeMeta[] = [
     { id: 'init', name: '初始化', description: '项目与工作环境的初始化：目录结构、配置、脚手架' },
-    { id: 'impl', name: '实现', description: '功能开发与实现：编写代码、修改逻辑、接口对接' },
+    { id: 'impl', name: '实现', description: '实现域编排：工作流编排、调试、迁移等实现相关技能' },
     { id: 'test', name: '测试', description: '测试相关：编写用例、运行测试、覆盖率检查（多 schema：Java/Node 自动适配）' },
     { id: 'commit', name: '提交', description: '代码提交：变更检查、提交信息规范、暂存管理' },
-    { id: 'review', name: '审查', description: '代码审查：质量检查、规范核对、问题发现' },
-    { id: 'release', name: '版本', description: '版本发布：版本号管理、变更日志、发布流程' },
-    { id: 'tools', name: '工具', description: '通用工具：路径查询、环境探测等辅助操作' },
+    { id: 'review', name: '审查 / 检查', description: '审查与检查：代码审查、提案完整性审查、迁移一致性检查' },
+    { id: 'release', name: '版本', description: '版本发布：版本号管理、变更日志、发布流程（预留类型）', reserved: true },
+    { id: 'tools', name: '工具', description: '通用工具：路径查询、环境探测等辅助操作（预留类型）', reserved: true },
     {
         id: 'docs',
         name: '文档',

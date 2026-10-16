@@ -37,7 +37,11 @@ export interface SkillTemplate {
     license?: string;
     /** 兼容性说明 */
     compatibility?: string;
-    /** 其他元数据 */
+    /**
+     * 其他元数据（frontmatter `metadata` 段）。
+     * 约定字段：`author`。MUST NOT 含 `version`（遗留字段已移除：产物版本由 CLI 写入
+     * `metadata.generatedBy`，frontmatter 不含游离 version）。
+     */
     metadata?: Record<string, string>;
     /** 附加参考文件，生成 SKILL.md 时一并写入技能目录 */
     references?: SkillReference[];

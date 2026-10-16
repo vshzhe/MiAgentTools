@@ -51,8 +51,11 @@ describe('Markdown-first 回归锁', () => {
 
     it('spec-apply 声明 context-pack 且任务状态直接写 tasks.md', () => {
         const apply = getSkillTemplates().find((entry) => entry.template.name === 'iagent_spec_apply');
-        expect(apply?.template.instructions).toContain('context-pack.md');
-        expect(apply?.template.instructions).toContain('tasks.md checkboxes are authoritative');
+        const applyText = `${apply?.template.instructions ?? ''}\n${(apply?.template.references ?? [])
+            .map((r) => r.content)
+            .join('\n')}`;
+        expect(applyText).toContain('context-pack.md');
+        expect(applyText).toContain('tasks.md checkboxes are authoritative');
     });
 
     it('instructions 输出不含 jsonTemplate 字段', () => {

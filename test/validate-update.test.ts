@@ -125,7 +125,7 @@ describe('iagent update', () => {
         expect(forcedResult.updated[0]).toContain('iagent_review');
         // 覆盖后内容与内置一致（以 frontmatter 头与正文结束符验证）
         const after = fs.readFileSync(skillFile, 'utf8');
-        const [{ template }] = getSkillTemplates('review');
+        const template = getSkillTemplates().find((e) => e.template.name === 'iagent_review')!.template;
         expect(after).toContain(`name: ${template.name}`);
         expect(after).toContain(template.instructions.slice(0, 30));
         expect(after).not.toContain('用户自定义补充');
@@ -160,7 +160,7 @@ describe('iagent update 手改保护判定（内容指纹）', () => {
     }
 
     it('指纹确定性：同一 (template, version) 恒得同一产物与同一指纹', () => {
-        const [{ template }] = getSkillTemplates('review');
+        const template = getSkillTemplates().find((e) => e.template.name === 'iagent_review')!.template;
         const first = generateSkillContent(template, 'snapshot').fileContent;
         const second = generateSkillContent(template, 'snapshot').fileContent;
         // 快照防漂移（test/skills-parity.test.ts 的字节级比较）依赖此确定性
@@ -172,7 +172,7 @@ describe('iagent update 手改保护判定（内容指纹）', () => {
     it('模板正文变更而版本号未递增时仍能升级（本题核心）', () => {
         const file = skillFile();
         const installed = fs.readFileSync(file, 'utf8');
-        const [{ template }] = getSkillTemplates('review');
+        const template = getSkillTemplates().find((e) => e.template.name === 'iagent_review')!.template;
         // 模拟"iagent 曾用旧模板写入的产物"：正文与当前模板不同，
         // 但指纹与自身自洽（即未被用户改动）；generatedBy 保持当前版本
         // 用函数式替换：模板正文可能含 `$`，作为替换串会被当特殊模式解析

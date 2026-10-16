@@ -365,7 +365,7 @@ After the archive move (step 5) and CodeGraph sync (step 6.5), MUST rebuild the 
 3. On failure: log WARN with the error reason and continue (non-blocking); the index can be rebuilt later with the same command`,
         license: 'MIT',
         compatibility: '依赖 iagent CLI（spec 命令组）与 CodeGraph CLI（可选）。',
-        metadata: { author: 'mi-agent-tools', version: '1.0' },
+        metadata: { author: 'mi-agent-tools' },
     };
 }
 

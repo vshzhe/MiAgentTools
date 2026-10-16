@@ -88,7 +88,7 @@ function buildSkeletonTemplate(
 ${ruleLines}`,
         license: 'MIT',
         compatibility: '无特殊依赖，通用环境可用。',
-        metadata: { author: 'mi-agent-tools', version: '1.0' },
+        metadata: { author: 'mi-agent-tools' },
     };
 }
 

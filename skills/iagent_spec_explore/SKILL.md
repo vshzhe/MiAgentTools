@@ -6,10 +6,9 @@ license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）与 CodeGraph MCP（不可用时回退 Glob/Grep）。
 metadata:
   author: mi-agent-tools
-  version: "1.0"
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:f6159fe649c1d2f84542e801d67e9e63d5e38d85a5715e5a21c4aa310632e31d"
+  generatedFingerprint: "sha256:23f25bca66df231dda2852a57f9104998319d86bbf2dfd994792133d286ac757"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
@@ -380,6 +379,12 @@ When it feels like things are crystallizing, you might summarize:
 But this summary is optional. Sometimes the thinking IS the value.
 
 ---
+
+## 强制 checkpoint 体系（delegated 模式）
+
+**delegated 模式**（编排器传入 `mode=delegated`）SHALL 执行强制 checkpoint 体系（不可跳过）：调用即强制创建探索文件 → 提示词校验门 → CONTEXT.md 检查 → CodeGraph 基础扫描（含多项目派发与深度分析）→ L1-L5 grill 追问 → 功能流程图与流程最终确认门 → 聚合一致性门 → 探索完成检测。**完整协议见 `references/exploration-protocol.md`——执行 delegated 探索前 MUST 先 `Read` 该文件并逐步执行。**
+
+（interactive 模式保持立场式，不强制上述序列。）
 
 ## Guardrails
 

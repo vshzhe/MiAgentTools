@@ -235,7 +235,7 @@ $pass | svn commit --encoding UTF-8 -F <注释文件> --trust-server-cert-failur
 - 提案分类提交额外汇报：各笔分类明细（类别、前缀、文件数、溯源标注）、失败笔与未执行笔（如有）及失败原因。`,
         license: 'MIT',
         compatibility: '需要 SVN 环境（工作副本 .svn 存在或 svn info 可用）；提案分类提交需要 openspec/changes/ 变更结构。',
-        metadata: { author: 'mi-agent-tools', version: '1.0' },
+        metadata: { author: 'mi-agent-tools' },
     };
 }
 

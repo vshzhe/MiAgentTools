@@ -229,7 +229,7 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
 - 禁止 "考虑审查" 等模糊建议`,
         license: 'MIT',
         compatibility: '依赖 iagent CLI（spec 命令组）。',
-        metadata: { author: 'mi-agent-tools', version: '1.0' },
+        metadata: { author: 'mi-agent-tools' },
     };
 }
 
