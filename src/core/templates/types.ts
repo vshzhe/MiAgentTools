@@ -17,10 +17,10 @@ export interface SkillReference {
 
 /**
  * 技能模板（SKILL.md 的内容来源）。
- * name 必须以 venus_ 开头，且等于安装目录名。
+ * name 必须以 iagent_ 开头，且等于安装目录名。
  */
 export interface SkillTemplate {
-    /** 技能名称，格式：venus_<type>_<name>（同时也是安装目录名） */
+    /** 技能名称，格式：iagent_<type>_<name>（同时也是安装目录名） */
     name: string;
     /** 技能描述（frontmatter description，供 AI 决定何时触发） */
     description: string;
@@ -44,14 +44,14 @@ export interface SkillTemplate {
 }
 
 /**
- * 斜杠指令模板（.claude/commands/venus/<id>.md 的内容来源）。
+ * 斜杠指令模板（.claude/commands/iagent/<id>.md 的内容来源）。
  */
 export interface CommandTemplate {
     /** 指令展示名（frontmatter name） */
     name: string;
     /** 指令描述（frontmatter description） */
     description: string;
-    /** 分组类别（默认 'Venus'） */
+    /** 分组类别（默认 'iAgent'） */
     category: string;
     /** 标签 */
     tags: string[];
@@ -60,7 +60,7 @@ export interface CommandTemplate {
     /**
      * allowed-tools 白名单（frontmatter allowed-tools）。
      *
-     * **可选**：27 个指令模板工厂各自返回字面量、彼此不知道配对技能，若设为必填
+     * **可选**：各指令模板工厂各自返回字面量、彼此不知道配对技能，若设为必填
      * 会迫使白名单复制 27 份（第二份真源，必然漂移）。因此本字段由 registry.ts
      * 在成对映射处**单点回填**配对技能的 `allowedTools`，产物侧经
      * `CommandContent.allowedTools`（必填）强制校验。
@@ -68,7 +68,7 @@ export interface CommandTemplate {
     allowedTools?: string;
 }
 
-/** 技能模板注册项：模板 + 派生的指令 id（斜杠指令文件名，如 tr-tools-pwd） */
+/** 技能模板注册项：模板 + 派生的指令 id（斜杠指令文件名，如 pwd） */
 export interface SkillTemplateEntry {
     template: SkillTemplate;
     /** 指令 id：文件名（不含 .md），形如 <type 连字符化>-<name> */

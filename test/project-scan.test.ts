@@ -2,7 +2,7 @@
  * 项目预扫描（src/core/project-scan.ts）测试。
  *
  * 覆盖：Ant 构建设施识别、敏感值零外泄、排除清单、变体合并与候选/信号分层、
- *       失败降级与上限可区分、venus init 端到端、非 Maven/Ant 族（Node）项目。
+ *       失败降级与上限可区分、iagent init 端到端、非 Maven/Ant 族（Node）项目。
  *
  * 已评估、判定无需独立测试：
  *   任务 2.7 —— renderScanReport() 的纯排版分支（列表拼接、空列表占位、候选截断提示）
@@ -40,7 +40,7 @@ import { runInit } from '../src/commands/init.js';
 let tempRoot: string;
 
 beforeAll(() => {
-    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'venus-scan-'));
+    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-scan-'));
 });
 
 afterAll(() => {
@@ -168,7 +168,7 @@ describe('2.2 敏感值防护（哨兵串断言）', () => {
 });
 
 describe('2.3 排除清单', () => {
-    it('PII/编译产物/日志/依赖目录/venus 自身产物均不入信号，且不触达上限', () => {
+    it('PII/编译产物/日志/依赖目录/iagent 自身产物均不入信号，且不触达上限', () => {
         const root = makeProject('exclude');
         // 含 PII 的非源码文件：内容 MUST NOT 被读取
         write(root, 'org.xml', `<org><idcard>${SENTINEL_PII}</idcard></org>`);
@@ -180,10 +180,10 @@ describe('2.3 排除清单', () => {
         write(root, 'hs_err_pid1.log', 'jvm crash');
         // 依赖目录
         write(root, 'node_modules/dep/package.json', '{"name":"dep"}');
-        // venus 自身产物：技能目录 / 项目配置 / 代码图谱
-        write(root, '.claude/skills/venus_tr_tools_pwd/SKILL.md', 'name: venus_tr_tools_pwd');
-        write(root, '.claude/skills/venus_tr_impl_feature/SKILL.md', 'name: venus_tr_impl_feature');
-        write(root, '.venus/config.yaml', 'workflows:\n  - tr_tools_pwd\n');
+        // iagent 自身产物：技能目录 / 项目配置 / 代码图谱
+        write(root, '.claude/skills/iagent_pwd/SKILL.md', 'name: iagent_pwd');
+        write(root, '.claude/skills/iagent_feature/SKILL.md', 'name: iagent_feature');
+        write(root, '.iagent/config.yaml', 'workflows:\n  - tr_tools_pwd\n');
         write(root, '.codegraph/graph.db', 'binary');
 
         const report = scanProject(root);
@@ -191,11 +191,11 @@ describe('2.3 排除清单', () => {
         // PII 内容从未被读取
         expect(JSON.stringify(report)).not.toContain(SENTINEL_PII);
 
-        // venus 自身产物不被误报为构建设施/源码骨架
+        // iagent 自身产物不被误报为构建设施/源码骨架
         expect(report.signals.build).toEqual([]);
         expect(report.signals.skeleton).toEqual([]);
 
-        // 编译产物/日志/依赖目录/venus 产物目录不进入任何信号
+        // 编译产物/日志/依赖目录/iagent 产物目录不进入任何信号
         const signalPaths = [
             ...report.signals.build.map((item) => item.file),
             ...report.signals.config.map((item) => item.file),
@@ -271,8 +271,8 @@ describe('2.5 失败降级 + 超限可区分', () => {
     it('写基线失败：state=failed 且带 warning，扫描不抛出', () => {
         const root = makeProject('baseline-fail');
         write(root, 'build.xml', '<project name="x" default="war"><target name="war"></target></project>');
-        // 把 .venus 建成文件（而非目录），使基线写盘必然失败
-        fs.writeFileSync(path.join(root, '.venus'), 'not-a-dir', 'utf8');
+        // 把 .iagent 建成文件（而非目录），使基线写盘必然失败
+        fs.writeFileSync(path.join(root, '.iagent'), 'not-a-dir', 'utf8');
 
         const written = writeScanBaseline(root, createEmptyScanReport());
         expect(written.state).toBe('failed');
@@ -318,9 +318,9 @@ describe('2.5 失败降级 + 超限可区分', () => {
     });
 });
 
-describe('2.6 venus init 端到端', () => {
+describe('2.6 iagent init 端到端', () => {
     it('产出基线、scanReport 识别构建设施，--no-scan 不写基线且为空报告', () => {
-        // 零文档项目：只有 build.xml，无任何 md 文档、无预置 .venus/
+        // 零文档项目：只有 build.xml，无任何 md 文档、无预置 .iagent/
         const root = makeProject('init-e2e');
         write(root, 'build.xml', '<project name="zero-doc" default="war"><target name="war"></target></project>');
         // 含哨兵取值的配置：端到端验证渲染文本与基线均不外泄取值
@@ -360,7 +360,7 @@ describe('2.6 venus init 端到端', () => {
     it('CLI：默认打印扫描报告段，--no-scan 不打印且不写基线', () => {
         const root = makeProject('init-cli');
         write(root, 'build.xml', '<project name="cli" default="war"><target name="war"></target></project>');
-        const binPath = fileURLToPath(new URL('../bin/venus.js', import.meta.url));
+        const binPath = fileURLToPath(new URL('../bin/iagent.js', import.meta.url));
 
         const withScan = execInit(binPath, root, ['--no-deps']);
         expect(withScan).toContain('项目预扫描');

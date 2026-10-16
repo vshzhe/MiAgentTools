@@ -2,7 +2,7 @@
  * 产物内容指纹契约。
  *
  * `generateSkillContent` 在 frontmatter 写入 `metadata.generatedFingerprint`
- * （由产物内容派生）。`venus update` 据此判断产物自上次由 venus 写入后
+ * （由产物内容派生）。`iagent update` 据此判断产物自上次由 iagent 写入后
  * **是否被改动过** —— 该信号独立于版本号，因此不依赖"先递增版本号再 update"
  * 的操作顺序，也不会因包版本号递增而把用户手改误判为可升级。
  */

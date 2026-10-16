@@ -1,11 +1,11 @@
 /**
- * venus validate 命令。
+ * iagent validate 命令。
  *
- * 校验目标工具目录中已安装的 venus 技能是否符合规范：
- *   - 目录名必须以 venus_ 开头（仅校验 venus 管理的技能）
+ * 校验目标工具目录中已安装的 iagent 技能是否符合规范：
+ *   - 目录名必须以 iagent_ 开头（仅校验 iagent 管理的技能）
  *   - SKILL.md 必须存在且 frontmatter 完整（name/description/allowed-tools/metadata.type）
  *   - frontmatter name 必须等于目录名（Agent Skills 规范）
- *   - metadata.type 必须为 7 类之一
+ *   - metadata.type 必须为 9 类之一
  * 输出 CRITICAL / WARNING 分级报告，存在 CRITICAL 时退出码为 1。
  */
 
@@ -118,7 +118,7 @@ function validateSkillContent(
     if (!typeMatch) {
         critical('frontmatter 缺少 metadata.type 字段（无法归类）');
     } else if (!isSkillType(typeMatch[1])) {
-        critical(`metadata.type 非法（${typeMatch[1]}），必须为 7 类之一：${SKILL_TYPE_IDS.join(', ')}`);
+        critical(`metadata.type 非法（${typeMatch[1]}），必须为 9 类之一：${SKILL_TYPE_IDS.join(', ')}`);
     }
 
     // 正文
@@ -143,7 +143,7 @@ export function runValidate(projectRoot: string): ValidateResult {
     for (const tool of AI_TOOLS) {
         const skillsRoot = path.join(projectRoot, tool.skillsDir, TOOL_SKILLS_SUBDIR);
         for (const dirName of listSubdirectories(skillsRoot)) {
-            // 只校验 venus 管理的技能，其他技能不属本工具职责
+            // 只校验 iagent 管理的技能，其他技能不属本工具职责
             if (!dirName.startsWith(SKILL_PREFIX)) {
                 continue;
             }
@@ -180,7 +180,7 @@ export function runValidate(projectRoot: string): ValidateResult {
  */
 export function renderValidateOutput(result: ValidateResult): string {
     if (result.total === 0) {
-        return '未发现任何 venus 技能。运行 venus init 开始安装。';
+        return '未发现任何 iagent 技能。运行 iagent init 开始安装。';
     }
     const lines: string[] = [];
     const criticals = result.issues.filter((i) => i.level === 'CRITICAL');

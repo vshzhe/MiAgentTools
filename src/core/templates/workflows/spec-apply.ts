@@ -7,9 +7,9 @@ import { SUBAGENT_DISPATCH } from '../tool-whitelist.js';
 
 export function getSpecApplyChangeSkillTemplate(): SkillTemplate {
     return {
-        name: 'venus_spec_apply',
-        description: '实现变更。当 openspec/changes/ 下已有变更制品（proposal/specs/design/tasks），需要基于规格驱动实现任务清单时使用；用户直接描述需求而无变更制品时，应使用 venus_tr_impl_feature 直接实现。',
-        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(ant:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), ${SUBAGENT_DISPATCH}`,
+        name: 'iagent_spec_apply',
+        description: '实现变更。当 openspec/changes/ 下已有变更制品（proposal/specs/design/tasks），需要基于规格驱动实现任务清单时使用；用户直接描述需求而无变更制品时，应使用 iagent_workflow 引导生成变更制品后再实现。',
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(ant:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), ${SUBAGENT_DISPATCH}`,
         type: 'spec',
         instructions: `**Before implementing, read openspec/rules/ai-coding.md for AI coding guardrails.** Never guess database fields, API params, or business rules — mark as **[待确认]** and ask the user.
 
@@ -24,13 +24,13 @@ Implement tasks from a change's artifacts (proposal/specs/design/tasks) under op
    If a name is provided, use it. Otherwise:
    - Infer from conversation context if the user mentioned a change
    - Auto-select if only one active change exists
-   - If ambiguous, run \`venus spec status --json\` to get available changes and use the **AskUserQuestion tool** to let the user select
+   - If ambiguous, run \`iagent spec status --json\` to get available changes and use the **AskUserQuestion tool** to let the user select
 
-   Always announce: "Using change: <name>" and how to override (e.g., \`/venus:spec-apply <other>\`).
+   Always announce: "Using change: <name>" and how to override (e.g., \`/iagent:spec-apply <other>\`).
 
 2. **Check status to understand the schema**
    \`\`\`bash
-   venus spec status --change "<name>" --json
+   iagent spec status --change "<name>" --json
    \`\`\`
    Parse the JSON to understand:
    - \`schemaName\`: The workflow being used (e.g., "spec-driven")
@@ -44,67 +44,43 @@ Implement tasks from a change's artifacts (proposal/specs/design/tasks) under op
 
 3. **Get task list and context files**
 
-   **Primary path — venus CLI \`instructions apply\` (preferred):**
+   **Primary path — iagent CLI \`instructions apply\` (preferred):**
    \`\`\`bash
-   venus spec instructions apply --change "<name>" --json
+   iagent spec instructions apply --change "<name>" --json
    \`\`\`
    Parse the JSON to obtain structured task context:
    - \`contextFiles\`: artifact → file path mapping (proposal/specs/design/tasks → their absolute or change-relative paths); use these as the authoritative file list instead of assuming standard file names
    - \`progress\`: total, complete, remaining task counts (used for progress display in Step 5)
    - \`taskList\`: structured task entries with checkbox state and group labels (used for batch planning in Step 5.5)
    - \`instruction\`: dynamic three-state directive:
-     - \`"blocked"\`: artifacts missing or incomplete → suggest running \`venus_spec_verify\` to complete artifacts first; STOP before implementing
+     - \`"blocked"\`: artifacts missing or incomplete → suggest running \`iagent_spec_verify\` to complete artifacts first; STOP before implementing
      - \`"ready"\`: artifacts complete and tasks pending → proceed to Step 4 (read context files)
      - \`"all_done"\`: all tasks already complete → congratulate, suggest archive; STOP
 
-   **JSON-first artifact context (PRIMARY source for proposal/design/specs — applies to both paths):**
+   **Markdown artifact context (PRIMARY source for all new changes):**
 
-   For the structured content of proposal / design / specs, prefer the change's merged JSON main artifact over MD prose:
-   1. MUST read \`openspec/changes/<name>/change.json\` first — its \`proposal\` / \`design\` / \`specs\` sections are the structured source of truth (why, what changes, decisions, operations, scenarios); use them directly instead of re-parsing MD prose
-   2. If change.json is missing → fall back to reading the MD artifacts (\`proposal.md\`, \`specs/*.md\`, \`design.md\`) and record a WARN stating the fallback reason
+   Read proposal.md, design.md, specs/**/*.md and tasks.md directly from the contextFiles returned by the CLI. Markdown is the only editable source of truth. Historical JSON-only changes may be read-only compatibility inputs and MUST emit a WARN; do not update them during apply.
+
+   **Task state:** tasks.md checkboxes are authoritative. After completing a task, edit only its checkbox from \`- [ ]\` to \`- [x]\` after verifying the specified behavior. Do not create or update tasks.json and do not run a render command.
 
    **Fallback path (old CLI without \`instructions apply\`):**
-   - If the \`venus spec instructions apply\` command does not exist (unrecognized subcommand) or exits non-zero (older CLI version that does not support the structured apply context contract), fall back to directly reading the change directory's artifact files (MD-fallback mode — change.json absent or unusable):
-     - \`openspec/changes/<name>/proposal.md\` — proposal (Why, What changes)
-     - \`openspec/changes/<name>/specs/\` — delta specs (requirements)
-     - \`openspec/changes/<name>/design.md\` — design (Decisions, architecture, dependencies)
-     - \`openspec/changes/<name>/tasks.md\` — task list with checkboxes
-   - Log a WARN stating the fallback reason (e.g., "command not found" or "non-zero exit code <N>") so the user knows structured context was unavailable
-   - Task completion status is read directly from the tasks.md checkboxes (\`- [x]\` = complete, \`- [ ]\` = pending) in fallback mode
-
-   **JSON sidecar preference (PRIMARY path — tasks.json):**
-
-Before parsing tasks.md, MUST read \`tasks.json\` at the change directory root:
-1. Read \`openspec/changes/<name>/tasks.json\`
-2. Parse \`tasks[].status\` for each task: "done" = complete, "pending" = remaining
-3. Use \`tasks[].dependencies\` for batch scheduling; \`tasks[].batchGroup\` for grouping
-4. If tasks.json is missing → fall back to parsing tasks.md checkboxes (\`- [x]\` / \`- [ ]\`), record WARN
-
-**Post-batch status update:**
-
-After completing a batch of tasks, update tasks.json then re-render tasks.md:
-1. Edit tasks.json: set \`status: "done"\` for each completed task + recalc \`progress.complete\` / \`progress.remaining\`
-2. MUST run: \`Bash(venus spec render tasks --change "<name>")\` — this keeps tasks.md in sync with tasks.json
-3. If the render command fails → update tasks.md checkboxes manually (WARN)
-
+   - Read proposal.md, specs/**/*.md, design.md and tasks.md directly.
+   - Log a WARN stating the fallback reason.
+   - Preserve the same Markdown-first semantics and task checkbox rules.
    **Handle states (both paths):**
-   - If artifacts are missing (proposal/specs/design/tasks): show message, suggest using \`venus_spec_verify\` to complete the artifacts first
+   - If artifacts are missing (proposal/specs/design/tasks): show message, suggest using \`iagent_spec_verify\` to complete the artifacts first
    - If all tasks are already complete: congratulate, suggest archive
    - Otherwise: proceed to implementation
 
 4. **Read context files**
 
-   Follow the JSON-first rule from Step 3 — read the structured sections first:
-   - **\`change.json\`**: \`proposal\` (why, what changes) / \`design\` (decisions, architecture, module dependencies — used to infer task batch plan) / \`specs\` (delta requirements)
-   - **\`tasks.json\` / \`tasks.md\`: task list with status
+   Follow the Markdown-first rule from Step 3 — read the structured sections directly:
+   - **proposal.md**: Why and What Changes
+   - **design.md**: Decisions, architecture and module dependencies
+   - **specs/**/*.md**: delta requirements and scenarios
+   - **tasks.md**: task list with checkbox status
 
-   **MD fallback** (only when change.json is missing — log a WARN): read the artifact files under the change directory:
-   - **proposal.md**: Why and What
-   - **specs/**: delta requirement specs
-   - **design.md**: Decisions, architecture, module dependencies (used to infer task batch plan)
-   - **tasks.md**: task list with status checkboxes
-
-   Throughout the remaining steps, "proposal / design / specs" refers to the change.json sections when present, otherwise to the corresponding MD artifacts (MD-fallback mode).
+   Throughout the remaining steps, proposal/design/specs/tasks refer to these Markdown artifacts.
 
 5. **Show current progress**
 
@@ -120,7 +96,7 @@ After completing a batch of tasks, update tasks.json then re-render tasks.md:
    **Auto-mode check**: If the apply was invoked with \`auto-mode=true\` (from workflow auto-apply context), skip the entire Step 5.5 confirmation gate — proceed directly to Step 6 (batch scheduling). The batch plan is still built internally for execution but is NOT presented to the user.
 
    **Build the unified concurrent batch plan first:**
-   - The venus CLI does not return a \`batchPlan\` — infer dependencies for all tasks from design.md (architecture layering, module dependencies); tasks with no dependency annotations are treated as independent within their group
+   - The iagent CLI does not return a \`batchPlan\` — infer dependencies for all tasks from design.md (architecture layering, module dependencies); tasks with no dependency annotations are treated as independent within their group
    - Cluster same-group tasks (\`## N\` headings, from each task's \`group\` field) into dispatch units — one sub-agent per unit
    - If design.md reveals circular dependencies among some tasks: include a circular-dependency warning line; degrade those tasks to serial execution
    - If design.md lacks dependency info: plan serial execution and note "(串行执行 - 无依赖信息)" in the blueprint
@@ -166,7 +142,7 @@ After completing a batch of tasks, update tasks.json then re-render tasks.md:
    - This gate CANNOT be skipped — do NOT proceed without explicit confirmation (unless auto-mode is active)
 
    **Temp workspace protocol (flow-scoped, managed by the main agent):**
-   - After the user confirms the design (or when auto-mode is active) and BEFORE dispatching any batch, create a single temp workspace directory — **project-local first**: \`.openspec-tmp/apply-<change-name>/\` under the project root (build the path with path.join for cross-platform safety). Add \`.openspec-tmp/\` to the project's \`.gitignore\` if not already present, so the workspace never pollutes git status; leave the entry in place after cleanup for future runs. If the project root is not writable, fall back to the system temp directory named \`venus-apply-<change-name>/\` and log a WARN stating the fallback location
+   - After the user confirms the design (or when auto-mode is active) and BEFORE dispatching any batch, create a single temp workspace directory — **project-local first**: \`.openspec-tmp/apply-<change-name>/\` under the project root (build the path with path.join for cross-platform safety). Add \`.openspec-tmp/\` to the project's \`.gitignore\` if not already present, so the workspace never pollutes git status; leave the entry in place after cleanup for future runs. If the project root is not writable, fall back to the system temp directory named \`iagent-apply-<change-name>/\` and log a WARN stating the fallback location
    - ALL temporary files created during the flow (compile verification scripts, temporary configs, scratch outputs) MUST be placed inside this workspace — do NOT scatter temp files across the project directory
    - Create the workspace once at flow start and clean it up once at flow end — do NOT create or remove temp directories per task or per batch
 
@@ -178,7 +154,7 @@ After completing a batch of tasks, update tasks.json then re-render tasks.md:
    - The pack is the sub-agent's ONLY required artifact: each sub-agent reads the pack plus its own unit task list and nothing else from the change directory
    - After production the coordinator MUST NOT re-produce the whole pack — it only APPENDS to the pack's \`## 已产出（跨单元可见）\` section (see the post-batch step)
    - The pack has exactly six sections, in this order:
-     - \`## 变更摘要\` — the change distilled from proposal.md Why/What: what this change does and why
+     - \`## 变更摘要\` — the change distilled from proposal.md (why/whatChanges): what this change does and why
      - \`## 契约\` — interface signatures / data structures / table fields, distilled from specs + design
      - \`## 规范要点\` — the key guardrails of \`openspec/rules/ai-coding.md\` distilled by the coordinator ONCE (never distilled by each sub-agent separately)
      - \`## 文件归属表\` — dispatch unit → the files that unit is allowed to modify
@@ -235,7 +211,7 @@ After completing a batch of tasks, update tasks.json then re-render tasks.md:
 
    **Shared resource protocol — fail-safe degradation:**
 
-   - If the temp workspace is not writable: fall back to the system temp directory first (\`venus-apply-<change-name>/\`, the existing fallback); if that also fails, degrade as below
+   - If the temp workspace is not writable: fall back to the system temp directory first (\`iagent-apply-<change-name>/\`, the existing fallback); if that also fails, degrade as below
    - If the context pack cannot be produced, OR the project has no \`openspec/rules/ai-coding.md\`: degrade to the existing inline-injection behavior and log a WARN — MUST NOT block implementation. Degradation only makes the instruction longer; it NEVER drops a guardrail
    - \`auto-mode=true\` only skips the Step 5.5 design confirmation gate — the shared resource protocol MUST NOT be exempted by auto-mode and still applies
 
@@ -243,7 +219,7 @@ After completing a batch of tasks, update tasks.json then re-render tasks.md:
    - If the runtime provides no sub-agent dispatch tool (Task/Agent class tools), fall back to serial implementation of all tasks by yourself and inform the user of the fallback
 
    **Serial fallback (no dependency info):**
-   - If Step 5.5 could not infer a batch plan from design.md (no dependency annotations available): keep serial behavior: for each pending task — show which task is being worked on, make the code changes, mark complete in the tasks file (\`- [ ]\` → \`- [x]\`), continue to the next task
+   - If Step 5.5 could not infer a batch plan from design.md (no dependency annotations available): keep serial behavior: for each pending task — show which task is being worked on, make the code changes, set the task checkbox to \`- [x]\` in tasks.md, continue to the next task
 
    **Task Output Handling Rules:**
 
@@ -254,7 +230,7 @@ After completing a batch of tasks, update tasks.json then re-render tasks.md:
    - Follow normal implementation flow
 
    **Test Code** (tasks with \`[测试]\` label):
-       - **MUST implement inline** (NO delegation to an external skill) — the apply workflow directly owns test generation and MUST NOT delegate to \`venus_tr_test_generate\` or any other skill；the entire test-writing logic runs inside the same sub-agent that implements the corresponding production code
+       - **MUST implement inline** (NO delegation to an external skill) — the apply workflow directly owns test generation and MUST NOT delegate to \`iagent_test\` or any other skill；the entire test-writing logic runs inside the same sub-agent that implements the corresponding production code
        - **Framework detection**: detect the project’s test framework from build files (\`pom.xml\` → JUnit 4/5 + Mockito；\`build.gradle\` → JUnit 4/5 + Mockito；\`package.json\` → Vitest / Jest / Mocha) and structural cues (existing test files under \`src/test/\` or \`test/\`)；align with the EXISTING test style (annotations, assertions, naming conventions) — do NOT invent a new style
        - **Coverage scope** (minimum): ① spec scenarios — write one test per \`#### Scenario:\` referenced in the task’s \`Spec Ref\`；② BCDE boundaries — Boundary (min/max values, empty collections), Condition (null inputs, missing fields), Default (default-constructed objects, unset enums), Error (invalid inputs, exceptions thrown)；③ if any scenario is evaluated as untestable, record the verdict in the test file as a comment so “not written” stays distinguishable from “never evaluated”
        - **Test structure**: one test class per production class under test, named \`<ClassName>Test\` (Java) or \`<className>.test.<ext>\` (Node)；each test method covers ONE logical scenario with an \`@Test\` (JUnit) / \`it(...)\` (Vitest/Jest/Mocha) annotation；use the Arrange-Act-Assert (AAA) pattern
@@ -377,7 +353,7 @@ After completing a batch of tasks, update tasks.json then re-render tasks.md:
    - If failures remain after 3 attempts: pause and report to the user. MUST NOT mark the corresponding task \`[x]\`, MUST NOT proceed to archiving
    - If a test's expected behavior must be narrowed or simplified to pass → apply the scope-creep guard: mark **[待确认]**, explain the difference, ask the user
 
-   **9.6 Test gate report** — summarize: scope covered, in-scope pass/fail counts, out-of-scope pre-existing failures (WARN), coverage figure if the coverage tool ran (see \`venus_tr_test_generate\` §5.1)
+   **9.6 Test gate report** — summarize: scope covered, in-scope pass/fail counts, out-of-scope pre-existing failures (WARN), coverage figure if the coverage tool ran (see \`iagent_test\` §5.1)
 
 10. **Unified temp workspace cleanup** ⚠️ MANDATORY
    - After BOTH the compile check (§8) and the test execution gate (§9) have finished — whether they passed, failed, or were skipped — delete the entire temp workspace in a single cleanup step
@@ -390,7 +366,7 @@ After completing a batch of tasks, update tasks.json then re-render tasks.md:
    - Compile check results summary
    - Test execution gate results summary
    - All tasks complete status
-   - Suggest archiving the change via venus spec archive "<name>" --yes (or the venus_spec_archive skill)
+   - Suggest archiving the change via iagent spec archive "<name>" --yes (or the iagent_spec_archive skill)
 
 <!-- CMD:SKIP -->
 **Output During Implementation**
@@ -437,7 +413,7 @@ Starting compile check...
 
 **自动修复**: 2 issues fixed (type annotations, import order)
 
-All checks passed! You can archive this change via venus CLI.
+All checks passed! You can archive this change via iagent CLI.
 \`\`\`
 
 **Output On Compile Check Failure**
@@ -547,17 +523,17 @@ This skill supports the "actions on a change" model:
 - **Can be invoked anytime**: Before all artifacts are done (if tasks exist), after partial implementation, interleaved with other actions
 - **Allows artifact updates**: If implementation reveals design issues, suggest updating artifacts - not phase-locked, work fluidly`,
         license: 'MIT',
-        compatibility: '依赖 venus CLI（spec 命令组）。',
-        metadata: { author: 'venus-agent-tools', version: '1.0' },
+        compatibility: '依赖 iagent CLI（spec 命令组）。',
+        metadata: { author: 'mi-agent-tools', version: '1.0' },
     };
 }
 
 export function getSpecApplyChangeCommandTemplate(): CommandTemplate {
     return {
-        name: 'Venus: 实现变更',
+        name: 'iAgent: 实现变更',
         description: '实现变更 —— 按变更制品的任务清单实现代码，设计确认后执行并勾选推进',
-        category: 'Venus / 规格',
-        tags: ['venus', 'spec', 'apply', 'tasks'],
+        category: 'iAgent / 规格',
+        tags: ['iagent', 'spec', 'apply', 'tasks'],
         content: deriveCommandContent(getSpecApplyChangeSkillTemplate().instructions),
     };
 }

@@ -21,9 +21,9 @@ const FLOWCHART_FULL = buildFlowchartBlock(REQUIREMENT_FLOW_COLUMNS);
 
 export function getSpecExploreSkillTemplate(): SkillTemplate {
     return {
-        name: 'venus_spec_explore',
+        name: 'iagent_spec_explore',
         description: '进入探索模式。当用户想要在变更前或变更中思考问题、调研代码库、明确需求时使用。',
-        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(git:*), ${CODEGRAPH_MCP}`,
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(git:*), ${CODEGRAPH_MCP}`,
         type: 'spec',
         instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
@@ -35,7 +35,7 @@ Enter explore mode. Think deeply. Visualize freely. Follow the conversation wher
 
 **This is a stance, not a workflow.** There are no fixed steps, no required sequence, no mandatory outputs. You're a thinking partner helping the user explore.
 
-**Input**: The argument after \`/venus:spec-explore\` is whatever the user wants to think about. Could be:
+**Input**: The argument after \`/iagent:spec-explore\` is whatever the user wants to think about. Could be:
 - A vague idea: "real-time collaboration"
 - A specific problem: "the auth system is getting unwieldy"
 - A change name: "add-dark-mode" (to explore in context of that change)
@@ -64,7 +64,7 @@ ${PROMPT_GATE}
 
 - 清晰输入：一句话复述理解后直接进入 The Stance，不输出六维校验表格、不要求确认
 - 含糊输入：先做提示词优化并阻塞等待用户确认或修改；确认前 MUST NOT 进行代码库扫描与需求澄清追问
-- 上游已产出经确认的提示词基线时（如被 genfull 的 Stage 1 委派调用）**直接通过，不重复校验或再次要求确认**
+- 上游已产出经确认的提示词基线时（如被 full-workflow 的 Stage 1 委派调用）**直接通过，不重复校验或再次要求确认**
 - 基线落盘：写入探索产物的 \`## 提示词基线\` 段；本技能不设强制产出文件，无探索文件时基线保留在会话中，并在创建或关联探索文件时写入
 
 ---
@@ -171,13 +171,13 @@ You have full context of the OpenSpec system. Use it naturally, don't force it.
 
 At the start, quickly check what exists:
 \`\`\`bash
-venus spec status --json
+iagent spec status --json
 \`\`\`
 
 ### Check for history (SQLite index)
 
 When exploring a capability, check historical context via SQLite index:
-- If \`openspec/.venus/index.db\` exists → query \`exploration_memory\` table by capability name for prior decisions/terms/edge cases
+- If \`openspec/.iagent/index.db\` exists → query \`exploration_memory\` table by capability name for prior decisions/terms/edge cases
 - If index.db unavailable → fall back to Glob \`openspec/specs/<capability>/explorations.md\`
 - Inject any found historical decisions/terms into exploration context
 
@@ -200,7 +200,7 @@ Think freely. When insights crystallize, you might offer:
 If the user mentions a change or you detect one is relevant:
 
 1. **Resolve and read existing artifacts for context**
-   - Run \`venus spec status --change "<name>" --json\`.
+   - Run \`iagent spec status --change "<name>" --json\`.
    - Use \`changeRoot\`, \`artifactPaths\`, and \`actionContext\` from the status JSON.
    - Read existing files from \`artifactPaths.<artifact>.existingOutputPaths\`.
 
@@ -214,13 +214,13 @@ If the user mentions a change or you detect one is relevant:
     |----------------------------|--------------------------------|
     | New requirement discovered | \`specs/<capability>/spec.md\` |
     | Requirement changed        | \`specs/<capability>/spec.md\` |
-    | Design decision made       | \`design.md\`                  |
-    | Scope changed              | \`proposal.md\`                |
+    | Design decision made       | change.json 的 \`design\` 段     |
+    | Scope changed              | change.json 的 \`proposal\` 段   |
     | New work identified        | \`tasks.md\`                   |
     | Assumption invalidated     | Relevant artifact              |
 
    Example offers:
-   - "That's a design decision. Capture it in design.md?"
+   - "That's a design decision. Capture it in change.json 的 \`design\` 段?"
    - "This is a new requirement. Add it to specs?"
    - "This changes scope. Update the proposal?"
 
@@ -298,7 +298,7 @@ You: [reads codebase]
 
 **User is stuck mid-implementation:**
 \`\`\`
-User: /venus:spec-explore add-auth-system
+User: /iagent:spec-explore add-auth-system
       The OAuth integration is more complex than expected
 
 You: [reads change artifacts]
@@ -350,7 +350,7 @@ You: That changes everything.
 There's no required ending. Discovery might:
 
 - **Flow into a proposal**: "Ready to start? I can create a change proposal."
-- **Result in artifact updates**: "Updated design.md with these decisions"
+- **Result in artifact updates**: "Updated change.json 的 \`design\` 段 with these decisions"
 - **Just provide clarity**: User has what they need, moves on
 - **Continue later**: "We can pick this up anytime"
 
@@ -398,8 +398,8 @@ But this summary is optional. Sometimes the thinking IS the value.
 - **Don't force a flowchart** - 纯概念探讨或无业务功能流程时记录「本次无功能流程」后直接继续，不为凑制品虚构节点、不阻断探索；"无固定步骤、无强制产出"的定位不变
 - **Don't deadlock on the flowchart gate** - 流程最终确认门同样有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续）；用户拒绝时记录未确认状态后继续，不得反复要求确认`,
         license: 'MIT',
-        compatibility: '依赖 venus CLI（spec 命令组）与 CodeGraph MCP（不可用时回退 Glob/Grep）。',
-        metadata: { author: 'venus-agent-tools', version: '1.0' },
+        compatibility: '依赖 iagent CLI（spec 命令组）与 CodeGraph MCP（不可用时回退 Glob/Grep）。',
+        metadata: { author: 'mi-agent-tools', version: '1.0' },
         references: [
             { path: 'references/prompt-gate.md', content: PROMPT_GATE_FULL },
             { path: 'references/flowchart-gate.md', content: FLOWCHART_FULL },
@@ -409,10 +409,10 @@ But this summary is optional. Sometimes the thinking IS the value.
 
 export function getSpecExploreCommandTemplate(): CommandTemplate {
     return {
-        name: 'Venus: 探索',
+        name: 'iAgent: 探索',
         description: '进入探索模式 —— 思考问题、调研代码库、明确需求',
-        category: 'Venus / 规格',
-        tags: ['venus', 'spec', 'explore', 'codegraph'],
+        category: 'iAgent / 规格',
+        tags: ['iagent', 'spec', 'explore', 'codegraph'],
         content: deriveCommandContent(getSpecExploreSkillTemplate().instructions),
     };
 }

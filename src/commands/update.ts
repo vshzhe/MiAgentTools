@@ -1,10 +1,10 @@
 /**
- * venus update 命令。
+ * iagent update 命令。
  *
  * 将内置模板的最新版本刷新到目标工具目录，按内容指纹保护用户手改：
  *   - 未安装        → 安装（新增技能）
  *   - 与内置一致     → 无动作（幂等，不重写避免 mtime 抖动）
- *   - 指纹自洽       → 升级（自上次由 venus 写入后未被改动）
+ *   - 指纹自洽       → 升级（自上次由 iagent 写入后未被改动）
  *   - 存量无指纹     → 回退到原版本号判定（保持既有行为）
  *   - 用户手改过     → 跳过并列出，提示人工确认（--force 才覆盖）
  *
@@ -33,7 +33,7 @@ import {
     AI_TOOLS,
     TOOL_SKILLS_SUBDIR,
 } from '../core/config.js';
-import { readProjectConfig, resolveActiveTools } from '../core/project-config.js';
+import { readProjectConfig, resolveActiveTools, writeToolsToConfig } from '../core/project-config.js';
 import { resolveWorkflows } from '../core/profiles.js';
 import { scanReconcileOrphans, type ReconcileOrphans } from '../core/reconcile.js';
 import {
@@ -42,6 +42,8 @@ import {
     type MergeResult,
 } from '../core/permissions.js';
 import { ensureDir, writeFile, readFileIfExists, writeSkillReferences, removeDir } from '../utils/file-system.js';
+import { runLegacyMigration, type LegacyMigrationReport } from '../core/legacy-migration.js';
+import { cleanupMisplacedCommands, type MisplacedCleanupResult } from '../core/command-artifacts.js';
 
 /** 目标工具设置文件的相对路径（会话级权限载体） */
 const SETTINGS_FILE = 'settings.json';
@@ -52,6 +54,10 @@ export interface UpdateOptions {
     force?: boolean;
     /** 目标工具 id 列表（逗号分隔，默认全部；优先级高于 config.yaml 的 tools 字段） */
     tools?: string;
+    /** 是否执行旧装机迁移（--no-migrate 时由 Commander 生成 migrate: false） */
+    migrate?: boolean;
+    /** 用户主目录（旧补全产物所在；仅测试与自定义环境注入，默认 os.homedir()） */
+    homeDir?: string;
 }
 
 /** update 执行结果 */
@@ -72,10 +78,14 @@ export interface UpdateResult {
     workflowsSource: 'default' | 'user';
     /** 依赖注入自动补全的 workflow id（供输出提示） */
     injectedDeps: string[];
-    /** 已装但不在生效集内的 venus 产物（保留不删，供输出提示） */
+    /** 已装但不在生效集内的 iagent 产物（保留不删，供输出提示） */
     reconcileOrphans: ReconcileOrphans;
     /** 会话级权限载体（.claude/settings.json）的合并结果，每个目标工具一项 */
     permissionSettings: MergeResult[];
+    /** 旧装机迁移报告（未发生迁移时 migrated 为 false） */
+    legacyMigration: LegacyMigrationReport;
+    /** 清理早期错误位置 .pi/commands/iagent/ 的结果 */
+    misplacedCommands: MisplacedCleanupResult;
 }
 
 /** 读取当前包版本 */
@@ -104,6 +114,16 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
     let commandsWritten = 0;
     const commandsSkippedModified: string[] = [];
 
+    // 0. 旧装机迁移（最先执行）：先于配置读取与产物刷新，也先于 reconcile 扫描 ——
+    //    旧产物须在被判定为「不在生效 workflows 配置中」之前清掉，否则会被误报为孤立产物。
+    const legacyMigration = runLegacyMigration(projectRoot, {
+        homeDir: options.homeDir,
+        skip: options.migrate === false,
+    });
+
+    // 0.1 清理早期版本错误生成到 .pi/commands/iagent/ 的产物（幂等，失败仅告警）
+    const misplacedCommands = cleanupMisplacedCommands(projectRoot);
+
     // 读项目配置，解析生效 workflow 集（未配置用默认集 + 依赖注入补全）
     const projectConfig = readProjectConfig(projectRoot);
     const resolved = resolveWorkflows(projectConfig?.workflows);
@@ -111,6 +131,11 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
 
     // 解析生效工具列表（CLI --tools > config tools > 全部 AI_TOOLS）
     const tools = resolveActiveTools(options.tools, projectConfig?.tools, AI_TOOLS);
+
+    // 仅当显式传入 --tools 时回写持久选择，避免常规刷新意外改动配置
+    if (options.tools) {
+        writeToolsToConfig(projectRoot, tools.map((t) => t.value));
+    }
 
     // 会话级放行条目：源自生效集技能模板的白名单（与 frontmatter 同源，避免第二份真源）
     const permissionEntries = buildPermissionEntries(
@@ -225,7 +250,7 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
             }
     }
 
-    // reconcile 扫描：已装但不在生效集内的 venus 产物（保留不删，供输出提示）
+    // reconcile 扫描：已装但不在生效集内的 iagent 产物（保留不删，供输出提示）
     const reconcileOrphans = scanReconcileOrphans(projectRoot, resolved.workflows);
 
     return {
@@ -240,13 +265,15 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
         injectedDeps: resolved.injected,
         reconcileOrphans,
         permissionSettings,
+        legacyMigration,
+        misplacedCommands,
     };
 }
 
 /**
  * 判断已安装产物是否**未被改动过** —— 即记录的指纹与其内容自洽。
  *
- * 指纹由 venus 写入产物时按内容算出；用户任何改动都会让内容与记录的指纹
+ * 指纹由 iagent 写入产物时按内容算出；用户任何改动都会让内容与记录的指纹
  * 失配，从而被识别为手改。该判定**独立于版本号**：模板正文变更而版本号
  * 未递增时，指纹仍自洽，故能正确升级（原先只能靠 `--force`）。
  *

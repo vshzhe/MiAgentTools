@@ -1,10 +1,8 @@
 /**
- * venus spec instructions apply 命令测试。
+ * iagent spec instructions apply 命令测试。
  *
- * JSON-primary 化后更新：
- * - proposal/specs/design 按 change.json 段存在性判定
- * - tasks 按 tasks.json 存在性判定
- * - contextFiles 指向 change.json / tasks.json
+ * Markdown-first：proposal/specs/design/tasks 均由 OpenSpec Markdown 提供，
+ * CLI JSON 仅承载解析后的状态摘要。
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -15,7 +13,7 @@ import { getApplyInstructions, getInstructionsResult, runSpecStatus } from '../s
 
 /** 创建临时项目根目录 */
 function makeTempProject(): string {
-    return fs.mkdtempSync(path.join(os.tmpdir(), 'venus-spec-apply-'));
+    return fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-spec-apply-'));
 }
 
 /** 在临时项目中创建变更目录 */
@@ -37,74 +35,48 @@ function writeMetadata(changeDir: string, options: { skipSpecs?: boolean; schema
     fs.writeFileSync(path.join(changeDir, '.openspec.yaml'), `${lines.join('\n')}\n`, 'utf8');
 }
 
-/** 构造最小合法 change.json */
+/** 构造 OpenSpec Markdown artifact，可按依赖阶段选择文件。 */
 function writeChangeJson(changeDir: string, sections: { proposal?: boolean; specs?: boolean; design?: boolean }): void {
-    const json: Record<string, unknown> = {
-        $schema: 'venus/change/v1',
-        changeName: path.basename(changeDir),
-        createdAt: '2026-01-01T00:00:00.000Z',
-        updatedAt: '2026-01-01T00:00:00.000Z',
-        phase: 'proposal',
-    };
     if (sections.proposal) {
-        json.proposal = {
-            why: '测试原因',
-            whatChanges: ['变更项'],
-            capabilities: { new: [], modified: [] },
-            impact: { files: [], breaking: false, compatibility: '兼容' },
-        };
+        fs.writeFileSync(path.join(changeDir, 'proposal.md'), '# Proposal\n\n## Why\n测试原因\n\n## What Changes\n- 变更项\n\n## Capabilities\n\n### New Capabilities\n- `auth`: 测试能力\n\n## Impact\n兼容\n');
     }
     if (sections.specs) {
-        json.specs = [{ name: 'auth', path: 'specs/auth/spec.md', operations: [] }];
+        fs.mkdirSync(path.join(changeDir, 'specs', 'auth'), { recursive: true });
+        fs.writeFileSync(path.join(changeDir, 'specs', 'auth', 'spec.md'), '## ADDED Requirements\n\n### Requirement: Markdown source\n系统 SHALL 使用 Markdown。\n\n#### Scenario: Read source\n- **WHEN** 读取 Markdown\n- **THEN** 返回内容\n');
     }
     if (sections.design) {
-        json.design = {
-            context: '测试上下文',
-            goals: [],
-            nonGoals: [],
-            decisions: [],
-            risks: [],
-        };
+        fs.writeFileSync(path.join(changeDir, 'design.md'), '# Design\n\n## Context\n测试上下文\n\n## Goals / Non-Goals\n\n## Decisions\n\n### D1: 测试决策\n选择 Markdown\n\n## Risks / Trade-offs\n风险\n');
     }
-    fs.writeFileSync(path.join(changeDir, 'change.json'), JSON.stringify(json, null, 2));
 }
 
-/** 构造 tasks.json（5 pending + 3 done） */
+/** 构造 tasks.md（5 pending + 3 done） */
 function writeTasksMixed(changeDir: string): void {
-    const tasks = [
-        ...Array.from({ length: 5 }, (_, i) => ({
-            id: `${i + 1}`, label: '代码', description: `待办任务`, status: 'pending', dependencies: [], files: [],
-        })),
-        ...Array.from({ length: 3 }, (_, i) => ({
-            id: `${i + 6}`, label: '测试', description: `已完成任务`, status: 'done', dependencies: [], files: [],
-        })),
-    ];
-    fs.writeFileSync(path.join(changeDir, 'tasks.json'), JSON.stringify({
-        $schema: 'venus/tasks/v1',
-        tasks,
-        progress: { total: 8, complete: 3, remaining: 5 },
-    }, null, 2));
+    const lines = ['# Tasks', '', '## 1. Tasks'];
+    for (let i = 0; i < 5; i += 1) {
+        lines.push(`- [ ] [代码] ${i + 1}.1 待办任务`);
+    }
+    for (let i = 0; i < 3; i += 1) {
+        lines.push(`- [x] [测试][单元][P0] ${i + 6}.1 已完成任务`);
+    }
+    fs.writeFileSync(path.join(changeDir, 'tasks.md'), `${lines.join('\n')}\n`);
 }
 
-/** 构造全部 done 的 tasks.json */
+/** 构造全部 done 的 tasks.md */
 function writeTasksAllDone(changeDir: string): void {
-    const tasks = Array.from({ length: 4 }, (_, i) => ({
-        id: `${i + 1}`, label: '代码', description: `完成项`, status: 'done', dependencies: [], files: [],
-    }));
-    fs.writeFileSync(path.join(changeDir, 'tasks.json'), JSON.stringify({
-        $schema: 'venus/tasks/v1',
-        tasks,
-        progress: { total: 4, complete: 4, remaining: 0 },
-    }, null, 2));
+    const lines = ['# Tasks', '', '## 1. Tasks'];
+    for (let i = 0; i < 4; i += 1) {
+        lines.push(`- [x] [代码] ${i + 1}.1 完成项`);
+    }
+    fs.writeFileSync(path.join(changeDir, 'tasks.md'), `${lines.join('\n')}\n`);
 }
 
-/** 创建 specs 目录文件（用于 skip_specs 冲突检测，非 change.json 段） */
+/** 创建 specs 目录文件（用于 skip_specs 冲突检测）。 */
 function writeSpecsDir(changeDir: string, capability: string): void {
     fs.mkdirSync(path.join(changeDir, 'specs', capability), { recursive: true });
-    fs.writeFileSync(path.join(changeDir, 'specs', capability, 'spec.md'), '## ADDED\n');
+    fs.writeFileSync(path.join(changeDir, 'specs', capability, 'spec.md'), '## ADDED Requirements\n\n### Requirement: Conflict\n系统 SHALL 报告冲突。\n\n#### Scenario: Conflict\n- **WHEN** 文件共存\n- **THEN** 返回冲突\n');
 }
 
-describe('venus spec instructions apply（任务 2.1）', () => {
+describe('iagent spec instructions apply（任务 2.1）', () => {
     let projectRoot: string;
 
     beforeEach(() => {
@@ -148,10 +120,10 @@ describe('venus spec instructions apply（任务 2.1）', () => {
         expect(checkedItems).toHaveLength(3);
         expect(uncheckedItems).toHaveLength(5);
         // contextFiles 四键均指向存在的文件
-        expect(result.contextFiles.proposal).toContain('change.json');
-        expect(result.contextFiles.specs).toContain('change.json');
-        expect(result.contextFiles.design).toContain('change.json');
-        expect(result.contextFiles.tasks).toContain('tasks.json');
+        expect(result.contextFiles.proposal).toContain('proposal.md');
+        expect(result.contextFiles.specs).toContain(`${path.sep}specs`);
+        expect(result.contextFiles.design).toContain('design.md');
+        expect(result.contextFiles.tasks).toContain('tasks.md');
     });
 
     it('Scenario: apply all_done 态 - 全部任务已完成', () => {
@@ -243,7 +215,7 @@ describe('skip_specs 状态语义（任务 2.2）', () => {
         expect(info.skipped).toBeUndefined();
         expect(info.conflict).toBeUndefined();
         expect(info.template).toContain('## ADDED');
-        expect(info.outputPath).toBe('change.json');
+        expect(info.outputPath).toBe('specs/**/*.md');
     });
 });
 

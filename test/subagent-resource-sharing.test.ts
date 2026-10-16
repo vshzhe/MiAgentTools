@@ -37,7 +37,7 @@ function commandBody(workflowId: string): string {
 }
 
 describe('A1–A4 · spec-apply 共享资源协议（单一源正文）', () => {
-    const body = skillBody('venus_spec_apply');
+    const body = skillBody('iagent_spec_apply');
 
     it('A1 上下文包六节齐备且路径正确', () => {
         // 六节名称逐字（顺序即协议规定的产出顺序）
@@ -89,8 +89,8 @@ describe('A1–A4 · spec-apply 共享资源协议（单一源正文）', () => 
 });
 
 describe('A5 · 多项目扫描单代理化（两技能 skill + command 四处）', () => {
-    const AW_SKILL = 'venus_tr_impl_auto_workflow';
-    const WF_SKILL = 'venus_tr_impl_workflow';
+    const AW_SKILL = 'iagent_auto_workflow';
+    const WF_SKILL = 'iagent_workflow';
 
     it('全自动工作流 skill 版：单子代理串行扫描全部项目', () => {
         const body = skillBody(AW_SKILL);
@@ -99,7 +99,7 @@ describe('A5 · 多项目扫描单代理化（两技能 skill + command 四处�
     });
 
     it('全自动工作流 command 版：语义与 skill 版一致', () => {
-        const body = commandBody('tr-impl-auto-workflow');
+        const body = commandBody('auto-workflow');
         expect(body).toContain('single sub-agent scanning all projects serially');
         expect(body).toContain('per-project fallback');
     });
@@ -112,7 +112,7 @@ describe('A5 · 多项目扫描单代理化（两技能 skill + command 四处�
     });
 
     it('交互式工作流 command 版：语义与 skill 版一致', () => {
-        const body = commandBody('tr-impl-workflow');
+        const body = commandBody('workflow');
         expect(body).toContain('**ONE**');
         expect(body).toContain('**serially**');
         expect(body).toContain('separate sub-agent for each project path');
@@ -122,9 +122,9 @@ describe('A5 · 多项目扫描单代理化（两技能 skill + command 四处�
         // skill 版 + command 版全文（模板源含命令版正文，故按技能正文与指令正文分别断言）
         const bodies = [
             skillBody(AW_SKILL),
-            commandBody('tr-impl-auto-workflow'),
+            commandBody('auto-workflow'),
             skillBody(WF_SKILL),
-            commandBody('tr-impl-workflow'),
+            commandBody('workflow'),
         ];
         for (const body of bodies) {
             expect(body).not.toContain('one per project');
@@ -135,8 +135,8 @@ describe('A5 · 多项目扫描单代理化（两技能 skill + command 四处�
 });
 
 describe('A6 · debug 流程级探查摘要共享（skill + command 两处）', () => {
-    const SKILL = 'venus_tr_impl_debug';
-    const WORKFLOW_ID = 'tr-impl-debug';
+    const SKILL = 'iagent_debug';
+    const WORKFLOW_ID = 'debug';
 
     const REQUIRED = [
         'investigation-digest.md',
@@ -184,8 +184,8 @@ describe('A6 · debug 流程级探查摘要共享（skill + command 两处）', 
 });
 
 describe('A8 · auto-migration 规范要点写入共享包（skill + command 两处）', () => {
-    const SKILL = 'venus_tr_impl_auto_migration';
-    const WORKFLOW_ID = 'tr-impl-auto-migration';
+    const SKILL = 'iagent_migration';
+    const WORKFLOW_ID = 'migration';
 
     const REQUIRED = [
         "into the context pack's `## 规范要点` section",

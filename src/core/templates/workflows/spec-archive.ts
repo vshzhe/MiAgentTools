@@ -7,9 +7,9 @@ import { CODEGRAPH_MCP, skillDelegation } from '../tool-whitelist.js';
 
 export function getSpecArchiveChangeSkillTemplate(): SkillTemplate {
     return {
-        name: 'venus_spec_archive',
+        name: 'iagent_spec_archive',
         description: '归档变更。当用户要归档已实现完成的变更、结束变更工作流时使用。',
-        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), Bash(ls:*), ${CODEGRAPH_MCP}, ${skillDelegation(['tr_docs_requirement_doc'])}`,
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(ls:*), ${CODEGRAPH_MCP}, ${skillDelegation(['requirement_doc'])}`,
         type: 'spec',
         instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
@@ -23,7 +23,7 @@ Archive a completed change in the change workflow.
 
    If a change name was already provided (from workflow auto-archive context), skip the selection prompt and proceed directly to Step 2 (artifact completion check).
 
-   Otherwise, run \`venus spec status --json\` to get available changes. Use the **AskUserQuestion tool** to let the user select.
+   Otherwise, run \`iagent spec status --json\` to get available changes. Use the **AskUserQuestion tool** to let the user select.
 
    Show only active changes (not already archived).
    Include the schema used for each change if available.
@@ -32,7 +32,7 @@ Archive a completed change in the change workflow.
 
 2. **Check artifact completion status**
 
-   Run \`venus spec status --change "<name>" --json\` to check artifact completion.
+   Run \`iagent spec status --change "<name>" --json\` to check artifact completion.
 
    Parse the JSON to understand:
    - \`schemaName\`: The workflow being used
@@ -59,9 +59,9 @@ Archive a completed change in the change workflow.
 
 4. **Assess delta spec sync state and execute AI merge**
 
-   **JSON-primary source**: Read \`<changeRoot>/change.json\` and take its \`specs\` section (\`SpecEntry[]\` — each entry carries \`name\` / \`path\` / \`operations[]\`). Every operation is fully structured: \`type\` (\`ADDED\` / \`MODIFIED\` / \`REMOVED\` / \`RENAMED\`), \`requirement\`, \`description\`, \`scenarios[]\`, plus the per-type fields \`reason\` / \`migration\` (REMOVED) and \`from\` / \`to\` (RENAMED). Apply these operations directly — do NOT re-classify the delta spec MD prose when change.json is present.
+   **Markdown-primary source**: Read \`<changeRoot>/OpenSpec Markdown artifacts\` and take its \`specs\` section (\`SpecEntry[]\` — each entry carries \`name\` / \`path\` / \`operations[]\`). Every operation is fully structured: \`type\` (\`ADDED\` / \`MODIFIED\` / \`REMOVED\` / \`RENAMED\`), \`requirement\`, \`description\`, \`scenarios[]\`, plus the per-type fields \`reason\` / \`migration\` (REMOVED) and \`from\` / \`to\` (RENAMED). Apply these operations directly — do NOT re-classify the delta spec MD prose when OpenSpec Markdown artifacts is present.
 
-   **MD fallback (WARN)**: If change.json or its \`specs\` section is missing, log a WARN ("change.json specs section missing — falling back to delta spec MD classification") and use the legacy path: check \`artifactPaths.specs.existingOutputPaths\` from the status JSON for delta specs, compare each delta spec (\`specs/<capability>/spec.md\`) with its corresponding main spec at \`openspec/specs/<capability>/spec.md\`, and classify the prose changes by operation kind:
+   **MD fallback (WARN)**: If OpenSpec Markdown artifacts or its \`specs\` section is missing, log a WARN ("OpenSpec Markdown artifacts specs section missing — falling back to delta spec MD classification") and use the legacy path: check \`artifactPaths.specs.existingOutputPaths\` from the status JSON for delta specs, compare each delta spec (\`specs/<capability>/spec.md\`) with its corresponding main spec at \`openspec/specs/<capability>/spec.md\`, and classify the prose changes by operation kind:
      - **ADDED**: new requirements/scenarios present in delta but not in main spec
      - **MODIFIED**: requirement or scenario text/details changed in delta
      - **REMOVED**: requirements/scenarios deleted in delta
@@ -78,7 +78,7 @@ Archive a completed change in the change workflow.
      - REMOVED → remove the corresponding requirement from the main spec (the \`reason\` / \`migration\` values may be quoted in the archive summary)
      - RENAMED → update the requirement identifier and any cross-references within the main spec
    - Follow v1.1.20 specs-apply merge semantics for conflict resolution and section placement
-   - Log: "Delta specs merged — <N> operations applied (A added / M modified / R removed / N renamed)" (append \`[source: change.json]\` or \`[source: delta MD fallback]\` for traceability)
+   - Log: "Delta specs merged — <N> operations applied (A added / M modified / R removed / N renamed)" (append \`[source: OpenSpec Markdown artifacts]\` or \`[source: delta MD fallback]\` for traceability)
 
    **If already synced**: skip the sync and proceed with archiving.
 
@@ -93,18 +93,18 @@ Archive a completed change in the change workflow.
    1. **Check if \`openspec/CONTEXT.md\` exists** using Glob or Read tool
 
    2. **If EXISTS**: Read CONTEXT.md and scan change directory for terms that should be recorded
-      - Read \`proposal.md\` for key domain terms
-      - Read \`design.md\` for technical terms and decisions
+      - Read \`OpenSpec Markdown artifacts\` 的 \`proposal\` 段 for key domain terms（存量变更降级时读 proposal.md）
+      - Read \`OpenSpec Markdown artifacts\` 的 \`design\` 段 for technical terms and decisions（存量变更降级时读 design.md）
       - Cross-reference with CONTEXT.md — if any terms are missing, auto-supplement
       - Log: "CONTEXT.md synced — <N> terms added"
 
    3. **If NOT EXISTS**: Create \`openspec/CONTEXT.md\` with key terms from the change
-      - Extract domain terms from \`proposal.md\` Why section
-      - Extract technical terms from \`design.md\` Decisions section
+      - Extract domain terms from \`OpenSpec Markdown artifacts\` 的 \`proposal.why\`（存量降级时读 proposal.md Why）
+      - Extract technical terms from \`OpenSpec Markdown artifacts\` 的 \`design.decisions\`（存量降级时读 design.md Decisions）
       - Format: \`**<Term>**: <definition>\\n_Avoid_: <synonyms>\`
       - Log: "CONTEXT.md created — <N> terms from change artifacts"
 
-   4. **Compatibility check**: If no change artifacts exist (proposal.md or design.md missing), skip and log:
+   4. **Compatibility check**: If no change artifacts exist (OpenSpec Markdown artifacts \`proposal\`/\`design\` 段缺失，且存量 MD 也不存在), skip and log:
       "Skipping CONTEXT.md sync: no change artifacts found"
 
    **Checkpoint Enforcement**:
@@ -139,7 +139,7 @@ Archive a completed change in the change workflow.
       - If missing: log "Skipping exploration memory sync: no exploration file" and skip this checkpoint
 
    2. **Determine capability ownership**
-      - Enumerate capabilities from the change's delta specs (\`specs/<capability>/spec.md\` subdirectories of the change directory)
+      - Enumerate capabilities from \`OpenSpec Markdown artifacts\` 的 \`specs[].name\`（存量降级时读 \`specs/<capability>/spec.md\` 子目录）
       - If the change has no delta specs: capability ownership cannot be determined — log "Skipping exploration memory sync: no delta specs" and skip
 
    3. **For each involved capability \`<capability>\`**:
@@ -166,8 +166,8 @@ Archive a completed change in the change workflow.
    **Decision scope**: ONLY \`openspec/changes/<change-name>/需求文档.md\` (build with \`path.join()\`).
 
    1. **If the change directory is not readable** (IO error): log a WARN and treat the document as absent — proceed to branch 2
-   2. **Branch A — the document does NOT exist**: invoke the \`venus_tr_docs_requirement_doc\` skill (Skill tool) in **non-interactive mode** with the change name — no questions to the user, placeholder basic information; the document is written to \`openspec/changes/<change-name>/需求文档.md\`
-   3. **Branch B — the document ALREADY exists** (e.g. generated by a standalone run and then completed by hand): perform an **in-place incremental alignment update** on that file. \`## 基本信息\` (需求编号 / 需求名称 / 交付时间, including placeholder states) and \`## 八、评审记录\` are the **人工域** and MUST NOT be overwritten — preserve them verbatim; sections \`一~七\` SHALL be re-derived from the CURRENT structured sources — \`change.json\` (proposal / design / specs sections) and \`.venus/tasks.json\`. **Do NOT invoke \`venus_tr_docs_requirement_doc\`** in this branch — its own rule is "when the target file already exists, overwrite it silently", which would erase human-authored review content. The alignment MUST NOT delete sections (only content removed from the artifacts may be dropped); if the document is structurally broken, rebuild the missing sections and log a WARN
+   2. **Branch A — the document does NOT exist**: invoke the \`iagent_requirement_doc\` skill (Skill tool) in **non-interactive mode** with the change name — no questions to the user, placeholder basic information; the document is written to \`openspec/changes/<change-name>/需求文档.md\`
+   3. **Branch B — the document ALREADY exists** (e.g. generated by a standalone run and then completed by hand): perform an **in-place incremental alignment update** on that file. \`## 基本信息\` (需求编号 / 需求名称 / 交付时间, including placeholder states) and \`## 八、评审记录\` are the **人工域** and MUST NOT be overwritten — preserve them verbatim; sections \`一~七\` SHALL be re-derived from the CURRENT structured sources — \`OpenSpec Markdown artifacts\` (proposal / design / specs sections) and \`.iagent/tasks.md\`. **Do NOT invoke \`iagent_requirement_doc\`** in this branch — its own rule is "when the target file already exists, overwrite it silently", which would erase human-authored review content. The alignment MUST NOT delete sections (only content removed from the artifacts may be dropped); if the document is structurally broken, rebuild the missing sections and log a WARN
    4. **Failure handling (non-blocking)**: if generation or alignment fails, log a WARN with the target path and the reason, then CONTINUE the archive — never block the archive on this checkpoint
 
    **Checkpoint Enforcement**:
@@ -177,9 +177,9 @@ Archive a completed change in the change workflow.
 
 5. **Perform the archive**
 
-   Run the venus CLI archive command — it performs the state check and directory move in one step:
+   Run the iagent CLI archive command — it performs the state check and directory move in one step:
    \`\`\`bash
-   venus spec archive "<name>" --yes
+   iagent spec archive "<name>" --yes
    \`\`\`
 
    This creates the \`archive\` directory under \`openspec/changes/\` if it does not exist, generates the dated target name \`YYYY-MM-DD-<change-name>\`, and moves \`changeRoot\` to \`openspec/changes/archive/YYYY-MM-DD-<name>/\`.
@@ -212,7 +212,7 @@ Archive a completed change in the change workflow.
       - Log the sync result after completion
 
    2. **Verify consistency** after sync completes successfully:
-      - Use MCP \`codegraph_search\` to query the change name plus key symbols mentioned in the change's \`tasks.md\` and \`design.md\`
+      - Use MCP \`codegraph_search\` to query the change name plus key symbols mentioned in the change's \`tasks.md\` and \`OpenSpec Markdown artifacts\` \`design\` 段
       - Confirm the implemented symbols are now indexed
       - Display "CodeGraph: ✓ N symbols verified in index" or warn if no matches
       - If no symbols found (e.g., config-only or doc-only change), log warning — do NOT treat as failure
@@ -263,8 +263,8 @@ Archive a completed change in the change workflow.
       - **Archive date**: from archive directory name \`YYYY-MM-DD-{change-name}\`
       - **Change name**: from directory name (after date prefix)
       - **Module**: extract from change name pattern \`{prefix}-{module}-{feature}\`, or use "general" if unknown
-      - **Summary**: first paragraph of \`proposal.md\` (max 50 chars), or proposal title if empty
-      - **Supplement annotation**: read \`tasks.md\` in the change directory, collect **supplement task types by matching a fixed label whitelist** \`[测试]\` / \`[DB脚本]\` / \`[使用说明]\` (\`[代码]\` excluded), and append \`[含<type1>/<type2>/...]\` to the summary (e.g., \`[含测试/DB脚本]\`). Match on the whitelist ONLY — do NOT collect "all bracketed content": \`[测试]\` tasks carry level/priority sub-annotations (\`[测试][单元][P0]\`) whose \`[单元]\`/\`[P0]\` are NOT task types, and collecting them would produce \`[含测试/单元/P0]\` noise. Labels outside the whitelist are ignored (non-blocking; a WARN MAY be logged). If no supplement task found, skip annotation.
+      - **Summary**: first paragraph of \`OpenSpec Markdown artifacts\` 的 \`proposal.why\`（存量降级时读 proposal.md；max 50 chars）
+      - **Supplement annotation**: read \`tasks.md\` in the change directory（存量降级时读 \`tasks.md\`）, collect **supplement task types by matching a fixed label whitelist** \`[测试]\` / \`[DB脚本]\` / \`[使用说明]\` (\`[代码]\` excluded), and append \`[含<type1>/<type2>/...]\` to the summary (e.g., \`[含测试/DB脚本]\`). Match on the whitelist ONLY — do NOT collect "all bracketed content": \`[测试]\` tasks carry level/priority sub-annotations (\`[测试][单元][P0]\`) whose \`[单元]\`/\`[P0]\` are NOT task types, and collecting them would produce \`[含测试/单元/P0]\` noise. Labels outside the whitelist are ignored (non-blocking; a WARN MAY be logged). If no supplement task found, skip annotation.
 
    b. Add new row to "归档变更列表" table:
       \`| {date} | {change-name} | {module} | {summary} |\`
@@ -345,13 +345,13 @@ Target archive directory already exists.
 
 **Guardrails**
 - Always prompt for change selection if not provided (unless change name was explicitly passed from workflow context)
-- Use artifact graph (venus spec status --json) for completion checking
+- Use artifact graph (iagent spec status --json) for completion checking
 - Don't block archive on warnings - just inform (no confirmation needed)
 - Preserve .openspec.yaml when moving to archive (it moves with the directory)
 - Preserve \`attachments/\` subdirectory — it moves with the change directory automatically
 - When extracting summary for ARCHIVE-INDEX.md, scan \`tasks.md\` for supplement type labels and append \`[含xxx]\` annotation to the summary
 - Sync exploration memory to specs/<capability>/explorations.md for every involved capability before the archive move; skip (with log) when exploration.md or delta specs are missing; never block the archive on sync failure
-Ensure the requirement document at the pre-archive checkpoint (4.8) from the FINAL artifacts: present → in-place alignment preserving the 人工域; absent → delegate venus_tr_docs_requirement_doc non-interactively (backward compat for legacy changes) (\`## 基本信息\` / \`## 八、评审记录\`) and never calling the skill in that branch; never block the archive on generation or alignment failure
+Ensure the requirement document at the pre-archive checkpoint (4.8) from the FINAL artifacts: present → in-place alignment preserving the 人工域; absent → delegate iagent_requirement_doc non-interactively (backward compat for legacy changes) (\`## 基本信息\` / \`## 八、评审记录\`) and never calling the skill in that branch; never block the archive on generation or alignment failure
 - When the change declares \`skip_specs\` (status reports specs as skipped), the archive summary MUST note "主规格未同步（skip_specs 声明）" to prevent users from mistaking it as a spec sync omission
 - Show clear summary of what happened
 - If delta specs exist, run the sync assessment, show the combined summary, and execute the inline AI merge directly (ADDED/MODIFIED/REMOVED/RENAMED → main spec, following v1.1.20 specs-apply semantics)
@@ -360,21 +360,21 @@ Ensure the requirement document at the pre-archive checkpoint (4.8) from the FIN
 
 After the archive move (step 5) and CodeGraph sync (step 6.5), MUST rebuild the SQLite cross-change index:
 
-1. **MUST run**: \`Bash(venus spec reindex --force)\` — this rebuilds the full index from all archived changes
+1. **MUST run**: \`Bash(iagent spec reindex --force)\` — this rebuilds the full index from all archived changes
 2. On success: report "SQLite index rebuilt — N changes indexed"
 3. On failure: log WARN with the error reason and continue (non-blocking); the index can be rebuilt later with the same command`,
         license: 'MIT',
-        compatibility: '依赖 venus CLI（spec 命令组）与 CodeGraph CLI（可选）。',
-        metadata: { author: 'venus-agent-tools', version: '1.0' },
+        compatibility: '依赖 iagent CLI（spec 命令组）与 CodeGraph CLI（可选）。',
+        metadata: { author: 'mi-agent-tools', version: '1.0' },
     };
 }
 
 export function getSpecArchiveChangeCommandTemplate(): CommandTemplate {
     return {
-        name: 'Venus: 归档变更',
+        name: 'iAgent: 归档变更',
         description: '归档变更 —— 归档已实现完成的变更并同步主规格与知识图谱',
-        category: 'Venus / 规格',
-        tags: ['venus', 'spec', 'archive'],
+        category: 'iAgent / 规格',
+        tags: ['iagent', 'spec', 'archive'],
         content: deriveCommandContent(getSpecArchiveChangeSkillTemplate().instructions),
     };
 }

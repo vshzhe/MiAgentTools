@@ -6,7 +6,7 @@
  *   - 不负责 Markdown → JSON 的提取转换（JSON 是主产物，非 MD 派生）
  *   - tasks.json → tasks.md 的确定性渲染由 renderTasksMd() 承担
  *   - change.json（合并主产物）的读写由 readChangeJson / writeChangeJson / initChangeJson 承担；
- *     proposal / design / specs 段 → MD 的确定性渲染由 renderProposalMd / renderDesignMd / renderSpecsMd 承担
+ *     proposal / design / specs 三段为 JSON-only，无 MD 渲染
  *
  * 依赖：sidecar-schema.ts（类型定义 + 枚举校验 + 空模板工厂）
  */
@@ -42,10 +42,7 @@ import type {
 // ── 常量 ──────────────────────────────────────────────────────────
 
 /** 变更目录下 sidecar 子目录名 */
-const SIDECAR_DIR = '.venus';
-
-/** specs 段渲染时的操作类型分组顺序 */
-const OPERATION_RENDER_ORDER = ['ADDED', 'MODIFIED', 'REMOVED', 'RENAMED'] as const;
+const SIDECAR_DIR = '.iagent';
 
 // ── 校验结果 ──────────────────────────────────────────────────────
 
@@ -68,9 +65,9 @@ export interface ManifestMeta {
 // ── 目录工具 ──────────────────────────────────────────────────────
 
 /**
- * 确保变更目录下的 .venus/ 子目录存在（幂等）。
+ * 确保变更目录下的 .iagent/ 子目录存在（幂等）。
  * @param changeDir - 变更目录绝对路径
- * @returns .venus/ 目录的绝对路径
+ * @returns .iagent/ 目录的绝对路径
  */
 export function ensureSidecarDir(changeDir: string): string {
     const sidecarDir = path.join(changeDir, SIDECAR_DIR);
@@ -503,7 +500,7 @@ function writeJsonFile(filePath: string, data: unknown): void {
 export function writeManifestJson(changeDir: string, meta: ManifestMeta): ManifestSchema {
     const now = new Date().toISOString();
     const manifest: ManifestSchema = {
-        $schema: 'venus/manifest/v1',
+        $schema: 'iagent/manifest/v1',
         changeName: meta.changeName,
         createdAt: now,
         updatedAt: now,
@@ -763,180 +760,6 @@ function renderTaskEntry(task: TaskEntry, lines: string[]): void {
     }
 
     lines.push('');
-}
-
-// ── change.json 段落渲染（纯函数，确定性） ───────────────────────
-
-/**
- * 从 ProposalSection 确定性渲染 proposal.md。
- *
- * 渲染规则：Why / What Changes（列表）/ Capabilities（New + Modified）/ Impact（文件列表 + 向后兼容）。
- * 纯函数：相同输入产出相同输出（无时间戳注入）。
- *
- * @param proposal - change.json 的 proposal 段
- * @param changeName - 变更名（用于标题）
- * @returns 渲染后的 Markdown 字符串
- */
-export function renderProposalMd(proposal: ProposalSection, changeName: string): string {
-    const lines: string[] = [];
-    lines.push(`# Proposal: ${changeName}`);
-    lines.push('');
-    lines.push('## Why');
-    lines.push('');
-    lines.push(proposal.why);
-    lines.push('');
-    lines.push('## What Changes');
-    lines.push('');
-    for (const item of proposal.whatChanges) {
-        lines.push(`- ${item}`);
-    }
-    lines.push('');
-    lines.push('## Capabilities');
-    lines.push('');
-    lines.push('### New Capabilities');
-    lines.push('');
-    for (const capability of proposal.capabilities.new) {
-        lines.push(`- \`${capability.name}\`: ${capability.description}`);
-    }
-    lines.push('');
-    lines.push('### Modified Capabilities');
-    lines.push('');
-    for (const capability of proposal.capabilities.modified) {
-        lines.push(`- \`${capability.name}\`: ${capability.description}`);
-    }
-    lines.push('');
-    lines.push('## Impact');
-    lines.push('');
-    lines.push('### 直接影响的文件');
-    lines.push('');
-    for (const file of proposal.impact.files) {
-        lines.push(`- \`${file.path}\`: ${file.description}`);
-    }
-    lines.push('');
-    lines.push('### 向后兼容');
-    lines.push('');
-    if (proposal.impact.breaking) {
-        lines.push('**BREAKING** —— 含破坏性变更。');
-        lines.push('');
-    }
-    lines.push(proposal.impact.compatibility);
-
-    return lines.join('\n') + '\n';
-}
-
-/**
- * 从 DesignSection 确定性渲染 design.md。
- *
- * 渲染规则：Context / Goals-NonGoals（两列表）/ Decisions（选择/理由/备选）/ Risks（表格）。
- * 纯函数：相同输入产出相同输出（无时间戳注入）。
- *
- * @param design - change.json 的 design 段
- * @param changeName - 变更名（用于标题）
- * @returns 渲染后的 Markdown 字符串
- */
-export function renderDesignMd(design: DesignSection, changeName: string): string {
-    const lines: string[] = [];
-    lines.push(`# Design: ${changeName}`);
-    lines.push('');
-    lines.push('## Context');
-    lines.push('');
-    lines.push(design.context);
-    lines.push('');
-    lines.push('## Goals / Non-Goals');
-    lines.push('');
-    lines.push('**Goals**:');
-    for (const goal of design.goals) {
-        lines.push(`- ${goal}`);
-    }
-    lines.push('');
-    lines.push('**Non-Goals**:');
-    for (const nonGoal of design.nonGoals) {
-        lines.push(`- ${nonGoal}`);
-    }
-    lines.push('');
-    lines.push('## Decisions');
-    lines.push('');
-    for (const decision of design.decisions) {
-        lines.push(`### ${decision.id}: ${decision.title}`);
-        lines.push(`- **选择**: ${decision.choice}`);
-        lines.push(`- **理由**: ${decision.rationale}`);
-        lines.push(`- **备选**: ${decision.alternatives.join('；')}`);
-        lines.push('');
-    }
-    lines.push('## Risks / Trade-offs');
-    lines.push('');
-    lines.push('| 风险 | 缓解 |');
-    lines.push('|------|------|');
-    for (const risk of design.risks) {
-        lines.push(`| ${risk.risk} | ${risk.mitigation} |`);
-    }
-
-    return lines.join('\n') + '\n';
-}
-
-/**
- * 从 SpecsSection 确定性渲染各 spec 文件内容（每个 SpecEntry 一组 { path, content }）。
- *
- * 渲染规则：
- *   1. content 按 operation.type 分组渲染 `## <TYPE> Requirements` 章节，顺序 ADDED / MODIFIED / REMOVED / RENAMED
- *   2. 空分组不渲染
- *   3. 每条操作渲染 `### Requirement: <requirement>` + description + scenarios
- *   4. ADDED/MODIFIED 渲染 scenarios（given 非空时在 WHEN 前渲染 `- **GIVEN**`）
- *   5. REMOVED 渲染 `- **Reason**:` / `- **Migration**:`；RENAMED 渲染 `- FROM:` / `- TO:`
- * 纯函数：相同输入产出相同输出（无时间戳注入）。
- *
- * @param specs - change.json 的 specs 段
- * @param changeName - 变更名（保留参数：spec 文件正文不引用变更名，仅为与其他 render 函数接口一致）
- * @returns 每个 SpecEntry 一项：{ path（如 specs/<name>/spec.md）, content（Markdown 文本）}
- */
-export function renderSpecsMd(specs: SpecsSection, changeName: string): Array<{ path: string; content: string }> {
-    // changeName 保留以保证三个 render 函数接口一致；spec 文件正文不引用变更名
-    void changeName;
-
-    const files: Array<{ path: string; content: string }> = [];
-    for (const spec of specs) {
-        const lines: string[] = [];
-        for (const type of OPERATION_RENDER_ORDER) {
-            const operations = spec.operations.filter((op) => op.type === type);
-            if (operations.length === 0) {
-                continue;
-            }
-            lines.push(`## ${type} Requirements`);
-            lines.push('');
-            for (const op of operations) {
-                lines.push(`### Requirement: ${op.requirement}`);
-                if (op.description) {
-                    lines.push(op.description);
-                }
-                if (type === 'ADDED' || type === 'MODIFIED') {
-                    for (const scenario of op.scenarios ?? []) {
-                        lines.push('');
-                        lines.push(`#### Scenario: ${scenario.name}`);
-                        if (scenario.given) {
-                            lines.push(`- **GIVEN** ${scenario.given}`);
-                        }
-                        lines.push(`- **WHEN** ${scenario.when}`);
-                        lines.push(`- **THEN** ${scenario.then}`);
-                    }
-                }
-                if (type === 'REMOVED') {
-                    lines.push(`- **Reason**: ${op.reason}`);
-                    lines.push(`- **Migration**: ${op.migration}`);
-                }
-                if (type === 'RENAMED') {
-                    lines.push(`- FROM: ${op.from}`);
-                    lines.push(`- TO: ${op.to}`);
-                }
-                lines.push('');
-            }
-        }
-        // 去掉末尾多余空行，保持单换行结尾
-        while (lines.length > 0 && lines[lines.length - 1] === '') {
-            lines.pop();
-        }
-        files.push({ path: spec.path, content: lines.join('\n') + '\n' });
-    }
-    return files;
 }
 
 // ── 工厂函数（供模板通过 Bash 调用） ──────────────────────────────

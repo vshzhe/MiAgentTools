@@ -1,5 +1,5 @@
 /**
- * 变更骨架创建：venus spec new "<name>"。
+ * 变更骨架创建：iagent spec new "<name>"。
  *
  * 创建 openspec/changes/<name>/ 目录并写入 .openspec.yaml 兼容元数据
  * （schema: spec-driven / created: YYYY-MM-DD / 可选 goal），与 openspec CLI 互认（design D7）。

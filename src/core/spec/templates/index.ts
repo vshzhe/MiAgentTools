@@ -2,7 +2,7 @@
  * 内置 artifact 模板（proposal / specs / design / tasks）。
  *
  * 内容结构对齐 openspec spec-driven 模板（design D5：契约对齐，技能正文仅换命令名）。
- * 模板由 venus spec instructions 分发给技能正文填充。
+ * 模板由 iagent spec instructions 分发给技能正文填充。
  */
 
 export const PROPOSAL_TEMPLATE = `## Why
@@ -92,16 +92,16 @@ export const TASKS_TEMPLATE = `# Tasks: <change-name>
 `;
 
 // ── JSON 模板（JSON-primary 真源示例：change.json 段落 / tasks.json）────
-// 供 venus spec instructions 的 jsonTemplate 字段分发；JSONC 注释仅作字段说明，实际写入不得含注释。
+// 供 iagent spec instructions 的 jsonTemplate 字段分发；JSONC 注释仅作字段说明，实际写入不得含注释。
 
 /** change.json 的 proposal 段模板（字段与 ChangeSchema/ProposalSection 对齐） */
 export const PROPOSAL_JSON_TEMPLATE = `// change.json 的 proposal 段（文件：openspec/changes/<name>/change.json）
 // JSONC 注释仅作字段说明；实际写入的 JSON 不得含注释
 // 写入前先读取 change.json，保留已有段（design/specs）与根字段现值，再合并写回
 {
-    "$schema": "venus/change/v1",           // 固定值
+    "$schema": "iagent/change/v1",           // 固定值
     "changeName": "<change-name>",          // string：kebab-case，与变更目录同名
-    "createdAt": "<ISO 8601>",              // string：创建时间（venus spec new 已初始化）
+    "createdAt": "<ISO 8601>",              // string：创建时间（iagent spec new 已初始化）
     "updatedAt": "<ISO 8601>",              // string：最后更新时间（写回时刷新）
     "phase": "proposal",                    // "proposal" | "apply" | "archive"
     "proposal": {
@@ -133,7 +133,7 @@ export const SPECS_JSON_TEMPLATE = `// change.json 的 specs 段（文件：open
 // JSONC 注释仅作字段说明；实际写入的 JSON 不得含注释
 // 写入前先读取 change.json，保留已有段（proposal/design）与根字段现值，再合并写回
 {
-    "$schema": "venus/change/v1",
+    "$schema": "iagent/change/v1",
     "changeName": "<change-name>",
     "createdAt": "<ISO 8601>",
     "updatedAt": "<ISO 8601>",
@@ -182,7 +182,7 @@ export const DESIGN_JSON_TEMPLATE = `// change.json 的 design 段（文件：op
 // JSONC 注释仅作字段说明；实际写入的 JSON 不得含注释
 // 写入前先读取 change.json，保留已有段（proposal/specs）与根字段现值，再合并写回
 {
-    "$schema": "venus/change/v1",
+    "$schema": "iagent/change/v1",
     "changeName": "<change-name>",
     "createdAt": "<ISO 8601>",
     "updatedAt": "<ISO 8601>",
@@ -213,7 +213,7 @@ export const DESIGN_JSON_TEMPLATE = `// change.json 的 design 段（文件：op
 export const TASKS_JSON_TEMPLATE = `// tasks.json（文件：openspec/changes/<name>/tasks.json，独立文件，不并入 change.json）
 // JSONC 注释仅作字段说明；实际写入的 JSON 不得含注释
 {
-    "$schema": "venus/tasks/v1",           // 固定值
+    "$schema": "iagent/tasks/v1",           // 固定值
     "tasks": [                             // TaskEntry[]
         {
             "id": "1.1",                   // string：任务编号

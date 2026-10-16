@@ -39,7 +39,7 @@ function createMockRunner(config: { available?: string[]; installStatus?: number
 let tempHome: string;
 
 beforeAll(() => {
-    tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'venus-deps-home-'));
+    tempHome = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-deps-home-'));
 });
 
 afterAll(() => {
@@ -120,7 +120,7 @@ describe('ensureDependencies', () => {
 
     it('.claude.json 缺失或损坏时视为未注册', () => {
         // 场景 1：文件不存在
-        const claudeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'venus-deps-home2-'));
+        const claudeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-deps-home2-'));
         try {
             const runner = createMockRunner({ available: ['codegraph', 'claude'], installStatus: 0 });
             const report = ensureDependencies('/tmp/any-project', { runner, claudeConfigDir: claudeDir });

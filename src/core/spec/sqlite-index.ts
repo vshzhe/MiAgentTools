@@ -1,7 +1,7 @@
 /**
  * SQLite 跨变更索引读写封装。
  *
- * 在 openspec/.venus/index.db 维护一个本地 SQLite 数据库，归档变更时写入
+ * 在 openspec/.iagent/index.db 维护一个本地 SQLite 数据库，归档变更时写入
  * 变更/能力/决策/需求/探索记忆索引，供探索和提案阶段快速搜索历史变更。
  *
  * 优先使用 Node.js better-sqlite3（同步 API）；不可用时降级为 sqlite3 CLI
@@ -20,7 +20,7 @@ import * as path from 'path';
 import { execSync, spawnSync } from 'child_process';
 
 /** index.db 文件路径（相对 openspec 根，位于归档目录下） */
-export const INDEX_DB_PATH = 'changes/archive/.venus/index.db';
+export const INDEX_DB_PATH = 'changes/archive/.iagent/index.db';
 
 /** index.db 文件路径（相对 openspec 根）在 openspec 目录下 */
 export function resolveIndexDb(openspecRoot: string): string {
@@ -172,10 +172,10 @@ export function initDatabase(openspecRoot: string): SqliteResult {
         return { success: false, error: 'sqlite3 CLI 不可用' };
     }
 
-    // 确保 .venus/ 目录存在
-    const venusDir = path.dirname(dbPath);
-    if (!fs.existsSync(venusDir)) {
-        fs.mkdirSync(venusDir, { recursive: true });
+    // 确保 .iagent/ 目录存在
+    const iagentDir = path.dirname(dbPath);
+    if (!fs.existsSync(iagentDir)) {
+        fs.mkdirSync(iagentDir, { recursive: true });
     }
 
     // 数据库已存在 → 验证完整性
@@ -224,6 +224,18 @@ VALUES ('${escapeSql(entry.name)}', ${entry.archiveDate ? `'${escapeSql(entry.ar
         return { success: false, error: result.stderr };
     }
     return { success: true };
+}
+
+/** 删除一个变更的全部派生索引，供增量 reindex 覆盖更新。 */
+export function removeChangeIndex(dbPath: string, changeName: string): SqliteResult {
+    const escaped = escapeSql(changeName);
+    const sql = `DELETE FROM capabilities WHERE change_id IN (SELECT id FROM changes WHERE name = '${escaped}');
+DELETE FROM decisions_fts WHERE change_name = '${escaped}';
+DELETE FROM requirements_fts WHERE change_name = '${escaped}';
+DELETE FROM exploration_memory WHERE change_name = '${escaped}';
+DELETE FROM changes WHERE name = '${escaped}';`;
+    const result = execSqlite3(dbPath, sql);
+    return result.stderr ? { success: false, error: result.stderr } : { success: true };
 }
 
 /**
@@ -345,7 +357,7 @@ WHERE c.name IN (${names}) AND ch.status = 'active';`;
  * @returns 匹配的决策标题列表
  */
 export function searchDecisions(dbPath: string, keyword: string): string[] {
-    const sql = `SELECT title, change_name FROM decisions_fts WHERE decisions_fts MATCH '${escapeSql(keyword)}';`;
+    const sql = `SELECT title, change_name, rationale FROM decisions_fts WHERE decisions_fts MATCH '${escapeSql(keyword)}';`;
     const result = execSqlite3(dbPath, sql);
     if (!result.stdout) {
         return [];
@@ -357,7 +369,7 @@ export function searchDecisions(dbPath: string, keyword: string): string[] {
  * 全文搜索需求。
  */
 export function searchRequirements(dbPath: string, keyword: string): string[] {
-    const sql = `SELECT requirement_name, change_name FROM requirements_fts WHERE requirements_fts MATCH '${escapeSql(keyword)}';`;
+    const sql = `SELECT requirement_name, change_name, scenario_text FROM requirements_fts WHERE requirements_fts MATCH '${escapeSql(keyword)}';`;
     const result = execSqlite3(dbPath, sql);
     if (!result.stdout) {
         return [];

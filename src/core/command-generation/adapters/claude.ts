@@ -1,20 +1,19 @@
 /**
  * Claude Code 指令适配器。
  *
- * 指令路径：.claude/commands/venus/<id>.md
+ * 指令路径：.claude/commands/iagent/<id>.md
  * frontmatter：name、description、allowed-tools、category、tags
  */
 
-import path from 'path';
 import type { CommandContent, ToolCommandAdapter } from '../types.js';
 import { escapeYamlValue, formatTagsArray } from '../yaml.js';
-import { TOOL_COMMANDS_SUBDIR } from '../../config.js';
+import { commandFilePath } from '../../command-artifacts.js';
 
 export const claudeAdapter: ToolCommandAdapter = {
     toolId: 'claude',
 
     getFilePath(commandId: string): string {
-        return path.join('.claude', 'commands', TOOL_COMMANDS_SUBDIR, `${commandId}.md`);
+        return commandFilePath('claude', commandId);
     },
 
     formatFile(content: CommandContent, fingerprintPlaceholder?: string): string {

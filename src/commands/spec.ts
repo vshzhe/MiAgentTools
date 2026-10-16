@@ -1,11 +1,11 @@
 /**
- * venus spec 子命令组：规格驱动工作流的变更生命周期管理。
+ * iagent spec 子命令组：规格驱动工作流的变更生命周期管理。
  *
  * 命令（自研替代 openspec CLI，零外部依赖，ADR-0001）：
- *   venus spec new "<name>"                          创建变更骨架（.openspec.yaml 兼容元数据）
- *   venus spec status --change <name> [--json] [--all]  artifact 状态校验（含 skip_specs 语义）
- *   venus spec instructions <artifact-id> --change <name> [--json]  模板分发（artifact-id=apply 返回 apply 阶段上下文）
- *   venus spec archive <name> [--yes] [--json]       归档移动（spec 合并由 spec-archive 技能执行）
+ *   iagent spec new "<name>"                          创建变更骨架（.openspec.yaml 兼容元数据）
+ *   iagent spec status --change <name> [--json] [--all]  artifact 状态校验（含 skip_specs 语义）
+ *   iagent spec instructions <artifact-id> --change <name> [--json]  模板分发（artifact-id=apply 返回 apply 阶段上下文）
+ *   iagent spec archive <name> [--yes] [--json]       归档移动（spec 合并由 spec-archive 技能执行）
  *
  * skip_specs 语义（对齐 OpenSpec v1.1.20）：
  *   .openspec.yaml 声明 skip_specs: true 时，specs artifact 视为 skipped（满足态）；
@@ -14,7 +14,7 @@
 
 import { Command } from 'commander';
 import { createChange } from '../core/spec/new-change.js';
-import { getChangeStatus, detectCompleted, parseTaskProgress } from '../core/spec/status.js';
+import { getChangeStatus, detectCompleted, hasDeltaSpecFiles, parseTaskProgress } from '../core/spec/status.js';
 import { getArtifactInstructions } from '../core/spec/instructions.js';
 import { executeArchive, previewArchive } from '../core/spec/archive.js';
 import { listSubdirectories } from '../utils/file-system.js';
@@ -31,6 +31,7 @@ import {
     insertDecisions,
     insertRequirements,
     insertExplorationMemory,
+    removeChangeIndex,
     type ChangeIndexEntry,
     type CapabilityIndexEntry,
     type DecisionIndexEntry,
@@ -42,11 +43,17 @@ import {
     initChangeJson,
     readChangeJson,
     renderTasksMd,
-    renderProposalMd,
-    renderDesignMd,
-    renderSpecsMd,
-    validateSidecar,
 } from '../core/spec/sidecar-writer.js';
+import { parseTasks } from '../core/spec/parser/task-parser.js';
+import { findMarkdownFiles } from '../core/spec/parser/markdown-parser.js';
+import { parseProposal } from '../core/spec/parser/proposal-parser.js';
+import { parseDesign } from '../core/spec/parser/design-parser.js';
+import { parseSpec } from '../core/spec/parser/spec-parser.js';
+import { validateParsedChange } from '../core/spec/validation/artifact-validator.js';
+import { migrateChangeFromJson } from '../core/spec/migration.js';
+import { indexMarkdownEntry } from '../core/spec/markdown-index.js';
+import { hashIndexSource, readIndexManifest, writeIndexManifest } from '../core/spec/index-cache.js';
+import type { ParsedChange } from '../core/spec/model/artifact-model.js';
 import type { TasksSchema, ChangeSchema } from '../core/spec/sidecar-schema.js';
 
 /** 变更状态结果类型（从 getChangeStatus 派生） */
@@ -57,7 +64,7 @@ type ArtifactStatus = ChangeStatusResult['artifacts'][number];
 
 /** 扩展 artifact 状态：在 done/ready/blocked 基础上增加 skipped/conflict（skip_specs 语义） */
 type ExtendedArtifactStatus = Omit<ArtifactStatus, 'status'> & {
-    status: 'done' | 'ready' | 'blocked' | 'skipped' | 'conflict';
+    status: 'done' | 'ready' | 'blocked' | 'invalid' | 'skipped' | 'conflict';
 };
 
 /** 扩展变更状态结果（artifacts 使用扩展状态） */
@@ -90,7 +97,7 @@ export interface ApplyInstruction {
     missingDeps?: string[];
 }
 
-/** venus spec instructions apply --json 的返回结构 */
+/** iagent spec instructions apply --json 的返回结构 */
 export interface ApplyInstructionsResult {
     changeName: string;
     changeRoot: string;
@@ -105,11 +112,11 @@ export interface ApplyInstructionsResult {
     instruction: ApplyInstruction;
 }
 
-/** venus spec render 支持的渲染类型（统一 MD 产物入口） */
-type RenderType = 'proposal' | 'specs' | 'design' | 'tasks';
+/** iagent spec render 支持的渲染类型（仅 tasks.md；proposal/specs/design 为 JSON-only，无 MD 产物） */
+type RenderType = 'tasks';
 
 /** render 合法类型清单（类型守卫与报错信息共用） */
-const RENDER_TYPES: readonly RenderType[] = ['proposal', 'specs', 'design', 'tasks'];
+const RENDER_TYPES: readonly RenderType[] = ['tasks'];
 
 /** sidecar init 合法类型清单 */
 const SIDECAR_INIT_TYPES: readonly string[] = ['change', 'tasks', 'all'];
@@ -133,7 +140,7 @@ export function buildSpecCommand(): Command {
             console.log(`已创建变更：${result.changeName}`);
             console.log(`  目录：${path.relative(process.cwd(), result.changeDir)}`);
             console.log(`  元数据：${path.relative(process.cwd(), result.metadataPath)}（schema: spec-driven）`);
-            console.log('  下一步：venus spec instructions proposal --change <name> 生成提案');
+            console.log('  下一步：iagent spec instructions proposal --change <name> 生成提案');
         });
 
     spec.command('status')
@@ -146,6 +153,50 @@ export function buildSpecCommand(): Command {
             console.log(output);
             if (exitCode !== 0) {
                 process.exitCode = exitCode;
+            }
+        });
+
+    spec.command('migrate')
+        .description('显式将历史 JSON 变更迁移为 OpenSpec Markdown')
+        .requiredOption('--change <name>', '目标变更名')
+        .option('--from-json', '从 change.json/tasks.json 或旧 JSON sidecar 迁移')
+        .option('--delete-legacy', '迁移校验成功后删除 JSON 源文件')
+        .option('--json', '以 JSON 输出结果')
+        .action((options: { change: string; fromJson?: boolean; deleteLegacy?: boolean; json?: boolean }) => {
+            if (!options.fromJson) {
+                const message = '迁移需要显式指定 --from-json；默认不会修改历史 JSON。';
+                console.error(message);
+                process.exitCode = 1;
+                return;
+            }
+            try {
+                const result = migrateChangeFromJson(process.cwd(), options.change, { deleteLegacy: options.deleteLegacy });
+                if (options.json) {
+                    console.log(JSON.stringify(result, null, 2));
+                } else {
+                    console.log(`已迁移：${result.changeName}`);
+                    for (const filePath of result.created) console.log(`  创建：${path.relative(process.cwd(), filePath)}`);
+                    if (result.deletedLegacy.length > 0) {
+                        for (const filePath of result.deletedLegacy) console.log(`  删除旧 JSON：${path.relative(process.cwd(), filePath)}`);
+                    } else {
+                        console.log('  历史 JSON：保留');
+                    }
+                }
+            } catch (error: unknown) {
+                console.error(`迁移失败：${(error as Error).message}`);
+                process.exitCode = 1;
+            }
+        });
+
+    spec.command('validate')
+        .description('校验 OpenSpec Markdown 制品、任务依赖与规格追溯')
+        .requiredOption('--change <name>', '目标变更名')
+        .option('--json', '以 JSON 输出（供程序处理）')
+        .action((options: { change: string; json?: boolean }) => {
+            const result = runSpecValidate(process.cwd(), options.change);
+            console.log(options.json ? JSON.stringify(result, null, 2) : formatValidationResult(result));
+            if (!result.valid) {
+                process.exitCode = 1;
             }
         });
 
@@ -282,8 +333,11 @@ export function buildSpecCommand(): Command {
                 return;
             }
 
+            const manifestPath = path.join(archiveDir, '.iagent', 'index-manifest.json');
+            const previousManifest = options.force ? {} : readIndexManifest(manifestPath);
+            const nextManifest: Record<string, string> = {};
             const entries = fs.readdirSync(archiveDir, { withFileTypes: true })
-                // 跳过点开头目录（如 .venus/ —— index.db 所在目录，非归档变更条目）
+                // 跳过点开头目录（如 .iagent/ —— index.db 所在目录，非归档变更条目）
                 .filter((d) => d.isDirectory() && !d.name.startsWith('.'))
                 .map((d) => d.name);
 
@@ -309,19 +363,46 @@ export function buildSpecCommand(): Command {
                 const archiveDate = entry.match(/^(\d{4}-\d{2}-\d{2})-/)?.[1];
 
                 try {
-                    const changeJson = readChangeJson(changeDir);
+                    const sourceHash = hashIndexSource(changeDir);
+                    if (!options.force && previousManifest[entry] === sourceHash) {
+                        nextManifest[entry] = sourceHash;
+                        continue;
+                    }
+                    const removeResult = removeChangeIndex(dbPath, changeName);
+                    if (!removeResult.success) {
+                        errors.push(`${entry}: 清理旧索引失败：${removeResult.error ?? '未知错误'}`);
+                        continue;
+                    }
+                    const markdownFiles = findMarkdownFiles(changeDir).filter((filePath) => {
+                        const normalized = filePath.replaceAll('\\\\', '/');
+                        return normalized.endsWith('/proposal.md')
+                            || normalized.endsWith('/design.md')
+                            || normalized.includes('/specs/')
+                            || normalized.endsWith('/exploration.md');
+                    });
+                    // 主链路：OpenSpec Markdown 是归档索引真源。
+                    if (markdownFiles.length > 0) {
+                        indexMarkdownEntry(dbPath, changeDir, changeName, archiveDate);
+                        indexed++;
+                        nextManifest[entry] = sourceHash;
+                        continue;
+                    }
 
-                    // 主链路：change.json（合并主产物）为结构化数据真源
+                    // 降级：Markdown 缺失 → 只读历史 JSON（记录 WARN）
+                    const changeJson = readChangeJson(changeDir);
                     if (changeJson !== null) {
+                        warnings.push(`${entry}: Markdown 缺失，降级读取历史 change.json`);
                         indexChangeJsonEntry(dbPath, changeDir, changeName, archiveDate, changeJson);
                         indexed++;
+                        degraded++;
+                        nextManifest[entry] = sourceHash;
                         continue;
                     }
 
                     // 降级：change.json 缺失 → WARN + 读取旧 3 文件（manifest/decisions/capabilities）
                     warnings.push(`${entry}: change.json 缺失，降级读取旧 sidecar`);
-                    const venusDir = path.join(changeDir, '.venus');
-                    const manifestPath = path.join(venusDir, 'manifest.json');
+                    const iagentDir = path.join(changeDir, '.iagent');
+                    const manifestPath = path.join(iagentDir, 'manifest.json');
 
                     if (fs.existsSync(manifestPath)) {
                         // 旧 JSON sidecar 路径
@@ -335,7 +416,7 @@ export function buildSpecCommand(): Command {
                         });
 
                         // 索引能力
-                        const capsPath = path.join(venusDir, 'capabilities.json');
+                        const capsPath = path.join(iagentDir, 'capabilities.json');
                         if (fs.existsSync(capsPath)) {
                             const caps = JSON.parse(fs.readFileSync(capsPath, 'utf8'));
                             const capEntries: CapabilityIndexEntry[] = [];
@@ -348,7 +429,7 @@ export function buildSpecCommand(): Command {
                         }
 
                         // 索引决策
-                        const decisionsPath = path.join(venusDir, 'decisions.json');
+                        const decisionsPath = path.join(iagentDir, 'decisions.json');
                         if (fs.existsSync(decisionsPath)) {
                             const decs = JSON.parse(fs.readFileSync(decisionsPath, 'utf8'));
                             const decEntries: DecisionIndexEntry[] = (decs.decisions ?? []).map(
@@ -364,6 +445,7 @@ export function buildSpecCommand(): Command {
 
                         indexed++;
                         degraded++;
+                        nextManifest[entry] = sourceHash;
                     } else {
                         // 降级：旧 sidecar 也缺失 → 从 MD 制品降级解析（proposal/design/specs/exploration）
                         const proposalPath = path.join(changeDir, 'proposal.md');
@@ -394,6 +476,7 @@ export function buildSpecCommand(): Command {
                 }
             }
 
+            writeIndexManifest(manifestPath, nextManifest);
             const result = {
                 success: true,
                 indexed,
@@ -429,13 +512,13 @@ export function buildSpecCommand(): Command {
         });
 
     spec.command('render <type>')
-        .description('从 JSON 主产物渲染 MD（proposal/specs/design 读 change.json；tasks 读 tasks.json）')
+        .description('从 tasks.json 确定性渲染 tasks.md（仅支持 tasks；proposal/specs/design 为 JSON-only）')
         .requiredOption('--change <name>', '变更名称')
         .action((type: string, options: { change: string }) => {
             const projectRoot = process.cwd();
             const changeDir = path.join(projectRoot, 'openspec', 'changes', options.change);
 
-            // 非法 type：列出合法值并以非零码退出
+            // 非法 type：列出合法值并以非零码退出（仅 tasks；proposal/specs/design 已移除）
             if (!isRenderType(type)) {
                 console.error(`非法 type：${type}（合法值：${RENDER_TYPES.join(' / ')}）`);
                 process.exitCode = 1;
@@ -449,35 +532,24 @@ export function buildSpecCommand(): Command {
                 return;
             }
 
-            // 非 tasks 类型：提示 JSON 才是真源（非阻断，仅提示）
-            if (type !== 'tasks') {
-                console.error(`提示: change.json 是 ${type} 的唯一结构化真源，MD 仅为展示副本。`);
-            }
-
-            // tasks 路径：从 tasks.json 确定性渲染 tasks.md
-            if (type === 'tasks') {
-                const tasksJsonPath = path.join(changeDir, 'tasks.json');
-                if (!fs.existsSync(tasksJsonPath)) {
-                    console.error(`tasks.json 不存在: ${tasksJsonPath}`);
-                    process.exitCode = 1;
-                    return;
-                }
-                try {
-                    const tasksJson = JSON.parse(fs.readFileSync(tasksJsonPath, 'utf8')) as TasksSchema;
-                    const md = renderTasksMd(tasksJson, options.change);
-                    fs.writeFileSync(path.join(changeDir, 'tasks.md'), md, 'utf8');
-                    console.log(
-                        `tasks.md rendered — ${tasksJson.tasks.length} tasks, ${tasksJson.progress?.complete ?? 0} done`,
-                    );
-                } catch (error: unknown) {
-                    console.error(`渲染失败: ${(error as Error).message}`);
-                    process.exitCode = 1;
-                }
+            // tasks：从 tasks.json 确定性渲染 tasks.md
+            const tasksJsonPath = path.join(changeDir, 'tasks.json');
+            if (!fs.existsSync(tasksJsonPath)) {
+                console.error(`tasks.json 不存在: ${tasksJsonPath}`);
+                process.exitCode = 1;
                 return;
             }
-
-            // proposal / specs / design 路径：change.json 主链路
-            renderChangeSection(changeDir, type);
+            try {
+                const tasksJson = JSON.parse(fs.readFileSync(tasksJsonPath, 'utf8')) as TasksSchema;
+                const md = renderTasksMd(tasksJson, options.change);
+                fs.writeFileSync(path.join(changeDir, 'tasks.md'), md, 'utf8');
+                console.log(
+                    `tasks.md rendered — ${tasksJson.tasks.length} tasks, ${tasksJson.progress?.complete ?? 0} done`,
+                );
+            } catch (error: unknown) {
+                console.error(`渲染失败: ${(error as Error).message}`);
+                process.exitCode = 1;
+            }
         });
 
     spec.command('sidecar')
@@ -527,86 +599,6 @@ function isRenderType(value: string): value is RenderType {
 }
 
 /**
- * 从 change.json 渲染 proposal / specs / design 段到 MD 文件。
- *
- * 链路：readChangeJson → validateSidecar('change') → 段提取 → 渲染写入。
- * 任一步失败输出错误并置非零退出码（渲染失败不写文件）。
- *
- * @param changeDir - 变更目录绝对路径
- * @param type - 目标段（proposal / specs / design）
- */
-function renderChangeSection(changeDir: string, type: 'proposal' | 'specs' | 'design'): void {
-    const changeJson = readChangeJson(changeDir);
-    if (changeJson === null) {
-        console.error(`change.json 不存在，请先写入 change.json 的 ${type} 段`);
-        process.exitCode = 1;
-        return;
-    }
-
-    // 校验失败：列出含字段路径的错误，引导 AI 修正 JSON
-    const validation = validateSidecar('change', changeJson);
-    if (!validation.valid) {
-        console.error('change.json 校验失败：');
-        for (const error of validation.errors) {
-            console.error(`  - ${error}`);
-        }
-        process.exitCode = 1;
-        return;
-    }
-
-    try {
-        if (type === 'proposal') {
-            if (!changeJson.proposal) {
-                console.error('change.json 缺少 proposal 段');
-                process.exitCode = 1;
-                return;
-            }
-            const md = renderProposalMd(changeJson.proposal, changeJson.changeName);
-            fs.writeFileSync(path.join(changeDir, 'proposal.md'), md, 'utf8');
-            console.log('proposal.md rendered');
-            return;
-        }
-        if (type === 'design') {
-            if (!changeJson.design) {
-                console.error('change.json 缺少 design 段');
-                process.exitCode = 1;
-                return;
-            }
-            const md = renderDesignMd(changeJson.design, changeJson.changeName);
-            fs.writeFileSync(path.join(changeDir, 'design.md'), md, 'utf8');
-            console.log('design.md rendered');
-            return;
-        }
-
-        // specs：逐能力渲染 specs/<name>/spec.md
-        if (!changeJson.specs) {
-            console.error('change.json 缺少 specs 段');
-            process.exitCode = 1;
-            return;
-        }
-        const files = renderSpecsMd(changeJson.specs, changeJson.changeName);
-        const changeDirResolved = path.resolve(changeDir);
-        const targets = files.map((file) => path.resolve(changeDirResolved, file.path));
-        // 先全量校验路径位于变更目录内（防越界）再写入，避免部分写入
-        for (let i = 0; i < files.length; i++) {
-            if (!targets[i].startsWith(changeDirResolved + path.sep)) {
-                console.error(`spec 路径越界（必须位于变更目录内）: ${files[i].path}`);
-                process.exitCode = 1;
-                return;
-            }
-        }
-        for (let i = 0; i < files.length; i++) {
-            fs.mkdirSync(path.dirname(targets[i]), { recursive: true });
-            fs.writeFileSync(targets[i], files[i].content, 'utf8');
-        }
-        console.log(`specs rendered — ${files.length} files`);
-    } catch (error: unknown) {
-        console.error(`渲染失败: ${(error as Error).message}`);
-        process.exitCode = 1;
-    }
-}
-
-/**
  * 执行 status 逻辑（单变更或全部活跃变更）。
  * 返回文本输出与退出码（变更不存在时非零）。
  */
@@ -649,6 +641,73 @@ export function runSpecStatus(
     const lines = [renderStatusText(status)];
     lines.push(...warnings.map((w) => `⚠ ${w}`));
     return { output: lines.join('\n'), exitCode: 0 };
+}
+
+interface SpecValidationOutput {
+    changeName: string;
+    changeRoot: string;
+    valid: boolean;
+    diagnostics: Array<{
+        severity: string;
+        code?: string;
+        message: string;
+        filePath: string;
+        line: number;
+    }>;
+}
+
+/** 从 Markdown 构造统一运行时模型并校验。 */
+export function runSpecValidate(projectRoot: string, changeName: string): SpecValidationOutput {
+    const changeRoot = path.join(projectRoot, 'openspec', 'changes', changeName);
+    if (!fs.existsSync(changeRoot)) {
+        return {
+            changeName,
+            changeRoot,
+            valid: false,
+            diagnostics: [{ severity: 'error', code: 'missing-change', message: `变更不存在：${changeName}`, filePath: changeRoot, line: 1 }],
+        };
+    }
+
+    const proposalPath = path.join(changeRoot, 'proposal.md');
+    const designPath = path.join(changeRoot, 'design.md');
+    const specs = findMarkdownFiles(path.join(changeRoot, 'specs')).map((filePath) => parseSpec(filePath));
+    const tasksPath = path.join(changeRoot, 'tasks.md');
+    const proposal = fs.existsSync(proposalPath) ? parseProposal(proposalPath) : undefined;
+    const design = fs.existsSync(designPath) ? parseDesign(designPath) : undefined;
+    const tasks = fs.existsSync(tasksPath) ? parseTasks(tasksPath) : undefined;
+    const model: ParsedChange = {
+        changeName,
+        changeRoot,
+        proposal,
+        design,
+        specs,
+        tasks,
+        diagnostics: [],
+        warnings: [],
+    };
+    const result = validateParsedChange(model);
+    const diagnostics = [...result.diagnostics];
+    if (proposal === undefined) {
+        diagnostics.push({ severity: 'error', code: 'missing-proposal', message: '缺少 proposal.md', filePath: proposalPath, line: 1 });
+    }
+    if (design === undefined && !readSkipSpecs(changeRoot)) {
+        diagnostics.push({ severity: 'error', code: 'missing-design', message: '缺少 design.md', filePath: designPath, line: 1 });
+    }
+    if (tasks === undefined) {
+        diagnostics.push({ severity: 'error', code: 'missing-tasks', message: '缺少 tasks.md', filePath: tasksPath, line: 1 });
+    }
+    return { changeName, changeRoot, valid: diagnostics.every((item) => item.severity !== 'error'), diagnostics };
+}
+
+function formatValidationResult(result: SpecValidationOutput): string {
+    if (result.valid && result.diagnostics.length === 0) {
+        return `Markdown 制品校验通过：${result.changeName}`;
+    }
+    const lines = [`Markdown 制品校验${result.valid ? '通过（含警告）' : '失败'}：${result.changeName}`];
+    for (const diagnostic of result.diagnostics) {
+        lines.push(`  [${diagnostic.severity}] ${diagnostic.filePath}:${diagnostic.line} ${diagnostic.message}`);
+    }
+    return lines.join('\\n');
 }
 
 /** 列出活跃变更名（openspec/changes/ 下排除 archive/） */
@@ -986,7 +1045,8 @@ function adjustStatusForSkipSpecs(status: ChangeStatusResult, warnings: string[]
     }
 
     const completed = detectCompleted(status.changeRoot);
-    const specsExist = completed.has('specs');
+    // 冲突信号独立于完成判定：skip_specs 与遗留 specs/**/*.md 共存即冲突
+    const specsExist = hasDeltaSpecFiles(status.changeRoot);
     const conflict = specsExist;
     const skipped = !specsExist;
 
@@ -1078,8 +1138,7 @@ function adjustSpecsInstructionsForSkipSpecs(
     if (!skipSpecs) {
         return;
     }
-    const completed = detectCompleted(changeRoot);
-    const specsExist = completed.has('specs');
+    const specsExist = hasDeltaSpecFiles(changeRoot);
     if (specsExist) {
         // 冲突态：不返回正常模板也不返回 skip guidance
         info.conflict = true;
@@ -1099,7 +1158,7 @@ function adjustSpecsInstructionsForSkipSpecs(
 }
 
 /**
- * 获取 apply 阶段上下文（venus spec instructions apply --change <name> --json 的数据源）。
+ * 获取 apply 阶段上下文（iagent spec instructions apply --change <name> --json 的数据源）。
  *
  * 基于内置 spec-driven 依赖图计算当前状态，返回 contextFiles / progress / taskList / instruction。
  * 不读外部 schema.yaml（ADR-0001），不读项目代码，不触发写操作。
@@ -1116,72 +1175,49 @@ export function getApplyInstructions(projectRoot: string, changeName: string): A
 
     const completed = detectCompleted(changeRoot);
     const skipSpecs = readSkipSpecs(changeRoot);
-    const specsExist = completed.has('specs');
-    const conflict = skipSpecs && specsExist;
-    const skipped = skipSpecs && !specsExist;
+    const specsFilesExist = hasDeltaSpecFiles(changeRoot);
+    const conflict = skipSpecs && specsFilesExist;
+    const skipped = skipSpecs && !specsFilesExist;
 
-    // 满足集合（用于下游依赖判定）
     const satisfied = new Set(completed);
-    if (skipped) {
-        satisfied.add('specs');
-    }
-    if (conflict) {
-        satisfied.delete('specs');
-    }
+    if (skipped) satisfied.add('specs');
+    if (conflict) satisfied.delete('specs');
 
-    // contextFiles：已创建 → 绝对路径；未创建 → 空字符串
     const contextFiles = {
-        proposal: completed.has('proposal') ? path.join(changeRoot, 'change.json') : '',
-        specs: specsExist ? path.join(changeRoot, 'change.json') : '',
-        design: completed.has('design') ? path.join(changeRoot, 'change.json') : '',
-        tasks: completed.has('tasks') ? path.join(changeRoot, 'tasks.json') : '',
+        proposal: fs.existsSync(path.join(changeRoot, 'proposal.md')) ? path.join(changeRoot, 'proposal.md') : '',
+        specs: specsFilesExist ? path.join(changeRoot, 'specs') : '',
+        design: fs.existsSync(path.join(changeRoot, 'design.md')) ? path.join(changeRoot, 'design.md') : '',
+        tasks: fs.existsSync(path.join(changeRoot, 'tasks.md')) ? path.join(changeRoot, 'tasks.md') : '',
     };
 
-    // progress：tasks.md 不存在时返回全零（不报错）
     const rawProgress = parseTaskProgress(changeRoot);
     const progress = rawProgress ?? { total: 0, complete: 0, remaining: 0 };
-
-    // taskList：解析 tasks.md 勾选项
     const taskList = parseTaskList(changeRoot);
-
-    // instruction 三态判定
     const missingDeps: string[] = [];
     let state: 'blocked' | 'ready' | 'all_done';
     let text: string;
 
     if (conflict) {
-        // 冲突态：blocked，提示先解决冲突
         state = 'blocked';
         text = '检测到 skip_specs 声明与 specs/ 下文件共存。请先解决冲突（删除 specs/ 下文件 或 移除 skip_specs 声明）后再进入实现。';
         missingDeps.push('specs');
     } else {
-        // 检查 tasks 依赖是否满足（skipped 视为满足）
-        if (!satisfied.has('specs')) {
-            missingDeps.push('specs');
-        }
-        if (!satisfied.has('design')) {
-            missingDeps.push('design');
-        }
-        // specs/design 满足但 tasks.md 不存在
-        if (missingDeps.length === 0 && !completed.has('tasks')) {
-            missingDeps.push('tasks');
-        }
+        if (!satisfied.has('specs')) missingDeps.push('specs');
+        if (!satisfied.has('design')) missingDeps.push('design');
+        if (missingDeps.length === 0 && !completed.has('tasks')) missingDeps.push('tasks');
 
         if (missingDeps.length > 0) {
             state = 'blocked';
-            text = `依赖未满足：${missingDeps.join('、')}。请先完成对应 artifact（使用 venus spec instructions <artifact-id> --change ${changeName}）再进入实现。`;
+            text = `依赖未满足：${missingDeps.join('、')}。请先完成对应 artifact（使用 iagent spec instructions <artifact-id> --change ${changeName}）再进入实现。`;
         } else if (progress.remaining > 0) {
-            // 依赖满足且存在未完成勾选项
             state = 'ready';
-            text = '按 tasks.md 逐项实现，规格行为完整实现方可勾选 [x]。';
+            text = '按 tasks.md 逐项实现，规格行为完整实现后将对应 checkbox 更新为 [x]。';
         } else if (progress.total > 0) {
-            // 全部勾选 [x]
             state = 'all_done';
-            text = '所有任务已完成，准备归档（venus spec archive ' + changeName + ' --yes）。';
+            text = `所有任务已完成，准备归档（iagent spec archive ${changeName} --yes）。`;
         } else {
-            // tasks.md 存在但无可识别勾选项
             state = 'ready';
-            text = 'tasks.md 无可识别勾选项。请先按 venus spec instructions tasks --change ' + changeName + ' 补充任务清单。';
+            text = `tasks.md 无可识别任务。请先按 iagent spec instructions tasks --change ${changeName} 补充任务清单。`;
         }
     }
 
@@ -1199,24 +1235,23 @@ export function getApplyInstructions(projectRoot: string, changeName: string): A
     };
 }
 
-/**
- * 解析 tasks.json 为任务列表。
- * 每项含格式化文本、勾选状态与缩进层级。
- * tasks.json 不存在或解析失败时返回空数组。
- *
- * @param changeRoot - 变更目录绝对路径
- */
+/** 解析 tasks.md 为 apply 阶段任务列表；历史 tasks.json 仅保留读取兼容。 */
 function parseTaskList(changeRoot: string): TaskListItem[] {
-    const tasksFile = path.join(changeRoot, SPEC_DRIVEN_SCHEMA.apply.tracks);
-    if (!fs.existsSync(tasksFile)) {
-        return [];
+    const tasksFile = path.join(changeRoot, 'tasks.md');
+    if (fs.existsSync(tasksFile)) {
+        const parsed = parseTasks(tasksFile);
+        return parsed.tasks.map((task) => ({
+            text: task.rawLine,
+            checked: task.checked,
+            indent: task.indent,
+        }));
     }
+    const legacyFile = path.join(changeRoot, 'tasks.json');
+    if (!fs.existsSync(legacyFile)) return [];
     try {
-        const tasks = JSON.parse(fs.readFileSync(tasksFile, 'utf8'));
-        if (!Array.isArray(tasks.tasks)) {
-            return [];
-        }
-        return tasks.tasks.map((task: { id?: string; label?: string; description?: string; status?: string }) => ({
+        const tasks = JSON.parse(fs.readFileSync(legacyFile, 'utf8')) as { tasks?: Array<{ id?: string; label?: string; description?: string; status?: string }> };
+        if (!Array.isArray(tasks.tasks)) return [];
+        return tasks.tasks.map((task) => ({
             text: `- [${task.status === 'done' ? 'x' : ' '}] [${task.label ?? ''}] ${task.id ?? ''} ${task.description ?? ''}`,
             checked: task.status === 'done',
             indent: 0,

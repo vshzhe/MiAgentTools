@@ -1,5 +1,5 @@
 /**
- * venus generate 命令。
+ * iagent generate 命令。
  *
  * 按类型生成新技能骨架（SKILL.md），供用户在其基础上填充内容。
  * 骨架同时写入项目 skills/ 源目录与 .claude/ 安装目录。
@@ -22,7 +22,7 @@ import { ensureDir, writeFile, pathExists, writeSkillReferences } from '../utils
 
 /** generate 命令选项 */
 export interface GenerateOptions {
-    /** 技能类型（必填，7 类之一） */
+    /** 技能类型（必填，9 类之一） */
     type: string;
     /** 技能名（kebab-case，必填） */
     name: string;
@@ -34,7 +34,7 @@ export interface GenerateOptions {
 
 /** generate 执行结果 */
 export interface GenerateResult {
-    /** 生成的技能名（venus_<type>_<name>） */
+    /** 生成的技能名（iagent_<name>） */
     skillName: string;
     /** 项目源目录下的 SKILL.md 路径（相对项目根） */
     sourcePath: string;
@@ -47,7 +47,7 @@ const KEBAB_CASE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 /**
  * 构造新技能的骨架模板（正文为待填充的引导结构）。
- * 若项目存在 .venus/ 配置，将 context 与该类型的 rules 注入正文。
+ * 若项目存在 .iagent/ 配置，将 context 与该类型的 rules 注入正文。
  */
 function buildSkeletonTemplate(
     type: SkillType,
@@ -58,16 +58,16 @@ function buildSkeletonTemplate(
     // 项目规则注入：该类型被 config 引用且规则文件有内容时追加到约束区
     const typeRules = projectConfig?.rules[type] ?? [];
     const ruleLines = typeRules.length > 0
-        ? ['项目规则（来自 .venus/rules/）：', ...typeRules.map((r) => `- ${r}`)].join('\n')
+        ? ['项目规则（来自 .iagent/rules/）：', ...typeRules.map((r) => `- ${r}`)].join('\n')
         : '- 需要遵守的边界与规范';
 
     // 项目背景注入：开头以引用块提示
     const contextBlock = projectConfig && projectConfig.context.trim().length > 0
-        ? `> **项目背景**（来自 .venus/config.yaml，执行时遵守）：\n> ${projectConfig.context.split('\n').join('\n> ')}\n\n`
+        ? `> **项目背景**（来自 .iagent/config.yaml，执行时遵守）：\n> ${projectConfig.context.split('\n').join('\n> ')}\n\n`
         : '';
 
     return {
-        name: `${SKILL_PREFIX}${type}_${name.replaceAll('-', '_')}`,
+        name: `${SKILL_PREFIX}${name.replaceAll('-', '_')}`,
         description: desc ?? `（待补充）${SKILL_TYPES.find((t) => t.id === type)?.name ?? type}类技能：${name}`,
         // 骨架默认宽松白名单，正文填充后应按实际命令收紧
         allowedTools: 'Read, Write, Edit, Glob, Grep, Bash',
@@ -88,7 +88,7 @@ function buildSkeletonTemplate(
 ${ruleLines}`,
         license: 'MIT',
         compatibility: '无特殊依赖，通用环境可用。',
-        metadata: { author: 'venus-agent-tools', version: '1.0' },
+        metadata: { author: 'mi-agent-tools', version: '1.0' },
     };
 }
 
@@ -114,7 +114,7 @@ export function runGenerate(projectRoot: string, options: GenerateOptions): Gene
     const generated = generateSkillContent(template, packageVersion);
     const skillName = generated.dirName;
 
-    // 1. 写入项目源目录 skills/venus_<type>_<name>/SKILL.md
+    // 1. 写入项目源目录 skills/iagent_<name>/SKILL.md
     const sourceDir = path.join(projectRoot, 'skills', skillName);
     const sourceFile = path.join(sourceDir, 'SKILL.md');
     if (pathExists(sourceFile) && !options.force) {

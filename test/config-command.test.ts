@@ -18,7 +18,7 @@ import { readProjectConfig } from '../src/core/project-config.js';
 let tempRoot: string;
 
 beforeAll(() => {
-    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'venus-config-'));
+    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-config-'));
     ensureProjectConfig(tempRoot);
 });
 
@@ -27,24 +27,24 @@ afterAll(() => {
 });
 
 describe('listAllWorkflowIds', () => {
-    it('返回全部 27 个 workflow id', () => {
+    it('返回全部 20 个 workflow id', () => {
         const ids = listAllWorkflowIds();
-        expect(ids.length).toBe(27);
-        expect(ids).toContain('tr-init-project');
+        expect(ids.length).toBe(20);
+        expect(ids).toContain('project-init');
         expect(ids).toContain('spec-explore');
         expect(ids).toContain('spec-verify-proposal');
-        expect(ids).toContain('tr-tools-list');
+        expect(ids).toContain('workflow');
     });
 });
 
 describe('runConfigShow', () => {
     it('无 config 时提示不存在与默认集来源', () => {
-        const emptyRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'venus-nocfg-show-'));
+        const emptyRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-nocfg-show-'));
         try {
             const output = runConfigShow(emptyRoot);
             expect(output).toContain('不存在');
             expect(output).toContain('默认集');
-            expect(output).toContain('tr-init-project');
+            expect(output).toContain('project-init');
         } finally {
             fs.rmSync(emptyRoot, { recursive: true, force: true });
         }

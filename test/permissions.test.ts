@@ -18,7 +18,7 @@ const SETTINGS_RELATIVE = path.join('.claude', 'settings.json');
 let baseRoot: string;
 
 beforeAll(() => {
-    baseRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'venus-perm-'));
+    baseRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-perm-'));
 });
 
 afterAll(() => {
@@ -65,9 +65,9 @@ describe('buildPermissionEntries', () => {
     });
 
     it('过滤只作用于整条目，不误伤带通配的具名规则', () => {
-        expect(buildPermissionEntries(['Bash(pnpm:*), Bash(venus:*)'])).toEqual([
+        expect(buildPermissionEntries(['Bash(pnpm:*), Bash(iagent:*)'])).toEqual([
             'Bash(pnpm:*)',
-            'Bash(venus:*)',
+            'Bash(iagent:*)',
         ]);
     });
 });

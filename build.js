@@ -16,7 +16,7 @@ const runTsc = (args = []) => {
     execFileSync(process.execPath, [tscPath, ...args], { stdio: 'inherit' });
 };
 
-console.log('🔨 Building VenusAgentTools...\n');
+console.log('🔨 Building MiAgentTools...\n');
 
 if (existsSync('dist')) {
     console.log('Cleaning dist directory...');

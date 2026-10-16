@@ -1,15 +1,15 @@
 /**
  * Artifact JSON Schema 类型定义（合并主产物 + 遗留 sidecar）。
  *
- * 主产物（JSON-primary —— JSON 为结构化数据真源，Markdown 由代码渲染）：
+ * 主产物（JSON-only —— proposal/design/specs 仅存 JSON，无 MD 产物）：
  *   openspec/changes/<name>/change.json          —— proposal / design / specs 三段合并
- *   openspec/changes/<name>/tasks.json          —— 任务清单（独立，不并入）
+ *   openspec/changes/<name>/tasks.json          —— 任务清单（独立，不并入；tasks.md 由 renderTasksMd 渲染）
  *
- * 渲染：sidecar-writer.ts 的 renderProposalMd / renderDesignMd / renderSpecsMd / renderTasksMd。
+ * 渲染：仅 sidecar-writer.ts 的 renderTasksMd（tasks.md）；proposal/design/specs 无渲染入口。
  * 遗留 sidecar（manifest / decisions / capabilities，标 @deprecated）保留供存量变更降级读取：
- *   openspec/changes/<name>/.venus/manifest.json
- *   openspec/changes/<name>/.venus/decisions.json
- *   openspec/changes/<name>/.venus/capabilities.json
+ *   openspec/changes/<name>/.iagent/manifest.json
+ *   openspec/changes/<name>/.iagent/decisions.json
+ *   openspec/changes/<name>/.iagent/capabilities.json
  */
 
 /** 变更生命周期阶段 */
@@ -28,7 +28,7 @@ export type CapabilityOperation = 'ADDED' | 'MODIFIED' | 'REMOVED' | 'RENAMED';
  */
 export interface ManifestSchema {
     /** JSON schema 版本标识 */
-    $schema: 'venus/manifest/v1';
+    $schema: 'iagent/manifest/v1';
     /** 变更名（kebab-case） */
     changeName: string;
     /** 创建时间 ISO 8601 */
@@ -74,7 +74,7 @@ export interface TaskEntry {
 /** tasks.json：任务清单 */
 export interface TasksSchema {
     /** JSON schema 版本标识 */
-    $schema: 'venus/tasks/v1';
+    $schema: 'iagent/tasks/v1';
     /** 任务条目数组 */
     tasks: TaskEntry[];
     /** 进度统计 */
@@ -191,7 +191,7 @@ export type SpecsSection = SpecEntry[];
 /** change.json 根结构（proposal/design/specs 三段合并主产物） */
 export interface ChangeSchema {
     /** JSON schema 版本标识 */
-    $schema: 'venus/change/v1';
+    $schema: 'iagent/change/v1';
     /** 变更名（kebab-case） */
     changeName: string;
     /** 创建时间 ISO 8601 */
@@ -233,7 +233,7 @@ export interface DecisionEntry {
  */
 export interface DecisionsSchema {
     /** JSON schema 版本标识 */
-    $schema: 'venus/decisions/v1';
+    $schema: 'iagent/decisions/v1';
     /** 决策条目数组 */
     decisions: DecisionEntry[];
 }
@@ -275,7 +275,7 @@ export interface CapabilityEntry {
  */
 export interface CapabilitiesSchema {
     /** JSON schema 版本标识 */
-    $schema: 'venus/capabilities/v1';
+    $schema: 'iagent/capabilities/v1';
     /** 能力条目数组 */
     capabilities: CapabilityEntry[];
 }
@@ -286,7 +286,7 @@ export interface CapabilitiesSchema {
 export function createEmptyChange(changeName: string): ChangeSchema {
     const now = new Date().toISOString();
     return {
-        $schema: 'venus/change/v1',
+        $schema: 'iagent/change/v1',
         changeName,
         createdAt: now,
         updatedAt: now,
@@ -298,7 +298,7 @@ export function createEmptyChange(changeName: string): ChangeSchema {
 export function createEmptyManifest(changeName: string): ManifestSchema {
     const now = new Date().toISOString();
     return {
-        $schema: 'venus/manifest/v1',
+        $schema: 'iagent/manifest/v1',
         changeName,
         createdAt: now,
         updatedAt: now,
@@ -311,7 +311,7 @@ export function createEmptyManifest(changeName: string): ManifestSchema {
 /** 创建空的 tasks.json 模板 */
 export function createEmptyTasks(): TasksSchema {
     return {
-        $schema: 'venus/tasks/v1',
+        $schema: 'iagent/tasks/v1',
         tasks: [],
         progress: { total: 0, complete: 0, remaining: 0 },
     };
@@ -320,7 +320,7 @@ export function createEmptyTasks(): TasksSchema {
 /** 创建空的 decisions.json 模板 */
 export function createEmptyDecisions(): DecisionsSchema {
     return {
-        $schema: 'venus/decisions/v1',
+        $schema: 'iagent/decisions/v1',
         decisions: [],
     };
 }
@@ -328,7 +328,7 @@ export function createEmptyDecisions(): DecisionsSchema {
 /** 创建空的 capabilities.json 模板 */
 export function createEmptyCapabilities(): CapabilitiesSchema {
     return {
-        $schema: 'venus/capabilities/v1',
+        $schema: 'iagent/capabilities/v1',
         capabilities: [],
     };
 }

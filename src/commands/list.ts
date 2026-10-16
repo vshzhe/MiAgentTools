@@ -1,7 +1,7 @@
 /**
- * venus list 命令。
+ * iagent list 命令。
  *
- * 列出目标工具目录中已安装的 venus 技能，按生命周期类型分组展示。
+ * 列出目标工具目录中已安装的 iagent 技能，按生命周期类型分组展示。
  */
 
 import path from 'path';
@@ -17,7 +17,7 @@ import { listSubdirectories, readFileIfExists } from '../utils/file-system.js';
 
 /** 单个已安装技能的信息 */
 export interface InstalledSkillInfo {
-    /** 技能目录名（venus_<type>_<name>） */
+    /** 技能目录名（iagent_<type>_<name>） */
     name: string;
     /** 从 frontmatter metadata.type 解析出的类型（解析失败为 null） */
     type: SkillType | null;
@@ -61,7 +61,7 @@ export function scanInstalledSkills(projectRoot: string): InstalledSkillInfo[] {
     for (const tool of AI_TOOLS) {
         const skillsRoot = path.join(projectRoot, tool.skillsDir, TOOL_SKILLS_SUBDIR);
         for (const dirName of listSubdirectories(skillsRoot)) {
-            // 只关注 venus_ 前缀的技能（其他技能不属于本工具管理范围）
+            // 只关注 iagent_ 前缀的技能（其他技能不属于本工具管理范围）
             if (!dirName.startsWith(SKILL_PREFIX)) {
                 continue;
             }
@@ -88,9 +88,9 @@ export function scanInstalledSkills(projectRoot: string): InstalledSkillInfo[] {
  */
 export function renderListOutput(skills: InstalledSkillInfo[]): string {
     if (skills.length === 0) {
-        return '尚未安装任何 venus 技能。运行 venus init 开始安装。';
+        return '尚未安装任何 iagent 技能。运行 iagent init 开始安装。';
     }
-    const lines: string[] = ['已安装的 Venus 技能：', ''];
+    const lines: string[] = ['已安装的 iAgent 技能：', ''];
     for (const meta of SKILL_TYPES) {
         const group = skills.filter((s) => s.type === meta.id);
         if (group.length === 0) {

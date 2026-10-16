@@ -1,9 +1,9 @@
 /**
- * venus config 命令：管理 .venus/config.yaml 的 workflows 字段。
+ * iagent config 命令：管理 .iagent/config.yaml 的 workflows 字段。
  *
- *   venus config             交互式 checkbox 勾选 workflow（@inquirer/prompts）
- *   venus config show        打印当前配置与生效 workflow 集
- *   venus config --set <list>  非交互设置（逗号分隔，脚本/CI 用）
+ *   iagent config             交互式 checkbox 勾选 workflow（@inquirer/prompts）
+ *   iagent config show        打印当前配置与生效 workflow 集
+ *   iagent config --set <list>  非交互设置（逗号分隔，脚本/CI 用）
  *
  * workflow id 来自 registry 的全部技能（= deriveCommandId(技能名)），
  * 与 init/update 过滤、resolveWorkflows 注入所用 id 同源。
@@ -49,10 +49,10 @@ export function listAllWorkflowIds(): string[] {
 export async function runConfigInteractive(projectRoot: string): Promise<ConfigResult> {
     if (!process.stdin.isTTY) {
         throw new Error(
-            '非交互环境（无 TTY），请用：venus config --set <workflow1,workflow2,...>'
+            '非交互环境（无 TTY），请用：iagent config --set <workflow1,workflow2,...>'
         );
     }
-    // 确保 .venus/ 与 config.yaml 存在（不存在则创建默认）
+    // 确保 .iagent/ 与 config.yaml 存在（不存在则创建默认）
     ensureProjectConfig(projectRoot);
     const projectConfig = readProjectConfig(projectRoot);
     const resolved = resolveWorkflows(projectConfig?.workflows);
@@ -90,7 +90,7 @@ export function runConfigShow(projectRoot: string): string {
     const source =
         projectConfig && projectConfig.workflows.length > 0 ? '用户配置' : '默认集';
 
-    const lines: string[] = ['Venus 配置：'];
+    const lines: string[] = ['iAgent 配置：'];
     if (projectConfig) {
         lines.push(
             `  context: ${projectConfig.context.trim().length > 0 ? '(已设置)' : '(空)'}`
@@ -100,7 +100,7 @@ export function runConfigShow(projectRoot: string): string {
             `  rules: ${ruleTypes.length > 0 ? ruleTypes.join(', ') : '(空)'}`
         );
     } else {
-        lines.push('  .venus/config.yaml 不存在（用 venus init 创建）');
+        lines.push('  .iagent/config.yaml 不存在（用 iagent init 创建）');
     }
     lines.push(`  生效 workflow（来源：${source}）：${resolved.workflows.length} 项`);
     for (const wf of resolved.workflows) {

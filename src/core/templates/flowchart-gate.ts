@@ -1,8 +1,8 @@
 /**
  * 功能流程图制品文本唯一源。
  *
- * 5 个工作流技能（venus_spec_explore / venus_tr_impl_workflow /
- * venus_tr_impl_auto_workflow / venus_tr_impl_debug / venus_tr_impl_genfull）
+ * 5 个工作流技能（iagent_spec_explore / iagent_workflow /
+ * iagent_auto_workflow / iagent_debug / iagent_workflow）
  * 在探索阶段产出本制品：把探索发现的业务功能流程固化为「Mermaid 流程图 +
  * 关键操作节点清单」，经流程最终确认门确认后成为 propose / verify 的流程基准
  * —— 独立于提案自身的交叉验证锚点。
@@ -11,7 +11,7 @@
  * 完全共享，故以 buildFlowchartBlock(columns) 参数化渲染，避免流程文本重复维护；
  * 手写指令正文使用 buildFlowchartCompact(columns) 压缩渲染。
  *
- * 约束：本模块渲染的文本 MUST NOT 含任何 Bash 命令示例——tr_impl 系列技能的
+ * 约束：本模块渲染的文本 MUST NOT 含任何 Bash 命令示例——impl 系列技能的
  * allowedTools 白名单不含构建工具命令，正文出现命令会被权限拦截。
  */
 

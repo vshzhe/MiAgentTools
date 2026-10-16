@@ -6,18 +6,16 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { spawnSync } from 'child_process';
 import { createChange } from '../src/core/spec/new-change.js';
 import { executeArchive, previewArchive } from '../src/core/spec/archive.js';
-import { isSqlite3Available, resolveIndexDb } from '../src/core/spec/sqlite-index.js';
 import { MemoryBackend } from '../src/core/spec/sqlite-memory-backend.js';
 
 /** 创建临时项目根目录 */
 function makeTempProject(): string {
-    return fs.mkdtempSync(path.join(os.tmpdir(), 'venus-spec-cmd-'));
+    return fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-spec-cmd-'));
 }
 
-describe('venus spec new（createChange）', () => {
+describe('iagent spec new（createChange）', () => {
     let projectRoot: string;
 
     beforeEach(() => {
@@ -59,7 +57,7 @@ describe('venus spec new（createChange）', () => {
     });
 });
 
-describe('venus spec archive（previewArchive / executeArchive）', () => {
+describe('iagent spec archive（previewArchive / executeArchive）', () => {
     let projectRoot: string;
 
     beforeEach(() => {
@@ -74,13 +72,13 @@ describe('venus spec archive（previewArchive / executeArchive）', () => {
         const { changeDir } = createChange(projectRoot, 'incomplete-change');
         // 仅创建 change.json proposal 段，不写 specs/design/tasks（未完成）
         fs.writeFileSync(path.join(changeDir, 'change.json'), JSON.stringify({
-            $schema: 'venus/change/v1', changeName: 'incomplete-change',
+            $schema: 'iagent/change/v1', changeName: 'incomplete-change',
             createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
             phase: 'proposal',
             proposal: { why: '测试', whatChanges: ['变更'], capabilities: { new: [], modified: [] }, impact: { files: [], breaking: false, compatibility: '兼容' } },
         }, null, 2));
         fs.writeFileSync(path.join(changeDir, 'tasks.json'), JSON.stringify({
-            $schema: 'venus/tasks/v1',
+            $schema: 'iagent/tasks/v1',
             tasks: [{ id: '1', label: '代码', description: '待办任务', status: 'pending', dependencies: [], files: [] }],
             progress: { total: 1, complete: 0, remaining: 1 },
         }, null, 2));
@@ -94,7 +92,7 @@ describe('venus spec archive（previewArchive / executeArchive）', () => {
     it('执行：变更目录移动至 archive/<日期前缀>-<名称>', () => {
         const { changeDir } = createChange(projectRoot, 'done-change');
         fs.writeFileSync(path.join(changeDir, 'change.json'), JSON.stringify({
-            $schema: 'venus/change/v1', changeName: 'done-change',
+            $schema: 'iagent/change/v1', changeName: 'done-change',
             createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
             phase: 'proposal',
             proposal: { why: '测试', whatChanges: ['变更'], capabilities: { new: [], modified: [] }, impact: { files: [], breaking: false, compatibility: '兼容' } },
@@ -102,7 +100,7 @@ describe('venus spec archive（previewArchive / executeArchive）', () => {
             design: { context: '上下文', goals: [], nonGoals: [], decisions: [], risks: [] },
         }, null, 2));
         fs.writeFileSync(path.join(changeDir, 'tasks.json'), JSON.stringify({
-            $schema: 'venus/tasks/v1',
+            $schema: 'iagent/tasks/v1',
             tasks: [{ id: '1', label: '代码', description: '完成', status: 'done', dependencies: [], files: [] }],
             progress: { total: 1, complete: 1, remaining: 0 },
         }, null, 2));
@@ -115,7 +113,7 @@ describe('venus spec archive（previewArchive / executeArchive）', () => {
     it('名称已含日期前缀：不叠加', () => {
         const { changeDir } = createChange(projectRoot, '2026-01-01-named-change');
         fs.writeFileSync(path.join(changeDir, 'change.json'), JSON.stringify({
-            $schema: 'venus/change/v1', changeName: '2026-01-01-named-change',
+            $schema: 'iagent/change/v1', changeName: '2026-01-01-named-change',
             createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
             phase: 'proposal',
             proposal: { why: '测试', whatChanges: ['变更'], capabilities: { new: [], modified: [] }, impact: { files: [], breaking: false, compatibility: '兼容' } },
@@ -123,7 +121,7 @@ describe('venus spec archive（previewArchive / executeArchive）', () => {
             design: { context: '上下文', goals: [], nonGoals: [], decisions: [], risks: [] },
         }, null, 2));
         fs.writeFileSync(path.join(changeDir, 'tasks.json'), JSON.stringify({
-            $schema: 'venus/tasks/v1',
+            $schema: 'iagent/tasks/v1',
             tasks: [{ id: '1', label: '代码', description: '完成', status: 'done', dependencies: [], files: [] }],
             progress: { total: 1, complete: 1, remaining: 0 },
         }, null, 2));
@@ -144,7 +142,7 @@ describe('venus spec archive（previewArchive / executeArchive）', () => {
     });
 });
 
-describe('venus spec reindex（内存后端，不依赖外部 sqlite3）', () => {
+describe('iagent spec reindex（内存后端，不依赖外部 sqlite3）', () => {
     it('空 archive 目录 → 0 个变更被索引', () => {
         const backend = new MemoryBackend();
         expect(backend.indexedCount).toBe(0);

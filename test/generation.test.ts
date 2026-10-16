@@ -9,11 +9,14 @@ import {
     escapeYamlValue,
     formatTagsArray,
     claudeAdapter,
+    piAdapter,
+    fingerprintOf,
+    readGeneratedFingerprint,
 } from '../src/core/command-generation/index.js';
 import { getSkillTemplates, getCommandTemplates } from '../src/core/templates/index.js';
 
 describe('SKILL.md 生成', () => {
-    const [{ template }] = getSkillTemplates('tr_tools');
+    const [{ template }] = getSkillTemplates('init');
 
     it('frontmatter 含 name/description/type 字段', () => {
         const generated = generateSkillContent(template, '0.1.0');
@@ -28,7 +31,7 @@ describe('SKILL.md 生成', () => {
     it('非法前缀技能名抛错', () => {
         expect(() =>
             generateSkillContent({ ...template, name: 'bad_prefix' }, '0.1.0')
-        ).toThrow(/venus_/);
+        ).toThrow(/iagent_/);
     });
 
     it('description 含特殊字符时被 YAML 转义包裹', () => {
@@ -41,14 +44,14 @@ describe('SKILL.md 生成', () => {
 });
 
 describe('Claude 指令生成', () => {
-    it('指令路径符合 .claude/commands/venus/<id>.md 规范', () => {
+    it('指令路径符合 .claude/commands/iagent/<id>.md 规范', () => {
         // 平台无关断言：统一转换为正斜杠比较（项目规范：Windows 兼容）
-        const normalized = claudeAdapter.getFilePath('tr-tools-pwd').replaceAll('\\', '/');
-        expect(normalized).toBe('.claude/commands/venus/tr-tools-pwd.md');
+        const normalized = claudeAdapter.getFilePath('pwd').replaceAll('\\', '/');
+        expect(normalized).toBe('.claude/commands/iagent/pwd.md');
     });
 
     it('frontmatter 含 name/description/allowed-tools/category/tags', () => {
-        const [{ template, id }] = getCommandTemplates('tr_tools');
+        const [{ template, id }] = getCommandTemplates('init');
         const content = {
             id,
             name: template.name,
@@ -60,12 +63,49 @@ describe('Claude 指令生成', () => {
             allowedTools: template.allowedTools,
         };
         const generated = generateCommand(content, claudeAdapter);
-        expect(generated.path).toContain('tr-tools-pwd.md');
+        expect(generated.path).toContain('project-init.md');
         expect(generated.fileContent).toContain(`allowed-tools: ${content.allowedTools}`);
-        // name 含冒号时被 YAML 转义为双引号包裹："Venus: 查看当前路径"
+        // name 含冒号时被 YAML 转义为双引号包裹："iAgent: 初始化项目"
         expect(generated.fileContent).toContain(`name: "${template.name}"`);
-        expect(generated.fileContent).toContain('description: 查看当前路径');
+        expect(generated.fileContent).toContain('description:');
         expect(generated.fileContent).toContain(template.content.slice(0, 20));
+    });
+});
+
+describe('Pi prompt 指令生成', () => {
+    it('指令路径为 .pi/prompts/iagent-<id>.md（扁平前缀布局）', () => {
+        const normalized = piAdapter.getFilePath('pwd').replaceAll('\\', '/');
+        expect(normalized).toBe('.pi/prompts/iagent-pwd.md');
+    });
+
+    it('frontmatter 去 Claude 专有字段、保留 description 与指纹记账', () => {
+        const [{ template, id }] = getCommandTemplates('init');
+        const content = {
+            id,
+            name: template.name,
+            description: template.description,
+            category: template.category,
+            tags: template.tags,
+            body: template.content,
+            allowedTools: template.allowedTools,
+            generatedBy: '2.0.0',
+        };
+        const generated = generateCommand(content, piAdapter);
+        expect(generated.path.replaceAll('\\', '/')).toContain('.pi/prompts/iagent-project-init.md');
+
+        // 仅取 frontmatter 区段断言（正文可能含同名文本）
+        const frontmatter = generated.fileContent.split('---')[1] ?? '';
+        expect(frontmatter).toContain(`description: ${template.description}`);
+        expect(frontmatter).not.toMatch(/^\s*name:/m);
+        expect(frontmatter).not.toMatch(/^\s*allowed-tools:/m);
+        expect(frontmatter).not.toMatch(/^\s*category:/m);
+        expect(frontmatter).not.toMatch(/^\s*tags:/m);
+        expect(frontmatter).toContain('generatedBy: "2.0.0"');
+
+        // 指纹自洽：update 的手改保护对 Pi prompt 可用
+        const fp = readGeneratedFingerprint(generated.fileContent);
+        expect(fp).toBeDefined();
+        expect(fp).toBe(fingerprintOf(generated.fileContent));
     });
 });
 
@@ -80,6 +120,6 @@ describe('YAML 工具', () => {
     });
 
     it('数组格式化', () => {
-        expect(formatTagsArray(['venus', 'tr_tools'])).toBe('[venus, tr_tools]');
+        expect(formatTagsArray(['iagent', 'tools'])).toBe('[iagent, tools]');
     });
 });

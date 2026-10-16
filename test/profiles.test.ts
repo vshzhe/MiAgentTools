@@ -8,22 +8,22 @@ import { resolveWorkflows, DEFAULT_WORKFLOWS, DEPS } from '../src/core/profiles.
 describe('resolveWorkflows', () => {
     it('未配置时默认集 8 显式项 + 1 注入 = 9 项', () => {
         const result = resolveWorkflows(undefined);
-        // 默认集显式项仍为 8；spec-archive 在集内，其依赖 tr-docs-requirement-doc 被注入
-        expect(result.workflows).toEqual([...DEFAULT_WORKFLOWS, 'tr-docs-requirement-doc']);
-        expect(result.injected).toEqual(['tr-docs-requirement-doc']);
+        // 默认集显式项仍为 8；spec-archive 在集内，其依赖 requirement-doc 被注入
+        expect(result.workflows).toEqual([...DEFAULT_WORKFLOWS, 'requirement-doc']);
+        expect(result.injected).toEqual(['requirement-doc']);
         expect(result.workflows.length).toBe(9);
     });
 
     it('空数组视为未配置，返回默认集 8 显式项 + 1 注入 = 9 项', () => {
         const result = resolveWorkflows([]);
-        expect(result.workflows).toEqual([...DEFAULT_WORKFLOWS, 'tr-docs-requirement-doc']);
-        expect(result.injected).toEqual(['tr-docs-requirement-doc']);
+        expect(result.workflows).toEqual([...DEFAULT_WORKFLOWS, 'requirement-doc']);
+        expect(result.injected).toEqual(['requirement-doc']);
         expect(result.workflows.length).toBe(9);
     });
 
     it('用户配置子集完全覆盖默认集（非合并）', () => {
-        const result = resolveWorkflows(['tr-impl-feature', 'spec-explore']);
-        expect(result.workflows).toEqual(['tr-impl-feature', 'spec-explore']);
+        const result = resolveWorkflows(['review', 'spec-explore']);
+        expect(result.workflows).toEqual(['review', 'spec-explore']);
         expect(result.injected).toEqual([]);
     });
 
@@ -38,35 +38,35 @@ describe('resolveWorkflows', () => {
         const result = resolveWorkflows(['spec-archive']);
         expect(result.workflows).toContain('spec-archive');
         expect(result.workflows).toContain('spec-verify');
-        expect(result.workflows).toContain('tr-docs-requirement-doc');
-        expect(result.injected).toEqual(['spec-verify', 'tr-docs-requirement-doc']);
+        expect(result.workflows).toContain('requirement-doc');
+        expect(result.injected).toEqual(['spec-verify', 'requirement-doc']);
     });
 
     it('spec-bulk-archive 注入 spec-verify 与需求文档技能（与 spec-archive 对称）', () => {
         const result = resolveWorkflows(['spec-bulk-archive']);
         expect(result.workflows).toContain('spec-bulk-archive');
         expect(result.workflows).toContain('spec-verify');
-        expect(result.workflows).toContain('tr-docs-requirement-doc');
-        expect(result.injected).toEqual(['spec-verify', 'tr-docs-requirement-doc']);
+        expect(result.workflows).toContain('requirement-doc');
+        expect(result.injected).toEqual(['spec-verify', 'requirement-doc']);
     });
 
-    it('tr-impl-auto-migration 注入两子技能', () => {
-        const result = resolveWorkflows(['tr-impl-auto-migration']);
-        expect(result.workflows).toContain('tr-impl-auto-migration');
-        expect(result.workflows).toContain('tr-docs-feature-doc');
-        expect(result.workflows).toContain('tr-impl-migration-check');
-        expect(result.injected).toEqual(['tr-docs-feature-doc', 'tr-impl-migration-check']);
+    it('migration 注入两子技能', () => {
+        const result = resolveWorkflows(['migration']);
+        expect(result.workflows).toContain('migration');
+        expect(result.workflows).toContain('feature-doc');
+        expect(result.workflows).toContain('migration-check');
+        expect(result.injected).toEqual(['feature-doc', 'migration-check']);
     });
 
     it('已含一子技能时仅补缺失项', () => {
-        const result = resolveWorkflows(['tr-impl-auto-migration', 'tr-impl-migration-check']);
-        expect(result.injected).toEqual(['tr-docs-feature-doc']);
-        expect(result.workflows).toEqual(['tr-impl-auto-migration', 'tr-impl-migration-check', 'tr-docs-feature-doc']);
+        const result = resolveWorkflows(['migration', 'migration-check']);
+        expect(result.injected).toEqual(['feature-doc']);
+        expect(result.workflows).toEqual(['migration', 'migration-check', 'feature-doc']);
     });
 
     it('无 auto-migration 不注入子技能', () => {
-        const result = resolveWorkflows(['tr-docs-feature-doc']);
-        expect(result.workflows).toEqual(['tr-docs-feature-doc']);
+        const result = resolveWorkflows(['feature-doc']);
+        expect(result.workflows).toEqual(['feature-doc']);
         expect(result.injected).toEqual([]);
     });
 
@@ -82,76 +82,60 @@ describe('resolveWorkflows', () => {
         expect(result.workflows).toEqual(['spec-propose', 'spec-verify-proposal']);
     });
 
-    it('DEPS 规则表含 propose/archive/bulk-archive/auto-migration/workflow/genfull 套件八条', () => {
+    it('DEPS 规则表含 propose/archive/bulk-archive/migration/workflow 套件七条', () => {
         expect(Object.keys(DEPS).sort()).toEqual([
+            'auto-workflow',
+            'debug',
+            'migration',
             'spec-archive',
             'spec-bulk-archive',
             'spec-propose',
-            'tr-impl-auto-migration',
-            'tr-impl-auto-workflow',
-            'tr-impl-debug',
-            'tr-impl-genfull',
-            'tr-impl-workflow',
+            'workflow',
         ]);
     });
 
-    it('tr-impl-workflow 仅注入深度复查技能（需求文档改由归档阶段生成）', () => {
-        const result = resolveWorkflows(['tr-impl-workflow']);
-        expect(result.workflows).toContain('tr-impl-workflow');
-        expect(result.workflows).toContain('tr-impl-review-proposal');
-        // 需求文档不再由本工作流生成，故不注入该技能
-        expect(result.workflows).not.toContain('tr-docs-requirement-doc');
-        expect(result.injected).toEqual(['tr-impl-review-proposal']);
-    });
-
-    it('tr-impl-auto-workflow 连带补全传递依赖（不动点迭代）', () => {
-        const result = resolveWorkflows(['tr-impl-auto-workflow']);
-        expect(result.workflows).toContain('tr-impl-auto-workflow');
-        expect(result.workflows).toContain('tr-impl-workflow');
-        expect(result.workflows).toContain('tr-docs-requirement-doc');
-        expect(result.workflows).toContain('tr-impl-review-proposal');
-        expect(result.injected).toEqual(['tr-impl-workflow', 'tr-docs-requirement-doc', 'tr-impl-review-proposal']);
-    });
-
-    it('tr-impl-genfull 注入七阶段技能并连带传递依赖（不动点迭代）', () => {
-        const result = resolveWorkflows(['tr-impl-genfull']);
-        expect(result.workflows).toContain('tr-impl-genfull');
-        // 7 个显式阶段技能
-        for (const dep of [
-            'spec-explore',
-            'spec-propose',
-            'spec-apply',
-            'spec-archive',
-            'tr-impl-frontend',
-            'tr-test-generate',
-            'tr-impl-review-proposal',
-        ]) {
+    it('workflow 注入验证/实现/归档技能并连带补全传递依赖', () => {
+        const result = resolveWorkflows(['workflow']);
+        expect(result.workflows).toContain('workflow');
+        // 4 个显式依赖：验证评分门 + 深度复查 + 实现 + 归档
+        for (const dep of ['spec-verify-proposal', 'proposal-review', 'spec-apply', 'spec-archive']) {
             expect(result.workflows).toContain(dep);
         }
-        // 传递注入：spec-verify-proposal（via spec-propose）、spec-verify 与 tr-docs-requirement-doc（via spec-archive）
-        expect(result.workflows).toContain('spec-verify-proposal');
+        // 传递注入：spec-verify 与 requirement-doc（via spec-archive）
         expect(result.workflows).toContain('spec-verify');
-        expect(result.workflows).toContain('tr-docs-requirement-doc');
-        // 注入顺序：7 显式在前；传递项按轮次与 DEPS 定义序追加，tr-docs-requirement-doc 位于末尾
+        expect(result.workflows).toContain('requirement-doc');
         expect(result.injected).toEqual([
-            'spec-explore',
-            'spec-propose',
+            'spec-verify-proposal',
+            'proposal-review',
             'spec-apply',
             'spec-archive',
-            'tr-impl-frontend',
-            'tr-test-generate',
-            'tr-impl-review-proposal',
-            'spec-verify-proposal',
             'spec-verify',
-            'tr-docs-requirement-doc',
+            'requirement-doc',
         ]);
     });
 
-    it('tr-impl-debug 仅注入提案评分技能（需求文档不在 debug 范围内）', () => {
-        const result = resolveWorkflows(['tr-impl-debug']);
-        expect(result.workflows).toContain('tr-impl-debug');
+    it('auto-workflow 连带补全传递依赖（不动点迭代）', () => {
+        const result = resolveWorkflows(['auto-workflow']);
+        expect(result.workflows).toContain('auto-workflow');
+        expect(result.workflows).toContain('workflow');
+        expect(result.workflows).toContain('requirement-doc');
+        expect(result.workflows).toContain('proposal-review');
+        expect(result.injected).toEqual([
+            'workflow',
+            'requirement-doc',
+            'spec-verify-proposal',
+            'proposal-review',
+            'spec-apply',
+            'spec-archive',
+            'spec-verify',
+        ]);
+    });
+
+    it('debug 仅注入提案评分技能（需求文档不在 debug 范围内）', () => {
+        const result = resolveWorkflows(['debug']);
+        expect(result.workflows).toContain('debug');
         expect(result.workflows).toContain('spec-verify-proposal');
-        expect(result.workflows).not.toContain('tr-docs-requirement-doc');
+        expect(result.workflows).not.toContain('requirement-doc');
         expect(result.injected).toEqual(['spec-verify-proposal']);
     });
 });

@@ -6,9 +6,9 @@ import { deriveCommandContent } from '../derive-command.js';
 
 export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
     return {
-        name: 'venus_spec_verify',
+        name: 'iagent_spec_verify',
         description: '验证变更。当用户要在实现完成后、归档前验证实现与变更制品（specs/tasks/design）是否一致时使用。',
-        allowedTools: 'Bash(venus:*), Read, Glob, Grep',
+        allowedTools: 'Bash(iagent:*), Read, Glob, Grep',
         type: 'spec',
         instructions: `**验证前先阅读 openspec/rules/ai-coding.md 中的验证标准。** 重点检查未定义数据字段、架构分层违规、前端 UI 状态覆盖。
 
@@ -24,7 +24,7 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
 
 1. **若未提供变更名，提示选择**
 
-   运行 \`venus spec status --json\` 获取可用变更列表。使用 **AskUserQuestion 工具** 让用户选择。
+   运行 \`iagent spec status --json\` 获取可用变更列表。使用 **AskUserQuestion 工具** 让用户选择。
 
    展示含实现任务（存在 tasks 制品）的变更。
    若可获取每个变更所用的 schema，一并展示。
@@ -34,7 +34,7 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
 
 2. **查询状态以理解 schema**
    \`\`\`bash
-   venus spec status --change "<name>" --json
+   iagent spec status --change "<name>" --json
    \`\`\`
    解析 JSON 以理解：
    - \`schemaName\`：当前使用的工作流（例如 "spec-driven"）
@@ -43,14 +43,14 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
 
 3. **读取变更制品（JSON 优先）**
 
-   运行 \`venus spec status --change "<name>" --json\` 获取进度统计（progress），并按以下顺序读取制品：
+   运行 \`iagent spec status --change "<name>" --json\` 获取进度统计（progress），并按以下顺序读取制品：
 
-   - **优先读**变更目录下的 \`change.json\`（结构化真源）：
+   - **优先读**变更目录下的 \`OpenSpec Markdown artifacts\`（结构化真源）：
      - \`specs\` 段（\`specs[].operations[]\`）：需求与场景清单，用于完整性 / 正确性验证
      - \`design\` 段：设计一致性核对（decisions / risks）
      - \`proposal\` 段：需求背景（why / whatChanges / impact）
-   - **优先读**变更目录根下的 \`tasks.json\`：任务状态与 specRef 覆盖关系
-   - **降级（WARN）**：change.json 缺失时输出 WARN，改读渲染后的 MD —— proposal.md / specs/*.md / design.md；tasks.json 缺失时改读 tasks.md 复选框
+   - **优先读**变更目录根下的 \`tasks.md\`：任务状态与 specRef 覆盖关系
+   - **降级（WARN，仅存量 / 已归档变更）**：OpenSpec Markdown artifacts 缺失时输出 WARN，只读解析既有 MD —— proposal.md / specs/*.md / design.md；tasks.md 缺失时改读 tasks.md 复选框
 
    降级读取时必须在报告中注明 WARN 与降级原因，用于后续三维度验证。
 
@@ -66,22 +66,22 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
 5. **验证 Completeness（完整性）**
 
    **任务完成情况**：
-   - **优先读**变更目录根下的 \`tasks.json\`：若存在，直接获取结构化任务列表（id / label / status / dependencies / specRef / files）与 progress 统计，跳过 markdown 解析
-   - **降级（WARN）**：tasks.json 缺失时解析 tasks.md 复选框：\`- [ ]\`（未完成） vs \`- [x]\`（完成）
+   - **优先读**变更目录根下的 \`tasks.md\`：若存在，直接获取结构化任务列表（id / label / status / dependencies / specRef / files）与 progress 统计，跳过 markdown 解析
+   - **降级（WARN）**：tasks.md 缺失时解析 tasks.md 复选框：\`- [ ]\`（未完成） vs \`- [x]\`（完成）
    - 统计完成 / 总任务数
    - 若存在未完成任务：
      - 为每个未完成任务添加 CRITICAL 问题
      - 建议："完成任务：<描述>" 或 "若已实现则标记为完成"
 
-   **Spec 覆盖（逐需求对比 tasks.json）**：
+   **Spec 覆盖（逐需求对比 tasks.md）**：
    - 需求清单来源（JSON 优先）：
-     - 优先：\`change.json\` 的 \`specs[].operations[].requirement\`（逐条需求）
+     - 优先：\`OpenSpec Markdown artifacts\` 的 \`specs[].operations[].requirement\`（逐条需求）
      - 降级（WARN）：specs/*.md 中以 "### Requirement:" 标记的需求
-   - 对每条需求，在 tasks.json 中匹配覆盖任务（按以下信号依次判定）：
+   - 对每条需求，在 tasks.md 中匹配覆盖任务（按以下信号依次判定）：
      1. \`specRef\` 与需求名精确匹配
      2. \`dependencies\` 引用链上存在面向该需求的任务
      3. \`description\` 与需求语义相关（关键词 / 语义匹配）
-     （tasks.json 缺失降级时，覆盖匹配退化为对 tasks.md 任务描述的语义匹配）
+     （tasks.md 缺失降级时，覆盖匹配退化为对 tasks.md 任务描述的语义匹配）
    - 输出逐需求的结构化对比（纳入最终报告）：
      \`\`\`
      | 需求 | 覆盖任务 | 任务状态 | 判定 |
@@ -92,7 +92,7 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
      - 覆盖任务全部 done → **已覆盖**
      - 有覆盖任务但存在 pending → CRITICAL："需求未完成：<需求名>（任务 <id> 仍为 pending）"
      - 无任何覆盖任务 → CRITICAL："需求未找到：<需求名>"
-       - 建议："实现需求 X：<描述>，并在 tasks.json 补建覆盖任务（specRef 指向该需求）"
+       - 建议："实现需求 X：<描述>，并在 tasks.md 补建覆盖任务（specRef 指向该需求）"
 
 6. **验证 Correctness（正确性）**
 
@@ -117,12 +117,12 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
 
    **设计遵循**：
    - 若存在 design 制品：
-     - 优先：\`change.json\` 的 \`design\` 段，直接读取 \`decisions[]\`（id / title / choice / rationale）与 \`risks[]\`
-     - 降级（WARN）：design.md 中查找 "Decision:" / "Approach:" / "Architecture:" 等段落
+     - 优先：\`OpenSpec Markdown artifacts\` 的 \`design\` 段，直接读取 \`decisions[]\`（id / title / choice / rationale）与 \`risks[]\`
+     - 降级（WARN，仅存量 / 已归档变更）：design.md 中查找 "Decision:" / "Approach:" / "Architecture:" 等段落
      - 验证实现是否遵循这些决策
      - 若检测到矛盾：
        - 添加 WARNING："未遵循设计决策：<决策>"
-       - 建议："更新实现，或修订 design 段后运行 \`venus spec render design --change <name>\` 重渲染（降级读取时为直接修订 design.md）"
+       - 建议："更新实现，或修订 OpenSpec Markdown artifacts 的 \`design\` 段（proposal/specs/design 无 MD 渲染入口；存量变更降级读取时才参考 design.md）"
    - 若无 design 制品：跳过设计遵循检查，注明 "无 design 制品可供对照"
 
    **代码模式一致性**：
@@ -134,7 +134,7 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
 
    **数据结构验证**：
    - 检查实现是否引用了 specs/design 中未定义的数据库字段或 API 参数
-   - 可用时参考 design.md "数据库表-字段映射" 表获取字段定义
+   - 可用时参考 OpenSpec Markdown artifacts 的 \`design\` 段（存量变更降级时参考 design.md "数据库表-字段映射" 表）
    - 若发现未定义字段：添加 CRITICAL 问题 "数据字段未在 specs 中定义：<field>"
    - 建议："在 specs 中定义字段 <field> 或从实现中移除"
 
@@ -144,13 +144,13 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
    - 建议："将 <logic> 移至合适层（<建议层>）"
 
    **交互契约验证**：
-   - 可用时参考 design.md "API 交互契约" 表
+   - 可用时参考 OpenSpec Markdown artifacts 的 \`design\` 段（存量变更降级时参考 design.md "API 交互契约" 表）
    - 对实现中的每个 API 端点：
      - 检查实际响应字段是否匹配契约 Response 定义
      - 检查返回的错误码是否匹配契约错误码列表
      - 若发现不匹配：添加 WARNING 问题 "API 响应不匹配：<endpoint> 返回了契约未定义的 <field>"
-     - 建议："更新 design.md 中的 API 契约或修正实现响应"
-   - 可用时参考 design.md "字段-UI 组件映射矩阵"
+     - 建议："更新 OpenSpec Markdown artifacts 的 \`design\` 段中的 API 契约或修正实现响应"
+   - 可用时参考 OpenSpec Markdown artifacts 的 \`design\` 段（存量变更降级时参考 design.md "字段-UI 组件映射矩阵"）
    - 对实现中的每个 UI 组件：
      - 检查组件中使用的字段名是否匹配映射矩阵
      - 若发现不匹配：添加 WARNING 问题 "字段名不匹配：<component> 使用 <field>，契约期望 <expected-field>"
@@ -163,9 +163,9 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
      - 建议："实现第 <N> 步：<描述>"
 
    **前端 UI 状态覆盖**（若存在前端代码）：
-   - 可用时参考 design.md "UI 状态覆盖" 表
+   - 可用时参考 OpenSpec Markdown artifacts 的 \`design\` 段（存量降级时参考 design.md "UI 状态覆盖" 表）
    - 检查数据展示组件是否处理四种必需状态：Loading / Empty / Error / Data
-   - 与 design.md 表交叉对照，验证每个列出的组件具备所有状态
+   - 与 OpenSpec Markdown artifacts 的 \`design\` 段交叉对照，验证每个列出的组件具备所有状态
    - 若状态处理缺失：添加 SUGGESTION 问题 "缺失 UI 状态处理：<component> 的 <state>"
    - 建议："为 <component> 添加 <state> 状态处理"
 
@@ -231,17 +231,17 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
 - 具体、可操作的建议
 - 禁止 "考虑审查" 等模糊建议`,
         license: 'MIT',
-        compatibility: '依赖 venus CLI（spec 命令组）。',
-        metadata: { author: 'venus-agent-tools', version: '1.0' },
+        compatibility: '依赖 iagent CLI（spec 命令组）。',
+        metadata: { author: 'mi-agent-tools', version: '1.0' },
     };
 }
 
 export function getSpecVerifyChangeCommandTemplate(): CommandTemplate {
     return {
-        name: 'Venus: 验证变更',
+        name: 'iAgent: 验证变更',
         description: '验证变更 —— 实现完成后、归档前验证实现与变更制品是否一致',
-        category: 'Venus / 规格',
-        tags: ['venus', 'spec', 'verify'],
+        category: 'iAgent / 规格',
+        tags: ['iagent', 'spec', 'verify'],
         content: deriveCommandContent(getSpecVerifyChangeSkillTemplate().instructions),
     };
 }

@@ -1,8 +1,8 @@
 /**
- * 项目预扫描（venus init 的确定性步骤，非阻断）。
+ * 项目预扫描（iagent init 的确定性步骤，非阻断）。
  *
- * 产出：ProjectScanReport + .venus/scan-baseline.json（本机产物，不入库）。
- * 用途：供 venus_tr_init_project 技能做后续五类语义扫描时参考，避免重复劳动。
+ * 产出：ProjectScanReport + .iagent/scan-baseline.json（本机产物，不入库）。
+ * 用途：供 iagent_project_init 技能做后续五类语义扫描时参考，避免重复劳动。
  *
  * 不变量（MUST NOT 破坏）：
  *   1. 敏感值零外泄：配置项只记录键名（keys），取值在提取函数内即丢弃，
@@ -15,7 +15,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { ensureDir } from '../utils/file-system.js';
-import { CONFIG_FILE_NAME, VENUS_DIR_NAME } from './project-config.js';
+import { CONFIG_FILE_NAME, IAGENT_DIR_NAME } from './project-config.js';
 
 /** 目录遍历深度上限（项目根为 0，超出的层级不再遍历） */
 export const MAX_SCAN_DEPTH = 8;
@@ -23,11 +23,11 @@ export const MAX_SCAN_DEPTH = 8;
 /** 遍历文件数上限（超出的文件不再逐个归类） */
 export const MAX_SCAN_FILES = 2000;
 
-/** 基线文件名（.venus/ 下，本机产物，不入库） */
+/** 基线文件名（.iagent/ 下，本机产物，不入库） */
 export const SCAN_BASELINE_FILE = 'scan-baseline.json';
 
 /** 基线文件项目相对路径（/ 分隔，供报告与 WARN 提示使用） */
-export const SCAN_BASELINE_PATH = `${VENUS_DIR_NAME}/${SCAN_BASELINE_FILE}`;
+export const SCAN_BASELINE_PATH = `${IAGENT_DIR_NAME}/${SCAN_BASELINE_FILE}`;
 
 /** 单个文本文件的读取上限（字节）：超过则不读内容（对应「超大非源码文件」排除） */
 const MAX_TEXT_FILE_BYTES = 512 * 1024;
@@ -48,8 +48,8 @@ const CANDIDATE_NOTE = '候选，未验证源码使用（jar 存在 ≠ 框架�
 const REPORT_VERSION = 1;
 
 /**
- * 目录名排除清单：venus 自身产物目录 + 版本控制/IDE + 构建产物目录。
- * MUST 含 venus 自身产物（.claude/.venus/.codegraph/openspec），
+ * 目录名排除清单：iagent 自身产物目录 + 版本控制/IDE + 构建产物目录。
+ * MUST 含 iagent 自身产物（.claude/.iagent/.codegraph/openspec），
  * 否则 .claude/skills/ 下的既有技能目录会被误报为项目信号并可能触发上限。
  */
 const EXCLUDED_DIR_NAMES = new Set([
@@ -59,7 +59,7 @@ const EXCLUDED_DIR_NAMES = new Set([
     '.idea',
     '.vscode',
     '.claude',
-    '.venus',
+    '.iagent',
     '.codegraph',
     'openspec',
     'node_modules',
@@ -168,7 +168,7 @@ const VARIANT_INFIX_RE = /_(?:bss|idc|mysql|gzdx|prod|prd|test|dev|uat|sit|bak|o
 /**
  * 同配置多环境变体的「扩展名之后」环境后缀（如 DataBase.properties_bss / config.xml_idc）。
  *
- * 真实项目（Venus4A 等）实际使用的正是该形态：`DataBase.properties_bss`、`_idc`、`_mysql`、`.gzdx`。
+ * 真实项目中实际出现的正是该形态：`DataBase.properties_bss`、`_idc`、`_mysql`、`.gzdx`。
  * 若只识别中缀与 `.bak` 类后缀，这类变体会被当作「不认识的扩展名」静默忽略（既不合并、也不报失败），
  * 导致多个含凭据键的副本各自游离在信号集之外。
  */
@@ -715,7 +715,7 @@ export function scanProject(projectRoot: string, options: ScanOptions = {}): Pro
 }
 
 /**
- * 写出扫描基线（.venus/scan-baseline.json，整体覆盖）。
+ * 写出扫描基线（.iagent/scan-baseline.json，整体覆盖）。
  * 写入失败只返回 WARN 结果，MUST NOT 抛出、MUST NOT 中断调用方。
  *
  * @param projectRoot - 项目根目录
@@ -723,9 +723,9 @@ export function scanProject(projectRoot: string, options: ScanOptions = {}): Pro
  * @returns 写出结果（state=failed 时 warning 含失败原因）
  */
 export function writeScanBaseline(projectRoot: string, report: ProjectScanReport): BaselineWriteResult {
-    const target = path.join(projectRoot, VENUS_DIR_NAME, SCAN_BASELINE_FILE);
+    const target = path.join(projectRoot, IAGENT_DIR_NAME, SCAN_BASELINE_FILE);
     try {
-        ensureDir(path.join(projectRoot, VENUS_DIR_NAME));
+        ensureDir(path.join(projectRoot, IAGENT_DIR_NAME));
         fs.writeFileSync(target, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
         return { path: SCAN_BASELINE_PATH, state: 'written' };
     } catch (error) {
@@ -791,6 +791,6 @@ export function renderScanReport(report: ProjectScanReport): string {
     for (const failure of report.failures) {
         lines.push(`    ! ${failure.target}：${failure.reason}`);
     }
-    lines.push('    下一步：/venus:tr-init-project 基于基线生成分类文档（docs/project/）');
+    lines.push('    下一步：/iagent:project-init 基于基线生成分类文档（docs/project/）');
     return lines.join('\n');
 }

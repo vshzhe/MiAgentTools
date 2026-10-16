@@ -15,7 +15,7 @@ import { getArtifactInstructions } from '../src/core/spec/instructions.js';
 
 /** 创建临时项目根目录并返回 */
 function makeTempProject(): string {
-    return fs.mkdtempSync(path.join(os.tmpdir(), 'venus-spec-test-'));
+    return fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-spec-test-'));
 }
 
 /** 在临时项目中创建变更目录 */
@@ -28,7 +28,7 @@ function makeChange(projectRoot: string, changeName: string): string {
 /** 构造最小合法 change.json（proposal 段） */
 function writeChangeJson(changeDir: string, sections: { proposal?: boolean; specs?: boolean; design?: boolean }): void {
     const json: Record<string, unknown> = {
-        $schema: 'venus/change/v1',
+        $schema: 'iagent/change/v1',
         changeName: path.basename(changeDir),
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z',
@@ -60,7 +60,7 @@ function writeChangeJson(changeDir: string, sections: { proposal?: boolean; spec
 /** 构造最小合法 tasks.json */
 function writeTasksJson(changeDir: string, tasks: Array<{ id: string; status: string }>): void {
     const json = {
-        $schema: 'venus/tasks/v1',
+        $schema: 'iagent/tasks/v1',
         tasks: tasks.map((t) => ({
             id: t.id,
             label: '代码',
@@ -188,7 +188,7 @@ describe('spec 模板分发（instructions）', () => {
         );
     });
 
-    it('变更不存在：报错并提示 venus spec new', () => {
-        expect(() => getArtifactInstructions(projectRoot, 'ghost', 'proposal')).toThrowError(/venus spec new/);
+    it('变更不存在：报错并提示 iagent spec new', () => {
+        expect(() => getArtifactInstructions(projectRoot, 'ghost', 'proposal')).toThrowError(/iagent spec new/);
     });
 });

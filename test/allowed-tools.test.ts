@@ -5,7 +5,7 @@
  * 否则技能在 Claude Code 中会被权限拦截而无法执行。
  *
  * 含两层检查：
- *   1. 硬断言（拦截）：逐技能硬编码的关键命令覆盖（pwd/git/venus/codegraph 等）
+ *   1. 硬断言（拦截）：逐技能硬编码的关键命令覆盖（pwd/git/iagent/codegraph 等）
  *   2. 一致性扫描（仅告警不拦截）：扫描全部技能正文（instructions + 非脚本类 references）
  *      与白名单比对，缺失项以 console.warn 输出，供人工判断后补录。
  *      不作为失败拦截——存量技能存在历史缺口，避免阻断无关改动；且不同语言构建命令
@@ -26,13 +26,8 @@ describe('allowed-tools 白名单覆盖', () => {
         }
     });
 
-    it('pwd 技能白名单包含 pwd 命令', () => {
-        const pwd = skills.find((s) => s.template.name === 'venus_tr_tools_pwd');
-        expect(pwd?.template.allowedTools).toContain('Bash(pwd');
-    });
-
     it('commit 技能白名单覆盖 git status/diff/commit', () => {
-        const commit = skills.find((s) => s.template.name === 'venus_tr_commit_change');
+        const commit = skills.find((s) => s.template.name === 'iagent_commit');
         const tools = commit?.template.allowedTools ?? '';
         expect(tools).toContain('Bash(git status');
         expect(tools).toContain('Bash(git diff');
@@ -40,32 +35,27 @@ describe('allowed-tools 白名单覆盖', () => {
     });
 
     it('init 技能白名单包含 ls 探查命令', () => {
-        const init = skills.find((s) => s.template.name === 'venus_tr_init_project');
+        const init = skills.find((s) => s.template.name === 'iagent_project_init');
         expect(init?.template.allowedTools).toContain('Bash(ls');
     });
 
-    it('list 技能白名单包含 venus CLI', () => {
-        const list = skills.find((s) => s.template.name === 'venus_tr_tools_list');
-        expect(list?.template.allowedTools).toContain('Bash(venus');
-    });
-
-    it('工作流套件五新技能白名单包含 venus CLI', () => {
+    it('工作流套件五新技能白名单包含 iagent CLI', () => {
         const names = [
-            'venus_tr_impl_workflow',
-            'venus_tr_impl_auto_workflow',
-            'venus_tr_impl_debug',
-            'venus_tr_docs_requirement_doc',
-            'venus_tr_impl_review_proposal',
+            'iagent_workflow',
+            'iagent_auto_workflow',
+            'iagent_debug',
+            'iagent_requirement_doc',
+            'iagent_proposal_review',
         ];
         for (const name of names) {
             const skill = skills.find((s) => s.template.name === name);
             expect(skill?.template.allowedTools.length).toBeGreaterThan(0);
-            expect(skill?.template.allowedTools).toContain('Bash(venus');
+            expect(skill?.template.allowedTools).toContain('Bash(iagent');
         }
     });
 
     it('debug 技能白名单覆盖编译检查命令', () => {
-        const debug = skills.find((s) => s.template.name === 'venus_tr_impl_debug');
+        const debug = skills.find((s) => s.template.name === 'iagent_debug');
         const tools = debug?.template.allowedTools ?? '';
         expect(tools).toContain('Bash(pnpm:');
         expect(tools).toContain('Bash(git:');
@@ -82,9 +72,9 @@ describe('allowed-tools 白名单覆盖', () => {
 
     it('迁移套件三新技能 allowedTools 非空且包含 CodeGraph', () => {
         const names = [
-            'venus_tr_impl_migration_check',
-            'venus_tr_impl_auto_migration',
-            'venus_tr_docs_feature_doc',
+            'iagent_migration_check',
+            'iagent_migration',
+            'iagent_feature_doc',
         ];
         for (const name of names) {
             const skill = skills.find((s) => s.template.name === name);
@@ -93,9 +83,9 @@ describe('allowed-tools 白名单覆盖', () => {
         }
     });
 
-    it('auto-migration 技能白名单包含 venus CLI', () => {
-        const auto = skills.find((s) => s.template.name === 'venus_tr_impl_auto_migration');
-        expect(auto?.template.allowedTools).toContain('Bash(venus');
+    it('auto-migration 技能白名单包含 iagent CLI', () => {
+        const auto = skills.find((s) => s.template.name === 'iagent_migration');
+        expect(auto?.template.allowedTools).toContain('Bash(iagent');
     });
 
     // —— 一致性扫描（仅告警，不拦截） ——
@@ -106,7 +96,7 @@ describe('allowed-tools 白名单覆盖', () => {
             'bash sh zsh svn git hg pnpm npm yarn npx node tsc mvn gradle go cargo make ' +
             'python python3 pip java javac jar ant cat ls cp mv rm mkdir rmdir find grep sed awk xargs diff ' +
             'curl wget unzip zip tar gzip md5sum sha256sum echo printf tee head tail sort uniq wc tr cut ' +
-            'venus codegraph docker kubectl ps tasklist where which chmod touch'
+            'iagent codegraph docker kubectl ps tasklist where which chmod touch'
         ).split(/\s+/)
     );
 
@@ -259,8 +249,8 @@ describe('调用类白名单条目（MCP / Skill 委派 / 子代理派发）', (
             ({ template }) => /codegraph_/.test(template.instructions) || parseEntries(template.allowedTools).includes('mcp__codegraph')
         );
         // 判据自检：命中数不得为 0，否则断言静默空转
-        // 11 = 既有 10 项 + tr-init-project（其正文新增扫描步骤后提及 codegraph 工具名）
-        expect(derived.length).toBe(11);
+        // 10 = 既有 11 项 - full-workflow（已并入 workflow）
+        expect(derived.length).toBe(10);
         for (const { template } of derived) {
             expectCodegraphEntries(template);
         }
@@ -274,32 +264,31 @@ describe('调用类白名单条目（MCP / Skill 委派 / 子代理派发）', (
     it('判据拦截力：白名单缺失任一 CodeGraph 条目即判定失败', () => {
         // 缺失具名工具条目（仅保留 CLI 形态）→ 判据必须失败
         expect(() =>
-            expectCodegraphEntries({ name: 'venus_fake', allowedTools: 'Read, Bash(codegraph:*)' })
+            expectCodegraphEntries({ name: 'iagent_fake', allowedTools: 'Read, Bash(codegraph:*)' })
         ).toThrow();
         // 缺失裸服务器条目 → 判据必须失败
         expect(() =>
             expectCodegraphEntries({
-                name: 'venus_fake',
+                name: 'iagent_fake',
                 allowedTools: CODEGRAPH_MCP_ENTRIES.slice(1).join(', '),
             })
         ).toThrow();
     });
 
-    it('经 Skill 工具委派的技能，白名单含对应 Skill(venus_xxx) 条目且正文确有提及', () => {
+    it('经 Skill 工具委派的技能，白名单含对应 Skill(iagent_xxx) 条目且正文确有提及', () => {
         const delegating = skills.filter(({ template }) =>
             parseEntries(template.allowedTools).some((entry) => entry.startsWith('Skill('))
         );
         // 委派技能集合（回归锁）：白名单声明委派即意味着该技能正文存在委派动作
         expect(delegating.map((s) => s.commandId).sort()).toEqual([
+            'auto-workflow',
+            'debug',
+            'migration',
+            'project-init',
             'spec-archive',
             'spec-bulk-archive',
             'spec-propose',
-            'tr-impl-auto-migration',
-            'tr-impl-auto-workflow',
-            'tr-impl-debug',
-            'tr-impl-genfull',
-            'tr-impl-workflow',
-            'tr-init-project',
+            'workflow',
         ]);
 
         for (const { template } of delegating) {
@@ -310,11 +299,11 @@ describe('调用类白名单条目（MCP / Skill 委派 / 子代理派发）', (
             for (const name of delegated) {
                 // 委派目标必须是已注册技能（拼错技能名会产生永不放行的死条目）
                 expect(registeredSkillNames, `${template.name} 委派了未注册技能 ${name}`).toContain(
-                    `venus_${name}`
+                    `iagent_${name}`
                 );
                 // 且正文必须提及该技能，避免幽灵授权（授权面过宽属安全问题）
                 expect(template.instructions, `${template.name} 正文未提及被委派技能 ${name}`).toContain(
-                    `venus_${name}`
+                    `iagent_${name}`
                 );
             }
             // 不得使用星号通配——授权面过宽
@@ -328,12 +317,12 @@ describe('调用类白名单条目（MCP / Skill 委派 / 子代理派发）', (
         );
         // 派发技能集合（回归锁）
         expect(dispatching.map((s) => s.commandId).sort()).toEqual([
+            'auto-workflow',
+            'migration',
             'spec-apply',
             'spec-bulk-archive',
             'spec-propose',
-            'tr-impl-auto-migration',
-            'tr-impl-auto-workflow',
-            'tr-impl-workflow',
+            'workflow',
         ]);
         for (const { template } of dispatching) {
             expectSubagentDispatchPaired(template);
@@ -343,8 +332,8 @@ describe('调用类白名单条目（MCP / Skill 委派 / 子代理派发）', (
     });
 
     it('判据拦截力：派发条目单写（仅 Agent 或仅 Task）即判定失败', () => {
-        expect(() => expectSubagentDispatchPaired({ name: 'venus_fake', allowedTools: 'Read, Agent' })).toThrow();
-        expect(() => expectSubagentDispatchPaired({ name: 'venus_fake', allowedTools: 'Read, Task' })).toThrow();
+        expect(() => expectSubagentDispatchPaired({ name: 'iagent_fake', allowedTools: 'Read, Agent' })).toThrow();
+        expect(() => expectSubagentDispatchPaired({ name: 'iagent_fake', allowedTools: 'Read, Task' })).toThrow();
     });
 
     it('全部技能不存在 Skill(*) 星号通配', () => {
@@ -354,7 +343,7 @@ describe('调用类白名单条目（MCP / Skill 委派 / 子代理派发）', (
     });
 
     it('只读技能白名单不含 Write / Edit（只读语义约束维持）', () => {
-        for (const name of ['venus_spec_verify_proposal', 'venus_spec_verify']) {
+        for (const name of ['iagent_spec_verify_proposal', 'iagent_spec_verify']) {
             const skill = skills.find((s) => s.template.name === name);
             expect(skill, `只读技能 ${name} 未注册`).toBeDefined();
             const entries = parseEntries(skill?.template.allowedTools ?? '');
@@ -371,7 +360,7 @@ describe('调用类白名单条目（MCP / Skill 委派 / 子代理派发）', (
             expect(skillWhitelist.get(id), `指令 ${id} 无配对技能`).toBeDefined();
             // 指令侧回填值 = 配对技能白名单 = 其他技能名（防止回填错位或残留硬编码）
             expect(template.allowedTools).toBe(skillWhitelist.get(id));
-            expect(template.allowedTools).not.toBe('Bash(venus:*)');
+            expect(template.allowedTools).not.toBe('Bash(iagent:*)');
         }
     });
 

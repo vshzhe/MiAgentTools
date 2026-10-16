@@ -1,14 +1,14 @@
 /**
- * venus uninstall 命令。
+ * iagent uninstall 命令。
  *
- * 干净移除 venus 安装的产物：
- *   - .claude/skills/venus_<type>_<name>/     全部 venus 技能
- *   - .claude/commands/venus/                 全部斜杠指令
- *   - .venus/                                  项目配置（默认保留，--purge-config 才删）
+ * 干净移除 iagent 安装的产物：
+ *   - .claude/skills/iagent_<type>_<name>/     全部 iagent 技能
+ *   - .claude/commands/iagent/                 全部斜杠指令
+ *   - .iagent/                                  项目配置（默认保留，--purge-config 才删）
  *
  * 安全边界：
- *   - 只删 venus_ 前缀的技能目录与 venus 命名空间的指令目录，其他技能不碰
- *   - generate 产物的技能名同样是 venus_ 前缀，一并清理（它们也是 venus 管理的）
+ *   - 只删 iagent_ 前缀的技能目录与 iagent 命名空间的指令目录，其他技能不碰
+ *   - generate 产物的技能名同样是 iagent_ 前缀，一并清理（它们也是 iagent 管理的）
  */
 
 import * as fs from 'node:fs';
@@ -16,15 +16,15 @@ import * as path from 'node:path';
 import {
     AI_TOOLS,
     SKILL_PREFIX,
-    TOOL_COMMANDS_SUBDIR,
     TOOL_SKILLS_SUBDIR,
 } from '../core/config.js';
-import { VENUS_DIR_NAME } from '../core/project-config.js';
+import { IAGENT_DIR_NAME } from '../core/project-config.js';
+import { listManagedCommands, removeManagedCommands } from '../core/command-artifacts.js';
 import { listSubdirectories, pathExists } from '../utils/file-system.js';
 
 /** uninstall 命令选项 */
 export interface UninstallOptions {
-    /** 连同 .venus/ 项目配置一起删除（默认保留） */
+    /** 连同 .iagent/ 项目配置一起删除（默认保留） */
     purgeConfig?: boolean;
     /** 跳过确认提示（CI/脚本用） */
     yes?: boolean;
@@ -39,9 +39,9 @@ export interface UninstallResult {
     removedSkills: string[];
     /** 已删除的指令文件 */
     removedCommands: string[];
-    /** 是否删除了 .venus 配置 */
+    /** 是否删除了 .iagent 配置 */
     configRemoved: boolean;
-    /** 跳过（非 venus 管理）的目录 */
+    /** 跳过（非 iagent 管理）的目录 */
     skipped: string[];
 }
 
@@ -66,38 +66,47 @@ export function runUninstall(projectRoot: string, options: UninstallOptions = {}
     let configRemoved = false;
 
     for (const tool of AI_TOOLS) {
-        // 1. 技能目录：只删 venus_ 前缀
+        // 1. 技能目录：只删 iagent_ 前缀
         const skillsRoot = path.join(projectRoot, tool.skillsDir, TOOL_SKILLS_SUBDIR);
         for (const dirName of listSubdirectories(skillsRoot)) {
             if (!dirName.startsWith(SKILL_PREFIX)) {
                 skipped.push(path.relative(projectRoot, path.join(skillsRoot, dirName)));
                 continue;
             }
+            const target = path.join(skillsRoot, dirName);
+            // 边界校验：删除目标必须位于该工具的 skills 子目录之下（防越界删除）
+            const rel = path.relative(skillsRoot, target);
+            if (rel.startsWith('..') || path.isAbsolute(rel)) {
+                skipped.push(path.relative(projectRoot, target));
+                continue;
+            }
             if (!options.dryRun) {
-                fs.rmSync(path.join(skillsRoot, dirName), { recursive: true, force: true });
+                // rmSync 对符号链接只移除链接本身、不跟随目标，故不越界删除链接指向的内容
+                fs.rmSync(target, { recursive: true, force: true });
             }
             removedSkills.push(dirName);
         }
 
-        // 2. 指令目录：venus 命名空间整体删除
-        const commandsDir = path.join(projectRoot, tool.commandsDir, TOOL_COMMANDS_SUBDIR);
-        if (pathExists(commandsDir)) {
-            const files = fs.readdirSync(commandsDir);
-            for (const file of files) {
-                removedCommands.push(file);
+        // 2. 指令产物：按布局识别本工具命名产物
+        //    namespace-dir 整体删除命名空间子目录；prefixed-file 仅删前缀文件，
+        //    保留承载目录与 opsx-* 等其它文件（commandsDir 为空的工具自动被跳过）
+        if (options.dryRun) {
+            for (const artifact of listManagedCommands(projectRoot, tool)) {
+                removedCommands.push(artifact.path);
             }
-            if (!options.dryRun) {
-                fs.rmSync(commandsDir, { recursive: true, force: true });
+        } else {
+            for (const removed of removeManagedCommands(projectRoot, tool)) {
+                removedCommands.push(removed);
             }
         }
     }
 
     // 3. 项目配置（默认保留：可能包含用户维护的 rules）
     if (options.purgeConfig) {
-        const venusDir = path.join(projectRoot, VENUS_DIR_NAME);
-        if (pathExists(venusDir)) {
+        const iagentDir = path.join(projectRoot, IAGENT_DIR_NAME);
+        if (pathExists(iagentDir)) {
             if (!options.dryRun) {
-                fs.rmSync(venusDir, { recursive: true, force: true });
+                fs.rmSync(iagentDir, { recursive: true, force: true });
             }
             configRemoved = true;
         }
@@ -114,19 +123,19 @@ export function runUninstall(projectRoot: string, options: UninstallOptions = {}
 
 /** 渲染输出 */
 export function renderUninstallOutput(result: UninstallResult): string {
-    const lines: string[] = ['Venus 卸载完成：'];
+    const lines: string[] = ['iAgent 卸载完成：'];
     lines.push(`  技能：${result.removedSkills.length} 个`);
     for (const skill of result.removedSkills) {
         lines.push(`    - ${skill}`);
     }
-    lines.push(`  指令：${result.removedCommands.length} 个（.claude/commands/venus/）`);
+    lines.push(`  指令：${result.removedCommands.length} 个（.claude/commands/iagent/）`);
     if (result.configRemoved) {
-        lines.push('  配置：.venus/ 已删除');
+        lines.push('  配置：.iagent/ 已删除');
     } else {
-        lines.push('  配置：.venus/ 已保留（venus uninstall --purge-config 一并删除）');
+        lines.push('  配置：.iagent/ 已保留（iagent uninstall --purge-config 一并删除）');
     }
     if (result.skipped.length > 0) {
-        lines.push(`  跳过（非 venus 管理）：${result.skipped.length} 个目录`);
+        lines.push(`  跳过（非 iagent 管理）：${result.skipped.length} 个目录`);
     }
     return lines.join('\n');
 }

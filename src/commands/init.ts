@@ -1,9 +1,9 @@
 /**
- * venus init 命令。
+ * iagent init 命令。
  *
  * 将全部内置技能（SKILL.md）与斜杠指令生成到各目标工具目录：
- *   技能：<skillsDir>/skills/venus_<type>_<name>/SKILL.md（所有工具）
- *   指令：<commandsDir>/venus/<id>.md（仅有适配器的工具）
+ *   技能：<skillsDir>/skills/iagent_<type>_<name>/SKILL.md（所有工具）
+ *   指令：<commandsDir>/iagent/<id>.md（仅有适配器的工具）
  *
  * 技能与指令分离架构：参见 update.ts 同构结构。
  */
@@ -21,9 +21,8 @@ import {
 import {
     AI_TOOLS,
     TOOL_SKILLS_SUBDIR,
-    type AIToolOption,
 } from '../core/config.js';
-import { ensureProjectConfig, readProjectConfig, resolveActiveTools } from '../core/project-config.js';
+import { ensureProjectConfig, readProjectConfig, resolveActiveTools, writeToolsToConfig } from '../core/project-config.js';
 import { resolveWorkflows } from '../core/profiles.js';
 import { scanReconcileOrphans, type ReconcileOrphans } from '../core/reconcile.js';
 import {
@@ -38,6 +37,8 @@ import {
 } from '../core/permissions.js';
 import { ensureDir, writeFile, pathExists, writeSkillReferences } from '../utils/file-system.js';
 import { initDatabase, isSqlite3Available, resolveIndexDb } from '../core/spec/sqlite-index.js';
+import { runLegacyMigration, type LegacyMigrationReport } from '../core/legacy-migration.js';
+import { cleanupMisplacedCommands, type MisplacedCleanupResult } from '../core/command-artifacts.js';
 
 /** 目标工具设置文件的相对路径（会话级权限载体） */
 const SETTINGS_FILE = 'settings.json';
@@ -50,6 +51,10 @@ export interface InitOptions {
     force?: boolean;
     /** 是否执行项目预扫描（--no-scan 时由 Commander 生成 scan: false，跳过扫描且不写基线） */
     scan?: boolean;
+    /** 是否执行旧装机迁移（--no-migrate 时由 Commander 生成 migrate: false） */
+    migrate?: boolean;
+    /** 用户主目录（旧补全产物所在；仅测试与自定义环境注入，默认 os.homedir()） */
+    homeDir?: string;
 }
 
 /** init 执行结果（供测试与 --json 输出） */
@@ -61,13 +66,13 @@ export interface InitResult {
     skipped: string[];
     /** 配置文件状态：created（新建模板）| exists（已存在，跳过） */
     configState: 'created' | 'exists';
-    /** 本次创建的规则文件（项目相对路径，如 .venus/rules/tr_impl.md） */
+    /** 本次创建的规则文件（项目相对路径，如 .iagent/rules/impl.md） */
     ruleFilesCreated: string[];
     /** 生效 workflow 集来源：default（未配置用默认集）| user（用户显式配置） */
     workflowsSource: 'default' | 'user';
     /** 依赖注入自动补全的 workflow id（供输出提示） */
     injectedDeps: string[];
-    /** 已装但不在生效集内的 venus 产物（保留不删，供输出提示） */
+    /** 已装但不在生效集内的 iagent 产物（保留不删，供输出提示） */
     reconcileOrphans: ReconcileOrphans;
     /** 会话级权限载体（.claude/settings.json）的合并结果，每个目标工具一项 */
     permissionSettings: MergeResult[];
@@ -75,6 +80,10 @@ export interface InitResult {
     scanReport: ProjectScanReport;
     /** SQLite 跨变更索引初始化结果（index.db 创建状态） */
     indexDbStatus: 'created' | 'skipped-exists' | 'skipped-unavailable' | 'failed';
+    /** 旧装机迁移报告（未发生迁移时 migrated 为 false） */
+    legacyMigration: LegacyMigrationReport;
+    /** 清理早期错误位置 .pi/commands/iagent/ 的结果 */
+    misplacedCommands: MisplacedCleanupResult;
 }
 
 /** 读取当前包版本（供 metadata.generatedBy） */
@@ -95,6 +104,17 @@ function getPackageVersion(): string {
  * @param options - 命令选项
  */
 export function runInit(projectRoot: string, options: InitOptions = {}): InitResult {
+    // 0. 旧装机迁移（最先执行）：先于配置读取与产物生成，也先于 reconcile 扫描 ——
+    //    旧产物须在被判定为「不在生效 workflows 配置中」之前清掉，否则会被误报为孤立产物。
+    //    配置搬运结果随后的 readProjectConfig 可直接读到（用户既有的 workflow 选择与规则即刻生效）。
+    const legacyMigration = runLegacyMigration(projectRoot, {
+        homeDir: options.homeDir,
+        skip: options.migrate === false,
+    });
+
+    // 0.1 清理早期版本错误生成到 .pi/commands/iagent/ 的产物（幂等，失败仅告警）
+    const misplacedCommands = cleanupMisplacedCommands(projectRoot);
+
     // 读项目配置，解析生效 workflow 集（未配置用默认集 + 依赖注入补全）
     const projectConfig = readProjectConfig(projectRoot);
     const tools = resolveActiveTools(options.tools, projectConfig?.tools, AI_TOOLS);
@@ -174,17 +194,19 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
         }
     }
 
-    // 4. 项目级配置（.venus/config.yaml + .venus/rules/，已存在则跳过）
+    // 4. 项目级配置（.iagent/config.yaml + .iagent/rules/，已存在则跳过）
     const config = ensureProjectConfig(projectRoot);
+    // 4.1 持久化本次生效工具集（选择可见可复现；后续不带 --tools 的命令据此保持稳定）
+    writeToolsToConfig(projectRoot, tools.map((t) => t.value));
 
-    // 5. reconcile 扫描：已装但不在生效集内的 venus 产物（保留不删，供输出提示）
+    // 5. reconcile 扫描：已装但不在生效集内的 iagent 产物（保留不删，供输出提示）
     const reconcileOrphans = scanReconcileOrphans(projectRoot, resolved.workflows);
 
-    // 6. 项目预扫描（非阻断）：产出 .venus/scan-baseline.json 供 tr-init 技能参考；
+    // 6. 项目预扫描（非阻断）：产出 .iagent/scan-baseline.json 供 project-init 技能参考；
     //    失败只记入报告的 failures，不影响安装结果；--no-scan 时整体跳过
     const scanReport = options.scan === false ? createEmptyScanReport() : scanProject(projectRoot);
 
-    // 7. SQLite 跨变更索引初始化（非阻断）：创建 openspec/changes/archive/.venus/index.db；
+    // 7. SQLite 跨变更索引初始化（非阻断）：创建 openspec/changes/archive/.iagent/index.db；
     //    sqlite3 CLI 不可用时跳过；数据库已存在时跳过
     let indexDbStatus: 'created' | 'skipped-exists' | 'skipped-unavailable' | 'failed' = 'skipped-unavailable';
     const openspecDir = path.join(projectRoot, 'openspec');
@@ -216,5 +238,7 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
         permissionSettings,
         scanReport,
         indexDbStatus,
+        legacyMigration,
+        misplacedCommands,
     };
 }

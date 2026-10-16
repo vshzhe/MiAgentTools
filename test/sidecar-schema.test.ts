@@ -18,7 +18,7 @@ describe('sidecar-schema 类型定义', () => {
     describe('ManifestSchema', () => {
         it('createEmptyManifest 返回合法结构', () => {
             const m = createEmptyManifest('test-change');
-            expect(m.$schema).toBe('venus/manifest/v1');
+            expect(m.$schema).toBe('iagent/manifest/v1');
             expect(m.changeName).toBe('test-change');
             expect(m.capabilities).toEqual([]);
             expect(m.impactAreas).toEqual([]);
@@ -31,7 +31,7 @@ describe('sidecar-schema 类型定义', () => {
     describe('TasksSchema', () => {
         it('createEmptyTasks 返回合法结构', () => {
             const t = createEmptyTasks();
-            expect(t.$schema).toBe('venus/tasks/v1');
+            expect(t.$schema).toBe('iagent/tasks/v1');
             expect(t.tasks).toEqual([]);
             expect(t.progress.total).toBe(0);
             expect(t.progress.complete).toBe(0);
@@ -42,7 +42,7 @@ describe('sidecar-schema 类型定义', () => {
     describe('DecisionsSchema', () => {
         it('createEmptyDecisions 返回合法结构', () => {
             const d = createEmptyDecisions();
-            expect(d.$schema).toBe('venus/decisions/v1');
+            expect(d.$schema).toBe('iagent/decisions/v1');
             expect(d.decisions).toEqual([]);
         });
     });
@@ -50,7 +50,7 @@ describe('sidecar-schema 类型定义', () => {
     describe('CapabilitiesSchema', () => {
         it('createEmptyCapabilities 返回合法结构', () => {
             const c = createEmptyCapabilities();
-            expect(c.$schema).toBe('venus/capabilities/v1');
+            expect(c.$schema).toBe('iagent/capabilities/v1');
             expect(c.capabilities).toEqual([]);
         });
     });
@@ -58,7 +58,7 @@ describe('sidecar-schema 类型定义', () => {
     describe('ChangeSchema（change.json 合并主产物）', () => {
         it('createEmptyChange 返回合法骨架（proposal/design/specs 三段缺省）', () => {
             const c = createEmptyChange('improve-artifact-json');
-            expect(c.$schema).toBe('venus/change/v1');
+            expect(c.$schema).toBe('iagent/change/v1');
             expect(c.changeName).toBe('improve-artifact-json');
             expect(c.phase).toBe('proposal');
             // 时间戳为 ISO 8601 字符串（toISOString 往返一致）
@@ -74,7 +74,7 @@ describe('sidecar-schema 类型定义', () => {
 
         it('完整三段结构冒烟：嵌套字段可达且类型一致', () => {
             const full: ChangeSchema = {
-                $schema: 'venus/change/v1',
+                $schema: 'iagent/change/v1',
                 changeName: 'smoke-change',
                 createdAt: '2026-01-01T00:00:00.000Z',
                 updatedAt: '2026-01-02T00:00:00.000Z',
@@ -152,7 +152,7 @@ describe('sidecar-schema 类型定义', () => {
             };
 
             // 根字段
-            expect(full.$schema).toBe('venus/change/v1');
+            expect(full.$schema).toBe('iagent/change/v1');
             expect(full.phase).toBe('apply');
             // proposal 段嵌套字段
             expect(full.proposal?.whatChanges).toHaveLength(2);

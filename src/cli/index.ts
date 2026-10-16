@@ -1,11 +1,17 @@
 /**
- * venus CLI 主入口。
+ * iagent CLI 主入口。
  *
  * 命令：
- *   venus init      生成全部技能与指令到当前项目 .claude/
- *   venus list      列出已安装技能（--json）
- *   venus generate  按类型生成新技能骨架
- *   venus spec      规格驱动工作流子命令组（new / status / instructions / archive）
+ *   iagent init       生成全部技能与指令到当前项目（可按工具过滤）
+ *   iagent list       列出已安装技能（--json）
+ *   iagent show       查看技能详情（前缀/片段匹配）
+ *   iagent validate   校验技能规范符合性
+ *   iagent update     更新已安装技能到内置模板最新版
+ *   iagent generate   按类型生成新技能骨架
+ *   iagent config     配置要安装的 workflow 集
+ *   iagent uninstall  移除 iagent 技能与指令
+ *   iagent completion 安装/卸载 shell 补全
+ *   iagent spec       规格驱动工作流子命令组（new / status / instructions / archive / reindex / render / sidecar）
  */
 
 import { Argument, Command, Option } from 'commander';
@@ -26,6 +32,19 @@ import { AI_TOOLS, SKILL_TYPES } from '../core/config.js';
 import { reconcileOrphanCount } from '../core/reconcile.js';
 import { renderPermissionReport } from '../core/permissions.js';
 import { runConfigInteractive, runConfigShow, runConfigSet } from '../commands/config.js';
+import { renderLegacyMigrationReport } from '../core/legacy-migration.js';
+import { type MisplacedCleanupResult } from '../core/command-artifacts.js';
+
+/** 渲染旧位置 Pi 指令清理报告（无动作返回空串） */
+function renderMisplacedCleanup(result: MisplacedCleanupResult): string {
+    if (result.warning) {
+        return `  ! ${result.warning}`;
+    }
+    if (result.removed.length === 0) {
+        return '';
+    }
+    return `  已清理旧位置 Pi 指令：${result.removed.length} 个（.pi/commands/iagent/）`;
+}
 
 const require = createRequire(import.meta.url);
 const { version } = require('../../package.json') as { version: string };
@@ -37,25 +56,35 @@ export function buildProgram(): Command {
     const program = new Command();
 
     program
-        .name('venus')
-        .description('VenusAgentTools —— 按生命周期类型（tr_*）生成与管理 venus_ 前缀的 Agent 技能')
+        .name('iagent')
+        .description('MiAgentTools —— 按技能类型生成与管理 iagent_ 前缀的 Agent 技能')
         .version(version);
 
     program
         .command('init')
         .description('生成全部技能（SKILL.md）与斜杠指令到当前项目，并检测安装依赖（codegraph）')
         .addOption(
-            new Option('--tools <ids>', `目标工具，逗号分隔（默认全部：${TOOL_IDS}）`)
+            new Option('--tools <ids>', `目标工具，逗号分隔（默认全部：${TOOL_IDS}；init 持久化所选，update 仅指定时持久化）`)
         )
         .option('--force', '覆盖已存在的文件')
         .option('--no-deps', '跳过依赖检测与安装（codegraph）')
-        .option('--no-scan', '跳过项目预扫描（不写 .venus/scan-baseline.json）')
+        .option('--no-scan', '跳过项目预扫描（不写 .iagent/scan-baseline.json）')
+        .option('--no-migrate', '跳过旧装机迁移（不搬运旧配置目录、不删除旧技能与指令）')
         .option('--onboarding', '完成后显示下一步使用引导')
         .action((options: {
-            tools?: string; force?: boolean; deps?: boolean; scan?: boolean; onboarding?: boolean;
+            tools?: string; force?: boolean; deps?: boolean; scan?: boolean;
+            migrate?: boolean; onboarding?: boolean;
         }) => {
             const result = runInit(process.cwd(), options);
-            console.log(`Venus 初始化完成（工具：${result.tools.join(', ')}）`);
+            console.log(`iAgent 初始化完成（工具：${result.tools.join(', ')}）`);
+            const migrationReport = renderLegacyMigrationReport(result.legacyMigration);
+            if (migrationReport !== '') {
+                console.log(migrationReport);
+            }
+            const misplacedReport = renderMisplacedCleanup(result.misplacedCommands);
+            if (misplacedReport !== '') {
+                console.log(misplacedReport);
+            }
             console.log(`  技能：${result.skillsInstalled.length} 个`);
             for (const skill of result.skillsInstalled) {
                 console.log(`    + ${skill}`);
@@ -69,8 +98,8 @@ export function buildProgram(): Command {
             }
             console.log(
                 result.configState === 'created'
-                    ? '  配置：.venus/ 已创建（config.yaml + rules/，可编辑定制项目约束）'
-                    : '  配置：.venus/ 已存在，保留'
+                    ? '  配置：.iagent/ 已创建（config.yaml + rules/，可编辑定制项目约束）'
+                    : '  配置：.iagent/ 已存在，保留'
             );
             for (const ruleFile of result.ruleFilesCreated) {
                 console.log(`    + ${ruleFile}`);
@@ -95,7 +124,7 @@ export function buildProgram(): Command {
                 for (const cmd of result.reconcileOrphans.commands) {
                     console.log(`    - ${cmd}`);
                 }
-                console.log('    如需移除：venus uninstall 或手动删除');
+                console.log('    如需移除：iagent uninstall 或手动删除');
             }
             const permissionReport = renderPermissionReport(result.permissionSettings);
             if (permissionReport !== '') {
@@ -116,7 +145,7 @@ export function buildProgram(): Command {
 
     program
         .command('list')
-        .description('列出已安装的 venus 技能（按类型分组）')
+        .description('列出已安装的 iagent 技能（按类型分组）')
         .option('--json', '以 JSON 输出（供程序处理）')
         .action((options: { json?: boolean }) => {
             console.log(runList(process.cwd(), options));
@@ -138,12 +167,21 @@ export function buildProgram(): Command {
         .command('update')
         .description('更新已安装技能到内置模板最新版（手改过的技能会跳过保护）')
         .addOption(
-            new Option('--tools <ids>', `目标工具，逗号分隔（默认全部：${TOOL_IDS}）`)
+            new Option('--tools <ids>', `目标工具，逗号分隔（默认全部：${TOOL_IDS}；显式指定时持久化到 config.yaml）`)
         )
         .option('--force', '覆盖用户手改过的技能')
-        .action((options: { tools?: string; force?: boolean }) => {
+        .option('--no-migrate', '跳过旧装机迁移（不搬运旧配置目录、不删除旧技能与指令）')
+        .action((options: { tools?: string; force?: boolean; migrate?: boolean }) => {
             const result = runUpdate(process.cwd(), options);
-            console.log(`Venus 更新完成（工具：${result.tools.join(', ')}）`);
+            console.log(`iAgent 更新完成（工具：${result.tools.join(', ')}）`);
+            const migrationReport = renderLegacyMigrationReport(result.legacyMigration);
+            if (migrationReport !== '') {
+                console.log(migrationReport);
+            }
+            const misplacedReport = renderMisplacedCleanup(result.misplacedCommands);
+            if (misplacedReport !== '') {
+                console.log(misplacedReport);
+            }
             console.log(`  新安装：${result.installed.length} 个`);
             for (const skill of result.installed) {
                 console.log(`    + ${skill}`);
@@ -179,7 +217,7 @@ export function buildProgram(): Command {
                 for (const cmd of result.reconcileOrphans.commands) {
                     console.log(`    - ${cmd}`);
                 }
-                console.log('    如需移除：venus uninstall 或手动删除');
+                console.log('    如需移除：iagent uninstall 或手动删除');
             }
             const permissionReport = renderPermissionReport(result.permissionSettings);
             if (permissionReport !== '') {
@@ -199,14 +237,14 @@ export function buildProgram(): Command {
 
     program
         .command('uninstall')
-        .description('移除本项目已安装的 venus 技能与指令（非 venus 技能不碰）')
-        .option('--purge-config', '连同 .venus/ 项目配置一起删除（默认保留）')
+        .description('移除本项目已安装的 iagent 技能与指令（非 iagent 技能不碰）')
+        .option('--purge-config', '连同 .iagent/ 项目配置一起删除（默认保留）')
         .option('--yes', '跳过确认提示（脚本用）')
         .action((options: { purgeConfig?: boolean; yes?: boolean }) => {
             if (!options.yes) {
                 const result = previewUninstall(process.cwd());
                 console.log('将删除：');
-                console.log(`  技能 ${result.removedSkills.length} 个、指令 ${result.removedCommands.length} 个${options.purgeConfig ? '、.venus/ 配置' : ''}`);
+                console.log(`  技能 ${result.removedSkills.length} 个、指令 ${result.removedCommands.length} 个${options.purgeConfig ? '、.iagent/ 配置' : ''}`);
                 console.log('确认执行请加 --yes，或重新运行并确认。');
                 process.exitCode = 1;
                 return;
@@ -230,7 +268,7 @@ export function buildProgram(): Command {
     program
         .command('generate')
         .description('按类型生成新技能骨架（写入 skills/ 并安装到 .claude/）')
-        .requiredOption('--type <type>', `技能类型（${TYPE_IDS}）`)
+        .requiredOption('--type <type>', `技能类型（写入 frontmatter metadata.type，不进入技能名；${TYPE_IDS}）`)
         .requiredOption('--name <name>', '技能名（kebab-case，如 env-check）')
         .option('--desc <desc>', '技能描述（frontmatter description）')
         .option('--force', '覆盖已存在的技能')
@@ -243,7 +281,7 @@ export function buildProgram(): Command {
 
     program
         .command('config')
-        .description('配置本项目要安装的 workflow（.venus/config.yaml 的 workflows 字段）')
+        .description('配置本项目要安装的 workflow（.iagent/config.yaml 的 workflows 字段）')
         .option('--set <list>', '非交互设置 workflow 列表（逗号分隔，脚本/CI 用）')
         .option('--show', '打印当前配置与生效 workflow 集')
         .action(async (options: { set?: string; show?: boolean }) => {
@@ -275,7 +313,7 @@ export function buildProgram(): Command {
             }
         });
 
-    // 规格驱动工作流子命令组（venus spec new / status / instructions / archive）
+    // 规格驱动工作流子命令组（iagent spec new / status / instructions / archive）
     program.addCommand(buildSpecCommand());
 
     return program;

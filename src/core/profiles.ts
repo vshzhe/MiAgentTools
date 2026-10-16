@@ -3,20 +3,20 @@
  *
  * 决定 WHICH workflow 被安装（与 rules 字段正交：rules 管规则注入按 SkillType，
  * workflows 管装哪些按 workflowId）：
- *   - DEFAULT_WORKFLOWS：未配置 workflows 字段时的默认集（7 项）
+ *   - DEFAULT_WORKFLOWS：未配置 workflows 字段时的默认集（8 项）
  *   - DEPS：依赖注入规则表（用户漏选某 workflow 时自动补全其依赖）
  *   - resolveWorkflows：解析生效集（默认集或用户配置 + 依赖注入补全）
  *
- * workflow id = deriveCommandId(技能名)（venus_<type>_<name> → <type>-<name>），
+ * workflow id = deriveCommandId(技能名)（iagent_<type>_<name> → <type>-<name>），
  * 与 registry 中 commandId 派生规则一致，故 workflowFilter 过滤即按 commandId 匹配。
  */
 
 /** 默认 workflow 集（未配置 workflows 字段时生效）。
- *  tr-init-project（项目起步必需）+ spec 全 6（规格驱动闭环）
- *  + tr-test-generate（多 schema 测试生成：Java/Node 自动适配）。 */
+ *  project-init（项目起步必需）+ spec 全 6（规格驱动闭环）
+ *  + test（多 schema 测试生成：Java/Node 自动适配）。 */
 export const DEFAULT_WORKFLOWS: readonly string[] = [
-    'tr-init-project',
-    'tr-test-generate',
+    'project-init',
+    'test',
     'spec-explore',
     'spec-propose',
     'spec-apply',
@@ -27,41 +27,30 @@ export const DEFAULT_WORKFLOWS: readonly string[] = [
 
 /** 依赖注入规则表：key 依赖 value（用户选了 key 但漏了 value 时自动补全 value）。
  *  - spec-propose ⇒ spec-verify-proposal（规则文件：提案实现前必须通过评分门）
- *  - spec-archive / spec-bulk-archive ⇒ spec-verify + tr-docs-requirement-doc
- *    （spec-verify：实现完成后、归档前验证；tr-docs-requirement-doc：预归档需求文档生成检查点
+ *  - spec-archive / spec-bulk-archive ⇒ spec-verify + requirement-doc
+ *    （spec-verify：实现完成后、归档前验证；requirement-doc：预归档需求文档生成检查点
  *    经 Skill 工具委派该技能，被委派技能必须可得 —— 与 spec-propose ⇒ spec-verify-proposal 同构）
- *  - 默认集后果：DEFAULT_WORKFLOWS 显式项仍为 8，但 spec-archive 在集内且依赖 tr-docs-requirement-doc，
+ *  - 默认集后果：DEFAULT_WORKFLOWS 显式项仍为 8，但 spec-archive 在集内且依赖 requirement-doc，
  *    故未配置 workflows 时实际安装 9 项（8 显式 + 1 注入）
- *  - tr-impl-auto-migration ⇒ tr-docs-feature-doc + tr-impl-migration-check
+ *  - migration ⇒ feature-doc + migration-check
  *    （编排技能 Phase 1 源项目扫描与 Phase 4 迁移检查依赖两子技能）
- *  - tr-impl-workflow ⇒ tr-impl-review-proposal
- *    （验证 PASS 后只做深度复查；需求文档改由归档阶段生成，故不再注入该技能）
- *  - tr-impl-auto-workflow ⇒ tr-impl-workflow + tr-docs-requirement-doc
+ *  - workflow ⇒ spec-verify-proposal + proposal-review + spec-apply + spec-archive
+ *    （一站式引导工作流：内联探索/提案/验证，验证阶段委派 spec-verify-proposal 评分门与
+ *     proposal-review 深度复查；验证通过后委派 spec-apply 实现、spec-archive 归档；
+ *     requirement-doc 由 spec-archive 传递注入，不在此重复列出）
+ *  - auto-workflow ⇒ workflow + requirement-doc
  *    （Phase 1-3 与引导工作流同构；Phase 5 内联执行归档步骤，其中包含需求文档生成检查点，仍委派该技能）
- *  - tr-impl-genfull ⇒ spec-explore + spec-propose + spec-apply + spec-archive
- *    + tr-impl-frontend + tr-test-generate + tr-impl-review-proposal
- *    （引导式全流程编排：委派 7 个阶段技能；spec-verify-proposal 由 spec-propose 传递注入，
- *    spec-verify 与 tr-docs-requirement-doc 由 spec-archive 传递注入，不在此重复列出）
- *  - tr-impl-debug ⇒ spec-verify-proposal
+ *  - debug ⇒ spec-verify-proposal
  *    （P7 验证调用；需求文档不在 debug 范围内，故不再注入该技能）
  *  - spec-apply 不注入（apply 时假设 propose 阶段已过评分门，避免冗余） */
 export const DEPS: Record<string, readonly string[]> = {
     'spec-propose': ['spec-verify-proposal'],
-    'spec-archive': ['spec-verify', 'tr-docs-requirement-doc'],
-    'spec-bulk-archive': ['spec-verify', 'tr-docs-requirement-doc'],
-    'tr-impl-auto-migration': ['tr-docs-feature-doc', 'tr-impl-migration-check'],
-    'tr-impl-workflow': ['tr-impl-review-proposal'],
-    'tr-impl-auto-workflow': ['tr-impl-workflow', 'tr-docs-requirement-doc'],
-    'tr-impl-genfull': [
-        'spec-explore',
-        'spec-propose',
-        'spec-apply',
-        'spec-archive',
-        'tr-impl-frontend',
-        'tr-test-generate',
-        'tr-impl-review-proposal',
-    ],
-    'tr-impl-debug': ['spec-verify-proposal'],
+    'spec-archive': ['spec-verify', 'requirement-doc'],
+    'spec-bulk-archive': ['spec-verify', 'requirement-doc'],
+    'migration': ['feature-doc', 'migration-check'],
+    'workflow': ['spec-verify-proposal', 'proposal-review', 'spec-apply', 'spec-archive'],
+    'auto-workflow': ['workflow', 'requirement-doc'],
+    'debug': ['spec-verify-proposal'],
 };
 
 /** resolveWorkflows 结果 */
@@ -75,8 +64,8 @@ export interface ResolvedWorkflows {
 /**
  * 解析生效 workflow 集（依赖注入为不动点迭代：连带补全传递依赖）。
  *
- * 例：仅勾选 tr-impl-auto-workflow → 注入 tr-impl-workflow 与 tr-docs-requirement-doc，
- * 其中 tr-impl-workflow 自身的依赖（tr-impl-review-proposal）在下一轮迭代中继续补全。
+ * 例：仅勾选 auto-workflow → 注入 workflow 与 requirement-doc，
+ * 其中 workflow 自身的依赖（proposal-review）在下一轮迭代中继续补全。
  *
  * @param workflows - 用户配置的 workflow 列表；undefined/空 → 用默认集
  * @returns 生效集 + 注入补全项标注

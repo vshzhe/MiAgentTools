@@ -9,7 +9,7 @@ import type { SkillTemplate } from '../templates/types.js';
 
 /** 工具无关的指令内容 */
 export interface CommandContent {
-    /** 指令标识（文件名，不含 .md，如 tr-tools-pwd） */
+    /** 指令标识（文件名，不含 .md，如 pwd） */
     id: string;
     /** 展示名 */
     name: string;
@@ -37,7 +37,7 @@ export interface ToolCommandAdapter {
     toolId: string;
     /**
      * 返回指令文件路径（项目根相对）。
-     * @param commandId - 指令标识（如 'tr-tools-pwd'）
+     * @param commandId - 指令标识（如 'spec-apply'）
      */
     getFilePath(commandId: string): string;
     /**
@@ -60,7 +60,7 @@ export interface GeneratedCommand {
 
 /** SKILL.md 文件生成结果 */
 export interface GeneratedSkill {
-    /** 安装目录名（venus_<type>_<name>） */
+    /** 安装目录名（iagent_<type>_<name>） */
     dirName: string;
     /** 完整文件内容（frontmatter + 正文） */
     fileContent: string;

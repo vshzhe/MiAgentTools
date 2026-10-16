@@ -1,9 +1,9 @@
 {
-  "name": "venus-agent-tools",
-  "version": "1.18.1",
-  "description": "AI Agent 技能生成与管理 CLI —— 按生命周期类型（tr_*）分类生成 venus_ 前缀的 SKILL 与指令",
+  "name": "mi-agent-tools",
+  "version": "4.0.0",
+  "description": "AI Agent 技能生成与管理 CLI —— 按技能类型（init/impl/test/commit/review/release/tools/docs/spec）生成 iagent_ 前缀的 SKILL 与指令",
   "keywords": [
-    "venus",
+    "iagent",
     "agent-tools",
     "skills",
     "cli",
@@ -14,7 +14,7 @@
   "type": "module",
   "packageManager": "pnpm@10.34.5",
   "bin": {
-    "venus": "./bin/venus.js"
+    "iagent": "./bin/iagent.js"
   },
   "files": [
     "dist",
@@ -26,7 +26,7 @@
     "build": "node build.js",
     "lint": "eslint src/ test/",
     "dev": "tsc --watch",
-    "dev:cli": "pnpm build && node bin/venus.js",
+    "dev:cli": "pnpm build && node bin/iagent.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "generate:skills": "node scripts/generate-skills.mjs",

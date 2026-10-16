@@ -1,25 +1,26 @@
 /**
  * 全局配置与类型常量。
  *
- * 定义 VenusAgentTools 的技能生命周期类型体系（tr_*）与目标 AI 工具配置。
+ * 定义 MiAgentTools 的技能类型体系（init / impl / test / commit / review /
+ * release / tools / docs / spec）与目标 AI 工具配置。
  */
 
 /** SKILL 名称强制前缀（Agent Skills 规范要求目录名 = name 字段） */
-export const SKILL_PREFIX = 'venus_';
+export const SKILL_PREFIX = 'iagent_';
 
-/** 斜杠指令命名空间（生成到 .claude/commands/venus/ 下） */
-export const COMMAND_NAMESPACE = 'venus';
+/** 斜杠指令命名空间（生成到 .claude/commands/iagent/ 下） */
+export const COMMAND_NAMESPACE = 'iagent';
 
-/** 技能生命周期类型 */
+/** 技能类型 */
 export type SkillType =
-    | 'tr_init'
-    | 'tr_impl'
-    | 'tr_test'
-    | 'tr_commit'
-    | 'tr_review'
-    | 'tr_release'
-    | 'tr_tools'
-    | 'tr_docs'
+    | 'init'
+    | 'impl'
+    | 'test'
+    | 'commit'
+    | 'review'
+    | 'release'
+    | 'tools'
+    | 'docs'
     | 'spec';
 
 /** 类型元数据：id + 中文名 + 说明（用于 list 展示与文档生成） */
@@ -31,22 +32,22 @@ export interface SkillTypeMeta {
 
 /** 全部技能类型的注册表（顺序即文档展示顺序） */
 export const SKILL_TYPES: SkillTypeMeta[] = [
-    { id: 'tr_init', name: '初始化', description: '项目与工作环境的初始化：目录结构、配置、脚手架' },
-    { id: 'tr_impl', name: '实现', description: '功能开发与实现：编写代码、修改逻辑、接口对接' },
-    { id: 'tr_test', name: '测试', description: '测试相关：编写用例、运行测试、覆盖率检查（多 schema：Java/Node 自动适配）' },
-    { id: 'tr_commit', name: '提交', description: '代码提交：变更检查、提交信息规范、暂存管理' },
-    { id: 'tr_review', name: '审查', description: '代码审查：质量检查、规范核对、问题发现' },
-    { id: 'tr_release', name: '版本', description: '版本发布：版本号管理、变更日志、发布流程' },
-    { id: 'tr_tools', name: '工具', description: '通用工具：路径查询、环境探测等辅助操作' },
+    { id: 'init', name: '初始化', description: '项目与工作环境的初始化：目录结构、配置、脚手架' },
+    { id: 'impl', name: '实现', description: '功能开发与实现：编写代码、修改逻辑、接口对接' },
+    { id: 'test', name: '测试', description: '测试相关：编写用例、运行测试、覆盖率检查（多 schema：Java/Node 自动适配）' },
+    { id: 'commit', name: '提交', description: '代码提交：变更检查、提交信息规范、暂存管理' },
+    { id: 'review', name: '审查', description: '代码审查：质量检查、规范核对、问题发现' },
+    { id: 'release', name: '版本', description: '版本发布：版本号管理、变更日志、发布流程' },
+    { id: 'tools', name: '工具', description: '通用工具：路径查询、环境探测等辅助操作' },
     {
-        id: 'tr_docs',
+        id: 'docs',
         name: '文档',
         description: '文档生成：源项目功能扫描、需求实现文档、项目功能地图',
     },
     {
         id: 'spec',
         name: '规格',
-        description: '规格驱动工作流：探索、提案、实现、归档、验证（依赖 venus spec 命令组）',
+        description: '规格驱动工作流：探索、提案、实现、归档、验证（依赖 iagent spec 命令组）',
     },
 ];
 
@@ -58,7 +59,10 @@ export function isSkillType(value: string): value is SkillType {
     return (SKILL_TYPE_IDS as string[]).includes(value);
 }
 
-/** 目标 AI 工具配置（MVP 仅支持 Claude Code，架构预留多工具扩展） */
+/** 指令产物布局 */
+export type CommandLayout = 'namespace-dir' | 'prefixed-file';
+
+/** 目标 AI 工具配置（支持 Claude Code / Pi / Codex，架构预留多工具扩展） */
 export interface AIToolOption {
     /** 工具标识 */
     value: string;
@@ -66,8 +70,17 @@ export interface AIToolOption {
     name: string;
     /** 技能生成根目录（项目相对路径），生成时自动追加 /skills */
     skillsDir: string;
-    /** 指令生成根目录（项目相对路径） */
+    /**
+     * 指令生成根目录（项目相对路径）。
+     * 空字符串表示该工具无指令产物（skills-only 模式，如 Codex）。
+     */
     commandsDir: string;
+    /**
+     * 指令产物布局（commandsDir 为空时省略）：
+     *  - `namespace-dir`：`<commandsDir>/<namespace>/<id>.md`（Claude Code）
+     *  - `prefixed-file`：`<commandsDir>/<namespace>-<id>.md`（Pi prompts 扁平布局）
+     */
+    commandsLayout?: CommandLayout;
 }
 
 export const AI_TOOLS: AIToolOption[] = [
@@ -76,12 +89,15 @@ export const AI_TOOLS: AIToolOption[] = [
         name: 'Claude Code',
         skillsDir: '.claude',
         commandsDir: '.claude/commands',
+        commandsLayout: 'namespace-dir',
     },
     {
         value: 'pi',
         name: 'Pi',
         skillsDir: '.pi',
-        commandsDir: '.pi/commands',
+        // Pi 从 .pi/prompts/ 加载 prompt 模板（扁平、前缀命名），不是 .pi/commands/ 子目录
+        commandsDir: '.pi/prompts',
+        commandsLayout: 'prefixed-file',
     },
     {
         value: 'codex',
@@ -95,4 +111,4 @@ export const AI_TOOLS: AIToolOption[] = [
 export const TOOL_SKILLS_SUBDIR = 'skills';
 
 /** 指令安装子目录（按命名空间分组） */
-export const TOOL_COMMANDS_SUBDIR = 'venus';
+export const TOOL_COMMANDS_SUBDIR = 'iagent';

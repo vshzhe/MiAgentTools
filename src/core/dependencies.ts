@@ -1,12 +1,12 @@
 /**
  * init 依赖自检与自动安装。
  *
- * venus 功能依赖一个外部工具，init 时保证就位：
+ * iagent 功能依赖一个外部工具，init 时保证就位：
  *   - codegraph（npm: @colbymchenry/codegraph）：代码知识图谱，
  *     MCP 以用户级注册（claude mcp add codegraph -s user -- codegraph serve --mcp）
  *
- * spec 工作流不依赖 openspec CLI（ADR-0001：venus spec 命令组自研状态校验，
- * openspec/ 目录骨架由 venus spec new 按需自动创建）。
+ * spec 工作流不依赖 openspec CLI（ADR-0001：iagent spec 命令组自研状态校验，
+ * openspec/ 目录骨架由 iagent spec new 按需自动创建）。
  *
  * 策略（已确认）：
  *   - 自动安装：检测到缺失直接装，--no-deps 跳过
@@ -105,7 +105,7 @@ function isCodegraphMcpRegistered(claudeConfigDir: string): boolean {
 /**
  * 检测并安装依赖（自动模式）。
  *
- * @param _projectRoot - 目标项目根目录（保留参数位，当前无项目级依赖；spec 目录骨架由 venus spec new 按需创建）
+ * @param _projectRoot - 目标项目根目录（保留参数位，当前无项目级依赖；spec 目录骨架由 iagent spec new 按需创建）
  * @param options - 选项（skip 跳过 / runner 注入 / claudeConfigDir 注入）
  * @returns 依赖报告（各子项状态 + 失败警告）
  */

@@ -1,6 +1,6 @@
 # 项目文档索引
 
-> 生成时间：2026-10-10 | 基于 `venus_tr_init_project` 全量语义扫描
+> 生成时间：2026-10-10 | 基于 `iagent_project_init` 全量语义扫描
 
 ## 文档清单
 
@@ -20,14 +20,14 @@
 
 ### API 规范
 
-**依据**：VenusAgentTools 为 **CLI 命令行工具**，对外接口为 Commander.js 注册的 11 个 shell 命令（`venus init` / `venus list` / `venus validate` 等），无 REST/HTTP API、无 WebSocket 端点、无 RPC 接口。命令签名与参数说明见 `venus --help` 及 [README.md](../../README.md#cli-命令)。
+**依据**：MiAgentTools 为 **CLI 命令行工具**，对外接口为 Commander.js 注册的 11 个 shell 命令（`iagent init` / `iagent list` / `iagent validate` 等），无 REST/HTTP API、无 WebSocket 端点、无 RPC 接口。命令签名与参数说明见 `iagent --help` 及 [README.md](../../README.md#cli-命令)。
 
 ---
 
 ## 扫描元信息
 
-- 扫描基线：`.venus/scan-baseline.json`（2026-10-10，82 目录 / 205 文件）
+- 扫描基线：`.iagent/scan-baseline.json`（2026-10-10，82 目录 / 205 文件）
 - 索引：CodeGraph（99 文件 / 1003 符号节点 / 1494 边）
 - 基线 failures：无
 - 基线 limits：命中（MAX_SCAN_DEPTH=8，更深层目录未遍历，已覆盖全部源码目录）
-- 降级：`venus_tr_docs_feature_doc` 不适用于 TypeScript CLI 项目，改用 CodeGraph + 源码扫描
+- 降级：`iagent_feature_doc` 不适用于 TypeScript CLI 项目，改用 CodeGraph + 源码扫描

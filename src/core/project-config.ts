@@ -1,12 +1,12 @@
 /**
- * 项目级配置（.venus/ 目录）。
+ * 项目级配置（.iagent/ 目录）。
  *
  * 结构（参照 openspec/config.yaml 的 context + rules 模式）：
- *   .venus/
+ *   .iagent/
  *   ├── config.yaml    # context（项目背景）+ rules（显式引用 rules/ 下文件）
  *   └── rules/
- *       ├── tr_impl.md  # 每文件一个类型的规则（每行一条，支持 # 注释）
- *       └── tr_test.md
+ *       ├── impl.md  # 每文件一个类型的规则（每行一条，支持 # 注释）
+ *       └── test.md
  *
  * config.yaml 通过 rules 列表显式 include 规则文件：
  *   - 顺序即注入顺序
@@ -24,13 +24,13 @@ import * as path from 'node:path';
 import { isSkillType, type SkillType, type AIToolOption } from './config.js';
 
 /** 配置目录名（项目根下） */
-export const VENUS_DIR_NAME = '.venus';
+export const IAGENT_DIR_NAME = '.iagent';
 
 /** 配置文件路径（项目根下） */
-export const CONFIG_FILE_NAME = path.join(VENUS_DIR_NAME, 'config.yaml');
+export const CONFIG_FILE_NAME = path.join(IAGENT_DIR_NAME, 'config.yaml');
 
 /** 规则目录路径（项目根下） */
-export const RULES_DIR_NAME = path.join(VENUS_DIR_NAME, 'rules');
+export const RULES_DIR_NAME = path.join(IAGENT_DIR_NAME, 'rules');
 
 /** 项目配置结构 */
 export interface ProjectConfig {
@@ -59,8 +59,8 @@ export interface ResolvedProjectConfig {
 
 /** 默认 config.yaml 内容 */
 export function defaultConfigFileContent(): string {
-    return `# VenusAgentTools 项目配置
-# 修改后对后续 venus generate / 技能引导生效
+    return `# MiAgentTools 项目配置
+# 修改后对后续 iagent generate / 技能引导生效
 
 context: |
   项目背景（供技能参考的技术栈与约定）：
@@ -71,15 +71,15 @@ context: |
 # 引用 rules/ 目录下的规则文件（每文件一个类型，每行一条规则）
 # 列表顺序即注入顺序；删除某行即停用对应规则
 rules:
-  - tr_impl
-  - tr_test
+  - impl
+  - test
   - spec
 
-# 选择本项目要安装的 workflow（venus init/update 据此过滤生成）
-# 未配置或为空时使用默认集（7 项：tr-init-project + spec 全 6）
+# 选择本项目要安装的 workflow（iagent init/update 据此过滤生成）
+# 未配置或为空时使用默认集（7 项：project-init + spec 全 6）
 # 选了 spec-propose 自动带 spec-verify-proposal；选了 spec-archive 自动带 spec-verify
 workflows:
-  - tr-init-project
+  - project-init
   - spec-explore
   - spec-propose
   - spec-apply
@@ -87,8 +87,10 @@ workflows:
   - spec-verify
   - spec-verify-proposal
 
-# 选择要生成适配的目标 AI 工具（venus init/update 据此过滤生成）
-# 未配置或为空时默认全部工具（当前：claude, pi, codex）
+# 选择要生成适配的目标 AI 工具（iagent init/update 据此过滤生成）
+# iagent init 会把本次选择的工具集回写到此处（可查看、可编辑）；
+# iagent update 仅在显式传入 --tools 时回写；删除该字段（或留空）则回退全部工具
+# 当前可用：claude, pi, codex
 tools:
   - claude
   - pi
@@ -99,14 +101,14 @@ tools:
 /** 各类型默认规则文件内容 */
 export function defaultRuleFileContent(type: SkillType): string {
     const typeMeta: Partial<Record<SkillType, string[]>> = {
-        tr_impl: [
+        impl: [
             '遵循项目分层架构，禁止跨层调用',
             '（待补充）实现类需补充 JavaDoc/方法注释',
         ],
-        tr_test: ['（待补充）测试框架与既有用例保持一致'],
+        test: ['（待补充）测试框架与既有用例保持一致'],
         spec: [
             '变更制品位于 openspec/changes/，按 spec-driven 依赖序生成（proposal → specs/design → tasks）',
-            '提案实现前必须通过 venus_spec_verify_proposal 评分门（阈值 90%）',
+            '提案实现前必须通过 iagent_spec_verify_proposal 评分门（阈值 90%）',
             '（待补充）本项目规格驱动工作流约束',
         ],
     };
@@ -139,9 +141,8 @@ export function parseProjectConfig(raw: string): ProjectConfig {
 
     let i = 0;
     while (i < lines.length) {
-        const line = lines[i];
         // context 多行块
-        if (/^context:\s*\|/.test(line)) {
+        if (/^context:\s*\|/.test(lines[i])) {
             const block: string[] = [];
             i++;
             while (i < lines.length && (lines[i].startsWith('  ') || lines[i].trim() === '')) {
@@ -151,45 +152,43 @@ export function parseProjectConfig(raw: string): ProjectConfig {
             config.context = block.join('\n').trimEnd();
             continue;
         }
-        // rules 列表
-        if (/^rules:/.test(line)) {
-            i++;
-            while (i < lines.length && /^\s+-\s/.test(lines[i])) {
-                const item = lines[i].replace(/^\s+-\s/, '').trim();
-                if (isSkillType(item)) {
-                    config.rules.push(item);
-                }
-                i++;
-            }
-            continue;
-        }
-        // workflows 列表（workflow id，连字符形式如 spec-explore；不校验类型，与 rules 正交）
-        if (/^workflows:/.test(line)) {
-            i++;
-            while (i < lines.length && /^\s+-\s/.test(lines[i])) {
-                const item = lines[i].replace(/^\s+-\s/, '').trim();
-                if (item.length > 0) {
-                    config.workflows.push(item);
-                }
-                i++;
-            }
-            continue;
-        }
-        // tools 列表（目标 AI 工具 id，如 claude / pi / codex）
-        if (/^tools:/.test(line)) {
-            i++;
-            while (i < lines.length && /^\s+-\s/.test(lines[i])) {
-                const item = lines[i].replace(/^\s+-\s/, '').trim();
-                if (item.length > 0) {
-                    config.tools.push(item);
-                }
-                i++;
-            }
-            continue;
-        }
         i++;
     }
+    // 列表段（workflow id 连字符形式如 spec-explore，与 rules 类型正交，故这里不校验类型）
+    config.rules = readListSection(raw, /^rules:/).filter(isSkillType);
+    config.workflows = readListSection(raw, /^workflows:/);
+    config.tools = readListSection(raw, /^tools:/);
     return config;
+}
+
+/**
+ * 读取 config.yaml 中某个缩进列表段的条目（按出现顺序）。
+ *
+ * 供解析与遗留迁移共用：迁移须读**旧**类型 id 与旧 workflow id，
+ * 而 `parseProjectConfig` 会按新类型过滤，故不能复用它读旧值。
+ *
+ * @param raw - config 原始内容
+ * @param sectionHead - 段头匹配（如 /^rules:/）
+ * @returns 段内 `- <item>` 的非空条目（段不存在返回空数组）
+ */
+export function readListSection(raw: string, sectionHead: RegExp): string[] {
+    const lines = raw.split(/\r?\n/);
+    for (let i = 0; i < lines.length; i++) {
+        if (!sectionHead.test(lines[i])) {
+            continue;
+        }
+        const items: string[] = [];
+        let j = i + 1;
+        while (j < lines.length && /^\s+-\s/.test(lines[j])) {
+            const item = lines[j].replace(/^\s+-\s/, '').trim();
+            if (item.length > 0) {
+                items.push(item);
+            }
+            j++;
+        }
+        return items;
+    }
+    return [];
 }
 
 /** 读取单个规则文件内容（每行一条，忽略空行与 # 注释） */
@@ -231,7 +230,7 @@ export function readProjectConfig(projectRoot: string): ResolvedProjectConfig | 
 }
 
 /**
- * init 时创建 .venus/ 目录结构（已存在则跳过，保留用户修改）。
+ * init 时创建 .iagent/ 目录结构（已存在则跳过，保留用户修改）。
  * 返回状态与本次新建的规则文件（已存在时无新建，返回空）。
  */
 export function ensureProjectConfig(projectRoot: string): {
@@ -248,7 +247,7 @@ export function ensureProjectConfig(projectRoot: string): {
     fs.writeFileSync(configPath, defaultConfigFileContent(), 'utf8');
     // 默认规则文件（已存在的不覆盖）
     const created: string[] = [];
-    for (const type of ['tr_impl', 'tr_test', 'spec'] as SkillType[]) {
+    for (const type of ['impl', 'test', 'spec'] as SkillType[]) {
         const ruleFile = path.join(rulesDir, `${type}.md`);
         if (!fs.existsSync(ruleFile)) {
             fs.writeFileSync(ruleFile, defaultRuleFileContent(type), 'utf8');
@@ -271,25 +270,27 @@ export function listRuleFiles(projectRoot: string): string[] {
 }
 
 /**
- * 段替换公共实现：逐行扫描 config.yaml，只替换命中的目标段，其余行逐字保留
+ * 段替换的纯函数实现：逐行扫描原始内容，只替换命中的目标段，其余行逐字保留
  * （含注释行与未知段），MUST NOT 重新序列化整个 YAML。
  *
- * 命中目标段时以 renderSection 渲染的新内容替换原段头与段体；未命中则在文末追加。
- * 写入前确保 .venus/ 目录存在（config.yaml 不存在时先以默认内容为基底）。
+ * 命中目标段时以 renderSection 渲染的新内容替换原段头与段体。
+ * 返回内容统一以单个换行结尾（与原回写路径的落盘格式一致）。
  *
- * @param projectRoot - 项目根目录
+ * @param raw - config 原始内容
  * @param sectionHead - 目标段头的行匹配（如 /^workflows:/）
  * @param findSectionBodyEnd - 传入段头下一行的下标，返回原段体结束后的下标（段体行被跳过）
  * @param renderSection - 渲染新段内容（段头 + 缩进体），逐行压入 out
+ * @param options - appendWhenMissing：段头未命中时是否在文末追加（默认 true，回写路径沿用；
+ *                  遗留迁移传 false —— 旧配置本就没有该段时不得凭空补一个）
+ * @returns 替换后的内容，以及是否命中目标段
  */
-function replaceConfigSection(
-    projectRoot: string,
+export function replaceConfigSectionInRaw(
+    raw: string,
     sectionHead: RegExp,
     findSectionBodyEnd: (lines: string[], start: number) => number,
-    renderSection: (out: string[]) => void
-): void {
-    const configPath = path.join(projectRoot, CONFIG_FILE_NAME);
-    const raw = readConfigRaw(projectRoot) ?? defaultConfigFileContent();
+    renderSection: (out: string[]) => void,
+    options: { appendWhenMissing?: boolean } = {}
+): { content: string; found: boolean } {
     const lines = raw.split(/\r?\n/);
     const out: string[] = [];
     let i = 0;
@@ -306,24 +307,52 @@ function replaceConfigSection(
         out.push(lines[i]);
         i++;
     }
-    // 原 config 无该段：文末追加（与上一行以空行分隔）
+    // 原 config 无该段
     if (!found) {
+        if (options.appendWhenMissing === false) {
+            return { content: raw, found: false };
+        }
+        // 文末追加（与上一行以空行分隔）
         if (out.length > 0 && out[out.length - 1] !== '') {
             out.push('');
         }
         renderSection(out);
     }
+    // 统一以单个换行结尾：去掉原文末尾的空行（否则每次回写都会累积一个空行，破坏幂等）
+    while (out.length > 0 && out[out.length - 1] === '') {
+        out.pop();
+    }
+    return { content: out.join('\n') + '\n', found };
+}
+
+/**
+ * 段替换并落盘：写入前确保 .iagent/ 目录存在
+ * （config.yaml 不存在时先以默认内容为基底）。
+ *
+ * @param projectRoot - 项目根目录
+ * @param sectionHead - 目标段头的行匹配（如 /^workflows:/）
+ * @param findSectionBodyEnd - 传入段头下一行的下标，返回原段体结束后的下标
+ * @param renderSection - 渲染新段内容（段头 + 缩进体），逐行压入 out
+ */
+function replaceConfigSection(
+    projectRoot: string,
+    sectionHead: RegExp,
+    findSectionBodyEnd: (lines: string[], start: number) => number,
+    renderSection: (out: string[]) => void
+): void {
+    const raw = readConfigRaw(projectRoot) ?? defaultConfigFileContent();
+    const { content } = replaceConfigSectionInRaw(raw, sectionHead, findSectionBodyEnd, renderSection);
 
     // 确保配置目录存在（config.yaml 不存在时首次创建）
-    const configDir = path.join(projectRoot, VENUS_DIR_NAME);
+    const configDir = path.join(projectRoot, IAGENT_DIR_NAME);
     if (!fs.existsSync(configDir)) {
         fs.mkdirSync(configDir, { recursive: true });
     }
-    fs.writeFileSync(configPath, out.join('\n') + '\n', 'utf8');
+    fs.writeFileSync(path.join(projectRoot, CONFIG_FILE_NAME), content, 'utf8');
 }
 
-/** workflows 段体结束位置：缩进的 "- xxx" 列表项 */
-function findWorkflowListEnd(lines: string[], start: number): number {
+/** 缩进列表段（rules / workflows / tools）的段体结束位置 */
+export function findListSectionEnd(lines: string[], start: number): number {
     let i = start;
     while (i < lines.length && /^\s+-\s/.test(lines[i])) {
         i++;
@@ -365,7 +394,7 @@ export function writeWorkflowsToConfig(projectRoot: string, workflows: string[])
     replaceConfigSection(
         projectRoot,
         /^workflows:/,
-        findWorkflowListEnd,
+        findListSectionEnd,
         (out) => {
             out.push('workflows:');
             for (const wf of workflows) {
@@ -377,7 +406,7 @@ export function writeWorkflowsToConfig(projectRoot: string, workflows: string[])
 
 /**
  * 回写 config.yaml 的 context 段（`context: |` + 缩进块），其余行逐字保留。
- * 若 config.yaml 不存在则先创建 .venus/ 目录与默认配置，再写入指定 context。
+ * 若 config.yaml 不存在则先创建 .iagent/ 目录与默认配置，再写入指定 context。
  *
  * @param projectRoot - 项目根目录
  * @param context - 项目背景多行文本（每行统一缩进 2 空格）
@@ -409,7 +438,7 @@ export function writeToolsToConfig(projectRoot: string, tools: string[]): void {
     replaceConfigSection(
         projectRoot,
         /^tools:/,
-        findWorkflowListEnd,
+        findListSectionEnd,
         (out) => {
             out.push('tools:');
             for (const t of tools) {
@@ -423,7 +452,7 @@ export function writeToolsToConfig(projectRoot: string, tools: string[]): void {
  * 解析生效的工具列表：CLI --tools >  config tools > 全部 AI_TOOLS。
  *
  * @param cliTools - CLI --tools 参数值（逗号分隔字符串，可选）
- * @param configTools - .venus/config.yaml 的 tools 列表（可选）
+ * @param configTools - .iagent/config.yaml 的 tools 列表（可选）
  * @param allTools - AI_TOOLS 全量列表
  * @returns 生效的工具对象列表；非法 id 直接抛错
  */

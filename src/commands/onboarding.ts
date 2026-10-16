@@ -1,8 +1,8 @@
 /**
  * init 完成后的 onboarding 提示。
  *
- * 按生效 workflow 集过滤，只展示当前配置集内的引导（默认集=7 项）。
- * 提示是有状态的：.venus/config.yaml 存在（说明已 init 过）时不重复打扰，
+ * 按生效 workflow 集过滤，只展示当前配置集内的引导（默认集生效 9 项）。
+ * 提示是有状态的：.iagent/config.yaml 存在（说明已 init 过）时不重复打扰，
  * 可用 --onboarding 强制再次展示。
  */
 
@@ -16,98 +16,68 @@ interface OnboardingHint {
     hint: string;
 }
 
-/** 全部 workflow 的引导（顺序即展示顺序，默认集 7 个在前） */
+/** 全部 workflow 的引导（顺序即展示顺序，默认集各项在前） */
 const ONBOARDING_HINTS: OnboardingHint[] = [
     {
-        workflowId: 'tr-init-project',
+        workflowId: 'project-init',
         name: '初始化项目',
-        command: '/venus:tr-init-project',
+        command: '/iagent:project-init',
         hint: '搭建新项目骨架：目录结构、配置文件、开发环境',
     },
     {
         workflowId: 'spec-explore',
         name: '探索',
-        command: '/venus:spec-explore <话题>',
+        command: '/iagent:spec-explore <话题>',
         hint: '变更前思考、调研代码库、明确需求',
     },
     {
         workflowId: 'spec-propose',
         name: '提案',
-        command: '/venus:spec-propose <变更名>',
+        command: '/iagent:spec-propose <变更名>',
         hint: '一步生成 proposal/design/specs/tasks 提案制品',
     },
     {
         workflowId: 'spec-apply',
         name: '实现',
-        command: '/venus:spec-apply <变更名>',
+        command: '/iagent:spec-apply <变更名>',
         hint: '按任务清单实现代码，设计确认后执行',
     },
     {
         workflowId: 'spec-verify',
         name: '验证',
-        command: '/venus:spec-verify <变更名>',
+        command: '/iagent:spec-verify <变更名>',
         hint: '实现完成后、归档前验证与变更制品一致',
     },
     {
         workflowId: 'spec-archive',
         name: '归档',
-        command: '/venus:spec-archive <变更名>',
+        command: '/iagent:spec-archive <变更名>',
         hint: '归档已实现的变更并同步主规格',
     },
     {
         workflowId: 'spec-verify-proposal',
         name: '提案评分门',
-        command: '/venus:spec-verify-proposal <变更名>',
+        command: '/iagent:spec-verify-proposal <变更名>',
         hint: '提案生成后、实现前做量化评分（阈值 90%）',
     },
     {
-        workflowId: 'tr-test-generate',
+        workflowId: 'test',
         name: '生成测试',
-        command: '/venus:tr-test-generate <被测目标>',
+        command: '/iagent:test <被测目标>',
         hint: '多 schema 测试生成：自动检测 Java/Node 框架，BCDE 场景矩阵、AAA 结构、多模板生成',
     },
-    // 非默认 workflow（需 venus config 启用后才在提示中出现）
+    // 非默认 workflow（需 iagent config 启用后才在提示中出现）
     {
-        workflowId: 'tr-impl-feature',
-        name: '实现功能',
-        command: '/venus:tr-impl-feature <功能描述>',
-        hint: '描述想做的功能，按分层架构规范实现',
-    },
-    {
-        workflowId: 'tr-commit-change',
+        workflowId: 'commit',
         name: '提交变更',
-        command: '/venus:tr-commit-change',
+        command: '/iagent:commit',
         hint: '提交前自动检查变更并生成规范提交信息',
     },
     {
-        workflowId: 'tr-review-code',
+        workflowId: 'review',
         name: '审查代码',
-        command: '/venus:tr-review-code',
+        command: '/iagent:review',
         hint: '默认审查未提交变更，输出分级审查报告',
-    },
-    {
-        workflowId: 'tr-impl-frontend',
-        name: '前端页面设计与生成',
-        command: '/venus:tr-impl-frontend <页面需求>',
-        hint: 'Venus4A 前端 JSP 页面设计决策 + 代码模板生成，涵盖 zTree/select2/layui/ECharts 等组件',
-    },
-    {
-        workflowId: 'tr-release-version',
-        name: '发布版本',
-        command: '/venus:tr-release-version patch',
-        hint: '整理变更日志并按 SemVer 建议版本号',
-    },
-    {
-        workflowId: 'tr-tools-pwd',
-        name: '查看当前路径',
-        command: '/venus:tr-tools-pwd',
-        hint: '问"当前目录是什么"，最简单的技能上手',
-    },
-    {
-        workflowId: 'tr-tools-list',
-        name: '列出技能',
-        command: '/venus:tr-tools-list',
-        hint: '查看已安装的 venus 技能分类',
     },
 ];
 
@@ -132,8 +102,8 @@ export function renderOnboardingHints(workflows?: readonly string[]): string {
         lines.push('');
     }
     lines.push('  也可以直接用自然语言提问，Claude 会自动匹配技能。');
-    lines.push('  查看全部：venus list');
-    lines.push('  调整指令集：venus config');
+    lines.push('  查看全部：iagent list');
+    lines.push('  调整指令集：iagent config');
     lines.push('');
     return lines.join('\n');
 }

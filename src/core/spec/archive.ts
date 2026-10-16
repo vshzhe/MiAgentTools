@@ -1,5 +1,5 @@
 /**
- * 变更归档：venus spec archive <name> --yes。
+ * 变更归档：iagent spec archive <name> --yes。
  *
  * 职责边界（design D6 / ADR-0001）：CLI 只做确定性操作 —— 状态检查 + 目录移动；
  * delta spec → 主 spec 的智能合并由 spec-archive 技能（AI）执行，CLI 不实现合并逻辑。

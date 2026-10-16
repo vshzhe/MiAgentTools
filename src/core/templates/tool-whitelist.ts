@@ -1,12 +1,12 @@
 /**
  * 技能/指令白名单的「调用类」条目共享真源。
  *
- * 背景：venus 生成的技能与斜杠指令在 Claude Code 中运行时，除对话级确认门之外的
+ * 背景：iagent 生成的技能与斜杠指令在 Claude Code 中运行时，除对话级确认门之外的
  * 每次工具调用都会触发权限弹窗，把全自动管线切成碎片。三类缺口均属「调用类」条目
  * （不涉及任何文件读写授权面）：
  *   ① CodeGraph MCP 工具（`mcp__codegraph__*`）—— 白名单里只有 CLI 形态 `Bash(codegraph:*)`，
  *      二者是两套不同的工具名；
- *   ② 技能间经 Skill 工具的委派（如 genfull 委派 8 个子技能）；
+ *   ② 技能间经 Skill 工具的委派（如 workflow 委派 spec_apply / spec_archive 等子技能）；
  *   ③ 子代理派发（多项目扫描、批调度）。
  *
  * 本模块把这三类条目收敛为单点真源，避免在各模板中重复硬编码而产生第二份真源与漂移。
@@ -36,13 +36,13 @@ export const SUBAGENT_DISPATCH: string = 'Agent, Task';
 /**
  * 生成技能委派的精确条目，产出 `Skill(a), Skill(b)` 形式（逗号 + 空格分隔）。
  *
- * 技能名取**去掉 `venus_` 前缀的裸名**（如 `spec_apply`、`tr_docs_feature_doc`），
- * 也**不带** `plugin:` 前缀 —— 即传 `venus_spec_apply` 是错误的，会产出
- * `Skill(venus_spec_apply)` 这一永不放行的死条目（测试按「`Skill(X)` 对应已注册技能
- * `venus_X`」校验，会判为委派了未注册技能）。调用方 MUST NOT 使用星号通配
+ * 技能名取**去掉 `iagent_` 前缀的裸名**（如 `spec_apply`、`feature_doc`），
+ * 也**不带** `plugin:` 前缀 —— 即传 `iagent_spec_apply` 是错误的，会产出
+ * `Skill(iagent_spec_apply)` 这一永不放行的死条目（测试按「`Skill(X)` 对应已注册技能
+ * `iagent_X`」校验，会判为委派了未注册技能）。调用方 MUST NOT 使用星号通配
  * （授权面过宽属安全问题），MUST 逐技能显式列举。
  *
- * @param names 被委派技能的**裸名**列表（不含 `venus_` 前缀）
+ * @param names 被委派技能的**裸名**列表（不含 `iagent_` 前缀）
  * @returns 逗号 + 空格分隔的 `Skill(...)` 条目串；空数组返回空串
  */
 export function skillDelegation(names: readonly string[]): string {

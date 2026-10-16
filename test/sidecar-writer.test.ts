@@ -17,9 +17,6 @@ import {
     readChangeJson,
     writeChangeJson,
     initChangeJson,
-    renderProposalMd,
-    renderDesignMd,
-    renderSpecsMd,
     type ManifestMeta,
 } from '../src/core/spec/sidecar-writer.js';
 import type {
@@ -32,7 +29,7 @@ import type {
 } from '../src/core/spec/sidecar-schema.js';
 
 function tempDir(): string {
-    return fs.mkdtempSync(path.join(os.tmpdir(), 'venus-sidecar-writer-test-'));
+    return fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-sidecar-writer-test-'));
 }
 
 /** 构造合法的 tasks 测试数据 */
@@ -47,7 +44,7 @@ function makeTasks(overrides: Partial<TaskEntry>[] = []): TasksSchema {
         ...o,
     }));
     return {
-        $schema: 'venus/tasks/v1',
+        $schema: 'iagent/tasks/v1',
         tasks,
         progress: { total: tasks.length, complete: 0, remaining: tasks.length },
     };
@@ -96,7 +93,7 @@ function makeDesign(overrides: Partial<DesignSection> = {}): DesignSection {
 /** 构造合法的 change.json 根数据（带明显过期的 updatedAt 以便断言刷新） */
 function makeChange(overrides: Partial<ChangeSchema> = {}): ChangeSchema {
     return {
-        $schema: 'venus/change/v1',
+        $schema: 'iagent/change/v1',
         changeName: 'test-change',
         createdAt: '2000-01-01T00:00:00.000Z',
         updatedAt: '2000-01-01T00:00:00.000Z',
@@ -137,11 +134,11 @@ function makeSpecs(): SpecsSection {
 
 describe('sidecar-writer 模块', () => {
     describe('ensureSidecarDir', () => {
-        it('创建 .venus/ 目录并返回路径', () => {
+        it('创建 .iagent/ 目录并返回路径', () => {
             const dir = tempDir();
             try {
                 const sidecarDir = ensureSidecarDir(dir);
-                expect(sidecarDir.endsWith('.venus')).toBe(true);
+                expect(sidecarDir.endsWith('.iagent')).toBe(true);
                 expect(fs.existsSync(sidecarDir)).toBe(true);
                 // 幂等
                 const sidecarDir2 = ensureSidecarDir(dir);
@@ -154,23 +151,36 @@ describe('sidecar-writer 模块', () => {
 
     describe('validateSidecar', () => {
         it('manifest: changeName 缺失时报错', () => {
-            const result = validateSidecar('manifest', { $schema: 'venus/manifest/v1', changeName: '' });
+            const result = validateSidecar('manifest', { $schema: 'iagent/manifest/v1', changeName: '' });
             expect(result.valid).toBe(false);
             expect(result.errors.some((e) => e.includes('changeName'))).toBe(true);
         });
 
         it('manifest: 合法数据通过', () => {
             const result = validateSidecar('manifest', {
-                $schema: 'venus/manifest/v1',
+                $schema: 'iagent/manifest/v1',
                 changeName: 'test',
                 phase: 'proposal',
             });
             expect(result.valid).toBe(true);
         });
 
+        it('旧品牌 $schema 值（venus/...）在读取端被接受（历史文档兼容）', () => {
+            // 品牌改名后写入端写 iagent/...；已存在的历史变更文件仍是 venus/...，
+            // 读取端只校验 $schema 非空，故历史文档无需改写即可继续读取
+            const change = validateSidecar('change', {
+                $schema: 'venus/change/v1',
+                changeName: 'legacy-change',
+                phase: 'proposal',
+            });
+            expect(change.valid).toBe(true);
+            const tasks = validateSidecar('tasks', { $schema: 'venus/tasks/v1', tasks: [] });
+            expect(tasks.valid).toBe(true);
+        });
+
         it('tasks: 缺少必填字段报错', () => {
             const result = validateSidecar('tasks', {
-                $schema: 'venus/tasks/v1',
+                $schema: 'iagent/tasks/v1',
                 tasks: [{ description: 'no id' }],
             });
             expect(result.valid).toBe(false);
@@ -191,7 +201,7 @@ describe('sidecar-writer 模块', () => {
 
         it('decisions: 合法数据通过', () => {
             const result = validateSidecar('decisions', {
-                $schema: 'venus/decisions/v1',
+                $schema: 'iagent/decisions/v1',
                 decisions: [{ id: 'D1', title: 'Test', choice: 'Option A' }],
             });
             expect(result.valid).toBe(true);
@@ -199,7 +209,7 @@ describe('sidecar-writer 模块', () => {
 
         it('decisions: 缺少必填字段报错', () => {
             const result = validateSidecar('decisions', {
-                $schema: 'venus/decisions/v1',
+                $schema: 'iagent/decisions/v1',
                 decisions: [{ title: 'no id or choice' }],
             });
             expect(result.valid).toBe(false);
@@ -207,7 +217,7 @@ describe('sidecar-writer 模块', () => {
 
         it('capabilities: 合法数据通过', () => {
             const result = validateSidecar('capabilities', {
-                $schema: 'venus/capabilities/v1',
+                $schema: 'iagent/capabilities/v1',
                 capabilities: [{ name: 'export', operations: [{ type: 'ADDED' }] }],
             });
             expect(result.valid).toBe(true);
@@ -215,7 +225,7 @@ describe('sidecar-writer 模块', () => {
 
         it('capabilities: 非法 operation type 报错', () => {
             const result = validateSidecar('capabilities', {
-                $schema: 'venus/capabilities/v1',
+                $schema: 'iagent/capabilities/v1',
                 capabilities: [{ name: 'export', operations: [{ type: 'DELETED' }] }],
             });
             expect(result.valid).toBe(false);
@@ -241,14 +251,14 @@ describe('sidecar-writer 模块', () => {
                 const meta: ManifestMeta = { changeName: 'add-test', capabilities: ['test'] };
                 const manifest = writeManifestJson(dir, meta);
                 expect(manifest.changeName).toBe('add-test');
-                expect(manifest.$schema).toBe('venus/manifest/v1');
+                expect(manifest.$schema).toBe('iagent/manifest/v1');
                 expect(manifest.createdAt).toBeTruthy();
                 expect(manifest.updatedAt).toBeTruthy();
                 expect(manifest.phase).toBe('proposal');
                 expect(manifest.capabilities).toEqual(['test']);
 
                 // 验证文件存在
-                const fpath = path.join(dir, '.venus', 'manifest.json');
+                const fpath = path.join(dir, '.iagent', 'manifest.json');
                 expect(fs.existsSync(fpath)).toBe(true);
                 const parsed = JSON.parse(fs.readFileSync(fpath, 'utf8'));
                 expect(parsed.changeName).toBe('add-test');
@@ -289,7 +299,7 @@ describe('sidecar-writer 模块', () => {
             try {
                 expect(() =>
                     writeTasksJson(dir, {
-                        $schema: 'venus/tasks/v1',
+                        $schema: 'iagent/tasks/v1',
                         tasks: [{ description: 'no id or label' } as unknown as TaskEntry],
                         progress: { total: 1, complete: 0, remaining: 1 },
                     }),
@@ -305,11 +315,11 @@ describe('sidecar-writer 模块', () => {
             const dir = tempDir();
             try {
                 const decisions = {
-                    $schema: 'venus/decisions/v1' as const,
+                    $schema: 'iagent/decisions/v1' as const,
                     decisions: [{ id: 'D1', title: 'Test', choice: 'Option A', alternatives: [], rationale: 'Because', risks: [], relatedFiles: [] }],
                 };
                 writeDecisionsJson(dir, decisions);
-                const fpath = path.join(dir, '.venus', 'decisions.json');
+                const fpath = path.join(dir, '.iagent', 'decisions.json');
                 expect(fs.existsSync(fpath)).toBe(true);
                 const parsed = JSON.parse(fs.readFileSync(fpath, 'utf8'));
                 expect(parsed.decisions[0].id).toBe('D1');
@@ -324,7 +334,7 @@ describe('sidecar-writer 模块', () => {
             const dir = tempDir();
             try {
                 const capabilities = {
-                    $schema: 'venus/capabilities/v1' as const,
+                    $schema: 'iagent/capabilities/v1' as const,
                     capabilities: [
                         {
                             name: 'export',
@@ -335,7 +345,7 @@ describe('sidecar-writer 模块', () => {
                     ],
                 };
                 writeCapabilitiesJson(dir, capabilities);
-                const fpath = path.join(dir, '.venus', 'capabilities.json');
+                const fpath = path.join(dir, '.iagent', 'capabilities.json');
                 expect(fs.existsSync(fpath)).toBe(true);
             } finally {
                 fs.rmSync(dir, { recursive: true, force: true });
@@ -414,7 +424,7 @@ describe('sidecar-writer 模块', () => {
             const dir = tempDir();
             try {
                 const tasks = initTasksJson(dir);
-                expect(tasks.$schema).toBe('venus/tasks/v1');
+                expect(tasks.$schema).toBe('iagent/tasks/v1');
                 expect(tasks.tasks).toEqual([]);
                 expect(tasks.progress.total).toBe(0);
                 const fpath = path.join(dir, 'tasks.json');
@@ -545,7 +555,7 @@ describe('sidecar-writer 模块', () => {
                 const dir = tempDir();
                 try {
                     const change = initChangeJson(dir, 'demo-change');
-                    expect(change.$schema).toBe('venus/change/v1');
+                    expect(change.$schema).toBe('iagent/change/v1');
                     expect(change.changeName).toBe('demo-change');
                     expect(change.phase).toBe('proposal');
                     expect(change.createdAt).toBeTruthy();
@@ -578,166 +588,6 @@ describe('sidecar-writer 模块', () => {
                     fs.rmSync(dir, { recursive: true, force: true });
                 }
             });
-        });
-    });
-
-    describe('renderProposalMd', () => {
-        it('渲染四段标题与列表内容', () => {
-            const md = renderProposalMd(makeProposal(), 'test-change');
-            expect(md).toContain('# Proposal: test-change');
-            expect(md).toContain('## Why');
-            expect(md).toContain('## What Changes');
-            expect(md).toContain('## Capabilities');
-            expect(md).toContain('## Impact');
-            expect(md).toContain('- 引入 change.json');
-            expect(md).toContain('- `sidecar-writer`: 写入器');
-            expect(md).toContain('- `src/core/spec/sidecar-writer.ts`: 新增渲染函数');
-            expect(md).toContain('无破坏性变更');
-        });
-
-        it('幂等：两次调用结果全等', () => {
-            const proposal = makeProposal();
-            expect(renderProposalMd(proposal, 'test-change')).toBe(renderProposalMd(proposal, 'test-change'));
-        });
-
-        it('breaking=true 含 **BREAKING** 标记；false 不含', () => {
-            const breaking = renderProposalMd(
-                makeProposal({
-                    impact: { files: [], breaking: true, compatibility: '含破坏性变更' },
-                }),
-                'test-change',
-            );
-            expect(breaking).toContain('**BREAKING**');
-            expect(renderProposalMd(makeProposal(), 'test-change')).not.toContain('**BREAKING**');
-        });
-
-        it('段为空数组时仍渲染标题（不抛错、无列表项）', () => {
-            const md = renderProposalMd(
-                makeProposal({
-                    whatChanges: [],
-                    capabilities: { new: [], modified: [] },
-                    impact: { files: [], breaking: false, compatibility: '无' },
-                }),
-                'test-change',
-            );
-            expect(md).toContain('## What Changes');
-            expect(md).toContain('## Impact');
-            expect(md).not.toMatch(/^- /m);
-        });
-
-        it('缺必填子字段（whatChanges 缺失）时抛错——渲染器不做段校验，校验责任在写入层', () => {
-            expect(() => renderProposalMd({ why: '原因' } as ProposalSection, 'test-change')).toThrow();
-        });
-    });
-
-    describe('renderDesignMd', () => {
-        it('渲染四段标题', () => {
-            const md = renderDesignMd(makeDesign(), 'test-change');
-            expect(md).toContain('# Design: test-change');
-            expect(md).toContain('## Context');
-            expect(md).toContain('## Goals / Non-Goals');
-            expect(md).toContain('## Decisions');
-            expect(md).toContain('## Risks / Trade-offs');
-            expect(md).toContain('**Goals**:');
-            expect(md).toContain('- 目标一');
-            expect(md).toContain('**Non-Goals**:');
-            expect(md).toContain('- 非目标一');
-        });
-
-        it('decisions 渲染选择/理由/备选三要素', () => {
-            const md = renderDesignMd(makeDesign(), 'test-change');
-            expect(md).toContain('### D1: 决策标题');
-            expect(md).toContain('- **选择**: 选择 A');
-            expect(md).toContain('- **理由**: 理由 X');
-            expect(md).toContain('- **备选**: 备选 B；备选 C');
-            expect(md).toContain('| 风险一 | 缓解一 |');
-        });
-
-        it('幂等：两次调用结果全等', () => {
-            const design = makeDesign();
-            expect(renderDesignMd(design, 'test-change')).toBe(renderDesignMd(design, 'test-change'));
-        });
-
-        it('decisions / risks 为空数组时渲染章节与表头（无条目）', () => {
-            const md = renderDesignMd(makeDesign({ decisions: [], risks: [] }), 'test-change');
-            expect(md).toContain('## Decisions');
-            expect(md).toContain('## Risks / Trade-offs');
-            expect(md).toContain('| 风险 | 缓解 |');
-            expect(md).not.toContain('### ');
-        });
-    });
-
-    describe('renderSpecsMd', () => {
-        it('多 capability → 多个 { path, content }，空分组不渲染', () => {
-            const files = renderSpecsMd(makeSpecs(), 'test-change');
-            expect(files.map((f) => f.path)).toEqual([
-                'specs/sidecar-writer/spec.md',
-                'specs/other-capability/spec.md',
-            ]);
-            expect(files[0].content).toContain('## ADDED Requirements');
-            expect(files[0].content).toContain('## MODIFIED Requirements');
-            expect(files[0].content).not.toContain('## REMOVED Requirements');
-            expect(files[1].content).toContain('## REMOVED Requirements');
-            expect(files[1].content).toContain('## RENAMED Requirements');
-        });
-
-        it('操作按 ADDED/MODIFIED/REMOVED/RENAMED 顺序分组（与输入顺序无关）', () => {
-            const specs: SpecsSection = [
-                {
-                    name: 'grouping',
-                    path: 'specs/grouping/spec.md',
-                    operations: [
-                        { type: 'RENAMED', requirement: 'R4', from: '旧需求名', to: '新需求名' },
-                        { type: 'REMOVED', requirement: 'R3', reason: '过时', migration: '改用 R1' },
-                        { type: 'MODIFIED', requirement: 'R2', description: '修改需求' },
-                        { type: 'ADDED', requirement: 'R1', description: '新增需求' },
-                    ],
-                },
-            ];
-            const files = renderSpecsMd(specs, 'test-change');
-            const content = files[0].content;
-            const positions = [
-                '## ADDED Requirements',
-                '## MODIFIED Requirements',
-                '## REMOVED Requirements',
-                '## RENAMED Requirements',
-            ].map((header) => content.indexOf(header));
-            expect(positions.every((i) => i >= 0)).toBe(true);
-            expect(positions).toEqual([...positions].sort((a, b) => a - b));
-        });
-
-        it('REMOVED 渲染 Reason/Migration；RENAMED 渲染 FROM/TO', () => {
-            const files = renderSpecsMd(makeSpecs(), 'test-change');
-            const content = files[1].content;
-            expect(content).toContain('- **Reason**: 过时');
-            expect(content).toContain('- **Migration**: 改用 R1');
-            expect(content).toContain('- FROM: 旧需求名');
-            expect(content).toContain('- TO: 新需求名');
-        });
-
-        it('given 非空时 GIVEN 在 WHEN 前；given 为空时不渲染 GIVEN', () => {
-            const files = renderSpecsMd(makeSpecs(), 'test-change');
-            const content = files[0].content;
-            const idxGiven = content.indexOf('- **GIVEN**');
-            const idxWhen = content.indexOf('- **WHEN**');
-            expect(idxGiven).toBeGreaterThanOrEqual(0);
-            expect(idxGiven).toBeLessThan(idxWhen);
-            expect(content).toContain('- **WHEN** 触发2');
-            // 仅 S1 的 given 非空 → GIVEN 只出现一次
-            expect(content.split('- **GIVEN**').length - 1).toBe(1);
-        });
-
-        it('scenarios 段缺失（undefined）时仅渲染需求头', () => {
-            const specs: SpecsSection = [
-                {
-                    name: 'no-scenarios',
-                    path: 'specs/no-scenarios/spec.md',
-                    operations: [{ type: 'ADDED', requirement: 'R1', description: '无场景需求' }],
-                },
-            ];
-            const files = renderSpecsMd(specs, 'test-change');
-            expect(files[0].content).toContain('### Requirement: R1');
-            expect(files[0].content).not.toContain('#### Scenario:');
         });
     });
 });

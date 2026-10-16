@@ -8,17 +8,17 @@ import { SUBAGENT_DISPATCH, skillDelegation } from '../tool-whitelist.js';
 
 export function getSpecProposeSkillTemplate(): SkillTemplate {
     return {
-        name: 'venus_spec_propose',
+        name: 'iagent_spec_propose',
         description: '创建变更提案。当用户要快速描述想构建的内容并一步生成包含设计、规格和任务的完整提案时使用。',
-        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(venus:*), ${skillDelegation(['spec_verify_proposal', 'tr_docs_requirement_doc'])}, ${SUBAGENT_DISPATCH}`,
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), ${skillDelegation(['spec_verify_proposal', 'requirement_doc'])}, ${SUBAGENT_DISPATCH}`,
         type: 'spec',
         instructions: `Propose a new change - create the change and generate all artifacts in one step.
 
-**Planning Boundary**: 触发此工作流的用户请求授权的是规划——即使请求要求"实现它"或"开始编码"，也只完成规划 artifacts（不编辑项目代码）；全部 artifacts 生成且 Phase 3 验证通过后停止，等待用户发起新请求（/venus:spec-apply）才进入实现；本工作流不启动代码实现。
+**Planning Boundary**: 触发此工作流的用户请求授权的是规划——即使请求要求"实现它"或"开始编码"，也只完成规划 artifacts（不编辑项目代码）；全部 artifacts 生成且 Phase 3 验证通过后停止，等待用户发起新请求（/iagent:spec-apply）才进入实现；本工作流不启动代码实现。
 
-I'll create a change with artifacts:
-- change.json (proposal / design / specs — JSON primary)
-- tasks.json + tasks.md (implementation steps)
+I'll create a change with OpenSpec Markdown artifacts:
+- proposal.md / design.md / specs/<capability>/spec.md
+- tasks.md (implementation steps and checkbox state)
 
 准备好实现时，告知我即可开始执行任务。
 
@@ -85,10 +85,10 @@ ${GATE_PROTOCOL_PREAMBLE}
 
 0.7. **探索内容传递给提案生成**
    - 如果用户选择关联探索文件：
-     - 读取 \`exploration.md\` 中的 Decisions 章节 → 填充 change.json proposal 段
-     - 读取 Analysis 章节 → 填充 change.json design 段
-     - 读取 Questions 章节 → 填充 change.json specs 段
-     - 读取 Codebase Findings 章节 → 填充 tasks.json
+     - 读取 \`exploration.md\` 中的 Decisions 章节 → 生成 proposal.md/design.md
+     - 读取 Analysis 章节 → 生成 design.md
+     - 读取 Questions 章节 → 生成 specs/<capability>/spec.md
+     - 读取 Codebase Findings 章节 → 生成 tasks.md
 <!-- /CMD:SKIP -->
 
 1. **If no clear input provided, ask what they want to build**
@@ -142,7 +142,7 @@ Apply the following naming rules when deriving a change name:
 
 2. **Create the change directory**
    \`\`\`bash
-   venus spec new "<name>"
+   iagent spec new "<name>"
    \`\`\`
    This creates a scaffolded change in the planning home resolved by the CLI with \`.openspec.yaml\`.
 
@@ -150,7 +150,7 @@ Apply the following naming rules when deriving a change name:
 
 3. **Get the artifact build order**
    \`\`\`bash
-   venus spec status --change "<name>" --json
+   iagent spec status --change "<name>" --json
    \`\`\`
    Parse the JSON to get:
    - \`applyRequires\`: array of artifact IDs needed before implementation (e.g., \`["tasks"]\`)
@@ -166,24 +166,22 @@ Apply the following naming rules when deriving a change name:
    a. **For each artifact that is \`ready\` (dependencies satisfied)**:
       - Get instructions:
         \`\`\`bash
-        venus spec instructions <artifact-id> --change "<name>" --json
+        iagent spec instructions <artifact-id> --change "<name>" --json
         \`\`\`
       - The instructions JSON includes:
-        - \`jsonTemplate\`: JSON 真源结构示例（机器源）— 写 change.json 段 / tasks.json 时按其字段与约束执行
-        - \`instruction\`: Schema-specific guidance for this artifact type
-        - \`template\`: MD 结构参考（仅渲染不可用降级手写时参照；正常路径由渲染器产出）
-        - \`resolvedOutputPath\`: 渲染产物的目标路径（venus spec render 自动写入，供核对）
-        - \`dependencies\`: Completed artifacts to read for context
-      - **Re-read dependency artifacts from disk**: 生成新 artifact 需读取已完成的依赖 artifact 时，从磁盘重新读取最新内容（用户可能在会话期间手工编辑），不依赖会话缓存
+        - \`template\`: OpenSpec Markdown 结构模板
+        - \`outputPath\` / \`resolvedOutputPath\`: 当前 artifact 的 Markdown 路径
+        - \`dependencies\`: 需要重新读取的已完成制品
+      - **Re-read dependency artifacts from disk**: 生成新 artifact 需读取已完成的依赖 artifact 时，从磁盘重新读取最新内容，不依赖会话缓存
       - Read any completed dependency files for context
-      - **Write JSON truth source**: proposal/specs/design → 更新 \`change.json\` 对应段（整文件 Write，保留已有段与根字段现值）；tasks → 写 \`tasks.json\`（JSON-first 完整步骤见 \`openspec/rules/artifact-generation.md\` Step G2）
-      - **Render tasks.md**（仅 tasks）：\`venus spec render tasks --change "<name>"\` 渲染 tasks.md 供人工检查；校验失败（报错含字段路径）修正 JSON 后重跑；命令不可用时降级以 \`template\` 为结构手写 tasks.md（WARN，不阻断）。proposal / specs / design 不渲染 MD —— change.json 为唯一真源。
+      - **Write Markdown truth source**: proposal → proposal.md；specs → specs/<capability>/spec.md；design → design.md；tasks → tasks.md
+      - 写入后运行 \`iagent spec validate --change "<name>"\`，修复路径/行号诊断；MUST NOT 通过生成 JSON 副本绕过校验
       - Show brief progress: "Created <artifact-id>"
 
    b. **Continue until all required artifacts are complete (apply-ready = applyRequires 传递闭包)**
       - 停止条件：按 requires 边构建 applyRequires 的传递闭包作为必需集（applyRequires ∪ 其传递依赖），所有必需 artifact 均 status "done" 才视为 apply-ready
       - 防止早停：tasks 已 done 而 specs 未写时，applyRequires 只列 tasks 不能视为完成；闭包展开后 specs 也属必需
-      - After creating each artifact, re-run \`venus spec status --change "<name>" --json\`
+      - After creating each artifact, re-run \`iagent spec status --change "<name>" --json\`
       - Check if every artifact ID in the transitive closure of \`applyRequires\` has \`status: "done"\` in the artifacts array
       - Stop when all required artifacts (closure) are done
 
@@ -192,7 +190,7 @@ Apply the following naming rules when deriving a change name:
       - Then continue with creation
 
    d. **Parallel delta spec generation (multi-capability only)**:
-      - When the \`specs\` artifact is ready for generation AND the change involves two or more capabilities (per the proposal's Capabilities section): dispatch one sub-agent per capability (Task tool) to generate that capability's delta spec in parallel — every sub-agent takes the completed \`change.json\` as its input
+      - When the \`specs\` artifact is ready for generation AND the change involves two or more capabilities (per the proposal's Capabilities section): dispatch one sub-agent per capability (Task tool) to generate that capability's delta spec in parallel — every sub-agent takes the completed proposal.md and capability context as input
       - Merge all generated delta specs before proceeding to the next artifact in the dependency order (the proposal → specs → design → tasks chain is unchanged)
       - For a single-capability change: generate the delta spec directly in the artifact loop (automatic serial fallback, no dispatch)
       - On a sub-agent failure: the main workflow regenerates that capability's delta spec serially
@@ -204,15 +202,15 @@ Apply the following naming rules when deriving a change name:
 
 5. **Show final status**
    \`\`\`bash
-   venus spec status --change "<name>"
+   iagent spec status --change "<name>"
    \`\`\`
 
 6. **Phase 3 Verification (auto — MANDATORY, no skip)**
    After all \`applyRequires\` artifacts are done, automatically enter Phase 3 verification (do NOT end the workflow at "Ready for implementation" before verification):
-   - Invoke the \`venus_spec_verify_proposal\` **skill** (via Skill tool) for D1-D5 scoring. (\`venus_spec_verify_proposal\` is a skill name, NOT a valid \`venus spec instructions\` artifact ID — do not run it as a CLI instruction.)
+   - Invoke the \`iagent_spec_verify_proposal\` **skill** (via Skill tool) for D1-D5 scoring. (\`iagent_spec_verify_proposal\` is a skill name, NOT a valid \`iagent spec instructions\` artifact ID — do not run it as a CLI instruction.)
    - **Verification review sub-agent**: dispatch an independent read-only review sub-agent (Task tool, subagent_type: "general-purpose") to perform the D1-D5 scoring — the sub-agent reads the change's artifacts without modifying them. On sub-agent dispatch failure: fall back to main-workflow inline scoring with a WARN log (never silently skip verification).
-   - **PASS (≥90%)**: 验证通过后可对提案做一次内联深度复查（由主工作流在通过后直接执行一次 read-only 复查，不依赖专门技能名）。深度复查收束后，以非交互模式调用 \`venus_tr_docs_requirement_doc\` 生成需求文档于 \`openspec/changes/<change-name>/需求文档.md\`。生成失败不阻塞（WARN + 继续）。
-   - **FAIL (<90%)**: auto-generate fixes, apply, re-run; if still FAIL, offer [Manual edit] / [Return to exploration (/venus:spec-explore)] / [View diff] (no skip-to-apply).
+   - **PASS (≥90%)**: 验证通过后可对提案做一次内联深度复查（由主工作流在通过后直接执行一次 read-only 复查，不依赖专门技能名）。深度复查收束后，以非交互模式调用 \`iagent_requirement_doc\` 生成需求文档于 \`openspec/changes/<change-name>/需求文档.md\`。生成失败不阻塞（WARN + 继续）。
+   - **FAIL (<90%)**: auto-generate fixes, apply, re-run; if still FAIL, offer [Manual edit] / [Return to exploration (/iagent:spec-explore)] / [View diff] (no skip-to-apply).
    - Fallback if skill unavailable: AI inline D1-D5 scoring + WARN log; never silently skip.
    - 验证使用 90% 通过阈值。
 
@@ -222,17 +220,17 @@ After completing all artifacts AND Phase 3 verification passes:
 - Change name and location
 - List of artifacts created with brief descriptions
 - Verification result: "Phase 3 verification passed (≥90%). Inline deep review completed."
-- Requirement document: generated at \`openspec/changes/<change-name>/需求文档.md\`（非交互调用 venus_tr_docs_requirement_doc；生成失败 WARN 非阻断）
+- Requirement document: generated at \`openspec/changes/<change-name>/需求文档.md\`（非交互调用 iagent_requirement_doc；生成失败 WARN 非阻断）
 - **Downgrade note (if applicable)**: 流程基准缺失或未获用户确认时标注 "流程基准不可用：已降级为仅凭 exploration.md 生成（未确认的流程图未被当作既定前提）"
 - What's ready: "All artifacts created and verified! Ready for implementation."
 - Prompt: "告知我即可开始执行任务。"
 
 **Artifact Creation Guidelines**
 
-- Follow the \`instruction\` field from \`venus spec instructions\` for each artifact type
+- Follow the \`instruction\` field from \`iagent spec instructions\` for each artifact type
 - The schema defines what each artifact should contain - follow it
 - Read dependency artifacts for context before creating new ones
-- **JSON-first**: 先写 JSON 真源（change.json 段 / tasks.json），再 \`venus spec render tasks\` 渲染 tasks.md；proposal/specs/design 不渲染 MD；\`template\` 仅在渲染不可用的降级路径中作为手写 tasks.md 的结构参考
+- **Markdown-first**: 直接写 proposal.md、design.md、specs/**/*.md 和 tasks.md；使用 \`iagent spec validate\` 校验，不创建 JSON 真源或渲染副本
 - **IMPORTANT**: \`context\` and \`rules\` are constraints for YOU, not content for the file
   - Do NOT copy \`<context>\`, \`<rules>\`, \`<project_context>\` blocks into the artifact
   - These guide what you write, but should never appear in the output
@@ -246,19 +244,19 @@ After completing all artifacts AND Phase 3 verification passes:
 - See \`schemas/spec-driven/templates/tasks.md\` template for full label reference
 
 **Test Planning (测试规划判定, for tasks.md generation):**
-- Walk the \`specs/*.md\` scenarios one by one and judge whether each is testable
+- Walk the \`specs/**/*.md\` Requirement/Scenario blocks one by one and judge whether each is testable（历史 JSON-only 变更仅只读降级）
 - **Testable scenario** → MUST produce a \`[测试]\` task carrying level + priority
 - **Untestable scenario** (pure documentation / configuration change with no verifiable behavior) → MUST STILL produce a \`[测试]\` task recording the verdict and its rationale, e.g. \`- [ ] [测试][单元][P2] 4.2 评估：纯文档变更，无需测试（依据：无可验证行为）\`
-  - Rationale: a recorded verdict makes "no tests written" distinguishable from "never evaluated" — the same principle as the no-test gate in \`venus_tr_test_generate\`
+  - Rationale: a recorded verdict makes "no tests written" distinguishable from "never evaluated" — the same principle as the no-test gate in \`iagent_test\`
 - Test tasks depend on their implementation tasks — when a test task covers behavior implemented by another task, note the dependency in the task description so apply schedules them serially
 
 **流程基准消费规则（Flowchart Basis Consumption）**
 
 当关联的 \`exploration.md\` 含**经用户确认**的 \`## 功能流程图\` 段时，该流程图即**流程基准**，本技能 MUST 以其为**生成锚点**：
 
-- **design 段引用而非重建**：change.json 的 design 段 MUST 引用该流程图（Mermaid \`flowchart TD\`）与**关键操作节点清单**（节点 / 操作 / 触发条件 / 证据位置 / 异常路径）；
+- **design 引用而非重建**：design.md MUST 引用该流程图（Mermaid \`flowchart TD\`）与**关键操作节点清单**（节点 / 操作 / 触发条件 / 证据位置 / 异常路径）；
   MUST NOT 在 design 中**重新发明一套流程**——重写流程即偏差引入点
-- **tasks 标注节点 id（节点 → 任务的可追溯映射）**：tasks.json 的**每个任务** MUST 标注其对应的节点标识（\`[N4]\` 形，节点标识与流程图 / 节点清单表保持一致），
+- **tasks 标注节点 id（节点 → 任务的可追溯映射）**：tasks.md 的**每个任务** MUST 标注其对应的节点标识（\`[N4]\` 形，节点标识与流程图 / 节点清单表保持一致），
   使每个流程节点在任务清单中可被逐一核对
   - 例：\`- [ ] [代码] 2.3 实现分批查询 [N4]\`
 - **MUST NOT 静默补节点**：任务拆解中发现流程图遗漏的节点时，MUST 回到探索阶段更新流程图并**重新经用户确认**；
@@ -276,57 +274,34 @@ After completing all artifacts AND Phase 3 verification passes:
 - If a change with that name already exists, ask if user wants to continue it or create a new one
 - Verify each artifact file exists after writing before proceeding to next
 
-## JSON Sidecar Generation (MANDATORY — JSON-first 合并主产物，显式 Write/Bash 步骤)
+## Markdown Artifact Generation (MANDATORY — Markdown-first)
 
-**JSON 是结构化数据真源，Markdown 制品由渲染器确定性产出；以下为显式 tool-call 步骤，不是散文期望。唯一源：\`openspec/rules/artifact-generation.md\` 的 Step G2（JSON-first）——本段仅为快速把握的浓缩要点，冲突时以唯一源为准。**
+严格引用 \`openspec/rules/artifact-generation.md\` 的 G1-G7 协议：
 
-### 1. JSON 真源写入（proposal / specs / design → change.json）
+- proposal / specs / design 直接写入 OpenSpec Markdown，tasks 直接写入 tasks.md。
+- 使用 \`iagent spec status --change "<name>" --json\` 和 \`iagent spec instructions <artifact-id> --change "<name>" --json\` 获取状态、路径和模板摘要。
+- 不创建或更新 \`change.json\` / \`tasks.json\` 作为新变更真源；CLI JSON 仅为运行时响应。
+- 每次写入后运行 \`iagent spec validate --change "<name>"\`，按文件路径和行号修正 invalid。
+- 每个可测 Scenario 必须在 tasks.md 有实现或测试任务，并标注 \`Spec Ref\` / \`Scenario Ref\`。
+- 依赖文件必须从磁盘重新读取；context/rules 只作为本技能约束，不复制进制品。
 
-- proposal / specs / design 三段写入 \`<changeRoot>/change.json\`，按 proposal → specs → design 依赖序累积
-- 每次更新 MUST 整文件 Write，并保留已有段与根字段现值（\`changeName\` / \`createdAt\` / \`phase\`），\`updatedAt\` 刷新为当前时间
-- 字段结构以 \`venus spec instructions\` 返回的 \`jsonTemplate\` 为机器源——MUST NOT 增删字段或改名
-- 可选骨架（也可跳过，直接写全 JSON）：\`venus spec sidecar init --change "<name>"\`——创建 change.json / tasks.json 空骨架，已存在不覆盖（幂等）
+**Task Type Labels**：\`[代码]\` / \`[测试][单元|功能][P0|P1|P2]\` / \`[DB脚本]\` / \`[使用说明]\`。补充文档任务写 \`产出:\`，测试任务不走 attachments 路径。
 
-### 2. tasks.json（PRIMARY task artifact — AI 写结构化 JSON，代码渲染 tasks.md）
+**Test Planning**：逐个读取 specs Markdown 的 Scenario；可测场景生成 [测试] 任务，不可测场景也生成记录“已评估、无需测试”的任务。测试任务依赖被测实现任务。
 
-**tasks.json 是权威任务清单；AI 写结构化 JSON，tasks.md 由 \`venus spec render tasks\` 渲染供人工评审。**
-
-1. 用 Write 工具写 \`<changeRoot>/tasks.json\`（不是 tasks.md）：
-   - \`label\` 值**不带方括号**（渲染器自动包裹）：\`代码\` | \`测试\` | \`DB脚本\` | \`使用说明\`
-   - \`测试\` 任务 MUST 带 \`subLabel\`（\`单元\` | \`功能\`）与 \`priority\`（\`P0\` | \`P1\` | \`P2\`）
-   - 字段结构以 \`venus spec instructions\` 返回的 \`jsonTemplate\`（\`venus/tasks/v1\`）为机器源：\`id\` / \`description\` / \`status\` / \`dependencies\` / \`files\` / \`batchGroup\`
-2. 写后 MUST 渲染，用户在渲染出的 tasks.md 上确认任务拆解：
-   \`\`\`bash
-   venus spec render tasks --change "<name>"
-   \`\`\`
-
-### 3. 渲染 tasks.md（仅 tasks artifact，供人工检查）
-
-proposal / specs / design 不渲染 MD —— change.json 为唯一真源，MUST NOT 渲染冗余 MD 副本。
-
-\`\`\`bash
-venus spec render tasks --change "<name>"
-\`\`\`
-
-### 4. 失败处置
-
-- **校验失败（阻断）**：CLI 报错含字段路径（如 \`proposal.whatChanges 必须为数组\`）→ 按报错修正 JSON 真源后重跑渲染；不得为绕过校验而手改 MD
-- **渲染命令不可用（降级）**：
-  - tasks: CLI 缺失或执行失败 → AI 手写 tasks.md（以 \`template\` 为结构），记 WARN，不阻断
-  - proposal / specs / design: MUST NOT 手写 MD —— change.json 为唯一真源，无 MD 降级路径；渲染命令不可用时仅记录 WARN 并继续，不生成冗余 MD 副本
-- tasks.json 是 apply 阶段主执行路径的真源——其缺失会使下游 spec-apply 降级为解析 tasks.md 复选框`,
+**流程基准**：若 exploration.md 含经确认的功能流程图，design.md 引用原流程，tasks.md 标注节点 id；未确认流程图不得作为既定前提并在报告中记录降级。`,
         license: 'MIT',
-        compatibility: '依赖 venus CLI（spec 命令组）与 CodeGraph MCP（可选）。',
-        metadata: { author: 'venus-agent-tools', version: '1.0' },
+        compatibility: '依赖 iagent CLI（spec 命令组）与 CodeGraph MCP（可选）。',
+        metadata: { author: 'mi-agent-tools', version: '1.0' },
     };
 }
 
 export function getSpecProposeCommandTemplate(): CommandTemplate {
     return {
-        name: 'Venus: 创建变更提案',
+        name: 'iAgent: 创建变更提案',
         description: '创建变更提案 —— 一步生成所有 artifact（proposal/design/specs/tasks）',
-        category: 'Venus / 规格',
-        tags: ['venus', 'spec', 'propose'],
+        category: 'iAgent / 规格',
+        tags: ['iagent', 'spec', 'propose'],
         content: deriveCommandContent(getSpecProposeSkillTemplate().instructions),
     };
 }

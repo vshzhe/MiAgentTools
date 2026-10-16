@@ -1,62 +1,46 @@
 /**
  * 技能模板注册表。
  *
- * 汇总全部类型（tr_*）的技能模板，并派生每个技能对应的斜杠指令模板。
- * 指令 id 规则：技能名 venus_<type>_<name> → 指令 id <type 连字符化>-<name>
- * 例：venus_tools_pwd → tr-tools-pwd → .claude/commands/venus/tr-tools-pwd.md
+ * 汇总全部内置技能模板，并派生每个技能对应的斜杠指令模板。
+ * 指令 id 规则：技能名 iagent_<功能名> → 指令 id <功能名连字符化>
+ * 例：iagent_spec_apply → spec-apply → .claude/commands/iagent/spec-apply.md
  */
 
 import { SKILL_PREFIX, SKILL_TYPES, type SkillType } from '../config.js';
 import type { SkillTemplate, SkillTemplateEntry, CommandTemplate } from './types.js';
-import { getTrInitProjectSkillTemplate, getTrInitProjectCommandTemplate } from './workflows/tr-init.js';
-import { getTrImplFeatureSkillTemplate, getTrImplFeatureCommandTemplate } from './workflows/tr-impl.js';
+import { getProjectInitSkillTemplate, getProjectInitCommandTemplate } from './workflows/project-init.js';
 import {
-    getTrImplMigrationCheckSkillTemplate,
-    getTrImplMigrationCheckCommandTemplate,
-} from './workflows/tr-impl-migration-check.js';
+    getMigrationCheckSkillTemplate,
+    getMigrationCheckCommandTemplate,
+} from './workflows/migration-check.js';
 import {
-    getTrImplAutoMigrationSkillTemplate,
-    getTrImplAutoMigrationCommandTemplate,
-} from './workflows/tr-impl-auto-migration.js';
+    getMigrationSkillTemplate,
+    getMigrationCommandTemplate,
+} from './workflows/migration.js';
 import {
-    getTrImplWorkflowSkillTemplate,
-    getTrImplWorkflowCommandTemplate,
-} from './workflows/tr-impl-workflow.js';
+    getWorkflowSkillTemplate,
+    getWorkflowCommandTemplate,
+} from './workflows/workflow.js';
 import {
-    getTrImplAutoWorkflowSkillTemplate,
-    getTrImplAutoWorkflowCommandTemplate,
-} from './workflows/tr-impl-auto-workflow.js';
+    getAutoWorkflowSkillTemplate,
+    getAutoWorkflowCommandTemplate,
+} from './workflows/auto-workflow.js';
 import {
-    getTrImplGenfullSkillTemplate,
-    getTrImplGenfullCommandTemplate,
-} from './workflows/tr-impl-genfull.js';
+    getDebugSkillTemplate,
+    getDebugCommandTemplate,
+} from './workflows/debug.js';
+import { getTestSkillTemplate, getTestCommandTemplate } from './workflows/test.js';
+import { getCommitSkillTemplate, getCommitCommandTemplate } from './workflows/commit.js';
 import {
-    getTrImplDebugSkillTemplate,
-    getTrImplDebugCommandTemplate,
-} from './workflows/tr-impl-debug.js';
-import { getTrTestGenerateSkillTemplate, getTrTestGenerateCommandTemplate } from './workflows/tr-test.js';
-import { getTrCommitChangeSkillTemplate, getTrCommitChangeCommandTemplate } from './workflows/tr-commit.js';
+    getSvnCommitSkillTemplate,
+    getSvnCommitCommandTemplate,
+} from './workflows/svn-commit.js';
+import { getReviewSkillTemplate, getReviewCommandTemplate } from './workflows/review.js';
+import { getFeatureDocSkillTemplate, getFeatureDocCommandTemplate } from './workflows/feature-doc.js';
 import {
-    getTrCommitPushSkillTemplate,
-    getTrCommitPushCommandTemplate,
-} from './workflows/tr-commit-push.js';
-import { getTrReviewCodeSkillTemplate, getTrReviewCodeCommandTemplate } from './workflows/tr-review.js';
-import { getTrReleaseVersionSkillTemplate, getTrReleaseVersionCommandTemplate } from './workflows/tr-release.js';
-import {
-    getReleasePackageSkillTemplate,
-    getReleasePackageCommandTemplate,
-} from './workflows/release-package.js';
-import {
-    getTrToolsPwdSkillTemplate,
-    getTrToolsPwdCommandTemplate,
-    getTrToolsListSkillTemplate,
-    getTrToolsListCommandTemplate,
-} from './workflows/tr-tools.js';
-import { getTrDocsFeatureDocSkillTemplate, getTrDocsFeatureDocCommandTemplate } from './workflows/tr-docs-feature-doc.js';
-import {
-    getTrDocsRequirementDocSkillTemplate,
-    getTrDocsRequirementDocCommandTemplate,
-} from './workflows/tr-docs-requirement-doc.js';
+    getRequirementDocSkillTemplate,
+    getRequirementDocCommandTemplate,
+} from './workflows/requirement-doc.js';
 import { getSpecExploreSkillTemplate, getSpecExploreCommandTemplate } from './workflows/spec-explore.js';
 import { getSpecProposeSkillTemplate, getSpecProposeCommandTemplate } from './workflows/spec-propose.js';
 import {
@@ -80,18 +64,13 @@ import {
     getSpecVerifyProposalCommandTemplate,
 } from './workflows/spec-verify-proposal.js';
 import {
-    getTrImplReviewProposalSkillTemplate,
-    getTrImplReviewProposalCommandTemplate,
-} from './workflows/tr-impl-review-proposal.js';
-import {
-    getTrImplFrontendSkillTemplate,
-    getTrImplFrontendCommandTemplate,
-} from './workflows/tr-impl-frontend.js';
-
+    getProposalReviewSkillTemplate,
+    getProposalReviewCommandTemplate,
+} from './workflows/proposal-review.js';
 
 /**
  * 从技能名派生斜杠指令 id。
- * venus_tools_pwd → tr-tools-pwd（下划线转连字符，去掉 venus 前缀）
+ * iagent_spec_apply → spec-apply（下划线转连字符，去掉 iagent 前缀）
  */
 export function deriveCommandId(skillName: string): string {
     if (!skillName.startsWith(SKILL_PREFIX)) {
@@ -116,32 +95,24 @@ type ResolvedCommandTemplate = CommandTemplate & { allowedTools: string };
 
 /** 全部内置技能（顺序即安装与展示顺序） */
 const WORKFLOW_PAIRS: WorkflowPair[] = [
-    { skill: getTrInitProjectSkillTemplate(), command: getTrInitProjectCommandTemplate() },
-    { skill: getTrImplFeatureSkillTemplate(), command: getTrImplFeatureCommandTemplate() },
-    // 迁移套件（tr_impl）：迁移后一致性检查 + 一站式迁移编排
-    { skill: getTrImplMigrationCheckSkillTemplate(), command: getTrImplMigrationCheckCommandTemplate() },
-    { skill: getTrImplAutoMigrationSkillTemplate(), command: getTrImplAutoMigrationCommandTemplate() },
-    // 工作流套件（tr_impl）：引导工作流 + 全自动管线 + 引导式全流程编排 + 一站式调试 + 提案完整性复查（迁移自 OpenSpec 工作流技能）
-    { skill: getTrImplWorkflowSkillTemplate(), command: getTrImplWorkflowCommandTemplate() },
-    { skill: getTrImplAutoWorkflowSkillTemplate(), command: getTrImplAutoWorkflowCommandTemplate() },
-    { skill: getTrImplGenfullSkillTemplate(), command: getTrImplGenfullCommandTemplate() },
-    { skill: getTrImplDebugSkillTemplate(), command: getTrImplDebugCommandTemplate() },
-    { skill: getTrImplReviewProposalSkillTemplate(), command: getTrImplReviewProposalCommandTemplate() },
-    // 前端套件（tr_impl）：前端页面设计与生成，组件设计决策 + 代码模板生成
-    { skill: getTrImplFrontendSkillTemplate(), command: getTrImplFrontendCommandTemplate() },
-    { skill: getTrTestGenerateSkillTemplate(), command: getTrTestGenerateCommandTemplate() },
-    { skill: getTrCommitChangeSkillTemplate(), command: getTrCommitChangeCommandTemplate() },
-    { skill: getTrCommitPushSkillTemplate(), command: getTrCommitPushCommandTemplate() },
-    { skill: getTrReviewCodeSkillTemplate(), command: getTrReviewCodeCommandTemplate() },
-    { skill: getTrReleaseVersionSkillTemplate(), command: getTrReleaseVersionCommandTemplate() },
-    { skill: getReleasePackageSkillTemplate(), command: getReleasePackageCommandTemplate() },
-    { skill: getTrToolsPwdSkillTemplate(), command: getTrToolsPwdCommandTemplate() },
-    { skill: getTrToolsListSkillTemplate(), command: getTrToolsListCommandTemplate() },
-    // 迁移套件（tr_docs）：源项目功能扫描与需求文档生成
-    { skill: getTrDocsFeatureDocSkillTemplate(), command: getTrDocsFeatureDocCommandTemplate() },
-    // 工作流套件（tr_docs）：变更提案转评审需求文档
-    { skill: getTrDocsRequirementDocSkillTemplate(), command: getTrDocsRequirementDocCommandTemplate() },
-    // 规格驱动工作流（spec 类型，依赖 venus spec 命令组）
+    { skill: getProjectInitSkillTemplate(), command: getProjectInitCommandTemplate() },
+    // 迁移套件（impl）：迁移后一致性检查 + 一站式迁移编排
+    { skill: getMigrationCheckSkillTemplate(), command: getMigrationCheckCommandTemplate() },
+    { skill: getMigrationSkillTemplate(), command: getMigrationCommandTemplate() },
+    // 工作流套件（impl）：一站式引导工作流（探索→提案→验证→实现→归档）+ 全自动管线 + 一站式调试 + 提案完整性复查（迁移自 OpenSpec 工作流技能）
+    { skill: getWorkflowSkillTemplate(), command: getWorkflowCommandTemplate() },
+    { skill: getAutoWorkflowSkillTemplate(), command: getAutoWorkflowCommandTemplate() },
+    { skill: getDebugSkillTemplate(), command: getDebugCommandTemplate() },
+    { skill: getProposalReviewSkillTemplate(), command: getProposalReviewCommandTemplate() },
+    { skill: getTestSkillTemplate(), command: getTestCommandTemplate() },
+    { skill: getCommitSkillTemplate(), command: getCommitCommandTemplate() },
+    { skill: getSvnCommitSkillTemplate(), command: getSvnCommitCommandTemplate() },
+    { skill: getReviewSkillTemplate(), command: getReviewCommandTemplate() },
+    // 迁移套件（docs）：源项目功能扫描与需求文档生成
+    { skill: getFeatureDocSkillTemplate(), command: getFeatureDocCommandTemplate() },
+    // 工作流套件（docs）：变更提案转评审需求文档
+    { skill: getRequirementDocSkillTemplate(), command: getRequirementDocCommandTemplate() },
+    // 规格驱动工作流（spec 类型，依赖 iagent spec 命令组）
     { skill: getSpecExploreSkillTemplate(), command: getSpecExploreCommandTemplate() },
     { skill: getSpecProposeSkillTemplate(), command: getSpecProposeCommandTemplate() },
     { skill: getSpecApplyChangeSkillTemplate(), command: getSpecApplyChangeCommandTemplate() },
@@ -208,7 +179,7 @@ export function countSkillsByType(): Map<SkillType, number> {
     for (const { skill } of WORKFLOW_PAIRS) {
         counts.set(skill.type, (counts.get(skill.type) ?? 0) + 1);
     }
-    // 无技能的类型也占位为 0，保证 7 类完整展示
+    // 无技能的类型也占位为 0，保证类型体系完整展示
     for (const meta of SKILL_TYPES) {
         if (!counts.has(meta.id)) {
             counts.set(meta.id, 0);

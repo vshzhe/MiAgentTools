@@ -15,7 +15,7 @@ import {
 
 /** 测试用临时目录 */
 function tempDir(): string {
-    return fs.mkdtempSync(path.join(os.tmpdir(), 'venus-sqlite-test-'));
+    return fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-sqlite-test-'));
 }
 
 describe('sqlite-index 模块', () => {
@@ -38,9 +38,9 @@ describe('sqlite-index 模块', () => {
     });
 
     describe('resolveIndexDb', () => {
-        it('返回 openspec/changes/archive/.venus/index.db', () => {
+        it('返回 openspec/changes/archive/.iagent/index.db', () => {
             const result = resolveIndexDb('/project/openspec');
-            expect(result.replaceAll('\\', '/')).toBe('/project/openspec/changes/archive/.venus/index.db');
+            expect(result.replaceAll('\\', '/')).toBe('/project/openspec/changes/archive/.iagent/index.db');
         });
     });
 

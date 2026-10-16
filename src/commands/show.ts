@@ -1,5 +1,5 @@
 /**
- * venus show 命令。
+ * iagent show 命令。
  *
  * 查看单个技能详情：frontmatter 解析（name/description/type/allowed-tools/generatedBy）、
  * 安装位置、正文预览。支持前缀模糊匹配（唯一命中才展开）。
@@ -95,11 +95,11 @@ function parseFrontmatter(content: string): {
  * 按名称（或前缀）查找技能，返回全部命中。
  *
  * @param projectRoot - 项目根目录
- * @param query - 完整技能名或唯一前缀（如 venus_tr_tools / pwd）
+ * @param query - 完整技能名或唯一前缀（如 iagent_tools / pwd）
  */
 export function findSkills(projectRoot: string, query: string): SkillDetail[] {
     const installed = scanInstalledSkills(projectRoot);
-    // 匹配：全名 / 去前缀段（venus_tr_tools_pwd → tr_tools_pwd / pwd 段）
+    // 匹配：全名 / 去前缀段（iagent_review → review 段）
     const matches = installed.filter((s) => {
         if (s.name === query) {
             return true;

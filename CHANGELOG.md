@@ -185,6 +185,160 @@
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-10-13
+
+### BREAKING
+
+- **技能集精简：27 → 20 个技能**。移除 `iagent_feature`（直接实现，由 `iagent_workflow` /
+  `iagent_spec_apply` 引导路径覆盖）、`iagent_pwd`（AI 直接执行 `pwd`）、`iagent_skills`（改用
+  `iagent list`）、`iagent_version`（改用 `iagent --version`）与 `iagent_package`（Venus4A 专用打包）；
+  同名斜杠指令与工作流条目一并移除。
+- **`iagent_full_workflow` 并入 `iagent_workflow`**：保留单一引导式端到端技能
+  （探索→提案→验证→实现→归档）。旧配置中的 `full-workflow` 与 `tr-impl-genfull` 经
+  `LEGACY_WORKFLOW_ID_MAP` 迁移到 `workflow`。
+- **移除 Venus4A 专用领域内容**：`iagent_frontend`（JSP 前端）、`iagent_package` 及其运行时
+  `vendor/auto-package-svn/`、`.iagent/config.yaml` 的 `auto_package` 段全部删除。
+- **框架专项检查去 Venus4A 硬编码**：`iagent_feature_doc` 移除内置框架档案预设（改为源项目结构
+  自动探测 + 用户确认）；`iagent_proposal_review` / `iagent_spec_verify_proposal` 的语言/框架专项检查
+  改为**运行时按项目实际信息**判定（读 `.iagent/config.yaml` 的 context/rules 与既有源码 / 构建文件，
+  探测结论标 [待确认] 后写回 context），移除硬编码包名、JDK 7 / Log4j / Oracle 11g / IE / DataStore /
+  DWR 等特定框架模板，**不内置任何框架预设**。
+
+### Changed
+
+- **`iagent_workflow` 扩展为端到端引导管线**：内联探索/提案/验证保持不变，验证收束后新增
+  Phase 3.7 实现桥、Phase 4 委派 `iagent_spec_apply`（`[测试]` 任务存在时条件委派 `iagent_test`）、
+  Phase 5 委派 `iagent_spec_archive` 与归档桥。依赖注入同步更新为
+  `spec-verify-proposal + proposal-review + spec-apply + spec-archive`。
+- `release` / `tools` 类型保留在类型体系中（供 `iagent generate --type` 扩展），当前无内置技能；
+  `iagent list` 不再输出空类型分组。
+- 文档与测试同步：README / AGENTS.md / 技能说明书 / 各测试断言对齐 20 个技能。
+
+### Removed
+
+- 技能模板文件：`workflows/feature.ts`、`workflows/tools.ts`、`workflows/version.ts`、
+  `workflows/package.ts`、`workflows/frontend.ts`、`workflows/full-workflow.ts`，
+  以及一次性拆分脚本 `scripts/split-frontend-skill.mjs`。
+
+## [3.0.0] - 2026-10-13
+
+### BREAKING
+
+- **移除 `iagent spec render proposal|specs|design`**：`render` 仅支持 `tasks`（从 `tasks.json` 渲染
+  `tasks.md`）。删除 `renderChangeSection` 与 `renderProposalMd` / `renderDesignMd` / `renderSpecsMd`；
+  调用这三个类型的脚本/自动化将报错并退出码非零。
+
+### Changed
+
+- **自定义 iagent 流程 JSON-only**：新变更仅产出 `<changeRoot>/change.json`（proposal / specs / design
+  三段）+ `tasks.json`；`tasks.md` 仍由 `iagent spec render tasks` 渲染，是唯一 MD 出口。
+- **单一源协议重写** `openspec/rules/artifact-generation.md`：旧 CLI 名 `venus` → `iagent`（含 schema id
+  `venus/change|tasks/v1` → `iagent/...`），并明示 proposal / design / specs 无 MD 产物、无 MD 降级。
+- **读取侧 JSON-first**：实现（apply）/ 一致性校验（verify）/ 归档（archive）/ reindex / 需求文档统一读
+  `change.json` + `tasks.json`；MD 降级**仅限存量 / 已归档变更**（只读 + WARN）。
+- **状态判定**：`detectCompleted` 的 specs 以 `change.json` 段为主，`specs/**/*.md` 仅作**存量变更识别**
+  （无 `change.json` 时）；`skip_specs` 冲突检测改用独立的 `hasDeltaSpecFiles` 信号，与完成判定**解耦**；
+  `iagent spec instructions` / `instructions apply` 口径对齐 JSON（outputPath 指向
+  `change.json`、contextFiles 指向 `change.json`/`tasks.json`、progress/taskList 来自 `tasks.json`）。
+- **模板归零**：debug / proposal-review / spec-verify / spec-verify-proposal / workflow / auto-workflow /
+  full-workflow / spec-archive / spec-bulk-archive / spec-apply / spec-explore / package / svn-commit /
+  migration / requirement-doc 不再指示渲染或依赖 proposal / design / specs MD。
+
+### Added
+
+- **`test/json-only-artifacts.test.ts`**：模板回归锁（正文不得含 `iagent spec render proposal|specs|design`）、
+  CLI render 类型收窄、`detectCompleted` / `instructions` / `apply` 的 JSON 口径。
+- 同步主规格 `spec-workflow-cli`（render 仅 tasks；instructions / apply / reindex 以 JSON 为准）、
+  `artifact-json-sidecar`（仅 tasks.md 渲染）、`artifact-generation-protocol`、`spec-workflow-skills`、
+  `workflow-suite-skills`（编排技能 MD 禁令）。
+
+## [2.1.0] - 2026-10-13
+
+### Added
+
+- **指令产物布局单一源**：新增 `src/core/command-artifacts.ts`，统一「落点解析 / 归属识别 / 删除」
+  （`namespace-dir` 与 `prefixed-file` 两种布局），供适配器、reconcile、uninstall 与旧位置清理复用。
+- **Pi prompt 布局适配**：Pi 指令产物从 `.pi/commands/iagent/<id>.md` 改为 Pi 实际加载的
+  `.pi/prompts/iagent-<id>.md`（扁平、命名空间前缀，与同目录 OpenSpec 的 `opsx-*` 同构）；
+  frontmatter 去除 Claude 专有字段（name/allowed-tools/category/tags），保留 `description` 与
+  iagent 记账字段（`metadata.generatedBy`/`generatedFingerprint`，保证 update 手改保护）。
+- **`ai-tool-selection` 能力规格**：工具选择解析与持久化语义（见 openspec 规格）。
+
+### Changed
+
+- **工具选择持久化**：`iagent init` 将本次生效工具集回写 `.iagent/config.yaml` 的 `tools` 字段；
+  `iagent update` 仅在显式传入 `--tools` 时回写，避免常规刷新意外改动持久选择。
+- **reconcile / uninstall 布局感知**：按工具布局只识别本工具命名产物；Pi 场景仅处理 `iagent-` 前缀
+  文件，保留同目录 `opsx-*` 与用户自建 prompt，不删除承载目录。
+- **旧装机迁移定位解耦**：`legacy-migration.ts` 用显式旧指令根常量（claude→`.claude/commands`、
+  pi→`.pi/commands`）取代对当前 `commandsDir` 的依赖，Pi 目录变更后旧 venus 产物清理仍生效。
+
+### Fixed
+
+- **旧位置 Pi 指令清理**：`init` / `update` 顺带清理早期版本错误生成到 `.pi/commands/iagent/` 的
+  产物（幂等、失败仅告警）。
+- **config.yaml 回写尾部空行累积**：段替换统一以单个换行结尾，修复每次回写累积一个空行、破坏
+  幂等的既有缺陷。
+
+## [2.0.0] - 2026-10-12
+
+### BREAKING
+
+- **工具与品牌全面改名**：项目名 `VenusAgentTools` → `MiAgentTools`，包名 `venus-agent-tools` →
+  `mi-agent-tools`，CLI 二进制 `venus` → `iagent`，技能名前缀 `venus_` → `iagent_`，
+  斜杠指令命名空间 `/venus:` → `/iagent:`，工具指令子目录 `commands/venus/` → `commands/iagent/`。
+- **27 个技能与 27 条斜杠指令重命名**：去掉生命周期类型段（`tr_*`），改为以功能命名，
+  保留 `spec_` 领域段用于标记「依赖 openspec/ 与 openspec CLI」这一真实差异。
+  指令 id 派生规则不变（去前缀 + 下划线转连字符）。
+- **类型体系去 `tr`**：`tr_init` / `tr_impl` / `tr_test` / `tr_commit` / `tr_review` / `tr_release` /
+  `tr_tools` / `tr_docs` → `init` / `impl` / `test` / `commit` / `review` / `release` / `tools` / `docs`
+  （`spec` 不变）。连带 `.iagent/rules/<type>.md` 文件名与 config.yaml 的 `rules:` 列表改名。
+- **项目配置目录 `.venus/` → `.iagent/`**。
+- **`iagent generate` 名称组合规则变更**：由 `${SKILL_PREFIX}${type}_${name}` 改为
+  `${SKILL_PREFIX}${name}`；`--type` 仅写入 frontmatter `metadata.type`，不再进入技能名。
+- **旧装机需执行一次迁移**：`iagent init` / `iagent update` 内置一次性迁移（搬运旧配置内容并做类型
+  与 workflow id 改名、删除全部旧 `venus_*` 技能与指令、清理旧补全产物），详见伴生变更
+  `iagent-legacy-migration` 与 [旧装机升级指引](docs/upgrade-guide.md)。
+
+### Changed
+
+- 技能与指令元数据：27 条指令展示名 `Venus: xxx` 改为 `iAgent: xxx`；tags 的品牌标签与类型标签
+  改用新名；模板 `metadata.author` 改为 `mi-agent-tools`。
+- 品牌命名的磁盘产物随工具改名：变更目录下的遗留 sidecar 目录、跨变更索引库
+  （`changes/archive/.iagent/index.db`）、补全脚本（`~/.iagent-completion.sh`、
+  `IagentCompletion.ps1`）与 rc/profile 标记块（`IAGENT-COMPLETION:START/END`）。
+- 产物 `$schema` 标识由 `venus/change|tasks|manifest|decisions|capabilities/v1` 改为 `iagent/...`。
+- 4 个自带 `tr-` 前缀的规格 id 改名（`workflow-suite-skills`、`commit-push-skill`、
+  `migration-skills`、`test-generate`）。
+
+### Added
+
+- **旧装机一次性迁移**（伴生变更 `iagent-legacy-migration`）：`iagent init` / `iagent update` 入口
+  最先执行，自动完成升级。
+  - 配置搬运：`.venus/` → `.iagent/`，`context` 多行块、自写规则行、注释行、未知段与自定义字段
+    逐字保留（逐行段替换，不重新序列化 YAML）；`rules:` 列表与 `rules/*.md` 文件名按类型映射成对
+    改名，`workflows:` 列表按旧→新指令 id 映射改名（旧 id 无法匹配任何技能模板，不改名则升级后
+    首次 init 装 0 个技能），扫描基线随目录搬移；内容全部搬运完成后旧目录移除
+  - 旧产物清理：各工具目录下 `venus_*` 技能与 `commands/venus/` 指令一律删除（含手工修改过的），
+    另清理旧补全脚本与 rc/profile 旧标记块、变更目录下旧 sidecar 目录、旧跨变更索引库
+    （提示可用 `iagent spec reindex` 重建）；非旧前缀产物完全不触碰
+  - 迁移报告：搬运项 / 删除项 / 跳过项三段计数与明细 + 删除破坏性告警、未搬运原因、标记块不成对
+    告警；无旧物时静默跳过，重复执行无副作用（幂等依据取「旧物是否存在」，不维护状态文件）
+  - `--no-migrate`（`init` / `update`）：跳过迁移，零搬运零删除且不输出报告
+  - 安全边界：删除前校验目标位于工具目录对应子目录之下、不跟随符号链接、空 `commandsDir` 工具
+    跳过指令侧清理；迁移任何异常降级为告警，不阻断主流程
+  - 详见 [docs/upgrade-guide.md](docs/upgrade-guide.md)（自动行为、告警含义、升级前动作、边界场景）
+- **读取端兼容旧 `$schema` 值**：`iagent/...` 与历史 `venus/...` 均通过校验，历史变更文件无需改写。
+
+### Fixed
+
+- **空 `commandsDir` 的指令侧越界**：`iagent uninstall` 与 reconcile 对 `commandsDir` 为空的工具
+  （codex，skills-only 模式）跳过指令侧遍历 —— 原先 `path.join` 会退化为项目根下的同名目录，
+  改名后该语义变化会放大为误删用户目录的风险；同时为删除目标增加「必须位于该工具 skills 子目录
+  之下」的边界校验。
+- **文档不准确修正**：AGENTS.md 中委派白名单条目写法由 `Skill(iagent_xxx)` 更正为 `Skill(<裸名>)`
+  （写成全名会产出永不放行的死条目）。
+
 ## [1.18.1] - 2026-10-12
 
 ### Changed
@@ -797,27 +951,31 @@
 - 项目配置从单文件 `venus.config.yaml` 重构为 `.venus/` 目录结构
   （`config.yaml` 显式引用 `rules/` 下规则文件），重复 init 保留用户全部修改
 
-[Unreleased]: https://github.com/venus-agent-tools/compare/v1.18.1...HEAD
-[1.18.1]: https://github.com/venus-agent-tools/compare/v1.18.0...v1.18.1
-[1.18.0]: https://github.com/venus-agent-tools/compare/v1.17.0...v1.18.0
-[1.17.0]: https://github.com/venus-agent-tools/compare/v1.16.0...v1.17.0
-[1.16.0]: https://github.com/venus-agent-tools/compare/v1.15.0...v1.16.0
-[1.15.0]: https://github.com/venus-agent-tools/compare/v1.14.0...v1.15.0
-[1.14.0]: https://github.com/venus-agent-tools/compare/v1.13.0...v1.14.0
-[1.13.0]: https://github.com/venus-agent-tools/compare/v1.12.1...v1.13.0
-[1.12.1]: https://github.com/venus-agent-tools/compare/v1.12.0...v1.12.1
-[1.12.0]: https://github.com/venus-agent-tools/compare/v1.10.0...v1.12.0
-[1.10.0]: https://github.com/venus-agent-tools/compare/v1.9.0...v1.10.0
-[1.9.0]: https://github.com/venus-agent-tools/compare/v1.8.0...v1.9.0
-[1.8.0]: https://github.com/venus-agent-tools/compare/v1.7.0...v1.8.0
-[1.7.0]: https://github.com/venus-agent-tools/compare/v1.6.0...v1.7.0
-[1.6.0]: https://github.com/venus-agent-tools/compare/v1.5.0...v1.6.0
-[1.5.0]: https://github.com/venus-agent-tools/compare/v1.3.1...v1.5.0
-[1.3.1]: https://github.com/venus-agent-tools/compare/v1.3.0...v1.3.1
-[1.3.0]: https://github.com/venus-agent-tools/compare/v1.2.0...v1.3.0
-[1.2.0]: https://github.com/venus-agent-tools/compare/v1.1.1...v1.2.0
-[1.1.1]: https://github.com/venus-agent-tools/compare/v1.1.0...v1.1.1
-[1.1.0]: https://github.com/venus-agent-tools/compare/v1.0.1...v1.1.0
-[1.0.1]: https://github.com/venus-agent-tools/compare/v1.0.0...v1.0.1
-[1.0.0]: https://github.com/venus-agent-tools/compare/v0.1.0...v1.0.0
-[0.1.0]: https://github.com/venus-agent-tools/releases/tag/v0.1.0
+[Unreleased]: https://github.com/mi-agent-tools/compare/v4.0.0...HEAD
+[4.0.0]: https://github.com/mi-agent-tools/compare/v3.0.0...v4.0.0
+[3.0.0]: https://github.com/mi-agent-tools/compare/v2.1.0...v3.0.0
+[2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
+[2.0.0]: https://github.com/mi-agent-tools/compare/v1.18.1...v2.0.0
+[1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
+[1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
+[1.17.0]: https://github.com/mi-agent-tools/compare/v1.16.0...v1.17.0
+[1.16.0]: https://github.com/mi-agent-tools/compare/v1.15.0...v1.16.0
+[1.15.0]: https://github.com/mi-agent-tools/compare/v1.14.0...v1.15.0
+[1.14.0]: https://github.com/mi-agent-tools/compare/v1.13.0...v1.14.0
+[1.13.0]: https://github.com/mi-agent-tools/compare/v1.12.1...v1.13.0
+[1.12.1]: https://github.com/mi-agent-tools/compare/v1.12.0...v1.12.1
+[1.12.0]: https://github.com/mi-agent-tools/compare/v1.10.0...v1.12.0
+[1.10.0]: https://github.com/mi-agent-tools/compare/v1.9.0...v1.10.0
+[1.9.0]: https://github.com/mi-agent-tools/compare/v1.8.0...v1.9.0
+[1.8.0]: https://github.com/mi-agent-tools/compare/v1.7.0...v1.8.0
+[1.7.0]: https://github.com/mi-agent-tools/compare/v1.6.0...v1.7.0
+[1.6.0]: https://github.com/mi-agent-tools/compare/v1.5.0...v1.6.0
+[1.5.0]: https://github.com/mi-agent-tools/compare/v1.3.1...v1.5.0
+[1.3.1]: https://github.com/mi-agent-tools/compare/v1.3.0...v1.3.1
+[1.3.0]: https://github.com/mi-agent-tools/compare/v1.2.0...v1.3.0
+[1.2.0]: https://github.com/mi-agent-tools/compare/v1.1.1...v1.2.0
+[1.1.1]: https://github.com/mi-agent-tools/compare/v1.1.0...v1.1.1
+[1.1.0]: https://github.com/mi-agent-tools/compare/v1.0.1...v1.1.0
+[1.0.1]: https://github.com/mi-agent-tools/compare/v1.0.0...v1.0.1
+[1.0.0]: https://github.com/mi-agent-tools/compare/v0.1.0...v1.0.0
+[0.1.0]: https://github.com/mi-agent-tools/releases/tag/v0.1.0
