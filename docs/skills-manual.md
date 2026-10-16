@@ -105,15 +105,16 @@ MiAgentTools 是 AI Agent 技能生成与管理 CLI，按技能类型生成 `iag
 | 技能 | 斜杠指令 | 作用 | 关键输入 / 输出 |
 | :--- | :--- | :--- | :--- |
 | `iagent_spec_explore` | `/iagent:spec-explore` | 探索模式：思考、调研、明确需求（grill L1-L5） | 话题 → `openspec/explorations/<kw>-explore-NNN.md` |
-| `iagent_spec_propose` | `/iagent:spec-propose` | 一步生成完整提案（proposal/design/specs/tasks） | 需求描述 + 探索文件 → `change.json` + `tasks.json` |
-| `iagent_spec_apply` | `/iagent:spec-apply` | 按任务清单实现变更（设计确认门 + 批调度 + 编译检查） | change-name → 代码 + tasks.json 状态 |
+| `iagent_spec_propose` | `/iagent:spec-propose` | 一步生成完整提案（proposal/design/specs/tasks） | 需求描述 + 探索文件 → `proposal.md` / `design.md` / `specs/**/*.md` / `tasks.md` |
+| `iagent_spec_apply` | `/iagent:spec-apply` | 按任务清单实现变更（设计确认门 + 批调度 + 编译检查） | change-name → 代码 + tasks.md 勾选状态 |
 | `iagent_spec_verify` | `/iagent:spec-verify` | 实现完成后、归档前验证实现与制品一致 | change-name → 验证报告 |
 | `iagent_spec_archive` | `/iagent:spec-archive` | 归档变更：delta 合并主规格、记忆同步、需求文档对齐 | change-name → `archive/` + 主规格 |
 | `iagent_spec_bulk_archive` | `/iagent:spec-bulk-archive` | 批量归档多个已完成变更 + 冲突解决 | 变更列表 → 归档批次 |
 | `iagent_spec_verify_proposal` | `/iagent:spec-verify-proposal` | 提案验证门：D1-D10 量化评分（阈值 90%） | change-name → 评分报告 |
 
-> 自定义 iagent 流程为 **JSON-only**：新变更只写 `change.json`（proposal/specs/design 三段）+ `tasks.json`；
-> `tasks.md` 由 `iagent spec render tasks` 渲染，是唯一 MD 出口。
+> 自定义 iagent 流程为 **Markdown-first**：新变更以 `proposal.md`、`design.md`、`specs/**/*.md`、`tasks.md`
+> 为唯一可编辑真源；CLI `--json` 仅为机器响应。历史 `change.json` / `tasks.json` 只读兼容，
+> 使用 `iagent spec migrate --from-json` 显式迁移。
 
 ## 第三部分：一站式工作流与质量门（4 个）
 
@@ -139,7 +140,7 @@ MiAgentTools 是 AI Agent 技能生成与管理 CLI，按技能类型生成 `iag
 
 | 技能 | 斜杠指令 | 作用 |
 | :--- | :--- | :--- |
-| `iagent_requirement_doc` | `/iagent:requirement-doc` | 把 change.json + tasks.json 转成标准八段式需求文档（人工评审用） |
+| `iagent_requirement_doc` | `/iagent:requirement-doc` | 把 proposal/design/specs/tasks Markdown 转成标准八段式需求文档（人工评审用） |
 
 > `docs` 类型共 2 个技能：`iagent_requirement_doc` 在此，`iagent_feature_doc` 归入第四部分迁移套件。
 

@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:6d3f5a24d609d7b0e300f6565a93867d9c017b5d3248290270729481360cda94"
+  generatedFingerprint: "sha256:5eb6ddef2d07bed40143d2af6cfa18ad1707ee403277b3cf6c9e316904344539"
 ---
 
 
@@ -340,7 +340,7 @@ Implement the fix following the iagent_spec_apply skill's task execution norms.
 - Add (or confirm the Phase 1 test serves as) a regression test that:
   - FAILS before the fix
   - PASSES after the fix
-- Add a corresponding task to the change's `tasks.json` if it is not yet listed (regression test tasks use the `测试` label with `subLabel` + `priority`); tasks.md is re-rendered from the JSON truth in Phase 6
+- Add a corresponding task to the change's `tasks.md` if it is not yet listed (regression test tasks use the `[测试]` label with level/priority, e.g. `[测试][单元][P0]`); keep `Spec Ref`/`Scenario Ref`
 - Run the reproduction from Phase 1 and confirm it now passes
 - **回归测试验证口径（2.5）**：回归测试 MUST 覆盖该缺陷链路的**「异常节点 + 根因节点」**；仅覆盖触发节点而未覆盖根因节点时，验证不通过
 
@@ -428,31 +428,30 @@ After each fix is complete, ask the user:
 
 **⚠️ MANDATORY: After all fixes in the loop, the change's artifacts must reflect ALL implemented fixes.**
 
-### 6.1 Update artifacts (JSON-only)
+### 6.1 Update artifacts (Markdown-first)
 
-JSON is the structured source of truth - update the JSON directly; proposal / design / specs have **no MD artifacts** to edit or re-render, and `tasks.md` is produced only by the renderer:
+Markdown is the source of truth - update the OpenSpec Markdown artifacts directly; do not create or update JSON mirrors:
 
-- **proposal**: append root causes and fix descriptions for ALL bugs in the loop to the change's `change.json` -> `proposal.whatChanges` (one appended entry per bug)
-- **specs**: when any fix changes documented behavior, update `specs[].operations[]` in change.json (structured ADDED/MODIFIED/REMOVED/RENAMED operations with scenarios) - do NOT create or edit any delta spec MD
-- **design**: when any fix changed a documented decision, update the `design` section (`decisions[]`) in change.json
-- **tasks**: update the change's `tasks.json` (change directory root) - set `status: "done"` for the tasks corresponding to all loop fixes; append regression test tasks for each bug if missing (label `测试` + `subLabel`/`priority`); do NOT hand-edit tasks.md
-- **Render (tasks only)**: run `iagent spec render tasks --change "<name>"` after updating `tasks.json` - the only MD output; proposal / specs / design have no render entry point
-- **No MD fallback for proposal/specs/design**: these MUST NOT be handwritten; `tasks.md` hand-write is allowed only when the render command is unavailable (WARN)
+- **proposal**: append root causes and fix descriptions for ALL bugs in the loop to `proposal.md` under What Changes (one appended entry per bug)
+- **specs**: when any fix changes documented behavior, update the corresponding `specs/<capability>/spec.md` Requirement/Scenario using ADDED/MODIFIED/REMOVED/RENAMED
+- **design**: when any fix changes a documented decision, update `design.md` Decisions
+- **tasks**: update `tasks.md` checkboxes and append regression test tasks when needed; preserve `Spec Ref`/`Scenario Ref`
+- **Validate**: run `iagent spec validate --change "<name>"` after the Markdown edits and fix path/line diagnostics
+- **Legacy JSON-only changes**: read-only compatibility; write operations require explicit migration first
 
 ### 6.2 Persist root cause analysis
 
 - Write the full diagnosis records for ALL bugs (prompt baseline, reproduction, investigation path, evidence, root cause, chosen fix rationale) to the change directory's `exploration.md`, organized per bug — the `## 提示词基线` section is included so the change retains the user-confirmed semantics source, and the `## 功能流程（缺陷链路）` section (2.5) carries the confirmed fault chain and node list
 - **分级判定结果**（2.2.3.5）：每个 bug 的排查深度分级结论 MUST 一并持久化 —— 三条信号取值、所选路径（轻量 A / 深度 B）、是否信号降级；即"为什么这个缺陷走了这条排查路径"须可追溯，避免事后无法复盘排查深度是否合理
 
-### 6.3 JSON truth validation
+### 6.3 Markdown validation
 
-After synchronization, validate the JSON truth:
+After synchronization, validate the Markdown artifacts:
 
-- `iagent spec render tasks --change "<name>"` succeeds - the only render path; a failure reports the offending field path (e.g., tasks.json parse error)
-- change.json sections conform to the contract: `proposal` (why / whatChanges / capabilities / impact); `specs[].operations[]` (ADDED/MODIFIED require description + scenarios; REMOVED requires reason + migration; RENAMED requires from + to); tasks.json entries carry `label` / `status`
-- proposal / design / specs have no MD format to validate (JSON-only) - `#### Scenario:` / checkbox MD format checks MUST NOT run on the normal path; `tasks.md` format is guaranteed by the renderer
+- `iagent spec validate --change "<name>"` passes; failures report file path and line
+- `proposal.md` has Why / What Changes / Capabilities / Impact; `specs/**/*.md` has `### Requirement:` + `#### Scenario:`; `design.md` has Context / Decisions / Risks; `tasks.md` tasks carry a type label and checkbox state
 
-Fix any violation before proceeding - synchronization must not corrupt the JSON truth.
+Fix any violation before proceeding - synchronization must not corrupt the Markdown source.
 
 Proceed to Phase 7 only after artifacts reflect all implemented fixes.
 
@@ -529,7 +528,7 @@ After verification passes:
 - Compile check: PASS / FAIL(n issues) / SKIPPED(disabled)
 
 ### Phase 6: Synchronization (汇总所有修复)
-- JSON truth updated: change.json (proposal / design / specs) + tasks.json — MD re-rendered (degraded: MD edited directly, WARN)
+- Markdown updated: proposal.md / design.md / specs/**/*.md / tasks.md — validated with `iagent spec validate`
 - All root causes persisted to exploration.md ✓
 - JSON validation: PASS
 

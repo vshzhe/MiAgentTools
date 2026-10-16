@@ -36,6 +36,25 @@ describe('Markdown-first 回归锁', () => {
         }
     });
 
+    it('编排技能正文不含新变更 JSON-first 生成路径', () => {
+        const names = ['iagent_workflow', 'iagent_auto_workflow', 'iagent_debug', 'iagent_proposal_review'];
+        const byName = new Map(getSkillTemplates().map((entry) => [entry.template.name, entry.template.instructions]));
+        for (const name of names) {
+            const body = byName.get(name);
+            expect(body, `${name} 未注册`).toBeDefined();
+            expect(body, name).not.toMatch(/write the JSON truth source/i);
+            expect(body, name).not.toMatch(/JSON-first protocol/i);
+            expect(body, name).not.toMatch(/iagent spec render <artifact-id>/);
+            expect(body, name).toContain('Markdown');
+        }
+    });
+
+    it('spec-apply 声明 context-pack 且任务状态直接写 tasks.md', () => {
+        const apply = getSkillTemplates().find((entry) => entry.template.name === 'iagent_spec_apply');
+        expect(apply?.template.instructions).toContain('context-pack.md');
+        expect(apply?.template.instructions).toContain('tasks.md checkboxes are authoritative');
+    });
+
     it('instructions 输出不含 jsonTemplate 字段', () => {
         const root = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-md-lock-'));
         try {

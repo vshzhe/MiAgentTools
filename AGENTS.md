@@ -23,7 +23,7 @@ src/
 │   ├── show.ts                       iagent show（模糊匹配 + 详情）
 │   ├── completion.ts                 iagent completion（bash/pwsh 补全脚本生成与安装）
 │   ├── onboarding.ts                 init 后的引导提示
-│   ├── spec.ts                       iagent spec 子命令组（new / status / instructions / archive / render / sidecar）
+│   ├── spec.ts                       iagent spec 子命令组（new / status / instructions / validate / migrate / archive / reindex / render / sidecar）
 │   └── config.ts                     iagent config（交互式 workflow 配置）
 ├── core/
 │   ├── config.ts                     常量中心：SKILL_PREFIX、9 类 SKILL_TYPES、AI_TOOLS
@@ -44,15 +44,22 @@ src/
 │   │   ├── yaml.ts                  YAML 转义
 │   │   └── adapters/claude.ts       Claude Code 适配器
 │   ├── spec/                        规格驱动工作流
-│   │   ├── schema.ts               变更制品 schema
-│   │   ├── status.ts               变更状态查询
+│   │   ├── schema.ts               内置 spec-driven 依赖图（Markdown 输出路径）
+│   │   ├── status.ts               Markdown 状态查询（done/ready/blocked/invalid）
 │   │   ├── archive.ts              变更归档
-│   │   ├── instructions.ts         制品模板
+│   │   ├── instructions.ts         Markdown 模板分发
 │   │   ├── new-change.ts           新变更创建
+│   │   ├── parser/                 Markdown 解析（公共 + proposal/design/spec/tasks）
+│   │   ├── model/artifact-model.ts 运行时类型（Markdown 唯一真源）
+│   │   ├── validation/             结构校验 + Scenario→Task 追溯
+│   │   ├── migration.ts            显式 JSON → OpenSpec Markdown 迁移
+│   │   ├── legacy-artifacts.ts     历史 JSON 只读兼容边界
+│   │   ├── markdown-index.ts       Markdown → SQLite 索引
+│   │   ├── index-cache.ts          索引内容指纹缓存
 │   │   ├── sqlite-index.ts         SQLite 索引后端
 │   │   ├── sqlite-memory-backend.ts SQLite 内存后端（sql.js WASM）
-│   │   ├── sidecar-schema.ts       change.json 主产物 schema（proposal/design/specs 三段；旧侧车 schema 已弃用）
-│   │   ├── sidecar-writer.ts       change.json + tasks.json 读写、校验与 tasks.md 渲染（proposal/design/specs 为 JSON-only，无 MD 渲染）
+│   │   ├── sidecar-schema.ts       历史 JSON schema（@deprecated，仅兼容读取）
+│   │   ├── sidecar-writer.ts       历史 JSON 读写 / tasks.md 渲染（@deprecated，仅兼容）
 │   │   └── templates/index.ts      规格模板
 │   ├── profiles.ts                  框架档案
 │   ├── dependencies.ts              依赖检测（codegraph / openspec）
@@ -194,11 +201,11 @@ node bin/iagent.js <cmd> # 直接运行 CLI
   Pi 的指令目录是 `.pi/prompts/`（扁平 `iagent-<id>.md`，与 OpenSpec 的 `opsx-*` 共目录），
   **MUST NOT** 退回 `.pi/commands/` 子目录；`prefixed-file` 删除只认 `iagent-` 前缀、不删承载目录
 - 工具选择持久化：`iagent init` 回写 `config.yaml` 的 `tools` 字段，`iagent update` 仅显式 `--tools` 时回写
-- 自定义 iagent 流程为 **JSON-only**：新变更只写 `<changeRoot>/change.json`（proposal/specs/design
-  三段）+ `tasks.json`；`tasks.md` 由 `iagent spec render tasks` 渲染，是唯一 MD 出口。
-  `iagent spec render` **仅支持 tasks**，proposal/specs/design 无渲染入口；实现/校验/归档/reindex 读取
-  `change.json` + `tasks.json`，MD 降级**仅限存量 / 已归档变更**（只读 + WARN）。新增能力或模板时
-  MUST NOT 重新引入 proposal/design/specs MD 生成（`test/json-only-artifacts.test.ts` 回归锁）
+- 自定义 iagent 流程为 **Markdown-first**：新变更以 `proposal.md`、`design.md`、
+  `specs/<capability>/spec.md`、`tasks.md` 为唯一可编辑真源；CLI `--json` 仅为机器响应，不写回制品。
+  技能逐个任务在 `tasks.md` 上勾选；`iagent spec render` 仅保留渲染兼容提示（不再生成/覆盖 tasks.md）。
+  历史 `change.json` / `tasks.json` 只读兼容，通过 `iagent spec migrate --from-json` 显式迁移。
+  新增能力或模板时 MUST NOT 重新引入 JSON 主产物（`test/markdown-first-regression.test.ts` 回归锁）
 - SKILL 正文中文；代码注释中文；标识符英文
 - `update` 的手改保护依赖 frontmatter `generatedFingerprint`（内容指纹）—— 生成路径必须写全该字段；
   无该字段的存量产物回退到 `generatedBy` 版本号判定

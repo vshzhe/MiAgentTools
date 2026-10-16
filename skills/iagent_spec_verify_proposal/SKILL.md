@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:d1a7f949aef7bde85325422f2b9d319c72617de36ebda331ab58bcdccc9ff059"
+  generatedFingerprint: "sha256:286b576b1685edac2f6429639d82782aa311b853f4777bea7aff78d47be3a772"
 ---
 
 **Before verifying, read openspec/rules/ai-coding.md for verification criteria.**
@@ -25,12 +25,12 @@ This skill performs enhanced 10-dimension verification with quantified scoring a
 ## Prerequisites
 
 **Required files**:
-- `openspec/changes/<change-name>/OpenSpec Markdown artifacts` - Structured primary source (`proposal` / `design` / `specs` sections)
+- `openspec/changes/<change-name>/proposal.md` / `design.md` / `specs/**/*.md` - OpenSpec Markdown primary source
 - `openspec/changes/<change-name>/tasks.md` - Structured task list (specRef / node annotations)
 - `openspec/changes/<change-name>/exploration.md` - Exploration results
 - `openspec/config.yaml` - Project configuration (for tech stack detection)
 
-**MD fallback artifacts (WARN, non-blocking, 仅存量 / 已归档变更)** - used only when the JSON sources are missing (legacy changes): the legacy proposal / design / specs / tasks MD files.
+**Legacy JSON (WARN, non-blocking, 仅存量 / 已归档变更)** - only when the Markdown artifacts are missing: the legacy `change.json` / `tasks.json` JSON files.
 
 **If no exploration.md exists**: Report "No exploration file found, cannot verify" and exit.
 
@@ -38,15 +38,14 @@ This skill performs enhanced 10-dimension verification with quantified scoring a
 
 ## Evidence Reading (Markdown-first)
 
-All dimension checks below read scoring evidence from the structured JSON artifacts first:
+All dimension checks below read scoring evidence from the OpenSpec Markdown artifacts:
 
-- `OpenSpec Markdown artifacts` (change directory) - structured source of truth:
-  - `proposal` section: `why` / `whatChanges` / `capabilities`
-  - `design` section: `context` / `goals` / `nonGoals` / `decisions[]` / `risks[]`
-  - `specs` section: `specs[].operations[]` (`requirement` / `scenarios` / `type`)
+- `proposal.md` (change directory) - source of truth: Why / What Changes / Capabilities
+- `design.md`: Context / Goals / Non-Goals / Decisions / Risks
+- `specs/**/*.md`: Requirement (`### Requirement:`) + Scenario (`#### Scenario:` / WHEN / THEN)
 - `tasks.md` (change directory root) - task entries with `specRef` and flowchart node annotations
 
-**MD fallback (WARN, 仅存量 / 已归档变更)**: if `OpenSpec Markdown artifacts` is missing (or a required section is absent), log a WARN such as "OpenSpec Markdown artifacts missing - falling back to legacy MD parsing" and read the legacy MD artifacts instead. Throughout the checks below, "proposal / design / specs / tasks" refers to the JSON sources when present, otherwise to the corresponding legacy MD artifacts. Fallback is non-blocking but MUST be noted in the verification report.
+**Legacy JSON fallback (WARN, 仅存量 / 已归档变更)**: if Markdown artifacts are missing and only historical `change.json` / `tasks.json` exist, log a WARN ("Markdown artifacts missing - falling back to legacy JSON parsing") and read them read-only. For new changes Markdown is the only source of truth. Fallback is non-blocking but MUST be noted in the verification report.
 
 ---
 
@@ -91,9 +90,9 @@ If tech stack detected:
 
 ## Change Type Auto-Detection
 
-Before executing D6-D10, detect the change type by scanning OpenSpec Markdown artifacts 的 design 段与 specs 段:
+Before executing D6-D10, detect the change type by scanning design.md and specs/**/*.md:
 
-**Detection Rules** (scan OpenSpec Markdown artifacts 的 design 段 and OpenSpec Markdown artifacts 的 specs 段 for keywords):
+**Detection Rules** (scan design.md and specs/**/*.md for keywords):
 
 | Trigger Dimension | Keywords | If Detected |
 |-------------------|----------|-------------|
@@ -117,7 +116,7 @@ Non-triggered dimensions are marked "不适用" and skipped in scoring.
 
 ### Dimension 1: Requirement Coverage
 
-**Check**: Every declared change item in the `proposal` section of `OpenSpec Markdown artifacts` (`why` / `whatChanges` / `capabilities`) → corresponding requirement in the `specs` section (`specs[].operations[].requirement`).
+**Check**: Every declared change item in `proposal.md` (Why / What Changes / Capabilities) → corresponding requirement in `specs/**/*.md`.
 
 **PASS condition**:
 - Each decision has matching spec requirement
@@ -134,7 +133,7 @@ D1 Score = (matched decisions / total decisions) * 100%
 
 ### Dimension 2: Technical Consistency
 
-**Check**: Technical choices → reflected in the `design` section of `OpenSpec Markdown artifacts` (`context` / `goals` / `decisions[]`).
+**Check**: Technical choices → reflected in `design.md` (Context / Goals / Decisions).
 
 **PASS condition**:
 - All technical decisions appear in design
@@ -151,7 +150,7 @@ D2 Score = (matched tech choices / total tech choices) * 100%
 
 ### Dimension 3: Task Completeness
 
-**Check**: Every requirement in the `specs` section (`specs[].operations[].requirement`) → at least one task in `tasks.md` whose `specRef` matches it.
+**Check**: Every requirement in `specs/**/*.md` → at least one task in `tasks.md` whose `Spec Ref` matches it.
 
 **PASS condition**:
 - Each spec requirement has task referencing it
@@ -167,7 +166,7 @@ D3 Score = (requirements with tasks / total requirements) * 100%
 
 ### Dimension 4: Boundary Coverage
 
-**Check**: Boundary questions / edge cases → addressed by scenarios in the `specs` section (`specs[].operations[].scenarios[]`).
+**Check**: Boundary questions / edge cases → addressed by `#### Scenario:` blocks in `specs/**/*.md`.
 
 **PASS condition**:
 - Each question has spec scenario coverage
@@ -197,9 +196,9 @@ If pending section empty: D5 Score = 100%
 
 ### Dimension 6: Interaction Detail Completeness [Auto-triggered by frontend keywords]
 
-**Trigger**: Frontend keywords detected in OpenSpec Markdown artifacts 的 design 段或 specs 段.
+**Trigger**: Frontend keywords detected in design.md or specs/**/*.md.
 
-**Check**: OpenSpec Markdown artifacts 的 design 段 contains the standardized interaction detail matrix sections:
+**Check**: design.md contains the standardized interaction detail matrix sections:
 - **字段-UI组件映射矩阵**: Map each data field to UI component, validation rules, and interaction behavior
 - **API 交互契约**: Each endpoint — Method, URL, Request/Response, error codes
 - **数据库表-字段映射**: Each table — column name, type, constraints, defaults, business meaning
@@ -217,10 +216,10 @@ Each section counts fully populated if it has ≥ 1 non-placeholder row
 ```
 
 **Legacy Handling** (Backward Compatible):
-- If OpenSpec Markdown artifacts 的 design 段 does NOT contain the interaction detail matrix sections (check for section headers):
+- If design.md does NOT contain the interaction detail matrix sections (check for section headers):
   - Report WARNING (NOT FAIL): "交互细节矩阵缺失。建议补充以提升实现质量。"
   - WARNING does NOT block apply workflow
-- If OpenSpec Markdown artifacts 的 design 段 contains the sections but content is incomplete (new change):
+- If design.md contains the sections but content is incomplete (new change):
   - Report FAIL (blocks apply): "交互细节矩阵不完整。请补充缺失内容。"
 
 **FAIL examples**:
@@ -229,13 +228,13 @@ Each section counts fully populated if it has ≥ 1 non-placeholder row
 
 **FAIL handling**:
 > Missing or incomplete interaction detail matrix.
-> [1] Add interaction detail to OpenSpec Markdown artifacts 的 design 段 [2] Confirm intentional skip [3] Return to design phase
+> [1] Add interaction detail to design.md [2] Confirm intentional skip [3] Return to design phase
 
 ### Dimension 7: API Contract Completeness [Auto-triggered by API keywords]
 
-**Trigger**: API keywords detected in OpenSpec Markdown artifacts 的 design 段或 specs 段.
+**Trigger**: API keywords detected in design.md or specs/**/*.md.
 
-**Check**: Each API endpoint listed in OpenSpec Markdown artifacts 的 design 段 has complete contract definition:
+**Check**: Each API endpoint listed in design.md has complete contract definition:
 - Method (GET/POST/PUT/DELETE)
 - URL path
 - Request body/params with types
@@ -252,7 +251,7 @@ D7 Score = (endpoints with complete contracts / total endpoints) * 100%
 ```
 
 **Legacy Handling**:
-- If no API contracts section found in OpenSpec Markdown artifacts 的 design 段: WARNING, not FAIL
+- If no API contracts section found in design.md: WARNING, not FAIL
 - WARNING message: "API 交互契约缺失。建议补充端点定义。"
 
 **FAIL examples**:
@@ -261,7 +260,7 @@ D7 Score = (endpoints with complete contracts / total endpoints) * 100%
 
 ### Dimension 8: Database Mapping Completeness [Auto-triggered by DB keywords]
 
-**Trigger**: Database keywords detected in OpenSpec Markdown artifacts 的 design 段或 specs 段.
+**Trigger**: Database keywords detected in design.md or specs/**/*.md.
 
 **Check**: Each database table referenced has complete field mapping:
 - Field name
@@ -289,7 +288,7 @@ D8 Score = (tables with complete mappings / total tables) * 100%
 
 ### Dimension 9: Business Step Completeness [Auto-triggered by business keywords]
 
-**Trigger**: Business process keywords detected in OpenSpec Markdown artifacts 的 design 段或 specs 段.
+**Trigger**: Business process keywords detected in design.md or specs/**/*.md.
 
 **Check**: Complex business operations (3+ steps or conditional branches) in tasks.md have explicit step decomposition:
 - Steps numbered sequentially
@@ -345,7 +344,7 @@ MUST NOT 按 0 分拉低总分、MUST NOT 据此判 FAIL —— 保证归档期�
 **FAIL 输出（偏差可定位）**: 本维度低于阈值时，报告 MUST **逐条列出未被 design/tasks 覆盖的节点标识与操作名**（如 `N5 分批查询 — 无对应任务`），
 使偏差定位到具体节点，MUST NOT 仅给出覆盖度百分比。
 
-**只读约束**: 本维度为**只读评分** —— 本技能 `allowedTools` 为 `Read, Glob, Grep, Bash(iagent:*)`（无 Write/Edit），MUST NOT 要求本技能自行编辑 OpenSpec Markdown artifacts 的 design 段 / tasks.md 修复；
+**只读约束**: 本维度为**只读评分** —— 本技能 `allowedTools` 为 `Read, Glob, Grep, Bash(iagent:*)`（无 Write/Edit），MUST NOT 要求本技能自行编辑 design.md / specs/**/*.md / tasks.md 修复；
 修复建议仅呈现给调用方，由 propose 阶段或用户处置。
 
 **FAIL examples**:
@@ -542,7 +541,7 @@ iagent spec status --change "<name>" --json
 ```
 
 Check for `exploration.md` in change directory using `artifactPaths` from status.
-Read structured evidence first: `<change-dir>/OpenSpec Markdown artifacts` (proposal / design / specs sections) and `<change-dir>/tasks.md`; if missing, fall back to MD parsing (WARN).
+Read structured evidence first: `<change-dir>/proposal.md`, `design.md`, `specs/**/*.md` and `tasks.md`; if missing, fall back to legacy JSON with a WARN.
 <!-- /CMD:SKIP -->
 
 ---
@@ -553,6 +552,6 @@ Read structured evidence first: `<change-dir>/OpenSpec Markdown artifacts` (prop
 - **Tech stack detection**: Parse openspec/config.yaml context field
 - **Inline deep review**: After pass, run read-only deep check inline (no dedicated skill)
 - **Auto-fix loop**: On FAIL, auto-generate and apply fixes, re-score; if still FAIL, offer [手动编辑]/[返回探索]/[查看差异]
-- **Markdown-first evidence**: Read `OpenSpec Markdown artifacts` (proposal / design / specs) + `tasks.md` before any MD parsing; missing JSON degrades to MD with a WARN (non-blocking)
+- **Markdown-first evidence**: Read proposal.md / design.md / specs/**/*.md / tasks.md; missing Markdown degrades to legacy JSON read-only with a WARN (non-blocking)
 - **No exploration**: Cannot verify, report and exit
 - **Cross-platform**: Use `path.join()` for file paths

@@ -25,15 +25,14 @@ export function getProposalReviewSkillTemplate(): SkillTemplate {
 iagent spec status --change "<change-name>" --json
 \`\`\`
 
-获取变更状态后，按以下顺序读取提案证据（JSON 优先）：
-- 优先读变更目录下的 \`OpenSpec Markdown artifacts\`（结构化真源）：
-  - \`proposal\` 段 - 需求背景和目标（why / whatChanges / capabilities / impact）
-  - \`design\` 段 - 技术设计（context / goals / nonGoals / decisions[] / risks[]）
-  - \`specs\` 段 - Delta 规格说明（specs[].operations[]：requirement / scenarios）
-- 优先读变更目录根下的 \`tasks.md\` - 实现任务清单（id / label / status / specRef / 节点标注）
-- **降级（WARN，仅存量 / 已归档变更）**：OpenSpec Markdown artifacts 缺失（或所需段缺失）时输出 WARN，只读解析既有 MD —— \`proposal.md\` / \`design.md\` / \`specs/*.md\`；tasks.md 缺失时改读 \`tasks.md\` 复选框
+获取变更状态后，按以下顺序读取提案证据（Markdown 优先）：
+- \`proposal.md\` - 需求背景和目标（Why / What Changes / Capabilities / Impact）
+- \`design.md\` - 技术设计（Context / Goals / Non-Goals / Decisions / Risks）
+- \`specs/**/*.md\` - Delta 规格（\`### Requirement:\` + \`#### Scenario:\`）
+- \`tasks.md\` - 实现任务清单（编号 / 类型 / 状态 / Spec Ref / 节点标注）
+- **降级（WARN，仅存量 / 已归档变更）**：变更只有历史 \`change.json\` / \`tasks.json\` 时只读降级读取并注明 WARN
 
-下文各阶段提到的 proposal / design / specs / tasks 均按上述 JSON 优先口径读取（降级时读取对应 MD 制品，并在报告中注明 WARN）。
+下文各阶段提到的 proposal / design / specs / tasks 均按上述 Markdown 优先口径读取（历史 JSON-only 降级时注明 WARN）。
 
 ## Phase 2: 深度代码库探索（关键改进）
 
@@ -496,11 +495,11 @@ iagent spec status --change "<change-name>" --json
 发现遗漏场景后，按优先级更新：
 
 1. **P0 必须补充**（影响功能正确性，Markdown-first）：
-   - 更新 \`OpenSpec Markdown artifacts\` 的 \`specs\` 段：对应 capability 的 \`operations\` 新增 Requirement 与 \`scenarios[]\`
-   - 更新 \`OpenSpec Markdown artifacts\` 的 \`design\` 段：\`decisions[]\` 补充遗漏的设计决策
-   - 更新 \`tasks.md\`：新增对应的实现任务（\`specRef\` 指向补充的需求）
-   - 更新 \`tasks.md\` 后运行 \`iagent spec validate --change "<name>"\` 同步 tasks.md；proposal/specs/design 无 MD 渲染入口
-   - **降级（WARN）**：OpenSpec Markdown artifacts 缺失（存量 / 已归档变更）时只读解析既有 MD，MUST NOT 编辑或生成 MD，并在报告中注明 WARN
+   - 更新 \`specs/<capability>/spec.md\`：新增或修订 Requirement 与 \`#### Scenario:\`
+   - 更新 \`design.md\` 的 Decisions：补充遗漏的设计决策
+   - 更新 \`tasks.md\`：新增对应的实现任务（\`Spec Ref\` 指向补充的需求）
+   - 更新后运行 \`iagent spec validate --change "<name>"\` 校验
+   - **降级（WARN）**：历史 JSON-only 变更只读解析，MUST NOT 编辑 JSON，并在报告中注明 WARN
    - 示例（写入 specs 段的操作与场景）：
      \`\`\`markdown
      ### Requirement: 编辑场景数据处理
@@ -772,7 +771,7 @@ iagent spec status --change "add-order-query" --json
 
 **Phase 6 更新文档**（Markdown-first）:
 
-写入 \`OpenSpec Markdown artifacts\` 的 \`specs\` 段（新增操作与场景）；MUST NOT 渲染或手写 \`specs/*.md\`。以下为 \`specs[].operations[]\` 的结构示意（非落盘 MD）:
+写入 \`specs/<capability>/spec.md\`（新增或修订 Requirement 与 Scenario）。以下为 Markdown 结构示意:
 \`\`\`markdown
 ### Requirement: 数据库操作规范
 
@@ -791,7 +790,7 @@ iagent spec status --change "add-order-query" --json
 
 | 改进项 | Phase | 检查内容 |
 |-------|-------|---------|
-| **加载提案** | Phase 1 | 优先读取 \`OpenSpec Markdown artifacts\`（proposal/design/specs 段）+ \`tasks.md\`；缺失时降级 MD（WARN） |
+| **加载提案** | Phase 1 | 读取 \`proposal.md\` / \`design.md\` / \`specs/**/*.md\` / \`tasks.md\`；历史 JSON-only 降级（WARN） |
 | **深度探索** | Phase 2-3 | 调用链分析、数据流分析、现有模式对比、8个基础维度检查 |
 | **合规验证** | Phase 4 | 技术栈合规、架构分层合规、命名规范、数据库操作规范 |
 | **特殊功能** | Phase 5 | 导出导入功能、外部回调、并发安全、搜索条件处理 |
@@ -847,7 +846,7 @@ export function getProposalReviewCommandTemplate(): CommandTemplate {
 ---
 
 ## Phase 1: 加载变更提案
-\`iagent spec status --change "<change-name>" --json\` -> 读取 OpenSpec Markdown artifacts（proposal/design/specs 段）+ tasks.md；变更无 OpenSpec Markdown artifacts（存量 / 已归档）时只读降级读取 proposal.md、design.md、specs/*.md、tasks.md（WARN）。
+\`iagent spec status --change "<change-name>" --json\` -> 读取 proposal.md、design.md、specs/**/*.md、tasks.md；变更无 Markdown（存量 / 已归档）时只读降级历史 JSON（WARN）。
 
 ## Phase 2: 深度代码库探索（关键）
 用 Grep/Glob/Read 工具追溯调用链（入口层 -> 业务层 -> 数据访问层 -> 跨模块）、数据流（输入 -> 处理 -> 输出 -> 异常）、现有实现模式对比。必须实际阅读代码，不依赖提案描述。
@@ -874,7 +873,7 @@ export function getProposalReviewCommandTemplate(): CommandTemplate {
 11 维度覆盖率 + 合规率评分 + 总体评分（>=90% 可进入实现，70%-90% 补充 P0，<70% 重新完善）。
 
 ## Phase 9: 发现遗漏时更新文档
-P0 必须补充（更新 OpenSpec Markdown artifacts 对应段 + tasks.md；仅 tasks 运行 \`iagent spec validate --change <name>\`；proposal/specs/design 无 MD 渲染或编辑，OpenSpec Markdown artifacts 缺失时仅只读降级既有 MD 并 WARN）、P1 建议补充、P2 可选补充。
+P0 必须补充（更新 specs/**/*.md / design.md / tasks.md；运行 \`iagent spec validate --change <name>\`；历史 JSON-only 变更仅只读降级并 WARN）、P1 建议补充、P2 可选补充。
 
 ## 输出格式
 10 节检查报告：深度探索发现、多维度完整性检查、实现合规性验证、量化评分、页面设计检查、逻辑实现细节、建议补充 Scenario、页面设计遗漏 Scenario、逻辑实现遗漏 Scenario、修正建议汇总。
@@ -882,6 +881,6 @@ P0 必须补充（更新 OpenSpec Markdown artifacts 对应段 + tasks.md；仅 
 ## 常见高频遗漏速查表
 编辑场景未删除旧数据（高频）、分页标签结构不完整（高频）、隐藏字段缺失（高频）、数据访问组件列名大小写（中频）、权限检查缺少请求参数（中频）、refreshList 缺少 submit（中频）、EL 表达式用于 hidden（低频）、批量操作未分批（中频）。
 
-Guardrails: 必须实际阅读代码；搜索项目现有模式；对照 config.yaml 验证技术栈；对照 CLAUDE.md 验证架构命名；发现 P0 遗漏立即更新 JSON 真源（仅 tasks 运行 render tasks；proposal/specs/design 无 MD 编辑；存量变更只读降级 + WARN）；提供可直接使用的 Scenario 内容。`,
+Guardrails: 必须实际阅读代码；搜索项目现有模式；对照 config.yaml 验证技术栈；对照 CLAUDE.md 验证架构命名；发现 P0 遗漏立即更新对应 Markdown（运行 \`iagent spec validate\` 校验；历史 JSON-only 变更只读降级 + WARN）；提供可直接使用的 Scenario 内容。`,
     };
 }

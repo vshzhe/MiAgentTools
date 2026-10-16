@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:ee7b83992c345aba14ff62bb7cab5f7b0ae4b74fbd23ac17547ca64c802712ef"
+  generatedFingerprint: "sha256:7d43f564043f0b682745b7e274f2345fb9be539a030208026acb4d3d3933f369"
 ---
 
 
@@ -460,8 +460,8 @@ mcp__codegraph__codegraph_impact --symbol <symbol> --direction upstream
 **Parallel execution for multiple symbols**: When two or more impact symbols are identified, issue the impact queries in parallel (multiple tool calls in a single response round). Merge all results into the artifact impact sections; a single symbol keeps the existing single-query behavior.
 
 **Results stored for**:
-- change.json `proposal.impact`: Impact Analysis section
-- change.json `design.context`: Architecture Impact section
+- `proposal.md` Impact: Impact Analysis section
+- `design.md` Context: Architecture Impact section
 
 ### 2.1 Migrate Exploration File
 
@@ -472,21 +472,21 @@ mv openspec/explorations/<keyword>-explore-<sequence>.md openspec/changes/<chang
 
 **Move semantics — the original copy is NOT kept**: after the move succeeds AND the destination file is verified, the source file no longer exists (that is the point of `mv`); the flow MUST keep exactly ONE resident copy, inside the change directory. If the move fails or the destination fails verification, preserve the source file and report the reason (never delete on the failure path). MUST NOT retroactively migrate or delete pre-existing historical files in `openspec/explorations/`.
 
-### 2.2 Inline Artifact Generation (JSON-first)
+### 2.2 Inline Artifact Generation (Markdown-first)
 
-**MUST follow the shared JSON-first protocol at `openspec/rules/artifact-generation.md` (Steps G1-G3)** — same single source as `iagent_spec_propose` / `iagent_workflow`; this section only summarizes it and MUST NOT define a second generation path.
+**MUST follow the shared Markdown-first protocol at `openspec/rules/artifact-generation.md` (Steps G1-G7)** — same single source as `iagent_spec_propose` / `iagent_workflow`; this section only summarizes it and MUST NOT define a second generation path.
 
 Proceed directly to inline artifact generation (no complexity evaluation, no method selection):
 
 1. Run `iagent spec status --change "<name>" --json`
 2. Loop through artifacts in dependency order: proposal → specs → design → tasks
-3. For each artifact: `iagent spec instructions <artifact-id> --change "<name>" --json` → **write the JSON truth source** per `jsonTemplate`: proposal / specs / design → update the matching section of `<changeRoot>/change.json` (whole-file Write, MUST preserve existing sections and root fields `changeName` / `createdAt` / `phase`); tasks → write `<changeRoot>/tasks.json` (task labels without brackets — the renderer wraps them). MUST NOT hand-write MD as a substitute for the JSON truth source
-4. Render MD: `iagent spec render <artifact-id> --change "<name>"`
-   - Validation/render failure (CLI error names the field path, e.g. `proposal.whatChanges 必须为数组`) → fix the JSON and re-run the render; MUST NOT bypass validation by hand-editing MD
-   - Render command unavailable → degrade to AI hand-written MD (structure per `template`, content consistent with the JSON truth source), log WARN, non-blocking
-5. Verify both the JSON truth source and the rendered MD exist after each artifact
+3. For each artifact: `iagent spec instructions <artifact-id> --change "<name>" --json` → **write the Markdown source of truth**: `proposal.md` / `specs/<capability>/spec.md` / `design.md` / `tasks.md`. MUST NOT create or update `change.json` / `tasks.json` as a mirror
+4. Validate: `iagent spec validate --change "<name>"`
+   - Validation failure (CLI reports file path and line) → fix the Markdown and rerun; MUST NOT bypass validation by creating a JSON mirror
+   - Validation unavailable → continue with inline structural checks and log WARN, non-blocking
+5. Verify the Markdown source file exists and passes validation after each artifact
 
-**CLI availability detection**: If the first `iagent spec status` call fails with a command-not-found signature ("command not found" / "不是内部或外部命令" / "not recognized"), log "iagent CLI not found in PATH — switching to CLI-degraded generation mode" and switch to CLI-degraded mode — with no CLI at all, the protocol's G2.5 degradation path applies for the entire run (JSON validation / `iagent spec render` unavailable → hand-written MD per `template` + WARN, non-blocking):
+**CLI availability detection**: If the first `iagent spec status` call fails with a command-not-found signature ("command not found" / "不是内部或外部命令" / "not recognized"), log "iagent CLI not found in PATH — switching to CLI-degraded generation mode" and switch to CLI-degraded mode — with no CLI at all, continue with inline Markdown structural checks and a WARN for the entire run:
 - Generate artifacts in built-in dependency order: proposal → specs → design → tasks
 - Use embedded artifact structure rules (from this template)
 - Track progress with TodoWrite tool
@@ -632,7 +632,7 @@ After auto-archive completes:
 - **MUST verify file before migration** - Phase 2 checkpoint is mandatory
 - **MUST preserve source on migration failure** - Never lose user data
 - **MUST NOT offer method selection** - Phase 2 proceeds directly to inline propose-style generation
-- **MUST follow the JSON-first protocol in Phase 2** - Inline generation MUST follow `openspec/rules/artifact-generation.md`: write the JSON truth source (change.json sections / tasks.json) → `iagent spec render <artifact-id> --change "<name>"` → on validation failure fix the JSON and re-run; when render is unavailable degrade to hand-written MD (WARN, non-blocking)
+- **MUST follow the Markdown-first protocol in Phase 2** - Inline generation MUST follow `openspec/rules/artifact-generation.md`: write the Markdown source of truth (proposal.md / specs/**/*.md / design.md / tasks.md) → `iagent spec validate --change "<name>"` → on validation failure fix the Markdown and re-run; validation unavailable produces WARN
 - **Do explore codebase** - Before asking, check if codebase answers the question
 - **Do provide recommendations** - Every question includes AI's recommendation
 - **Do update file real-time** - After each exchange, write to exploration file

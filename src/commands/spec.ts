@@ -42,7 +42,6 @@ import {
     initTasksJson,
     initChangeJson,
     readChangeJson,
-    renderTasksMd,
 } from '../core/spec/sidecar-writer.js';
 import { parseTasks } from '../core/spec/parser/task-parser.js';
 import { findMarkdownFiles } from '../core/spec/parser/markdown-parser.js';
@@ -54,7 +53,7 @@ import { migrateChangeFromJson } from '../core/spec/migration.js';
 import { indexMarkdownEntry } from '../core/spec/markdown-index.js';
 import { hashIndexSource, readIndexManifest, writeIndexManifest } from '../core/spec/index-cache.js';
 import type { ParsedChange } from '../core/spec/model/artifact-model.js';
-import type { TasksSchema, ChangeSchema } from '../core/spec/sidecar-schema.js';
+import type { ChangeSchema } from '../core/spec/sidecar-schema.js';
 
 /** 变更状态结果类型（从 getChangeStatus 派生） */
 type ChangeStatusResult = ReturnType<typeof getChangeStatus>;
@@ -512,7 +511,7 @@ export function buildSpecCommand(): Command {
         });
 
     spec.command('render <type>')
-        .description('从 tasks.json 确定性渲染 tasks.md（仅支持 tasks；proposal/specs/design 为 JSON-only）')
+        .description('兼容提示：tasks.md 已是任务真源，render 不再生成或覆盖 tasks.md')
         .requiredOption('--change <name>', '变更名称')
         .action((type: string, options: { change: string }) => {
             const projectRoot = process.cwd();
@@ -532,24 +531,13 @@ export function buildSpecCommand(): Command {
                 return;
             }
 
-            // tasks：从 tasks.json 确定性渲染 tasks.md
-            const tasksJsonPath = path.join(changeDir, 'tasks.json');
-            if (!fs.existsSync(tasksJsonPath)) {
-                console.error(`tasks.json 不存在: ${tasksJsonPath}`);
-                process.exitCode = 1;
+            // 兼容提示：Markdown-first 后 tasks.md 是唯一真源，render 不再写入任何文件。
+            const tasksMdPath = path.join(changeDir, 'tasks.md');
+            if (fs.existsSync(tasksMdPath)) {
+                console.log('tasks.md 已是任务真源，无需渲染；请直接编辑 tasks.md 并用 `iagent spec validate --change <name>` 校验。');
                 return;
             }
-            try {
-                const tasksJson = JSON.parse(fs.readFileSync(tasksJsonPath, 'utf8')) as TasksSchema;
-                const md = renderTasksMd(tasksJson, options.change);
-                fs.writeFileSync(path.join(changeDir, 'tasks.md'), md, 'utf8');
-                console.log(
-                    `tasks.md rendered — ${tasksJson.tasks.length} tasks, ${tasksJson.progress?.complete ?? 0} done`,
-                );
-            } catch (error: unknown) {
-                console.error(`渲染失败: ${(error as Error).message}`);
-                process.exitCode = 1;
-            }
+            console.log('未找到 tasks.md。若为历史 JSON-only 变更，请先运行 `iagent spec migrate --from-json --change <name>`；render 不再从 tasks.json 生成 tasks.md。');
         });
 
     spec.command('sidecar')

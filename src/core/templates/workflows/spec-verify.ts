@@ -41,18 +41,16 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
    - \`planningHome\`、\`changeRoot\`、\`artifactPaths\`、\`actionContext\`：路径与范围上下文
    - 该变更存在哪些制品
 
-3. **读取变更制品（JSON 优先）**
+3. **读取变更制品（Markdown 优先）**
 
-   运行 \`iagent spec status --change "<name>" --json\` 获取进度统计（progress），并按以下顺序读取制品：
+   运行 \`iagent spec status --change "<name>" --json\` 获取进度统计（progress），并直接读取 OpenSpec Markdown 制品：
 
-   - **优先读**变更目录下的 \`OpenSpec Markdown artifacts\`（结构化真源）：
-     - \`specs\` 段（\`specs[].operations[]\`）：需求与场景清单，用于完整性 / 正确性验证
-     - \`design\` 段：设计一致性核对（decisions / risks）
-     - \`proposal\` 段：需求背景（why / whatChanges / impact）
-   - **优先读**变更目录根下的 \`tasks.md\`：任务状态与 specRef 覆盖关系
-   - **降级（WARN，仅存量 / 已归档变更）**：OpenSpec Markdown artifacts 缺失时输出 WARN，只读解析既有 MD —— proposal.md / specs/*.md / design.md；tasks.md 缺失时改读 tasks.md 复选框
+   - \`proposal.md\`：需求背景（Why / What Changes / Impact）
+   - \`specs/**/*.md\`：Requirement / Scenario 清单，用于完整性 / 正确性验证
+   - \`design.md\`：设计一致性核对（Decisions / Risks）
+   - \`tasks.md\`：任务复选框状态与 Spec Ref 覆盖关系
 
-   降级读取时必须在报告中注明 WARN 与降级原因，用于后续三维度验证。
+   **降级（WARN，仅存量 / 已归档变更）**：变更没有对应 Markdown、仅有历史 \`change.json\` 时只读降级读取并注明 WARN；不得把 JSON 当作新流程真源。
 
 4. **初始化验证报告结构**
 
@@ -66,27 +64,26 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
 5. **验证 Completeness（完整性）**
 
    **任务完成情况**：
-   - **优先读**变更目录根下的 \`tasks.md\`：若存在，直接获取结构化任务列表（id / label / status / dependencies / specRef / files）与 progress 统计，跳过 markdown 解析
-   - **降级（WARN）**：tasks.md 缺失时解析 tasks.md 复选框：\`- [ ]\`（未完成） vs \`- [x]\`（完成）
+   - **直接读**变更目录根下的 \`tasks.md\`：解析任务复选框（\`- [ ]\` 未完成 / \`- [x]\` 完成）、类型标签、依赖、Spec Ref 与 progress 统计
+   - **降级（WARN）**：变更只有历史 \`tasks.json\` 时只读解析（Markdown 化前的存量变更）
    - 统计完成 / 总任务数
    - 若存在未完成任务：
      - 为每个未完成任务添加 CRITICAL 问题
      - 建议："完成任务：<描述>" 或 "若已实现则标记为完成"
 
    **Spec 覆盖（逐需求对比 tasks.md）**：
-   - 需求清单来源（JSON 优先）：
-     - 优先：\`OpenSpec Markdown artifacts\` 的 \`specs[].operations[].requirement\`（逐条需求）
-     - 降级（WARN）：specs/*.md 中以 "### Requirement:" 标记的需求
+   - 需求清单来源：\`specs/**/*.md\` 中以 \`### Requirement:\` 标记的需求（ADDED / MODIFIED）
+   - **降级（WARN）**：历史 JSON-only 变更从 \`change.json\` 的 specs 段只读读取
    - 对每条需求，在 tasks.md 中匹配覆盖任务（按以下信号依次判定）：
      1. \`specRef\` 与需求名精确匹配
      2. \`dependencies\` 引用链上存在面向该需求的任务
      3. \`description\` 与需求语义相关（关键词 / 语义匹配）
-     （tasks.md 缺失降级时，覆盖匹配退化为对 tasks.md 任务描述的语义匹配）
+     （历史 JSON-only 降级时，覆盖匹配退化为对 tasks.json 任务描述的语义匹配）
    - 输出逐需求的结构化对比（纳入最终报告）：
      \`\`\`
      | 需求 | 覆盖任务 | 任务状态 | 判定 |
      |------|---------|---------|------|
-     | <specs[].operations[].requirement> | <task ids> | done / pending | 已覆盖 / 未完成 / 未覆盖 |
+     | <Requirement> | <task ids> | done / pending | 已覆盖 / 未完成 / 未覆盖 |
      \`\`\`
    - 判定规则：
      - 覆盖任务全部 done → **已覆盖**
@@ -106,7 +103,7 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
        - 建议："对照需求 X 审查 <file>:<lines>"
 
    **场景覆盖**：
-   - 对场景清单中的每个场景（JSON 优先取 \`specs[].operations[].scenarios[]\`；降级读 "#### Scenario:" 标记）：
+   - 对场景清单中的每个场景（读 \`specs/**/*.md\` 中的 \`#### Scenario:\` 标记）：
      - 检查代码中是否处理了相关条件
      - 检查是否存在覆盖该场景的测试
      - 若场景似乎未覆盖：
@@ -117,12 +114,12 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
 
    **设计遵循**：
    - 若存在 design 制品：
-     - 优先：\`OpenSpec Markdown artifacts\` 的 \`design\` 段，直接读取 \`decisions[]\`（id / title / choice / rationale）与 \`risks[]\`
-     - 降级（WARN，仅存量 / 已归档变更）：design.md 中查找 "Decision:" / "Approach:" / "Architecture:" 等段落
+     - 直接读取 \`design.md\` 的 Decisions（决策 / 选择 / 理由）与 Risks / Trade-offs 章节
+     - **降级（WARN，仅存量 / 已归档变更）**：历史 JSON-only 变更从 \`change.json\` 的 design 段只读读取
      - 验证实现是否遵循这些决策
      - 若检测到矛盾：
        - 添加 WARNING："未遵循设计决策：<决策>"
-       - 建议："更新实现，或修订 OpenSpec Markdown artifacts 的 \`design\` 段（proposal/specs/design 无 MD 渲染入口；存量变更降级读取时才参考 design.md）"
+       - 建议："更新实现，或修订 \`design.md\` 的决策记录"
    - 若无 design 制品：跳过设计遵循检查，注明 "无 design 制品可供对照"
 
    **代码模式一致性**：
@@ -134,7 +131,7 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
 
    **数据结构验证**：
    - 检查实现是否引用了 specs/design 中未定义的数据库字段或 API 参数
-   - 可用时参考 OpenSpec Markdown artifacts 的 \`design\` 段（存量变更降级时参考 design.md "数据库表-字段映射" 表）
+   - 参考 \`design.md\` 中的数据库表 / 字段映射（历史 JSON-only 变更降级时只读 change.json）
    - 若发现未定义字段：添加 CRITICAL 问题 "数据字段未在 specs 中定义：<field>"
    - 建议："在 specs 中定义字段 <field> 或从实现中移除"
 
@@ -144,13 +141,13 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
    - 建议："将 <logic> 移至合适层（<建议层>）"
 
    **交互契约验证**：
-   - 可用时参考 OpenSpec Markdown artifacts 的 \`design\` 段（存量变更降级时参考 design.md "API 交互契约" 表）
+   - 参考 \`design.md\` 中的 API 交互契约（历史 JSON-only 变更降级时只读 change.json）
    - 对实现中的每个 API 端点：
      - 检查实际响应字段是否匹配契约 Response 定义
      - 检查返回的错误码是否匹配契约错误码列表
      - 若发现不匹配：添加 WARNING 问题 "API 响应不匹配：<endpoint> 返回了契约未定义的 <field>"
-     - 建议："更新 OpenSpec Markdown artifacts 的 \`design\` 段中的 API 契约或修正实现响应"
-   - 可用时参考 OpenSpec Markdown artifacts 的 \`design\` 段（存量变更降级时参考 design.md "字段-UI 组件映射矩阵"）
+     - 建议："更新 \`design.md\` 中的 API 契约或修正实现响应"
+   - 参考 \`design.md\` 中的字段-UI 组件映射矩阵（历史 JSON-only 变更降级时只读 change.json）
    - 对实现中的每个 UI 组件：
      - 检查组件中使用的字段名是否匹配映射矩阵
      - 若发现不匹配：添加 WARNING 问题 "字段名不匹配：<component> 使用 <field>，契约期望 <expected-field>"
@@ -163,9 +160,9 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
      - 建议："实现第 <N> 步：<描述>"
 
    **前端 UI 状态覆盖**（若存在前端代码）：
-   - 可用时参考 OpenSpec Markdown artifacts 的 \`design\` 段（存量降级时参考 design.md "UI 状态覆盖" 表）
+   - 参考 \`design.md\` 中的 UI 状态覆盖（历史 JSON-only 变更降级时只读 change.json）
    - 检查数据展示组件是否处理四种必需状态：Loading / Empty / Error / Data
-   - 与 OpenSpec Markdown artifacts 的 \`design\` 段交叉对照，验证每个列出的组件具备所有状态
+   - 与 \`design.md\` 交叉对照，验证每个列出的组件具备所有状态
    - 若状态处理缺失：添加 SUGGESTION 问题 "缺失 UI 状态处理：<component> 的 <state>"
    - 建议："为 <component> 添加 <state> 状态处理"
 

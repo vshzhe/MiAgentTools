@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:1f6ae45fb133d2acb96e97f8066b4480fe3582bd50daebbea3ef3b0da35025a1"
+  generatedFingerprint: "sha256:40d742b0b56b32d5e1769aaf68576230dec1d107b2ab938c233b9814c596f12d"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
@@ -30,7 +30,7 @@ This skill allows you to batch-archive changes, handling spec conflicts intellig
 
    **CLI availability detection (first-call failure signature)**: If the `iagent spec status --json` call (or the `iagent spec status --change` calls in step 3) fails with a command-not-found error signature (e.g., "command not found", "不是内部或外部命令", "not recognized"), conclude the iagent CLI is not installed. Tell the user in one line — "iagent CLI not found in PATH — continuing in CLI-degraded mode" — and continue in CLI-degraded mode (do NOT repeat this notice mid-flow):
    - **Degraded change discovery**: discover candidate changes by Glob-scanning `openspec/changes/*/` (excluding `archive/`); still let the user choose via the **AskUserQuestion tool**
-   - **Degraded artifact status inference**: infer artifact completion from `OpenSpec Markdown artifacts` 的 `proposal`/`specs`/`design` 段 + `tasks.md`（存量变更无 OpenSpec Markdown artifacts 时回退 `proposal.md`/`specs/`/`design.md`/`tasks.md` 文件存在性） — without CLI validation; the batch archive itself (directory moves, spec sync, index update) proceeds normally
+   - **Degraded artifact status inference**: infer artifact completion from `proposal.md` / `design.md` / `specs/**/*.md` / `tasks.md` file existence — without CLI validation; the batch archive itself (directory moves, spec sync, index update) proceeds normally
    - Other errors (e.g., JSON parse failure): report the error and stop — do NOT enter degraded mode
    - At the end of the flow, remind the user exactly once: this run used CLI-degraded mode and installing the iagent CLI is recommended for validation and build-order guarantees
 
@@ -157,8 +157,8 @@ This skill allows you to batch-archive changes, handling spec conflicts intellig
    Each archive dispatch unit executes the following sequence for its change (serially, in task order):
 
    a. **Sync specs** if delta specs exist (inline AI merge, no separate skill invocation):
-      - **Markdown-primary source**: Read `<changeRoot>/OpenSpec Markdown artifacts` and take its `specs` section (`SpecEntry[]` — each entry carries `name` / `path` / `operations[]`). Every operation is fully structured: `type` (`ADDED` / `MODIFIED` / `REMOVED` / `RENAMED`), `requirement`, `description`, `scenarios[]`, plus the per-type fields `reason` / `migration` (REMOVED) and `from` / `to` (RENAMED). Apply these operations directly to the main spec at `openspec/specs/<capability>/spec.md` — do NOT re-classify the delta spec MD prose when OpenSpec Markdown artifacts is present.
-      - **MD fallback (WARN)**: If OpenSpec Markdown artifacts or its `specs` section is missing, log a WARN ("OpenSpec Markdown artifacts specs section missing — falling back to delta spec MD classification") and use the legacy path: compare each delta spec with its corresponding main spec at `openspec/specs/<capability>/spec.md`, classifying the prose changes by operation kind:
+      - **Markdown source**: Read each delta spec at `<changeRoot>/specs/<capability>/spec.md` and apply its operations directly to the main spec at `openspec/specs/<capability>/spec.md`. Classify operations by `## ADDED/MODIFIED/REMOVED/RENAMED Requirements`; do NOT read a JSON mirror.
+      - **Legacy JSON fallback (WARN)**: If delta spec Markdown is missing and only historical `change.json` exists, log a WARN ("delta spec Markdown missing — falling back to legacy JSON specs section") and read its `specs` section read-only; otherwise proceed without sync. The primary Markdown path compares each delta spec with the main spec at `openspec/specs/<capability>/spec.md`, classifying operations by kind:
         - **ADDED**: new requirements/scenarios present in delta but not in main spec
         - **MODIFIED**: requirement or scenario text/details changed in delta
         - **REMOVED**: requirements/scenarios deleted in delta
@@ -173,22 +173,22 @@ This skill allows you to batch-archive changes, handling spec conflicts intellig
         - RENAMED → update the requirement identifier and any cross-references within the main spec
       - Follow v1.1.20 specs-apply merge semantics for conflict resolution and section placement
       - For conflicts, apply in resolved order (step 5 resolution)
-      - Log: "Delta specs merged — <N> operations applied (A added / M modified / R removed / N renamed)" (append `[source: OpenSpec Markdown artifacts]` or `[source: delta MD fallback]` for traceability)
+      - Log: "Delta specs merged — <N> operations applied (A added / M modified / R removed / N renamed)" (append `[source: delta spec Markdown]` or `[source: legacy JSON fallback]` for traceability)
       - Track if sync was done
 
    a.5 **CONTEXT.md Sync (MANDATORY CHECKPOINT, pre-archive)**:
       - **Check if `openspec/CONTEXT.md` exists** using Glob or Read tool
       - **If EXISTS**: Read CONTEXT.md and scan change artifacts for terms that should be recorded
-        - Read `OpenSpec Markdown artifacts` 的 `proposal` 段 for key domain terms（存量变更降级时读 proposal.md）
-        - Read `OpenSpec Markdown artifacts` 的 `design` 段 for technical terms and decisions（存量变更降级时读 design.md）
+        - Read `proposal.md` for key domain terms（历史 JSON-only 降级时只读 change.json）
+        - Read `design.md` for technical terms and decisions（历史 JSON-only 降级时只读 change.json）
         - Cross-reference with CONTEXT.md — if any terms are missing, auto-supplement
         - Log: "CONTEXT.md synced — <N> terms added"
       - **If NOT EXISTS**: Create `openspec/CONTEXT.md` from change artifacts
-        - Extract domain terms from `OpenSpec Markdown artifacts` 的 `proposal.why`（存量降级时读 proposal.md Why）
-        - Extract technical terms from `OpenSpec Markdown artifacts` 的 `design.decisions`（存量降级时读 design.md Decisions）
+        - Extract domain terms from `proposal.md` Why
+        - Extract technical terms from `design.md` Decisions
         - Format: `**<Term>**: <definition>\\n_Avoid_: <synonyms>`
         - Log: "CONTEXT.md created — <N> terms from change artifacts"
-      - **Compatibility check**: If no change artifacts exist (OpenSpec Markdown artifacts `proposal`/`design` 段缺失，且存量 MD 也不存在), skip and log:
+      - **Compatibility check**: If the change has neither Markdown artifacts nor legacy JSON, skip and log:
         "Skipping CONTEXT.md sync: no change artifacts found"
       - **Failure handling (non-blocking)**: Do NOT block archive on check failure — log and proceed
 
@@ -196,7 +196,7 @@ This skill allows you to batch-archive changes, handling spec conflicts intellig
       - **Decision scope**: ONLY `openspec/changes/<change-name>/需求文档.md` (use `path.join()`)
       - **If the change directory is not readable** (IO error): log a WARN and treat the document as absent — proceed to the not-exists branch
       - **Not exists** → invoke the `iagent_requirement_doc` skill (Skill tool) in **non-interactive mode** with this change name (no questions, placeholder basic information); output to `openspec/changes/<change-name>/需求文档.md`
-      - **Already exists** → perform an **in-place incremental alignment update**: `## 基本信息` and `## 八、评审记录` are the **人工域** and MUST NOT be overwritten (preserve verbatim, including placeholder states); sections `一~七` SHALL be re-derived from the CURRENT structured sources — `OpenSpec Markdown artifacts` (proposal / design / specs sections) and `.iagent/tasks.md`. **Do NOT invoke `iagent_requirement_doc`** in this branch — its own rule is "when the target file already exists, overwrite it silently", which would erase human-authored review content. The alignment MUST NOT delete sections (only content removed from the artifacts may be dropped); if the document is structurally broken, rebuild the missing sections and log a WARN
+      - **Already exists** → perform an **in-place incremental alignment update**: `## 基本信息` and `## 八、评审记录` are the **人工域** and MUST NOT be overwritten (preserve verbatim, including placeholder states); sections `一~七` SHALL be re-derived from the CURRENT Markdown sources — `proposal.md` / `design.md` / `specs/**/*.md` / `tasks.md`. **Do NOT invoke `iagent_requirement_doc`** in this branch — its own rule is "when the target file already exists, overwrite it silently", which would erase human-authored review content. The alignment MUST NOT delete sections (only content removed from the artifacts may be dropped); if the document is structurally broken, rebuild the missing sections and log a WARN
       - **Failure handling (non-blocking)**: if generation or alignment fails, log a WARN with the target path and the reason and CONTINUE with this change's remaining steps — a failure here MUST NOT abort the change unit and MUST NOT abort the batch
       - The generated document stays in the change directory, moves with it in step b, and is migrated to `openspec/devdocs/` by step c
 
@@ -213,7 +213,7 @@ This skill allows you to batch-archive changes, handling spec conflicts intellig
       - **Exploration memory sync** (extraction copies, not moves):
         - Check whether `openspec/changes/archive/YYYY-MM-DD-<name>/exploration.md` exists (the CLI has already moved the change directory; read from the archive location)
         - If missing: log "Skipping exploration memory sync: no exploration file" for this change and continue
-        - Enumerate capabilities from `OpenSpec Markdown artifacts` 的 `specs[].name`（存量降级时读 `specs/<capability>/spec.md` 子目录）
+        - Enumerate capabilities from the `specs/<capability>/` subdirectories（历史 JSON-only 降级时只读 change.json specs 段）
         - If the change has no delta specs: log "Skipping exploration memory sync: no delta specs" and continue
         - For each involved capability `<capability>`:
           - Target file: `openspec/specs/<capability>/explorations.md` (use `path.join()`)
@@ -312,8 +312,8 @@ This skill allows you to batch-archive changes, handling spec conflicts intellig
         - **Archive date**: from directory name prefix `YYYY-MM-DD-{change-name}`
         - **Change name**: from directory name (after date prefix)
         - **Module**: extract from change name pattern `{prefix}-{module}-{feature}`, use "general" if not matched
-        - **Summary**: first paragraph of `OpenSpec Markdown artifacts` 的 `proposal.why`（存量降级时读 proposal.md；max 50 chars）
-        - **Supplement annotation**: read `tasks.md` in the archived change directory（存量降级时读 `tasks.md`）, collect **supplement task types by matching a fixed label whitelist** `[测试]` / `[DB脚本]` / `[使用说明]` (`[代码]` excluded), and append `[含<type1>/<type2>/...]` to the summary (e.g., `[含测试/DB脚本]`). Match on the whitelist ONLY — do NOT collect "all bracketed content": `[测试]` tasks carry level/priority sub-annotations (`[测试][单元][P0]`) whose `[单元]`/`[P0]` are NOT task types, and collecting them would produce `[含测试/单元/P0]` noise. Labels outside the whitelist are ignored (non-blocking; a WARN MAY be logged). If no supplement task found, skip annotation.
+        - **Summary**: first paragraph of `proposal.md` Why（历史 JSON-only 降级时只读 change.json；max 50 chars）
+        - **Supplement annotation**: read `tasks.md` in the archived change directory（历史 JSON-only 降级时只读 tasks.json）, collect **supplement task types by matching a fixed label whitelist** `[测试]` / `[DB脚本]` / `[使用说明]` (`[代码]` excluded), and append `[含<type1>/<type2>/...]` to the summary (e.g., `[含测试/DB脚本]`). Match on the whitelist ONLY — do NOT collect "all bracketed content": `[测试]` tasks carry level/priority sub-annotations (`[测试][单元][P0]`) whose `[单元]`/`[P0]` are NOT task types, and collecting them would produce `[含测试/单元/P0]` noise. Labels outside the whitelist are ignored (non-blocking; a WARN MAY be logged). If no supplement task found, skip annotation.
 
    d. **Add rows to "归档变更列表" table**:
       `| {date} | {change-name} | {module} | {summary} |`
@@ -346,7 +346,7 @@ This skill allows you to batch-archive changes, handling spec conflicts intellig
       - Log the sync result after completion
 
    2. **Single verification** after sync completes successfully:
-      - Use MCP `codegraph_search` once, querying key terms from the successfully archived changes (change names + key symbols from each change's `tasks.md` and `OpenSpec Markdown artifacts` `design` 段)
+      - Use MCP `codegraph_search` once, querying key terms from the successfully archived changes (change names + key symbols from each change's `tasks.md` and `design.md`)
       - Display "CodeGraph: ✓ symbols verified in index" with matched count
       - Warn if no matches found (may be expected for non-code changes)
       - Verification queries ONLY successfully archived changes (not failed/skipped)

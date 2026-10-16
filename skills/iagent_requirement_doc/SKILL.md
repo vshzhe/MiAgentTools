@@ -1,6 +1,6 @@
 ---
 name: iagent_requirement_doc
-description: "Convert change artifacts (OpenSpec Markdown artifacts: proposal / design / specs + tasks.md) into a standard eight-section requirement document for human review. Use when the user wants to 生成需求文档 / 需求单 / 转换提案为需求文档 / requirement document from change. NOT for source-project feature scanning to generate a migration requirement document (use iagent_feature_doc)."
+description: Convert change artifacts (proposal.md / design.md / specs/**/*.md + tasks.md) into a standard eight-section requirement document for human review. Use when the user wants to 生成需求文档 / 需求单 / 转换提案为需求文档 / requirement document from change. NOT for source-project feature scanning to generate a migration requirement document (use iagent_feature_doc).
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*)
 license: MIT
 compatibility: 纯文件读取与生成，无 CLI 硬依赖（iagent spec status 为可选加载方式）；支持 standalone 交互与非交互工作流集成双模式。
@@ -9,7 +9,7 @@ metadata:
   version: "1.0"
   type: docs
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:66c13074f4d331be91c530aeb56e33e7109ee4903e3a9e51584ad3884bc9e191"
+  generatedFingerprint: "sha256:3675b75f19bea21e92e08e93d8670aa0c604a7b41f63746cadb9da8074d6b046"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
@@ -52,33 +52,33 @@ Record the archive status from where the proposal files are found — it determi
 
 Read in priority order (skip missing files gracefully):
 
-1. `OpenSpec Markdown artifacts` — Markdown primary source (Markdown-primary): `proposal` (why / whatChanges / capabilities / impact), `design` (context / goals / nonGoals / decisions / risks), `specs` (requirement operations + scenarios)
-2. `tasks.md` (at the change directory root, not under `.iagent/`) — structured task groups, page/table/schedule details
-3. **MD fallback (WARN, 仅存量 / 已归档变更)**: `proposal.md` / `design.md` / `tasks.md` + `specs/*.md` — used only for legacy changes whose `OpenSpec Markdown artifacts` is missing (or the required section is absent); log a WARN stating the fallback reason (non-blocking)
+1. `proposal.md` / `design.md` / `specs/**/*.md` — OpenSpec Markdown primary source: Why / What Changes / Capabilities / Impact; Context / Goals / Non-Goals / Decisions / Risks; Requirement + Scenario
+2. `tasks.md` (at the change directory root) — task groups, page/table/schedule details
+3. **Legacy JSON fallback (WARN, 仅存量 / 已归档变更)**: historical `change.json` / `tasks.json` — used only when the Markdown artifacts are missing; log a WARN (non-blocking)
 
-The legacy `.iagent/decisions.json` sidecar is deprecated (absorbed into `design.decisions` of OpenSpec Markdown artifacts) — never rely on it.
+Legacy JSON sidecars (`.iagent/decisions.json`) are deprecated — never rely on them.
 
 ## Step 4: Map content to requirement document sections
 
 | 需求文档章节 | 信息来源 | 转换规则 |
 |--------------|----------|----------|
 | **基本信息** | 用户交互（独立模式）/ 占位符（非交互模式） | 跳过项用占位符 |
-| **一、原始需求** | OpenSpec Markdown artifacts → proposal.why + 用户输入 | 合并 why 背景 + 用户提供的原文 |
-| **二、需求分析 → 需求理解** | OpenSpec Markdown artifacts → proposal 段 + design 段 | 按功能场景分组（见场景分组规则），每个场景独立子章节 |
-| **二、需求分析 → 非本期范围** | OpenSpec Markdown artifacts → design.nonGoals | 仅填写明确不做、超出边界、无实现计划的内容（有 Phase 计划的功能在场景中呈现） |
-| **二、需求分析 → 需求拆解** | OpenSpec Markdown artifacts → proposal.whatChanges | 功能项 → 需求拆解表格；复杂业务规则按伪代码注入规则补充伪代码块 |
-| **三、技术框架** | OpenSpec Markdown artifacts → design 段（decisions + context） | 架构图/组件关系图 + 关键技术决策表格（直接遍历 design.decisions[] 渲染，不做散文推断）+ 接口设计，同一章节呈现完整技术设计；算法/数据流转/接口逻辑按伪代码注入规则补充伪代码块 |
-| **四、业务流程** | OpenSpec Markdown artifacts → design.decisions + design.context | decisions → 流程图；context → 流程说明；流程判定逻辑按伪代码注入规则补充伪代码块 |
-| **五、页面设计** | tasks.md + OpenSpec Markdown artifacts → specs 段 + design 段 | 页面变更信息 + 功能设计交互图（仅有页面交互设计时生成） |
-| **六、表结构设计** | OpenSpec Markdown artifacts → design.decisions（数据库设计） + tasks.md | 提取完整 DDL（含建表、索引、序列、预置数据） |
-| **七、影响分析** | OpenSpec Markdown artifacts → proposal.impact | 直接映射模块/客户/调度影响 |
+| **一、原始需求** | proposal.md → Why + 用户输入 | 合并 why 背景 + 用户提供的原文 |
+| **二、需求分析 → 需求理解** | proposal.md + design.md | 按功能场景分组（见场景分组规则），每个场景独立子章节 |
+| **二、需求分析 → 非本期范围** | design.md → Non-Goals | 仅填写明确不做、超出边界、无实现计划的内容（有 Phase 计划的功能在场景中呈现） |
+| **二、需求分析 → 需求拆解** | proposal.md → What Changes | 功能项 → 需求拆解表格；复杂业务规则按伪代码注入规则补充伪代码块 |
+| **三、技术框架** | design.md（Decisions + Context） | 架构图/组件关系图 + 关键技术决策表格（直接遍历 design.decisions[] 渲染，不做散文推断）+ 接口设计，同一章节呈现完整技术设计；算法/数据流转/接口逻辑按伪代码注入规则补充伪代码块 |
+| **四、业务流程** | design.md Decisions + Context | decisions → 流程图；context → 流程说明；流程判定逻辑按伪代码注入规则补充伪代码块 |
+| **五、页面设计** | tasks.md + specs/**/*.md + design.md | 页面变更信息 + 功能设计交互图（仅有页面交互设计时生成） |
+| **六、表结构设计** | design.md（数据库设计） + tasks.md | 提取完整 DDL（含建表、索引、序列、预置数据） |
+| **七、影响分析** | proposal.md → Impact | 直接映射模块/客户/调度影响 |
 | **八、评审记录** | 空模板 | 待评审后填写 |
 
-**Markdown-first extraction**: Read structured data from `OpenSpec Markdown artifacts` and `tasks.md` before parsing any markdown:
+**Markdown-first extraction**: Read structured data from the OpenSpec Markdown artifacts:
 - `design.decisions[]` → render the 关键技术决策 table directly by iterating entries (no AI inference from prose)
 - `tasks.md` → structured task data for 需求拆解 / 页面设计 / 表结构设计
 - `proposal.capabilities` + `specs[].operations[].scenarios` → capability→scenario mapping for 场景分组
-- OpenSpec Markdown artifacts missing or the required section absent → fall back to parsing the corresponding markdown (WARN, non-blocking)
+- Markdown artifact missing → fall back to legacy JSON, read-only (WARN, non-blocking)
 
 ## Step 5: Tech stack detection (generic rules)
 

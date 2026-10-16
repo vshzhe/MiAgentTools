@@ -919,9 +919,9 @@ If user says "abandon", "stop", "cancel":
 \`\`\`
 - [ ] Phase 2: 预迁移验证
 - [ ] Phase 2: 创建变更 + 迁移探索文件
-- [ ] Phase 2: change.json proposal 段
-- [ ] Phase 2: change.json specs 段
-- [ ] Phase 2: change.json design 段
+- [ ] Phase 2: proposal.md
+- [ ] Phase 2: specs/**/*.md
+- [ ] Phase 2: design.md
 - [ ] Phase 2: tasks.md
 - [ ] Phase 2: Artifact 验证
 \`\`\`
@@ -1021,15 +1021,15 @@ mcp__codegraph__codegraph_impact --symbol <symbol> --direction upstream --maxDep
 #### Store Impact Results
 
 Store results for artifact generation:
-- change.json \`proposal.impact\`: Impact Analysis section
-- change.json \`design.context\`: Architecture Impact section
+- \`proposal.md\` Impact: Impact Analysis section
+- \`design.md\` Context: Architecture Impact section
 - tasks.md: Include ### Caller Updates section
 
 #### Impact Skip Handling
 
 If no impact symbols are found:
 - Proceed with artifact generation without impact sections
-- change.json \`proposal.impact\`/\`design\` 段与 tasks.json 不含 Impact 内容
+- \`proposal.md\` Impact / \`design.md\` 与 \`tasks.md\` 不含 Impact 内容
 
 #### Direct Transition to Inline Generation (method selection removed)
 
@@ -1093,8 +1093,8 @@ Read \`openspec/changes/<change-name>/exploration.md\` and extract content per t
 
 | Exploration Section | Extraction Target | Artifact Mapping |
 |--------------------|-------------------|------------------|
-| **Decisions** | Extracted into change.json \`proposal\` 段 | Why, What Changes, Capabilities |
-| **Analysis** (Security, Architecture, Business) | Extracted into change.json \`design\` 段 | Context, Decisions |
+| **Decisions** | Extracted into \`proposal.md\` | Why, What Changes, Capabilities |
+| **Analysis** (Security, Architecture, Business) | Extracted into \`design.md\` | Context, Decisions |
 | **Questions** | Extracted into specs | Requirement scenarios and boundary conditions |
 | **Codebase Findings** | Extracted into tasks.md | Implementation task details and file references |
 
@@ -1131,7 +1131,7 @@ Before generating the design 段 (and any other artifact), system MUST scan proj
 WHEN Phase 2.3 migration completes:
 THEN execute artifact generation inline following the shared protocol at openspec/rules/artifact-generation.md:
   - iagent spec new "<name>" (creates change directory)
-  - Loop: iagent spec status --json → iagent spec instructions --json → write JSON truth source (change.json sections / tasks.json) → iagent spec render <artifact-id>
+  - Loop: iagent spec status --json → iagent spec instructions --json → write Markdown artifacts (proposal.md / specs/**/*.md / design.md / tasks.md) → iagent spec validate
   - Continue without intermediate prompts until all applyRequires done
 
 System shows progress: "已创建 proposal 段 (1/4)", etc.
@@ -1159,7 +1159,7 @@ During inline generation, handle CLI failures:
 - Abandon the \`iagent spec status\`/\`iagent spec instructions\` loop — do NOT attempt further \`iagent spec status\`/\`iagent spec instructions\` calls during the flow
 - Generate artifacts directly via AI in the template's built-in dependency order (proposal → specs → design → tasks) using the template-embedded structure rules (Phase 2.5 guidelines)
 - **Degraded change discovery (when no change name is specified)**: scan \`openspec/changes/*/ \` directories (excluding \`archive/\`) with Glob; when multiple candidates exist, let the user choose via AskUserQuestion
-- **Degraded artifact status inference**: infer completion from \`change.json\` 的 \`proposal\`/\`specs\`/\`design\` 段 + \`tasks.json\`（存量变更无 change.json 时回退 \`proposal.md\`/\`specs/\`/\`design.md\`/\`tasks.md\` 文件存在性） — without CLI validation
+- **Degraded artifact status inference**: infer completion from \`proposal.md\` / \`design.md\` / \`specs/**/*.md\` / \`tasks.md\` file existence — without CLI validation
 - **Degraded flow end**: state exactly once — "This run used CLI-degraded generation. Installing the iagent CLI is recommended for validation and build-order guarantees." Do NOT repeat the reminder elsewhere in the flow
 
 **Other CLI failures** (CLI installed):
@@ -1185,7 +1185,7 @@ The following guidelines are automatically enforced by inline generation:
 
 - Base specs/design/tasks on exploration Decisions section
 - Ensure every decision has corresponding artifact content
-- Follow schema's \`jsonTemplate\` (JSON truth source structure) and \`instruction\` field for each artifact type
+- Follow the OpenSpec Markdown template and the CLI \`instruction\` field for each artifact type
 - Do NOT copy \`context\`/\`rules\` into files - they're constraints for YOU
 
 #### Include Analysis Results in Artifacts
@@ -1194,13 +1194,13 @@ The following guidelines are automatically enforced by inline generation:
 
 | Artifact | Impact Section | Content |
 |----------|-------------------------|---------|
-| change.json \`proposal.impact\` | Impact Analysis | Affected Components table, Breaking Changes, Migration Path |
-| change.json \`design.context\` | Architecture Impact | Call chain changes, integration points |
+| \`proposal.md\` Impact | Impact Analysis | Affected Components table, Breaking Changes, Migration Path |
+| \`design.md\` Context | Architecture Impact | Call chain changes, integration points |
 | tasks.md | ### Caller Updates | Caller update tasks with risk level |
 | tasks.md | ### Security Updates | Security fix tasks from findings |
 | tasks.md | ### Business Steps | Business rule update tasks |
 
-**Example change.json \`proposal.impact\` content**:
+**Example proposal.md Impact content**:
 \`\`\`markdown
 ## Impact Analysis
 
@@ -1239,16 +1239,16 @@ After artifacts are generated, validate:
 
 #### Validation Steps
 
-1. **Validate change.json \`proposal\` 段**:
+1. **Validate \`proposal.md\`**:
    - Check required sections: Why, What Changes, Capabilities, Impact
    - Check Capabilities lists New or Modified capabilities
    - Warn if sections are empty
 
-2. **Validate change.json \`specs\` 段**:
+2. **Validate \`specs/**/*.md\`**:
    - Check operations types ADDED/MODIFIED/REMOVED/RENAMED
    - Check每 operation 提供 requirement；ADDED/MODIFIED 提供 scenarios（name/when/then）
 
-3. **Validate tasks.json**:
+3. **Validate \`tasks.md\`**:
    - Check tasks 每项含 id / label / status
    - Check \`测试\` 任务含 subLabel 与 priority
    - Warn if no task entries found
@@ -1260,11 +1260,11 @@ After artifacts are generated, validate:
 
 ### Proposal Validation
 Status: ✓ PASS
-File: openspec/changes/<name>/change.json (proposal 段)
+File: openspec/changes/<name>/proposal.md
 
 ### Specs Validation
-change.json specs[].operations[]: ✓ PASS
-change.json specs[].operations[].scenarios[]: ✗ FAIL
+specs/**/*.md: ✓ PASS
+specs/**/*.md \`#### Scenario:\`: ✗ FAIL
   - [ERROR] Scenarios must use #### Scenario: format (4 hashtags, not 3)
 
 ### Tasks Validation
@@ -1330,7 +1330,7 @@ Invoke the skill: use the Skill tool to call \`iagent_spec_verify_proposal\` for
 
 Execute 5-dimension verification:
 1. **D1: Requirement Coverage** — Decisions → spec requirements
-2. **D2: Technical Consistency** — Technical choices → change.json \`design\` 段
+2. **D2: Technical Consistency** — Technical choices → \`design.md\`
 3. **D3: Task Completeness** — Spec requirements → tasks
 4. **D4: Boundary Coverage** — Questions/edge cases → spec scenarios
 5. **D5: Pending Resolution** — Pending items → resolved
@@ -1426,7 +1426,7 @@ When ANY dimension FAILS (<90%), system MUST auto-fix:
 
 **⛔ GATE: 实现确认门（强制停止）** — 验证与深度复查收束后，呈现「提案摘要 + 验证评分 + 深度复查结论 + 条件测试子阶段预告」，等待用户确认「进入实现」。
 
-- 就绪检查：change.json 的 proposal/design/specs 段 + tasks.json 齐全；验证 PASS（≥90%）；深度复查完成；apply instruction = ready（\`iagent spec instructions apply --change "<name>" --json\`；CLI 不可用读 tasks.json 推断）
+- 就绪检查：proposal.md / design.md / specs/**/*.md / tasks.md 齐全；验证 PASS（≥90%）；深度复查完成；apply instruction = ready（\`iagent spec instructions apply --change "<name>" --json\`；CLI 不可用读 tasks.md 推断）
 - workspace-planning 变更不支持 apply/archive：在此停止，仅保留探索+提案+深度复查结果
 - 出口：确认（进入 Phase 4）／修改（回 Phase 2 调整制品或回 Phase 1 补决策）／拒绝（记录未确认状态并停止，不进入实现）
 - 需求文档已在 Phase 3.5 生成，不在此重复，也不作为本桥阻塞项
@@ -1436,10 +1436,10 @@ When ANY dimension FAILS (<90%), system MUST auto-fix:
 
 **委派 \`iagent_spec_apply\` 技能**（via Skill tool）执行实现：
 - 传入 change-name + \`auto-mode=true\`（跳过 apply 内部的设计确认门——确认已由 Phase 3.7 实现桥承载，避免重复确认）
-- apply 内部完成：分层代码生成（Entity/DTO → Mapper/DAO → Service → Controller）、tasks.json 状态更新（渲染 tasks.md）、编译检查
+- apply 内部完成：分层代码生成（Entity/DTO → Mapper/DAO → Service → Controller）、tasks.md 勾选更新、编译检查
 - 后端架构规则由 apply 按 \`openspec/rules/ai-coding.md\` 自行处理，workflow 不干预
 
-### 4.1 条件测试子阶段（tasks.json 含 \`[测试]\` 任务时）
+### 4.1 条件测试子阶段（tasks.md 含 \`[测试]\` 任务时）
 
 - 委派 \`iagent_test\` 技能（via Skill tool，多 schema 自动检测 Java/Node）
 - **测试计划确认门 = 桥梁点**：用户确认计划后生成测试代码
@@ -1457,7 +1457,7 @@ When ANY dimension FAILS (<90%), system MUST auto-fix:
 ### 5.1 Archive Bridge (MANDATORY CHECKPOINT)
 
 **⛔ GATE: 归档确认门（强制停止）**
-- 就绪检查：tasks.json 全 \`status: done\`（或渲染出的 tasks.md 全 \`- [x]\`）；编译检查通过；条件测试子阶段完成
+- 就绪检查：tasks.md 全部 \`- [x]\`；编译检查通过；条件测试子阶段完成
 - 呈现：实现摘要 + 编译结果 + 测试通过率 + 条件子阶段产物
 - 出口：确认（进入归档）／拒绝（返回 Phase 4 继续实现，不归档）
 
@@ -1661,7 +1661,7 @@ All artifacts ready! Proceeding to the Phase 4 implementation bridge...
 - **Do enforce exit guard on delegation** - 委派的阶段子技能（spec_apply / spec_archive / test）完成后 MUST NOT 自行进入 plan/design 模式或推进阶段；workflow 是唯一有权判定阶段完成并推进下一阶段（桥梁）的角色
 - **Do pass auto-mode to apply** - Phase 4 向 spec_apply 传 auto-mode=true，由 Phase 3.7 实现桥承载确认，避免 apply 内部设计确认门重复
 - **Do pass change-name to archive** - Phase 5 向 spec_archive 传 change-name 跳过选择
-- **Do conditional test delegation** - tasks.json 含 \`[测试]\` 任务时委派 iagent_test，并以其测试计划确认门为桥梁点
+- **Do conditional test delegation** - tasks.md 含 \`[测试]\` 任务时委派 iagent_test，并以其测试计划确认门为桥梁点
 `,
         allowedTools: 'Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(git:*), Bash(ls:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_verify_proposal), Skill(proposal_review), Skill(requirement_doc), Skill(spec_apply), Skill(test), Skill(spec_archive), Agent, Task',
         type: 'impl',
@@ -2150,8 +2150,8 @@ If symbols exist:
 **Parallel execution for multiple symbols**: When two or more impact symbols are identified, issue the impact queries in parallel (multiple tool calls in a single response round). Merge all results into the artifact impact sections; a single symbol keeps the existing single-query behavior.
 
 **Results stored for**:
-- change.json \`proposal.impact\`: Impact Analysis section
-- change.json \`design.context\`: Architecture Impact section
+- \`proposal.md\` Impact: Impact Analysis section
+- \`design.md\` Context: Architecture Impact section
 - tasks.md: Caller Updates section
 
 ### 2.1 Direct Transition to Inline Generation
@@ -2183,8 +2183,8 @@ Destination: openspec/changes/<change-name>/exploration.md
 
 | Exploration Section | Artifact Mapping |
 |--------------------|------------------|
-| Decisions | → change.json \`proposal\` 段 |
-| Analysis | → change.json \`design\` 段 |
+| Decisions | → \`proposal.md\` |
+| Analysis | → \`design.md\` |
 | Questions | → specs |
 | Codebase Findings | → tasks.md |
 
@@ -2192,8 +2192,8 @@ Destination: openspec/changes/<change-name>/exploration.md
 
 - Execute inline following \`openspec/rules/artifact-generation.md\`
 - \`iagent spec status --change "<name>" --json\` (get build order)
-- \`iagent spec instructions <artifact-id> --change "<name>" --json\` (get jsonTemplate)
-- Write JSON truth source (change.json sections / tasks.json) inline, then \`iagent spec render <artifact-id> --change "<name>"\`
+- \`iagent spec instructions <artifact-id> --change "<name>" --json\` (get Markdown template)
+- Write the OpenSpec Markdown artifacts inline, then \`iagent spec validate --change "<name>"\`
 - All artifacts generated in sequence without intermediate prompts
 
 \`\`\`bash
@@ -2217,7 +2217,7 @@ During inline generation, handle CLI failures:
 - Abandon the \`iagent spec status\`/\`iagent spec instructions\` loop — do NOT attempt further \`iagent spec status\`/\`iagent spec instructions\` calls during the flow
 - Generate artifacts directly via AI in the template's built-in dependency order (proposal → specs → design → tasks) using the template-embedded structure rules (Phase 2.5 guidelines)
 - **Degraded change discovery (when no change name is specified)**: scan \`openspec/changes/*/ \` directories (excluding \`archive/\`) with Glob; when multiple candidates exist, let the user choose via AskUserQuestion
-- **Degraded artifact status inference**: infer completion from \`change.json\` 的 \`proposal\`/\`specs\`/\`design\` 段 + \`tasks.json\`（存量变更无 change.json 时回退 \`proposal.md\`/\`specs/\`/\`design.md\`/\`tasks.md\` 文件存在性） — without CLI validation
+- **Degraded artifact status inference**: infer completion from \`proposal.md\` / \`design.md\` / \`specs/**/*.md\` / \`tasks.md\` file existence — without CLI validation
 - **Degraded flow end**: state exactly once — "This run used CLI-degraded generation. Installing the iagent CLI is recommended for validation and build-order guarantees." Do NOT repeat the reminder elsewhere in the flow
 
 **Other CLI failures** (CLI installed):
@@ -2275,15 +2275,15 @@ During inline generation, handle CLI failures:
 
 ## Phase 4: Implementation（委派 iagent_spec_apply）
 
-⛔ GATE 实现确认门：验证 + 深度复查收束后，呈现「提案摘要 + 评分 + 复查结论 + 条件测试子阶段预告」，等待确认后进入实现。就绪检查：change.json + tasks.json 齐全、验证 PASS、apply instruction = ready；workspace-planning 变更在此停止。
+⛔ GATE 实现确认门：验证 + 深度复查收束后，呈现「提案摘要 + 评分 + 复查结论 + 条件测试子阶段预告」，等待确认后进入实现。就绪检查：proposal.md / design.md / specs/**/*.md / tasks.md 齐全、验证 PASS、apply instruction = ready；workspace-planning 变更在此停止。
 
-- 委派 iagent_spec_apply（via Skill tool，传 change-name + auto-mode=true；确认由本桥承载，避免 apply 内部设计确认门重复）：分层代码生成、tasks.json 状态更新（渲染 tasks.md）、编译检查
-- 条件测试子阶段（tasks.json 含 [测试] 任务时）：委派 iagent_test（多 schema 自动检测），测试计划确认门 = 桥梁点
+- 委派 iagent_spec_apply（via Skill tool，传 change-name + auto-mode=true；确认由本桥承载，避免 apply 内部设计确认门重复）：分层代码生成、tasks.md 勾选更新、编译检查
+- 条件测试子阶段（tasks.md 含 [测试] 任务时）：委派 iagent_test（多 schema 自动检测），测试计划确认门 = 桥梁点
 - 错误处理：编译失败（3 次后）暂停不归档；拒绝回退本桥；子代理失败 retry 一次
 
 ## Phase 5: Archive（委派 iagent_spec_archive）
 
-⛔ GATE 归档确认门：tasks.json 全 done + 编译通过 + 条件子阶段完成，呈现实现摘要后确认进入归档。
+⛔ GATE 归档确认门：tasks.md 全 \`- [x]\` + 编译通过 + 条件子阶段完成，呈现实现摘要后确认进入归档。
 
 - 委派 iagent_spec_archive（via Skill tool，传 change-name 跳过选择）：delta spec 合并主规格、CONTEXT.md 与探索记忆同步、需求文档就地增量对齐（步骤 4.8）、目录迁移 archive/、ARCHIVE-INDEX.md 更新、需求文档迁移 devdocs/；sync 检查点 non-blocking
 - 记忆闭环：archive 写 specs/<cap>/explorations.md 供下一轮提案读取，输出全流程总结
@@ -2301,7 +2301,7 @@ Checks passed — generating proposal directly
 ## Proposal Phase
 Created change: <name>
 Migrated: exploration.md
-Created: change.json (proposal/specs/design 段) + tasks.json (tasks.md rendered)
+Created: proposal.md / design.md / specs/**/*.md / tasks.md
 
 ## Verification Phase
 Auto-verification running...
@@ -2371,7 +2371,7 @@ Phase 4 实现 + Phase 5 归档完成
 - **Do enforce exit guard on stage delegation** - 委派的阶段子技能（spec_apply / spec_archive / test）完成后 MUST NOT 自行进入 plan/design 模式或推进阶段；workflow 是唯一有权判定阶段完成并推进的角色
 - **Do pass auto-mode to apply** - Phase 4 向 spec_apply 传 auto-mode=true，由实现桥承载确认
 - **Do pass change-name to archive** - Phase 5 向 spec_archive 传 change-name 跳过选择
-- **Do conditional test delegation** - tasks.json 含 [测试] 任务时委派 iagent_test，以其测试计划确认门为桥梁点
+- **Do conditional test delegation** - tasks.md 含 [测试] 任务时委派 iagent_test，以其测试计划确认门为桥梁点
 `,
     };
 }

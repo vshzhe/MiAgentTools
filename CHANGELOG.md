@@ -5,6 +5,34 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+## [5.0.0] - 2026-10-16
+
+### BREAKING
+
+- 变更制品由 JSON-first 切换为 **Markdown-first**：新变更以 `proposal.md` / `design.md` /
+  `specs/<capability>/spec.md` / `tasks.md` 为唯一可编辑真源，不再创建 `change.json` / `tasks.json`。
+- `iagent spec render` 不再生成或覆盖 `tasks.md`（仅保留兼容提示）；`iagent spec` 新增
+  `validate` 与 `migrate` 子命令。
+- `iagent spec status` 新增 `invalid` 状态与文件路径 / 行号诊断。
+
+### Added
+
+- `iagent spec validate --change <name>`：校验 Markdown 结构、任务依赖与 Scenario→Task 追溯。
+- `iagent spec migrate --from-json --change <name>`：显式将历史 JSON 制品转换为 OpenSpec Markdown
+  （默认保留 JSON，`--delete-legacy` 才删除）。
+- Markdown 解析层（parser / model / validation）与 Markdown→SQLite 索引（含内容指纹缓存）。
+
+### Changed
+
+- 生成 / 实现 / 验证 / 复查 / 归档 / 需求文档技能与共享生成协议统一改为直接读写 OpenSpec Markdown。
+- `iagent spec reindex` 以 Markdown 为主来源，历史 JSON 仅只读降级并 WARN。
+
+### Removed
+
+- 移除 `json-only-artifacts` 回归锁，新增 `markdown-first-regression.test.ts`。
+
 ## [1.17.0] - 2026-10-12
 
 ### Changed
@@ -958,6 +986,8 @@
 [2.0.0]: https://github.com/mi-agent-tools/compare/v1.18.1...v2.0.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
+[Unreleased]: https://github.com/mi-agent-tools/compare/v5.0.0...HEAD
+[5.0.0]: https://github.com/mi-agent-tools/compare/v4.0.0...v5.0.0
 [1.17.0]: https://github.com/mi-agent-tools/compare/v1.16.0...v1.17.0
 [1.16.0]: https://github.com/mi-agent-tools/compare/v1.15.0...v1.16.0
 [1.15.0]: https://github.com/mi-agent-tools/compare/v1.14.0...v1.15.0
