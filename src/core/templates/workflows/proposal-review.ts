@@ -2,6 +2,7 @@
  * spec 类型技能模板：变更提案完整性复查（深度代码库探索+多维完整性检查+合规性验证+量化评分）。
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
+import { deriveCommandContent } from '../derive-command.js';
 
 const DETAIL_CHECKS_FULL = `## Phase 5: 特殊功能场景检查
 
@@ -853,48 +854,6 @@ export function getProposalReviewCommandTemplate(): CommandTemplate {
         description: '变更提案完整性复查：代码库深探 + 8 维度完整性检查 + 合规性验证 + 量化评分',
         category: 'iAgent / 实现',
         tags: ['iagent', 'spec', 'review', 'proposal', 'completeness', 'compliance'],
-        content: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
-
-变更提案完整性复查：深度代码库探索 + 8 维度完整性检查 + 合规性验证 + 量化评分 + 遗漏场景补充。在 /iagent:spec-propose 创建提案后或 /iagent:spec-explore 探索后调用，确保提案完整后再进入实现。
-
----
-
-## Phase 1: 加载变更提案
-\`iagent spec status --change "<change-name>" --json\` -> 读取 proposal.md、design.md、specs/**/*.md、tasks.md；变更无 Markdown（存量 / 已归档）时只读降级历史 JSON（WARN）。
-
-## Phase 2: 深度代码库探索（关键）
-用 Grep/Glob/Read 工具追溯调用链（入口层 -> 业务层 -> 数据访问层 -> 跨模块）、数据流（输入 -> 处理 -> 输出 -> 异常）、现有实现模式对比。必须实际阅读代码，不依赖提案描述。
-
-## Phase 3: 多维度完整性检查（8 维度）
-参数配置(6 场景)、输入输出(7 场景)、数据库操作(6 项)、前端交互(6 项)、错误处理(5 项)、日志记录(5 项)、安全性(6 项)、兼容性(4 项)——逐一对照场景-检查点-常见遗漏三列表。检查点语言无关，具体异常类名/日志框架/浏览器兼容等语言/框架专项见下文。
-
-## 语言 / 框架专项检查（按项目实际信息）
-触发条件：检测到语言 / 框架项目特征（pom.xml / build.gradle、web.xml、package.json、JSP、源码等）。**具体判据 MUST 来自 \`.iagent/config.yaml\` 的 \`context\` 与 \`.iagent/rules/*.md\`（项目初始化时固化）**，缺失时从既有源码 / 构建文件探测并标 [待确认] 后写回 context；MUST NOT 假设固定框架、包名或版本。检查类别：包结构与命名、语言版本特性、日志框架、数据访问（组件/参数化/大小写/分页）、异常体系、前端（结构与浏览器兼容）、数据库方言、代码模板（从既有实现提取）。本节不内置任何特定框架 / 产品的硬编码模板与包名。
-
-## Phase 4: 实现合规性验证
-4.1 技术栈合规（对照 openspec/config.yaml）、4.2 架构分层合规（入口层/业务层/数据访问层）、4.3 命名规范合规、4.4 数据库操作合规（对照 CLAUDE.md DAO 层规范）。
-
-## Phase 5: 特殊功能场景检查
-导出功能(6 项)、导入功能(6 项)、外部系统回调(4 项)、并发安全(4 项)、搜索条件处理(4 项)——含 LIKE 特殊字符转义、SQL 注入防护。
-
-## Phase 6: 页面设计细节检查
-页面结构、表单元素、数据绑定、分页标签、JS 逻辑、CSS 样式、前端组件——通用检查点，前端细节见「语言 / 框架专项检查」。
-
-## Phase 7: 逻辑实现细节检查
-业务逻辑完整性(CRUD/状态流转/关联数据)、数据一致性、编辑场景(旧数据清理)、缓存处理、定时任务、批量操作、权限控制细节。
-
-## Phase 8: 量化评分
-11 维度覆盖率 + 合规率评分 + 总体评分（>=90% 可进入实现，70%-90% 补充 P0，<70% 重新完善）。
-
-## Phase 9: 发现遗漏时更新文档（Phase 5–8 见 references/detail-checks.md）
-P0 必须补充（更新 specs/**/*.md / design.md / tasks.md；运行 \`iagent spec validate --change <name>\`；历史 JSON-only 变更仅只读降级并 WARN）、P1 建议补充、P2 可选补充。
-
-## 输出格式
-10 节检查报告：深度探索发现、多维度完整性检查、实现合规性验证、量化评分、页面设计检查、逻辑实现细节、建议补充 Scenario、页面设计遗漏 Scenario、逻辑实现遗漏 Scenario、修正建议汇总。
-
-## 常见高频遗漏速查表
-编辑场景未删除旧数据（高频）、分页标签结构不完整（高频）、隐藏字段缺失（高频）、数据访问组件列名大小写（中频）、权限检查缺少请求参数（中频）、refreshList 缺少 submit（中频）、EL 表达式用于 hidden（低频）、批量操作未分批（中频）。
-
-Guardrails: 必须实际阅读代码；搜索项目现有模式；对照 config.yaml 验证技术栈；对照 CLAUDE.md 验证架构命名；发现 P0 遗漏立即更新对应 Markdown（运行 \`iagent spec validate\` 校验；历史 JSON-only 变更只读降级 + WARN）；提供可直接使用的 Scenario 内容。`,
+        content: deriveCommandContent(getProposalReviewSkillTemplate().instructions),
     };
 }

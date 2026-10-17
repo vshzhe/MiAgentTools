@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:b7396a4ad22e1bc5c095a709c0c59fecdf99ff648f03f0d61a8babe54e1e1429"
+  generatedFingerprint: "sha256:5904404bc8e8e33dab590e7ef8640aa8175267c22c8e2fd9343a868690fc8c5a"
 ---
 
 **验证前先阅读 openspec/rules/ai-coding.md 中的验证标准。** 重点检查未定义数据字段、架构分层违规、前端 UI 状态覆盖。
@@ -29,7 +29,7 @@ metadata:
 
    展示含实现任务（存在 tasks 制品）的变更。
    若可获取每个变更所用的 schema，一并展示。
-   将任务未完成的变更标记为 "(In Progress)"。
+   将任务未完成的变更标记为 "(进行中)"。
 
    **重要**：禁止猜测或自动选择变更，必须让用户选择。
 

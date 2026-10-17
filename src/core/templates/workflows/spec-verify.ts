@@ -28,7 +28,7 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
 
    展示含实现任务（存在 tasks 制品）的变更。
    若可获取每个变更所用的 schema，一并展示。
-   将任务未完成的变更标记为 "(In Progress)"。
+   将任务未完成的变更标记为 "(进行中)"。
 
    **重要**：禁止猜测或自动选择变更，必须让用户选择。
 

@@ -8,10 +8,12 @@ metadata:
   author: mi-agent-tools
   type: commit
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:9351c0c467fee9c2fb48ba21643149c6faae12c11e6bc688a6a421320349f767"
+  generatedFingerprint: "sha256:f5ddc8cba42bec06d71a36e61910be6ca8cd99ce2bd68b672620a84656912955"
 ---
 
 SVN 提交注释生成与执行（iagent_svn_commit）—— 四环节确认提交 + 提案分类提交。
+
+**输入**：`/iagent:svn-commit` 后可跟变更列表名、点名文件或「提交 <提案名> 提案」；省略时先自动检测活跃提案，无活跃变更再询问是否提交全部。
 
 ## ⚠️ 强制约束
 

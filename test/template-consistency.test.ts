@@ -114,12 +114,12 @@ describe('提案验证维度契约唯一', () => {
 });
 
 describe('指令正文派生覆盖度可观测', () => {
-    it('使用 deriveCommandContent 的模板数 ≥ 8（基线）', () => {
+    it('全部 20 个模板均为 skill 单一源（deriveCommandContent）', () => {
         const derived = fs
             .readdirSync(WORKFLOWS_DIR)
             .filter((f) => f.endsWith('.ts'))
             .filter((f) => fs.readFileSync(path.join(WORKFLOWS_DIR, f), 'utf8').includes('deriveCommandContent'));
-        expect(derived.length).toBeGreaterThanOrEqual(8);
+        expect(derived.length).toBe(20);
     });
 });
 
@@ -149,12 +149,12 @@ describe('探索内容分层、门预算与门合并', () => {
         const proto = exploreRefContent('references/exploration-protocol.md');
         expect(proto).toContain('1.6.6');
         expect(proto).toContain('默认直通语义');
-        expect(proto).toContain('hard conflict');
+        expect(proto).toContain('硬冲突');
     });
 
     it('workflow 实现阶段单门（实现 + 测试桥）', () => {
         const body = skillBody('iagent_workflow');
-        expect(body).toContain('Implementation + Test Bridge');
+        expect(body).toContain('实现 + 测试桥');
         expect(body).toContain('单一阻塞门');
         expect(body).not.toContain('测试计划确认门 = 桥梁点');
     });
@@ -164,7 +164,7 @@ describe('探索内容分层、门预算与门合并', () => {
         expect(body).toContain('GATE PROTOCOL');
         expect(body).toContain('提示词校验门');
         expect(body).toContain('功能流程图');
-        expect(body).toContain('强制 checkpoint 体系');
+        expect(body).toContain('强制检查点体系');
         expect(body).toContain('references/exploration-protocol.md');
     });
 

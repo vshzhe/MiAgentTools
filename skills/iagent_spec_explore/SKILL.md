@@ -8,37 +8,37 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:f0923687637708c771976c5161478dfd52cad9cee12d707df8bc269d3ea4bc86"
+  generatedFingerprint: "sha256:b0199fee12516f0fe61cea4c6b226563e4697e34c3e193a6a6720ab2bb81a969"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
-Enter explore mode. Think deeply. Visualize freely. Follow the conversation wherever it goes.
+进入探索模式。深度思考。自由可视化。让对话自然流淌。
 
-**IMPORTANT: Explore mode is for thinking, not implementing.** You may read files, search code, and investigate the codebase, but you must NEVER write code or implement features. If the user asks you to implement something, remind them to exit explore mode first and create a change proposal. You MAY create OpenSpec artifacts (proposals, designs, specs) if the user asks—that's capturing thinking, not implementing.
+**重要：探索模式用于思考，而非实现。** 你可以读文件、搜代码、调研代码库，但绝不能写代码或实现功能。用户要求你实现时，提醒其先退出探索模式并创建变更提案。用户要求时你**可以**创建 OpenSpec 制品（proposal、design、specs）—— 那是把思考落下来，不是实现。
 
-**Read-only operations execute without confirmation**: file reading, code searching, and analysis steps run directly — do NOT pause to ask the user for permission to perform read-only investigation. Clarifying questions that emerge from exploration (requirement clarification) are not read-only operations and remain unchanged.
+**只读操作无需确认即可执行**：读文件、搜代码与分析步骤直接执行 —— 不得停下来请求用户许可去做只读调研。探索中浮现的澄清性问题（需求澄清）不属于只读操作，规则不变。
 
-**This is a stance, not a workflow.** There are no fixed steps, no required sequence, no mandatory outputs. You're a thinking partner helping the user explore.
+**这是一种立场，不是工作流。** 没有固定步骤、没有必需顺序、没有强制产出。你是帮助用户探索的思考伙伴。
 
-**Input**: The argument after `/iagent:spec-explore` is whatever the user wants to think about. Could be:
-- A vague idea: "real-time collaboration"
-- A specific problem: "the auth system is getting unwieldy"
-- A change name: "add-dark-mode" (to explore in context of that change)
-- A comparison: "postgres vs sqlite for this"
-- Nothing (just enter explore mode)
+**Input**: `/iagent:spec-explore` 之后的参数就是用户想思考的内容，可以是：
+- 模糊想法："实时协作"
+- 具体问题："认证系统越来越难维护"
+- 变更名："add-dark-mode"（在该变更的上下文中探索）
+- 对比："这个场景用 postgres 还是 sqlite"
+- 什么都不带（仅进入探索模式）
 
 ## ⛔ GATE PROTOCOL — ACTIVE
 
-This skill contains **CONFIRMATION GATES** marked with **⛔ GATE:**. Each gate is a HARD STOP:
-- When you reach a ⛔ GATE, **YOUR RESPONSE ENDS THERE** — output the gate content, then STOP
-- Do NOT execute, describe, or pre-generate steps beyond the gate
-- The user's next message is the confirmation signal — resume from AFTER the gate only when they respond
-- **VIOLATION**: executing beyond a gate without user confirmation is a critical error that corrupts the workflow
+本技能包含以 **⛔ GATE:** 标记的**确认门**。每个门都是硬性停止点：
+- 走到 ⛔ GATE 时，**本次响应到此结束** —— 输出门内容后立即停止
+- 不得执行、描述或预生成门之后的任何步骤
+- 用户的下一则消息即为确认信号 —— 仅在其响应后从门之后继续
+- **违规**：未经用户确认而执行门之后的步骤，是破坏工作流的严重错误
 
 ---
 
-## Prompt Validation Gate (提示词校验门)
+## 提示词校验门
 
 **Trigger: 输入含糊或多义时激活本门；清晰输入直接进入思考伙伴模式。** 这不是固定流程步骤 —— explore 的立场（无固定步骤、无强制产出）不因本门改变。
 
@@ -48,7 +48,7 @@ This skill contains **CONFIRMATION GATES** marked with **⛔ GATE:**. Each gate 
 - **不携带任何输入**时（仅进入探索模式）跳过本门，MUST NOT 要求用户先提供提示词
 - 输入为比较型或问题型表述时按需求六维正常判定
 
-**Prompt Validation Gate (提示词校验门)**: 探索前强制自检用户输入，维度为 目标 Goal / 对象 Object / 范围 Scope / 约束 Constraints / 验收 Acceptance / 歧义 Ambiguity。
+**提示词校验门**：探索前强制自检用户输入，维度为 目标 Goal / 对象 Object / 范围 Scope / 约束 Constraints / 验收 Acceptance / 歧义 Ambiguity。
 - **清晰**（目标 Goal / 对象 Object / 范围 Scope / 歧义 Ambiguity 均无 `❌` 与实质 `⚠️`）→ 一句话复述理解后直通，不输出校验表、不要求确认
 - **不明确**（任一维 `❌` 或实质 `⚠️`）→ 先做提示词优化，输出 `【优化后提示词】`（推断项标 `[推断]`、未知项标 `[待确认]`）与 `【优化说明】`，**⛔ GATE: 立即结束本次响应并等待用户确认或修改**（本次响应到此结束，收到用户响应后继续；出口：确认 / 修改 / 拒绝 / 显式授权按推断），**不得陷入等待死循环**
 - **软不明确**（仅细节级歧义）→ 记 `[假设]` 继续
@@ -60,24 +60,24 @@ This skill contains **CONFIRMATION GATES** marked with **⛔ GATE:**. Each gate 
 
 **本技能内的执行要求**：
 
-- 清晰输入：一句话复述理解后直接进入 The Stance，不输出六维校验表格、不要求确认
+- 清晰输入：一句话复述理解后直接进入立场模式，不输出六维校验表格、不要求确认
 - 含糊输入：先做提示词优化并阻塞等待用户确认或修改；确认前 MUST NOT 进行代码库扫描与需求澄清追问
 - 上游已产出经确认的提示词基线时（如被 full-workflow 的 Stage 1 委派调用）**直接通过，不重复校验或再次要求确认**
 - 基线落盘：写入探索产物的 `## 提示词基线` 段；本技能不设强制产出文件，无探索文件时基线保留在会话中，并在创建或关联探索文件时写入
 
 ---
 
-## 探索指南（The Stance / What You Might Do / OpenSpec Awareness / What You Don't Have To Do / Handling Different Entry Points / Ending Discovery）
+## 探索指南（立场 / 可以做的事 / OpenSpec 感知 / 不必做的事 / 处理不同入口形态 / 结束探索）
 
 > 完整探索指南见 `references/exploration-guidance.md`；进入思考伙伴模式前按需 `Read`。
 
 ---
 
-## Functional Flowchart (功能流程图)
+## 功能流程图
 
 **Trigger: 探索中浮现明确的业务功能流程时产出本制品；纯概念探讨或无业务功能流程时不产出、不阻断。** 这不是固定流程步骤 —— explore 的立场（无固定步骤、无强制产出）不因本制品改变。
 
-**功能流程图（Functional Flowchart）**: 把探索发现的业务功能流程固化为探索产物 `## 功能流程图` 段（Mermaid `flowchart TD` + 关键操作节点清单表）。
+**功能流程图**：把探索发现的业务功能流程固化为探索产物 `## 功能流程图` 段（Mermaid `flowchart TD` + 关键操作节点清单表）。
 - **节点粒度** = 可独立验证的业务操作单元（用户操作 / 业务判定 / 数据写入 / 外部调用）；节点标识在图中与表中 MUST 一致，多流程时全局唯一递增
 - **清单列集**：节点 / 操作 / 触发条件 / 证据位置 / 异常路径
 - **证据追溯（硬约束）**：每节点 MUST 填 `文件:行` 或 类.方法；新建功能标 `[新建]` + 预期产物；无法追溯证据的节点 MUST NOT 进入清单
@@ -96,9 +96,9 @@ This skill contains **CONFIRMATION GATES** marked with **⛔ GATE:**. Each gate 
 
 ---
 
-## 强制 checkpoint 体系（delegated 模式）
+## 强制检查点体系（delegated 模式）
 
-**delegated 模式**（编排器传入 `mode=delegated`）SHALL 执行强制 checkpoint 体系（不可跳过）：调用即强制创建探索文件 → 提示词校验门 → CONTEXT.md 检查 → CodeGraph 基础扫描（含多项目派发与深度分析）→ L1-L5 grill 追问 → 功能流程图与流程最终确认门 → 聚合一致性门 → 探索完成检测。**完整协议见 `references/exploration-protocol.md`——执行 delegated 探索前 MUST 先 `Read` 该文件并逐步执行。**
+**delegated 模式**（编排器传入 `mode=delegated`）SHALL 执行强制检查点体系（不可跳过）：调用即强制创建探索文件 → 提示词校验门 → CONTEXT.md 检查 → CodeGraph 基础扫描（含多项目派发与深度分析）→ L1-L5 grill 追问 → 功能流程图与流程最终确认门 → 聚合一致性门 → 探索完成检测。**完整协议见 `references/exploration-protocol.md`——执行 delegated 探索前 MUST 先 `Read` 该文件并逐步执行。**
 
 （interactive 模式保持立场式，不强制上述序列。）
 
@@ -106,29 +106,29 @@ This skill contains **CONFIRMATION GATES** marked with **⛔ GATE:**. Each gate 
 
 每个阶段至多 **1 个流程级阻塞确认门**：
 
-- **探索阶段**：**功能流程图门**为唯一流程级阻塞门；提示词校验门仅在输入不明确时触发，且其确认 SHALL 与 grill 批量 1 合并为同一轮；grill 追问 SHALL ≤2 批量轮次（L1-L3、L4-L5）；聚合一致性门默认直通（仅硬冲突时暂停，non-blocking）
+- **探索阶段**：**功能流程图门**为唯一流程级阻塞门；提示词校验门仅在输入不明确时触发，且其确认 SHALL 与 grill 批量 1 合并为同一轮；grill 追问 SHALL ≤2 批量轮次（L1-L3、L4-L5）；聚合一致性门默认直通（仅硬冲突时暂停，非阻断）
 - **提案阶段**：无阻塞门（验证自动执行）
 - **实现阶段**：单一「实现 + 测试桥」
 - **归档阶段**：归档确认门
 
 ## Guardrails
 
-- **Don't implement** - Never write code or implement features. Creating OpenSpec artifacts is fine, writing application code is not.
-- **Don't fake understanding** - If something is unclear, dig deeper
-- **Don't rush** - Discovery is thinking time, not task time
-- **Don't force structure** - Let patterns emerge naturally
-- **Don't auto-capture** - Offer to save insights, don't just do it
-- **Do visualize** - A good diagram is worth many paragraphs
-- **Do explore the codebase** - Ground discussions in reality
-- **Do question assumptions** - Including the user's and your own
-- **Do understand design intent** - Before modifying existing code, analyze WHY it was built that way — not just WHAT it does. Check code comments, git history, and config files for constraints, trade-offs, and rationale. Mark inferences with confidence levels.
-- **Write confirmation is scoped and explicit** - When offering to save findings or update OpenSpec artifacts, confirmation scope is limited to the specifically named file(s). Blanket "yes to all" authorization is never accepted. Answering design questions (discussing approaches, clarifying requirements, explaining terminology) does NOT constitute consent to write operations — each write requires an independent yes/no confirmation.
-- **Re-read files from disk** - Files the user may have edited during the session (CONTEXT.md, exploration.md, change artifacts such as proposal/design/specs/tasks) MUST be re-read from disk before each use. Never rely on session-cached content.
-- **Surface material ambiguities** - Ambiguities affecting scope, behavioral contracts, backward compatibility, or acceptance criteria MUST be surfaced to the user as **[待确认]** questions. Non-material detail-level ambiguities may be resolved with reasonable assumptions, documented alongside the assumption.
-- **Do enforce exit discipline** - 探索结束后 MUST NOT auto-enter plan mode / propose mode / design mode；仅在用户显式要求时进入下一阶段；explore 的立场是思考伙伴，流程推进由用户驱动
-- **Do enforce data sharing for any sub-agent scan** - 如果探索中派发了 CodeGraph 多项目扫描子代理，子代理扫描指令 MUST 包含退出守卫（完成扫描即停止返回结果，MUST NOT enter plan mode）
-- **Do validate the prompt before diving in** - 输入含糊或多义时先过提示词校验门（Step 1-5）：优化后 MUST 等用户确认或修改才继续；清晰输入一句话复述理解后直通（不输出校验表、不要求确认）；变更名输入以该变更既有制品为校验对象；无输入则跳过本门。上游已产出提示词基线时直接通过，不重复确认
-- **Don't deadlock on the prompt gate** - 确认门有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续），不得反复要求确认
-- **Do produce the flowchart when a flow emerges** - 探索浮现明确的业务功能流程时产出 `## 功能流程图` 段（Mermaid `flowchart TD` + 节点清单表）并执行流程最终确认门；节点粒度 = 可独立验证的业务操作单元，每节点 MUST 含证据位置（`文件:行` 或类.方法；新建功能标 `[新建]` + 预期产物），无法追溯证据的节点 MUST NOT 进入清单
-- **Don't force a flowchart** - 纯概念探讨或无业务功能流程时记录「本次无功能流程」后直接继续，不为凑制品虚构节点、不阻断探索；"无固定步骤、无强制产出"的定位不变
-- **Don't deadlock on the flowchart gate** - 流程最终确认门同样有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续）；用户拒绝时记录未确认状态后继续，不得反复要求确认
+- **不要实现** - 绝不写代码或实现功能。创建 OpenSpec 制品没问题，写应用代码不行。
+- **不要假装理解** - 有不清楚的地方就深挖
+- **不要急于推进** - 发现阶段是思考时间，不是任务时间
+- **不要强求结构** - 让模式自然浮现
+- **不要自动捕捉** - 提议保存洞察，不要直接替用户做
+- **要可视化** - 一幅好图胜过千言万语
+- **要探索代码库** - 让讨论落在现实之上
+- **要质疑假设** - 包括用户的，也包括你自己的
+- **要理解设计意图** - 修改既有代码之前，分析它**为什么**这样构建 —— 而不只是它做了什么。查看代码注释、git 历史与配置文件，找出约束、权衡与理由。推断结论要标注置信度。
+- **写操作确认限定范围且须显式** - 提议保存发现或更新 OpenSpec 制品时，确认范围仅限明确点名的文件。绝不接受一揽子 "全部同意" 式授权。回答设计问题（讨论方案、澄清需求、解释术语）**不构成**写操作的同意 —— 每次写都需独立的同意/拒绝确认。
+- **从磁盘重新读取文件** - 用户在会话中可能改过的文件（CONTEXT.md、exploration.md、proposal/design/specs/tasks 等变更制品）每次使用前 MUST 从磁盘重新读取。绝不依赖会话缓存的内容。
+- **实质性歧义要表面化** - 影响范围、行为契约、向后兼容或验收标准的歧义 MUST 以 **[待确认]** 问题形式提给用户。非实质性的细节级歧义可用合理假设解决，并把假设一并记录。
+- **要执行退出纪律** - 探索结束后 MUST NOT 自动进入 plan 模式 / 提案模式 / 设计模式；仅在用户显式要求时进入下一阶段；explore 的立场是思考伙伴，流程推进由用户驱动
+- **子代理扫描要强制共享数据** - 如果探索中派发了 CodeGraph 多项目扫描子代理，子代理扫描指令 MUST 包含退出守卫（完成扫描即停止返回结果，MUST NOT 进入 plan 模式）
+- **深入前要校验提示词** - 输入含糊或多义时先过提示词校验门（Step 1-5）：优化后 MUST 等用户确认或修改才继续；清晰输入一句话复述理解后直通（不输出校验表、不要求确认）；变更名输入以该变更既有制品为校验对象；无输入则跳过本门。上游已产出提示词基线时直接通过，不重复确认
+- **不要在提示词门上死锁** - 确认门有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续），不得反复要求确认
+- **流程浮现时要产出功能流程图** - 探索浮现明确的业务功能流程时产出 `## 功能流程图` 段（Mermaid `flowchart TD` + 节点清单表）并执行流程最终确认门；节点粒度 = 可独立验证的业务操作单元，每节点 MUST 含证据位置（`文件:行` 或类.方法；新建功能标 `[新建]` + 预期产物），无法追溯证据的节点 MUST NOT 进入清单
+- **不要强求流程图** - 纯概念探讨或无业务功能流程时记录「本次无功能流程」后直接继续，不为凑制品虚构节点、不阻断探索；"无固定步骤、无强制产出"的定位不变
+- **不要在流程最终确认门上死锁** - 流程最终确认门同样有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续）；用户拒绝时记录未确认状态后继续，不得反复要求确认

@@ -5,121 +5,121 @@ import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
 import { SUBAGENT_DISPATCH } from '../tool-whitelist.js';
 
-const BATCH_SCHEDULING_FULL = `6. **Implement tasks (batch scheduling loop until done or blocked)**
+const BATCH_SCHEDULING_FULL = `6. **实现任务（批调度循环，直至完成或被阻塞）**
 
-   **Shared context pack (flow-scoped, produced once):**
+   **共享上下文包（流程级，只产出一次）：**
 
-   - After the design is confirmed (or when auto-mode is active) and BEFORE the first dispatch, the coordinator produces ONE shared context pack at \`context-pack.md\` inside the flow-scoped temp workspace (\`.openspec-tmp/apply-<change-name>/\` under the project root, built with path.join) — produced ONCE before the first dispatch, NOT re-produced per batch and NOT re-produced per unit
-   - The pack is the sub-agent's ONLY required artifact: each sub-agent reads the pack plus its own unit task list and nothing else from the change directory
-   - After production the coordinator MUST NOT re-produce the whole pack — it only APPENDS to the pack's \`## 已产出（跨单元可见）\` section (see the post-batch step)
-   - The pack has exactly six sections, in this order:
-     - \`## 变更摘要\` — the change distilled from proposal.md (why/whatChanges): what this change does and why
-     - \`## 契约\` — interface signatures / data structures / table fields, distilled from specs + design
-     - \`## 规范要点\` — the key guardrails of \`openspec/rules/ai-coding.md\` distilled by the coordinator ONCE (never distilled by each sub-agent separately)
-     - \`## 文件归属表\` — dispatch unit → the files that unit is allowed to modify
-     - \`## Codebase 摘要\` — the coordinator's pre-scan conclusions (layering / dependency facts a sub-agent would otherwise re-derive)
-     - \`## 已产出（跨单元可见）\` — the output ledger: produced files + public signatures, appended after each batch
+   - 设计确认后（或 auto-mode 生效时）、首次派发**之前**，编排器在流程级临时工作区（项目根下 \`.openspec-tmp/apply-<change-name>/\`，用 path.join 构建）内的 \`context-pack.md\` 产出**一份**共享上下文包 —— 只在首次派发前产出一次，不按批重产、也不按单元重产
+   - 上下文包是子代理**唯一**必读的制品：每个子代理只读该包加上自己单元的任务清单，变更目录中的其他内容一律不读
+   - 产出后编排器 MUST NOT 重产整包 —— 只允许向包的 \`## 已产出（跨单元可见）\` 章节**追加**内容（见批后步骤）
+   - 上下文包恰有六个章节，顺序如下：
+     - \`## 变更摘要\` — 从 proposal.md 蒸馏出的变更要点（why/whatChanges）：本变更做什么、为什么
+     - \`## 契约\` — 从 specs + design 蒸馏出的接口签名 / 数据结构 / 表字段
+     - \`## 规范要点\` — 编排器一次性蒸馏出的 \`openspec/rules/ai-coding.md\` 关键护栏（绝不由各子代理分别蒸馏）
+     - \`## 文件归属表\` — 派发单元 → 该单元允许修改的文件
+     - \`## Codebase 摘要\` — 编排器的预扫描结论（分层 / 依赖事实，否则子代理需重新推导）
+     - \`## 已产出（跨单元可见）\` — 产出登记表：已产出文件 + 公开签名，每批结束后追加
 
-   **Load the concurrency limit before dispatching:**
-   - Read \`openspec/config.yaml\` for \`apply.concurrency\` (a positive integer)
-   - If not configured: use the default limit of 3
-   - If the value is invalid (non-positive or non-integer): warn the user and fall back to the default of 3
-   - This limit bounds how many sub-agents (dispatch units) run simultaneously within a batch; it does NOT split or reorder batches
+   **派发前加载并发上限：**
+   - 从 \`openspec/config.yaml\` 读取 \`apply.concurrency\`（正整数）
+   - 未配置时：使用默认上限 3
+   - 取值非法（非正数或非整数）时：告警用户并降级到默认值 3
+   - 该上限约束一个批内同时运行的子代理（派发单元）数量；不拆分、不重排批次
 
-   **Load adjacent merge config:**
-   - Read \`openspec/config.yaml\` for \`apply.mergeAdjacent\` (boolean)
-   - If not configured: default to true (adjacent simple tasks are merged into one dispatch unit)
-   - If false: skip merge behavior at the template level
+   **加载相邻合并配置：**
+   - 从 \`openspec/config.yaml\` 读取 \`apply.mergeAdjacent\`（布尔）
+   - 未配置时：默认 true（相邻的简单任务合并为一个派发单元）
+   - 为 false 时：在模板层面跳过合并行为
 
-   **Load incremental check config:**
-   - Read \`openspec/config.yaml\` for \`apply.incrementalCheck\` (boolean)
-   - If not configured: default to true
-   - If true: after each batch, run incremental compile check (see Step 8 for details)
-   - If false: skip incremental checks, only run final full check at Step 8
+   **加载增量检查配置：**
+   - 从 \`openspec/config.yaml\` 读取 \`apply.incrementalCheck\`（布尔）
+   - 未配置时：默认 true
+   - 为 true 时：每批结束后运行增量编译检查（详见 Step 8）
+   - 为 false 时：跳过增量检查，仅在 Step 8 运行最终全量检查
 
-   **Batch scheduling loop** (follow the unified batch plan confirmed at Step 5.5, batch by batch):
+   **批调度循环**（按 Step 5.5 确认的统一批计划逐批执行）：
 
-   **Batch dispatch form determination (explicit, MANDATORY at the start of every batch):**
-   - Batch contains **≥2** dispatch units → produce the shared context pack (if not yet produced) and dispatch sub-agents (see items 2–5)
-   - Batch contains **<2** dispatch units → the coordinator implements the tasks directly itself, and MUST NOT produce the context pack (single-task batches never produce a pack)
+   **批派发形态判定（显式，每批开始时 强制）：**
+   - 批含 **≥2** 个派发单元 → 产出共享上下文包（若尚未产出）并派发子代理（见第 2–5 条）
+   - 批含 **<2** 个派发单元 → 由编排器自己直接实现任务，且 MUST NOT 产出上下文包（单任务批永不产出包）
 
-   1. **Single-task batch**: implement the task directly yourself — do NOT dispatch a sub-agent and do NOT emit a concurrent-execution notice; indicate serial execution (single-task batch); show which task is being worked on, make the code changes required, keep changes minimal and focused
-   2. **Multi-unit batch — concurrent state notice**: BEFORE dispatching a batch containing multiple dispatch units, output a prominent notice stating the batch position (Batch N/M), the number of sub-agents being dispatched (= the number of dispatch units), the task groups involved (the \`group\` labels of the batch's \`dispatchUnits\`; use task ids for units without a group label), and a reminder that task checkbox updates and failure retries are centrally managed by the coordinator
-   3. **Pre-dispatch overlap check (cross-unit fallback)**: inspect the target files of the batch's tasks across dispatch units (from task descriptions, Spec Ref, and \`产出:\` declarations); tasks in different units that would modify the same file MUST be split out of the concurrent group and executed serially — tasks within one unit are implemented serially by the same sub-agent, so same-group files are never edited concurrently
-   4. **Concurrent dispatch — one sub-agent per dispatch unit**: dispatch one sub-agent per remaining dispatch unit (Agent/Task tool); the unit's tasks are implemented by that sub-agent serially in task order; the number of simultaneously running sub-agents (dispatch units) within the batch MUST NOT exceed the concurrency limit; use sliding-window dispatch — as soon as one sub-agent finishes, immediately dispatch the next pending dispatch unit of the same batch
-   5. **Sub-agent dispatch instruction MUST contain** (the shared instruction prefix first, then the unit-specific difference):
-      - The context pack path — the sub-agent's ONLY required artifact (the pack lives in the flow-scoped temp workspace)；**MUST FIRST read the pack before any other action** — the pack carries the distilled contract / summary / file-ownership table so the sub-agent MUST NOT re-derive that information by re-reading proposal/specs/design or re-running CodeGraph queries already covered by the pack
-      - A reference to the pack's \`## 规范要点\` section for the AI coding guardrails (never guess DB fields, API params, or business rules — mark **[待确认]**) — the instruction MUST NOT inline the full guardrail summary
-      - The receipt format and the prohibition list (see the shared resource protocol below)
-      - The dispatch unit's task list in order, with each task's full details (description, requirements, Spec Ref), and the instruction to implement the unit's tasks serially in that order — the task details MUST stay inline in the instruction so the sub-agent needs NO read of tasks.md
-      - The source-file list relevant to the tasks — the change's artifact files (proposal/specs/design) are covered by the pack and MUST NOT be listed for re-reading
-      - The temp workspace path, with the constraint: sub-agents ONLY write files into the workspace — they MUST NOT delete the workspace and MUST NOT run their own per-task temp directory creation/cleanup cycles
-      - An explicit prohibition: **禁止修改 tasks.md** — the sub-agent MUST NOT edit task checkboxes
-      - **⛔ EXIT GUARD (MANDATORY — 子代理退出守卫)**: 完成本单元分配的全部任务后 MUST **立即停止并提交回执**给编排器；MUST NOT enter plan mode / design mode / propose next steps / continue beyond the assigned task scope / suggest archiving or verification steps；唯一职责 = 实现本单元分配的任务清单、产出回执的四个字段并返回；编排器是唯一有权判停、汇总、推进阶段的角色——子代理 MUST NOT 越权替代编排器做阶段收尾决策
-   6. **After the whole batch returns**: verify each sub-agent's result against the task requirements → update tasks.md centrally yourself (\`- [ ]\` → \`- [x]\`, only for confirmed-complete tasks) → append the batch's produced files and public signatures to the pack's \`## 已产出（跨单元可见）\` section → proceed to the next batch
-   7. **Failed task**: retry the failed task serially yourself once → if the retry fails again, pause and report to the user (leave the task unchecked \`- [ ]\`)
+   1. **单任务批**：由你直接实现该任务 —— 不派发子代理、不输出并发执行提示；标明按串行执行（单任务批）；展示当前正在处理的任务，完成所需代码改动，保持改动最小且聚焦
+   2. **多单元批 —— 并发状态提示**：派发含多个派发单元的批**之前**，输出醒目提示，说明批位置（Batch N/M）、正在派发的子代理数量（= 派发单元数）、涉及的任务组（本批 \`dispatchUnits\` 的 \`group\` 标签；无 group 标签的单元用任务 id），并提醒任务勾选更新与失败重试由编排器集中管理
+   3. **派发前重叠检查（跨单元降级）**：跨派发单元检查本批任务的目标文件（依据任务描述、Spec Ref 与 \`产出:\` 声明）；不同单元中会修改同一文件的任务 MUST 从并发组中拆出、改为串行执行 —— 同一单元内的任务由同一子代理串行实现，因此同组文件绝不会被并发编辑
+   4. **并发派发 —— 每个派发单元一个子代理**：为每个待处理的派发单元派发一个子代理（Agent/Task 工具）；该单元的任务由该子代理按任务顺序串行实现；批内同时运行的子代理（派发单元）数 MUST NOT 超过并发上限；采用滑动窗口派发 —— 一旦某个子代理完成，立即派发同一批中下一个待处理的派发单元
+   5. **子代理派发指令 MUST 包含**（先共享指令前缀，再单元差异部分）：
+      - 上下文包路径 —— 子代理**唯一**必读的制品（包位于流程级临时工作区）；**MUST 先读取本包，再执行其它任何动作** —— 包已承载蒸馏后的契约 / 摘要 / 文件归属表，因此子代理 MUST NOT 通过重读 proposal/specs/design 或重跑包已覆盖的 CodeGraph 查询来重新推导这些信息
+      - 指向包的 \`## 规范要点\` 章节以获取 AI 编码护栏（绝不猜测 DB 字段、API 参数或业务规则 —— 标 **[待确认]**）—— 指令 MUST NOT 内联完整护栏摘要
+      - 回执格式与禁止项清单（见下文共享资源协议）
+      - 按顺序给出该派发单元的任务清单及每个任务的完整细节（描述、需求、Spec Ref），并要求按该顺序串行实现单元任务 —— 任务细节 MUST 内联在指令中，使子代理无需读取 tasks.md
+      - 与任务相关的源文件清单 —— 变更制品文件（proposal/specs/design）已由包覆盖，MUST NOT 再列入清单供重读
+      - 临时工作区路径及约束：子代理只把文件写入该工作区 —— MUST NOT 删除工作区，MUST NOT 自行按任务创建/清理临时目录
+      - 显式禁止：**禁止修改 tasks.md** —— 子代理 MUST NOT 编辑任务勾选框
+      - **⛔ EXIT GUARD (强制 — 子代理退出守卫)**: 完成本单元分配的全部任务后 MUST **立即停止并提交回执**给编排器；MUST NOT 进入 plan 模式 / 设计模式、不得提出后续步骤、不得超出分配的任务范围、不得建议归档或验证步骤；唯一职责 = 实现本单元分配的任务清单、产出回执的四个字段并返回；编排器是唯一有权判停、汇总、推进阶段的角色 —— 子代理 MUST NOT 越权替代编排器做阶段收尾决策
+   6. **整批返回后**：对照任务需求核验每个子代理的结果 → 由你集中更新 tasks.md（\`- [ ]\` → \`- [x]\`，仅限已确认完成的任务）→ 把本批的产出文件与公开签名追加到包的 \`## 已产出（跨单元可见）\` 章节 → 进入下一批
+   7. **失败任务**：由你串行重试该失败任务一次 → 若重试仍失败，暂停并向用户报告（该任务保持未勾选 \`- [ ]\`）
 
-   **Shared resource protocol — sub-agent duties and receipts:**
+   **共享资源协议 —— 子代理职责与回执：**
 
-   - **Receipt (回执最小化)**: the sub-agent reports back with a fixed four-column receipt, one row per task — \`<任务 id> | <状态> | <产出文件> | <公开签名>\`. The receipt MUST NOT paste code bodies. A failed task's receipt MUST still carry a failure-reason summary.
-   - 「公开签名」 definition: the signatures of the symbols in this unit's output that other units may reference — functions / methods / types / interfaces / exported constants / CLI commands, including their parameters and return types. If the unit exposes nothing referenceable, record 「无」.
-   - **Empty values**: where the pack's \`## 契约\` section has no corresponding entry, record 「无」 in the pack and in the receipt's 公开签名 column. MUST NOT leave blank / MUST NOT fabricate.
-   - **Shared instruction prefix**: every dispatch instruction is assembled in a fixed order — shared prefix (context pack path / \`## 规范要点\` reference / receipt format / prohibitions) → unit-specific difference (this unit's task list). The shared prefix MUST be byte-identical across every dispatch of the same flow.
-   - **Prohibitions** (every dispatch instruction MUST carry them): the sub-agent MUST NOT re-read proposal/specs/design; the sub-agent MUST NOT re-run CodeGraph queries already covered by the pack. It MAY run supplementary queries for content the pack does not cover, but then the receipt MUST include a **包缺口回执** (what was missing, what was queried); the coordinator backfills the pack from it — if the backfill fails, log a WARN, and MUST NOT block implementation.
-   - **Anti-hallucination**: the pack is a distilled view, NOT a substitute for the artifacts. When the pack lacks an item, the sub-agent MUST consult the artifact itself and MUST NOT guess fields or contracts.
+   - **回执（回执最小化）**：子代理以固定四列回执行式回报，每个任务一行 —— \`<任务 id> | <状态> | <产出文件> | <公开签名>\`。回执 MUST NOT 粘贴代码正文。失败任务的回执 MUST 仍带失败原因摘要。
+   - 「公开签名」定义：本单元产出中可能被其他单元引用的符号签名 —— 函数 / 方法 / 类型 / 接口 / 导出常量 / CLI 命令，含其参数与返回类型。若本单元没有可被引用的产出，记「无」。
+   - **空值**：包的 \`## 契约\` 章节无对应条目时，在包中与回执的公开签名列均记「无」。MUST NOT 留空 / MUST NOT 编造。
+   - **共享指令前缀**：每条派发指令按固定顺序拼装 —— 共享前缀（上下文包路径 / \`## 规范要点\` 引用 / 回执格式 / 禁止项）→ 单元差异部分（本单元任务清单）。同一流程的每次派发，其共享前缀 MUST 逐字节一致。
+   - **禁止项**（每条派发指令 MUST 携带它们）：子代理 MUST NOT 重读 proposal/specs/design；子代理 MUST NOT 重跑包已覆盖的 CodeGraph 查询。对包未覆盖的内容 MAY 运行补充查询，但此时回执 MUST 附上**包缺口回执**（缺了什么、查了什么）；编排器据此回填包 —— 回填失败时记录 WARN，且 MUST NOT 阻塞实现。
+   - **反幻觉**：包是蒸馏视图，不是制品的替代品。包中缺少某项时，子代理 MUST 查阅制品本身，MUST NOT 猜测字段或契约。
 
-   **Shared resource protocol — fail-safe degradation:**
+   **共享资源协议 —— fail-safe 降级：**
 
-   - If the temp workspace is not writable: fall back to the system temp directory first (\`iagent-apply-<change-name>/\`, the existing fallback); if that also fails, degrade as below
-   - If the context pack cannot be produced, OR the project has no \`openspec/rules/ai-coding.md\`: degrade to the existing inline-injection behavior and log a WARN — MUST NOT block implementation. Degradation only makes the instruction longer; it NEVER drops a guardrail
-   - \`auto-mode=true\` only skips the Step 5.5 design confirmation gate — the shared resource protocol MUST NOT be exempted by auto-mode and still applies
+   - 临时工作区不可写时：先降级到系统临时目录（\`iagent-apply-<change-name>/\`，既有的降级位置）；若仍失败，按下方降级
+   - 上下文包无法产出，或项目没有 \`openspec/rules/ai-coding.md\` 时：降级为既有内联注入行为并记录 WARN —— MUST NOT 阻塞实现。降级只会让指令更长，绝不会丢弃护栏
+   - \`auto-mode=true\` 只跳过 Step 5.5 设计确认门 —— 共享资源协议 MUST NOT 因 auto-mode 而豁免，仍然适用
 
-   **Environment fallback (no sub-agent capability):**
-   - If the runtime provides no sub-agent dispatch tool (Task/Agent class tools), fall back to serial implementation of all tasks by yourself and inform the user of the fallback
+   **环境降级（无子代理能力）：**
+   - 若运行时未提供子代理派发工具（Task/Agent 一类工具），降级为由你串行实现全部任务，并告知用户已降级
 
-   **Serial fallback (no dependency info):**
-   - If Step 5.5 could not infer a batch plan from design.md (no dependency annotations available): keep serial behavior: for each pending task — show which task is being worked on, make the code changes, set the task checkbox to \`- [x]\` in tasks.md, continue to the next task
+   **串行降级（无依赖信息）：**
+   - 若 Step 5.5 无法从 design.md 推断批计划（无可用依赖标注）：保持串行行为：对每个待办任务 —— 展示当前正在处理的任务、完成代码改动、把 tasks.md 中该任务勾选框置为 \`- [x]\`，继续下一个任务
 
-   **Task Output Handling Rules:**
+   **任务产出处理规则：**
 
-   When implementing tasks, distinguish between **three** output types by task label:
+   实现任务时，按任务标签区分**三**类产出：
 
-   **Code Implementation** (tasks with \`[代码]\` label or unlabeled):
-   - Create/modify files at the appropriate project source locations
-   - Follow normal implementation flow
+   **代码实现**（带 \`[代码]\` 标签或无标签的任务）：
+   - 在合适的项目源码位置创建/修改文件
+   - 遵循常规实现流程
 
-   **Test Code** (tasks with \`[测试]\` label):
-       - **MUST implement inline** (NO delegation to an external skill) — the apply workflow directly owns test generation and MUST NOT delegate to \`iagent_test\` or any other skill；the entire test-writing logic runs inside the same sub-agent that implements the corresponding production code
-       - **Framework detection**: detect the project’s test framework from build files (\`pom.xml\` → JUnit 4/5 + Mockito；\`build.gradle\` → JUnit 4/5 + Mockito；\`package.json\` → Vitest / Jest / Mocha) and structural cues (existing test files under \`src/test/\` or \`test/\`)；align with the EXISTING test style (annotations, assertions, naming conventions) — do NOT invent a new style
-       - **Coverage scope** (minimum): ① spec scenarios — write one test per \`#### Scenario:\` referenced in the task’s \`Spec Ref\`；② BCDE boundaries — Boundary (min/max values, empty collections), Condition (null inputs, missing fields), Default (default-constructed objects, unset enums), Error (invalid inputs, exceptions thrown)；③ if any scenario is evaluated as untestable, record the verdict in the test file as a comment so “not written” stays distinguishable from “never evaluated”
-       - **Test structure**: one test class per production class under test, named \`<ClassName>Test\` (Java) or \`<className>.test.<ext>\` (Node)；each test method covers ONE logical scenario with an \`@Test\` (JUnit) / \`it(...)\` (Vitest/Jest/Mocha) annotation；use the Arrange-Act-Assert (AAA) pattern
-       - **Anti-pattern protection**: MUST NOT write tests that always pass (no assertions)、MUST NOT use \`Thread.sleep()\` for async (use \`await\` / \`CompletableFuture\`)、MUST NOT depend on test execution order (each test isolated)、MUST mock external dependencies (DB / HTTP / file I/O) with the framework’s mock library
-       - Landing location follows the project’s test directory structure (e.g. \`src/test/java/...\`, \`test/...\`) — \`[测试]\` tasks MUST NOT be routed through the \`产出:\` → \`attachments/\` rule, because test code placed under \`attachments/\` cannot be executed
-       - \`[测试]\` tasks MUST NOT be treated as supplement documents
-       - Test tasks depend on their implementation tasks: when a test task’s subject behavior is implemented by another task, schedule the test task in a later batch — MUST NOT run it concurrently with its implementation task
-   **Supplement Documents** (tasks with \`[DB脚本]\`, \`[使用说明]\`, \`[API文档]\`, \`[配置示例]\`, \`[部署说明]\`, \`[测试数据]\` labels):
-   - Read the \`产出:\` field from the task to determine the output path
-   - Default path: \`<changeRoot>/attachments/<filename>\`
-   - Create the file at the default \`attachments/\` location WITHOUT asking
-   - If the \`产出:\` field specifies a path outside \`attachments/\`, or if you determine a different location is more appropriate, MUST pause and ask the user for confirmation before placing the file
-   - Upon user approval of a different location, update the \`产出:\` field in \`tasks.md\` to reflect the actual path
-   - Mark the task complete after file creation
+   **测试代码**（带 \`[测试]\` 标签的任务）：
+       - **MUST 内联实现**（不得委派给外部技能）—— apply 工作流直接负责测试生成，MUST NOT 委派给 \`iagent_test\` 或其他技能；整套写测试逻辑运行在实现对应生产代码的同一子代理内
+       - **框架探测**：从构建文件（\`pom.xml\` → JUnit 4/5 + Mockito；\`build.gradle\` → JUnit 4/5 + Mockito；\`package.json\` → Vitest / Jest / Mocha）与结构线索（\`src/test/\` 或 \`test/\` 下的既有测试文件）探测项目测试框架；对齐**既有**测试风格（注解、断言、命名约定）—— 不得另造新风格
+       - **覆盖范围**（最低要求）：① spec Scenario —— 为任务 \`Spec Ref\` 中引用的每个 \`#### Scenario:\` 写一个测试；② BCDE 边界 —— Boundary（最小/最大值、空集合）、Condition（null 入参、缺失字段）、Default（默认构造对象、未设置枚举）、Error（非法入参、抛出的异常）；③ 若某 Scenario 被判定为不可测，把结论以注释写入测试文件，使"未写"与"从未评估"可区分
+       - **测试结构**：每个被测生产类一个测试类，命名为 \`<ClassName>Test\`（Java）或 \`<className>.test.<ext>\`（Node）；每个测试方法用 \`@Test\`（JUnit）/ \`it(...)\`（Vitest/Jest/Mocha）注解覆盖**一个**逻辑 Scenario；采用 Arrange-Act-Assert (AAA) 模式
+       - **反模式防护**：MUST NOT 写永远通过的测试（无断言）、MUST NOT 用 \`Thread.sleep()\` 处理异步（用 \`await\` / \`CompletableFuture\`）、MUST NOT 依赖测试执行顺序（每个测试相互隔离）、MUST 用框架的 mock 库 mock 外部依赖（DB / HTTP / 文件 I/O）
+       - 落盘位置遵循项目测试目录结构（如 \`src/test/java/...\`、\`test/...\`）—— \`[测试]\` 任务 MUST NOT 走 \`产出:\` → \`attachments/\` 规则，因为放在 \`attachments/\` 下的测试代码无法执行
+       - \`[测试]\` 任务 MUST NOT 当作补充文档处理
+       - 测试任务依赖其实现任务：当测试任务所测行为由另一任务实现时，把该测试任务排到更晚的批 —— MUST NOT 与其实现任务并发运行
+   **补充文档**（带 \`[DB脚本]\`、\`[使用说明]\`、\`[API文档]\`、\`[配置示例]\`、\`[部署说明]\`、\`[测试数据]\` 标签的任务）：
+   - 读取任务的 \`产出:\` 字段以确定输出路径
+   - 默认路径：\`<changeRoot>/attachments/<filename>\`
+   - 直接在默认 \`attachments/\` 位置创建文件，无需询问
+   - 若 \`产出:\` 字段指定的路径在 \`attachments/\` 之外，或你判断其他位置更合适，MUST 暂停并询问用户确认后再放置文件
+   - 用户批准其他位置后，更新 \`tasks.md\` 中的 \`产出:\` 字段以反映实际路径
+   - 文件创建完成后标记该任务完成
 
-   **Unplanned Supplement Documents:**
+   **计划外补充文档：**
 
-   If during implementation the AI identifies a need for a supplementary document not listed in \`tasks.md\`:
-   - Pause the current task
-   - Describe the needed document and reason to the user
-   - Wait for user confirmation
-   - If user confirms: add a new task to \`tasks.md\` with appropriate type label and \`产出:\` path, execute it, then continue with remaining tasks
-   - If user declines: record the decision, continue without creating
+   若实现过程中 AI 发现需要一份 \`tasks.md\` 中未列出的补充文档：
+   - 暂停当前任务
+   - 向用户说明所需文档及其原因
+   - 等待用户确认
+   - 用户确认：向 \`tasks.md\` 新增一个带相应类型标签与 \`产出:\` 路径的任务，执行它，然后继续剩余任务
+   - 用户拒绝：记录该决定，不创建并继续
 
-   **Pause if:**
-   - Task is unclear → ask for clarification
-   - Implementation reveals a design issue → suggest updating artifacts
-   - Error or blocker encountered → report and wait for guidance
-   - User interrupts → complete current batch, mark remaining tasks as incomplete, then pause
-   - Implementation reveals a task's spec behavior must be narrowed, delayed, or simplified to pass → mark **[待确认]** with the difference explanation, ask the user, and after confirmation update proposal/specs/design before continuing (see Scope-creep guard in Guardrails)
+   **遇以下情况暂停：**
+   - 任务含义不清 → 请求澄清
+   - 实现暴露设计问题 → 建议更新制品
+   - 遇到错误或阻塞 → 报告并等待指引
+   - 用户中断 → 完成当前批、把剩余任务标为未完成，然后暂停
+   - 实现揭示必须收窄、延后或简化某任务的 spec 行为才能通过 → 标 **[待确认]** 并说明差异，询问用户，确认后先更新 proposal/specs/design 再继续（见 Guardrails 中的范围蔓延护栏）
 
 `;
 
@@ -129,95 +129,95 @@ export function getSpecApplyChangeSkillTemplate(): SkillTemplate {
         description: '实现变更。当 openspec/changes/ 下已有变更制品（proposal/specs/design/tasks），需要基于规格驱动实现任务清单时使用；触发词"实现变更 / apply / 执行任务 / 按规格实现"；NOT for 无变更制品时直接描述需求（改用 iagent_workflow 引导生成制品后再实现）。',
         allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(ant:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), ${SUBAGENT_DISPATCH}`,
         type: 'spec',
-        instructions: `**Before implementing, read openspec/rules/ai-coding.md for AI coding guardrails.** Never guess database fields, API params, or business rules — mark as **[待确认]** and ask the user.
+        instructions: `**实现前先阅读 openspec/rules/ai-coding.md 的 AI 编码护栏。** 禁止猜测数据库字段、API 参数或业务规则 —— 标 **[待确认]** 并询问用户。
 
-Implement tasks from a change's artifacts (proposal/specs/design/tasks) under openspec/changes/.
+按 openspec/changes/ 下的变更制品（proposal/specs/design/tasks）实现任务。
 
-**Input**: Optionally specify a change name. If omitted, check if it can be inferred from conversation context. If vague or ambiguous you MUST prompt for available changes. The workflow may also pass \`auto-mode=true\` to skip the design confirmation gate for automated execution.
+**Input**: 可选指定变更名；省略时检查能否从对话上下文推断。若含糊或有歧义，MUST 提示可用变更供用户选择。工作流也可能传入 \`auto-mode=true\` 以跳过设计确认门，实现自动执行。
 
 **Steps**
 
-1. **Select the change**
+1. **选择变更**
 
-   If a name is provided, use it. Otherwise:
-   - Infer from conversation context if the user mentioned a change
-   - Auto-select if only one active change exists
-   - If ambiguous, run \`iagent spec status --json\` to get available changes and use the **AskUserQuestion tool** to let the user select
+   已提供名称则直接使用；否则：
+   - 用户提到变更时，从对话上下文推断
+   - 仅存在一个活动变更时自动选择
+   - 若有歧义，运行 \`iagent spec status --json\` 获取可用变更，并用 **AskUserQuestion tool** 让用户选择
 
-   Always announce: "Using change: <name>" and how to override (e.g., \`/iagent:spec-apply <other>\`).
+   始终声明"正在使用变更：<name>"，并说明如何覆盖（如 \`/iagent:spec-apply <other>\`）。
 
-2. **Check status to understand the schema**
+2. **检查状态以了解 schema**
    \`\`\`bash
    iagent spec status --change "<name>" --json
    \`\`\`
-   Parse the JSON to understand:
-   - \`schemaName\`: The workflow being used (e.g., "spec-driven")
-   - \`planningHome\`, \`changeRoot\`, and \`actionContext\`: planning scope and edit constraints
-   - \`progress\`: total, complete, remaining task counts
-   - Which artifact contains the tasks (typically "tasks" for spec-driven, check status for others)
+   解析 JSON 以了解：
+   - \`schemaName\`：正在使用的工作流（如 "spec-driven"）
+   - \`planningHome\`、\`changeRoot\` 与 \`actionContext\`：规划范围与编辑约束
+   - \`progress\`：任务总数、已完成数、剩余数
+   - 哪个制品承载任务（spec-driven 通常为 "tasks"，其他类型以状态输出为准）
 
-   **Workspace guard:** If status JSON reports \`actionContext.mode: "workspace-planning"\` and \`allowedEditRoots\` is empty, explain that full workspace apply is not supported in this slice. Treat linked repos and folders as read-only context, ask the user to select an affected area through an explicit implementation workflow, and STOP before editing files.
+   **工作区护栏：** 若状态 JSON 报告 \`actionContext.mode: "workspace-planning"\` 且 \`allowedEditRoots\` 为空，说明本切片不支持完整工作区 apply。把关联仓库与目录视为只读上下文，请用户通过显式实现工作流选择受影响区域，并在编辑文件前 STOP。
 
-   **Skipped artifacts handling:** If status reports any artifact with \`skipped\` state (the change declares \`skip_specs\`), do NOT treat it as missing — its dependencies are considered satisfied, and implementation proceeds normally for the remaining artifacts. Such artifacts are not flagged as incomplete in the \`instruction\` state returned by Step 3.
+   **跳过制品（skipped）处理：** 若状态报告某制品为 \`skipped\`（变更声明了 \`skip_specs\`），不要把它当作缺失 —— 其依赖视为已满足，其余制品照常实现。此类制品不会在 Step 3 返回的 \`instruction\` 状态中被标为未完成。
 
-3. **Get task list and context files**
+3. **获取任务清单与上下文文件**
 
-   **Primary path — iagent CLI \`instructions apply\` (preferred):**
+   **主路径 —— iagent CLI \`instructions apply\`（优先）：**
    \`\`\`bash
    iagent spec instructions apply --change "<name>" --json
    \`\`\`
-   Parse the JSON to obtain structured task context:
-   - \`contextFiles\`: artifact → file path mapping (proposal/specs/design/tasks → their absolute or change-relative paths); use these as the authoritative file list instead of assuming standard file names
-   - \`progress\`: total, complete, remaining task counts (used for progress display in Step 5)
-   - \`taskList\`: structured task entries with checkbox state and group labels (used for batch planning in Step 5.5)
-   - \`instruction\`: dynamic three-state directive:
-     - \`"blocked"\`: artifacts missing or incomplete → suggest running \`iagent_spec_verify\` to complete artifacts first; STOP before implementing
-     - \`"ready"\`: artifacts complete and tasks pending → proceed to Step 4 (read context files)
-     - \`"all_done"\`: all tasks already complete → congratulate, suggest archive; STOP
+   解析 JSON 以获得结构化任务上下文：
+   - \`contextFiles\`：制品 → 文件路径映射（proposal/specs/design/tasks → 各自的绝对路径或变更内相对路径）；以此作为权威文件清单，不要假设标准文件名
+   - \`progress\`：任务总数、已完成数、剩余数（用于 Step 5 的进度展示）
+   - \`taskList\`：带勾选状态与分组标签的结构化任务条目（用于 Step 5.5 的批规划）
+   - \`instruction\`：动态三态指令：
+     - \`"blocked"\`：制品缺失或不完整 → 建议先运行 \`iagent_spec_verify\` 补全制品；实现前 STOP
+     - \`"ready"\`：制品完整且存在待办任务 → 进入 Step 4（读取上下文文件）
+     - \`"all_done"\`：全部任务已完成 → 祝贺并建议归档；STOP
 
-   **Markdown artifact context (PRIMARY source for all new changes):**
+   **Markdown 制品上下文（所有新变更的主源）：**
 
-   Read proposal.md, design.md, specs/**/*.md and tasks.md directly from the contextFiles returned by the CLI. Markdown is the only editable source of truth. Historical JSON-only changes may be read-only compatibility inputs and MUST emit a WARN; do not update them during apply.
+   直接读取 CLI 返回的 contextFiles 中的 proposal.md、design.md、specs/**/*.md 与 tasks.md。Markdown 是唯一可编辑的真源。历史 JSON-only 变更只作只读兼容输入且 MUST 输出 WARN；apply 期间不得更新它们。
 
-   **Task state:** tasks.md checkboxes are authoritative. After completing a task, edit only its checkbox from \`- [ ]\` to \`- [x]\` after verifying the specified behavior. Do not create or update tasks.json and do not run a render command.
+   **任务状态：** 以 tasks.md 的勾选框为唯一权威。完成任务并验证所声明的行为后，只把该任务的勾选框从 \`- [ ]\` 改为 \`- [x]\`。不要创建或更新 tasks.json，也不要运行 render 命令。
 
-   **Fallback path (old CLI without \`instructions apply\`):**
-   - Read proposal.md, specs/**/*.md, design.md and tasks.md directly.
-   - Log a WARN stating the fallback reason.
-   - Preserve the same Markdown-first semantics and task checkbox rules.
-   **Handle states (both paths):**
-   - If artifacts are missing (proposal/specs/design/tasks): show message, suggest using \`iagent_spec_verify\` to complete the artifacts first
-   - If all tasks are already complete: congratulate, suggest archive
-   - Otherwise: proceed to implementation
+   **降级路径（不支持 \`instructions apply\` 的旧 CLI）：**
+   - 直接读取 proposal.md、specs/**/*.md、design.md 与 tasks.md。
+   - 记录 WARN 说明降级原因。
+   - 保持相同的 Markdown 优先语义与任务勾选规则。
+   **状态处理（两条路径相同）：**
+   - 制品缺失（proposal/specs/design/tasks）：给出提示，建议先用 \`iagent_spec_verify\` 补全制品
+   - 全部任务已完成：祝贺并建议归档
+   - 其他情况：进入实现
 
-4. **Read context files**
+4. **读取上下文文件**
 
-   Follow the Markdown-first rule from Step 3 — read the structured sections directly:
-   - **proposal.md**: Why and What Changes
-   - **design.md**: Decisions, architecture and module dependencies
-   - **specs/**/*.md**: delta requirements and scenarios
-   - **tasks.md**: task list with checkbox status
+   遵循 Step 3 的 Markdown 优先规则 —— 直接读取结构化章节：
+   - **proposal.md**：Why 与 What Changes
+   - **design.md**：Decisions、架构与模块依赖
+   - **specs/**/*.md**：delta 需求与 Scenario
+   - **tasks.md**：带勾选状态的任务清单
 
-   Throughout the remaining steps, proposal/design/specs/tasks refer to these Markdown artifacts.
+   后续步骤中的 proposal/design/specs/tasks 均指这些 Markdown 制品。
 
-5. **Show current progress**
+5. **展示当前进度**
 
-   Display:
-   - Schema being used
-   - Progress: "N/M tasks complete"
-   - Remaining tasks overview
+   展示：
+   - 正在使用的 Schema
+   - 进度："N/M tasks complete"
+   - 剩余任务概览
 
-**5.5. Design Confirmation Gate** ⚠️ MANDATORY
+**5.5. 设计确认门** ⚠️ 强制
 
-   After reading context files and BEFORE implementing any task, build the unified concurrent batch plan, present a design blueprint summary, and WAIT for user confirmation:
+   读完上下文文件后、实现任何任务前，先构建统一并发批计划、展示设计方案摘要，并等待用户确认：
 
-   **Auto-mode check**: If the apply was invoked with \`auto-mode=true\` (from workflow auto-apply context), skip the entire Step 5.5 confirmation gate — proceed directly to Step 6 (batch scheduling). The batch plan is still built internally for execution but is NOT presented to the user.
+   **auto-mode 检查**：若 apply 以 \`auto-mode=true\` 调用（来自 workflow 自动 apply 上下文），跳过整个 Step 5.5 确认门 —— 直接进入 Step 6（批调度）。批计划仍在内部构建用于执行，但不向用户展示。
 
-   **Build the unified concurrent batch plan first:**
-   - The iagent CLI does not return a \`batchPlan\` — infer dependencies for all tasks from design.md (architecture layering, module dependencies); tasks with no dependency annotations are treated as independent within their group
-   - Cluster same-group tasks (\`## N\` headings, from each task's \`group\` field) into dispatch units — one sub-agent per unit
-   - If design.md reveals circular dependencies among some tasks: include a circular-dependency warning line; degrade those tasks to serial execution
-   - If design.md lacks dependency info: plan serial execution and note "(串行执行 - 无依赖信息)" in the blueprint
+   **先构建统一并发批计划：**
+   - iagent CLI 不返回 \`batchPlan\` —— 需从 design.md 推断所有任务的依赖（架构分层、模块依赖）；无依赖标注的任务视为同组内相互独立
+   - 把同组任务（\`## N\` 标题，取自各任务的 \`group\` 字段）聚合为派发单元 —— 每个单元一个子代理
+   - 若 design.md 显示部分任务存在循环依赖：加入循环依赖告警行，并把这些任务降级为串行执行
+   - 若 design.md 缺少依赖信息：按串行执行规划，并在蓝图中注明 "(串行执行 - 无依赖信息)"
 
    \`\`\`
    📋 **设计方案确认**
@@ -254,126 +254,126 @@ Implement tasks from a change's artifacts (proposal/specs/design/tasks) under op
    [确认 ✓] [修改设计] [取消]
    \`\`\`
 
-   - If user replies **"确认"**: one confirmation covers ALL batches — proceed to Step 6 and start batch scheduling
-   - If user replies **"修改设计"** or **"取消"**: STOP and wait for design updates (no task is implemented)
-   - **Auto-mode override**: When \`auto-mode=true\`, the gate is skipped entirely — the blueprint is NOT shown, and execution proceeds directly to Step 6. This gate CANNOT be skipped when auto-mode is not set or is false.
-   - This gate CANNOT be skipped — do NOT proceed without explicit confirmation (unless auto-mode is active)
+   - 若用户回复 **"确认"**：一次确认覆盖**全部**批 —— 进入 Step 6 开始批调度
+   - 若用户回复 **"修改设计"** 或 **"取消"**：STOP 并等待设计更新（不实现任何任务）
+   - **auto-mode 覆盖**：\`auto-mode=true\` 时整道门被跳过 —— 不展示蓝图，直接进入 Step 6。未设置 auto-mode 或其为 false 时**不能**跳过本门。
+   - 本门**不能**跳过 —— 未经显式确认不得继续（除非 auto-mode 生效）
 
-   **Temp workspace protocol (flow-scoped, managed by the main agent):**
-   - After the user confirms the design (or when auto-mode is active) and BEFORE dispatching any batch, create a single temp workspace directory — **project-local first**: \`.openspec-tmp/apply-<change-name>/\` under the project root (build the path with path.join for cross-platform safety). Add \`.openspec-tmp/\` to the project's \`.gitignore\` if not already present, so the workspace never pollutes git status; leave the entry in place after cleanup for future runs. If the project root is not writable, fall back to the system temp directory named \`iagent-apply-<change-name>/\` and log a WARN stating the fallback location
-   - ALL temporary files created during the flow (compile verification scripts, temporary configs, scratch outputs) MUST be placed inside this workspace — do NOT scatter temp files across the project directory
-   - Create the workspace once at flow start and clean it up once at flow end — do NOT create or remove temp directories per task or per batch
+   **临时工作区协议（流程级，由主代理管理）：**
+   - 用户确认设计后（或 auto-mode 生效时）、派发任何批**之前**，创建一个临时工作区目录 —— **优先项目内**：项目根下的 \`.openspec-tmp/apply-<change-name>/\`（路径用 path.join 构建以保证跨平台）。若项目 \`.gitignore\` 中尚无 \`.openspec-tmp/\` 条目则补上，使该工作区不会污染 git status；清理后保留该条目供后续运行使用。若项目根不可写，降级到系统临时目录 \`iagent-apply-<change-name>/\` 并记录 WARN 说明降级位置
+   - 流程内产生的所有临时文件（编译校验脚本、临时配置、草稿输出）MUST 放在该工作区内 —— 不得把临时文件散落到项目目录各处
+   - 工作区在流程开始时创建一次、流程结束时清理一次 —— 不得按任务或按批创建/删除临时目录
 
 > **批调度细则下沉**：Step 6 并发批调度协议（批形态判定、子代理派发、共享资源协议、失败处理）见 \`references/batch-scheduling.md\`；执行 Step 6 前 MUST 先 \`Read\` 该文件。
 
-7. **On completion or pause, show status**
+7. **完成或暂停时展示状态**
 
-   Display:
-   - Tasks completed this session
-   - Overall progress: "N/M tasks complete"
-   - If all done: proceed to Step 8 (compile check)
-   - If paused: explain why and wait for guidance
+   展示：
+   - 本次会话完成的任务
+   - 总体进度："N/M tasks complete"
+   - 若全部完成：进入 Step 8（编译检查）
+   - 若暂停：说明原因并等待指引
 
-8. **Compile Check Phase** ⚠️ MANDATORY
+8. **编译检查阶段** ⚠️ 强制
 
-   After all tasks are complete, execute automatic compile check:
+   全部任务完成后，执行自动编译检查：
 
-   **8.1 Load compile check configuration**
-   - Read \`openspec/config.yaml\` for \`compileCheck\` settings
-   - If \`compileCheck.enabled: false\`, skip to Step 9 (test execution gate)
+   **8.1 加载编译检查配置**
+   - 读取 \`openspec/config.yaml\` 的 \`compileCheck\` 配置
+   - 若 \`compileCheck.enabled: false\`，跳到 Step 9（测试执行门）
 
-   **8.2 Detect tech stack**
-   - Parse \`config.yaml\` context for keywords (TypeScript, Java, Go, Rust)
-   - Check project config files (tsconfig.json, pom.xml, go.mod, Cargo.toml)
-   - For Java: determine build tool (Maven/Ant/Gradle) from config or build files
-   - If no tech stack detected, warn and skip compile check
+   **8.2 探测技术栈**
+   - 从 \`config.yaml\` 的 context 中解析关键词（TypeScript、Java、Go、Rust）
+   - 检查项目配置文件（tsconfig.json、pom.xml、go.mod、Cargo.toml）
+   - Java：从配置或构建文件判定构建工具（Maven/Ant/Gradle）
+   - 未探测到技术栈时，给出告警并跳过编译检查
 
-   **8.3 Get change-scope files**
-   - Parse \`allowedEditRoots\` from status JSON
-   - Use \`git diff\` to identify modified files in change scope
-   - Classify files into backend (TypeScript/Java/Go/Rust) and frontend (JSP/Vue/React)
+   **8.3 获取变更范围文件**
+   - 从状态 JSON 解析 \`allowedEditRoots\`
+   - 用 \`git diff\` 识别变更范围内的已修改文件
+   - 将文件分为后端（TypeScript/Java/Go/Rust）与前端（JSP/Vue/React）
 
-   **8.4 Execute backend compile check**
-   - Execute compile command per tech stack:
+   **8.4 执行后端编译检查**
+   - 按技术栈执行编译命令：
      - TypeScript: \`tsc --noEmit\` or \`pnpm run build\` (fallback: \`npm run build\`)
      - Java-Maven: \`mvn compile -DskipTests\`
      - Java-Ant: \`ant compile\`
      - Java-Gradle: \`gradle compileJava\`
      - Go: \`go build ./...\`
      - Rust: \`cargo build\`
-   - Capture errors and parse into structured format
+   - 捕获错误并解析为结构化格式
 
-   **8.5 Execute backend lint check** (if configured)
-   - TypeScript: \`eslint\`
-   - Java: \`mvn checkstyle:check\`
-   - Identify fixable vs non-fixable issues
+   **8.5 执行后端 lint 检查**（若已配置）
+   - TypeScript：\`eslint\`
+   - Java：\`mvn checkstyle:check\`
+   - 区分可自动修复与不可自动修复的问题
 
-   **8.6 Execute frontend validation** (if configured)
-   - JSP files: validate tag closure, EL expressions, custom tag definitions
-   - Vue/React: check component references
+   **8.6 执行前端校验**（若已配置）
+   - JSP 文件：校验标签闭合、EL 表达式、自定义标签定义
+   - Vue/React：检查组件引用
 
-   **8.7 Auto-fix loop** (if configured)
-   - If \`autoFix.enabled: true\`:
-     - Classify issues by fixability (type annotation, unused variable, import order)
-     - Apply fixes to change-scope files
-     - Re-run compile/lint checks
-     - Repeat up to \`maxRetries\` (default 3)
+   **8.7 自动修复循环**（若已配置）
+   - 若 \`autoFix.enabled: true\`：
+     - 按可修复性分类问题（类型标注、未使用变量、import 顺序）
+     - 对变更范围内的文件应用修复
+     - 重新运行编译/lint 检查
+     - 最多重复 \`maxRetries\` 次（默认 3）
 
-   **8.8 Generate compile check report**
-   - Summarize results: backend compile, lint, frontend
-   - List all fixed issues with file:line references
-   - List issues requiring manual intervention
+   **8.8 生成编译检查报告**
+   - 汇总结果：后端编译、lint、前端
+   - 列出所有已修复问题及其 file:line 引用
+   - 列出需人工介入的问题
 
-   **8.9 Handle check failures**
-   - If failures remain after auto-fix:
-     - Display failure options per \`onFailure\` config
-     - Options: [1] View details, [2] Manual fix, [3] Skip with warning
-   - If all checks pass: proceed to Step 9 (test execution gate)
+   **8.9 处理检查失败**
+   - 若自动修复后仍有失败：
+     - 按 \`onFailure\` 配置展示失败处理选项
+     - 选项：[1] 查看详情，[2] 手动修复，[3] 跳过并记录警告
+   - 若全部检查通过：进入 Step 9（测试执行门）
 
-9. **Test Execution Gate** ⚠️ MANDATORY (only the change scope)
-   - Runs AFTER the compile check (§8). Compile failure is a hard error; test failure is a different class of problem (pre-existing red tests, assertion mismatches, environment issues) — that is why the two gates are separate and MUST NOT be merged into one. §8 MUST keep its \`-DskipTests\`/\`compile\` semantics; this gate owns test execution.
+9. **测试执行门** ⚠️ 强制（仅限变更范围内）
+   - 在编译检查（§8）之后运行。编译失败是硬错误；测试失败属于另一类问题（存量红灯测试、断言不匹配、环境问题）—— 这正是两道门分开、MUST NOT 合并为一道的原因。§8 MUST 保持其 \`-DskipTests\`/\`compile\` 语义；测试执行由本门负责。
 
-   **9.1 Detect the test command** — from the same tech stack detected in §8.2:
-   - Java-Maven: \`mvn test\` (scope by \`-Dtest=...\` when running selected classes)
-   - Java-Gradle: \`gradle test\`
-   - Java-Ant: \`ant test\`
-   - TypeScript/Node: \`pnpm test\` / \`npm test\`
-   - Go: \`go test ./...\`  |  Rust: \`cargo test\`
-   - No test framework detected in the project → log a WARN, skip the gate, continue (non-blocking)
+   **9.1 探测测试命令** —— 基于 §8.2 探测到的同一技术栈：
+   - Java-Maven：\`mvn test\`（仅跑选定类时用 \`-Dtest=...\` 限定范围）
+   - Java-Gradle：\`gradle test\`
+   - Java-Ant：\`ant test\`
+   - TypeScript/Node：\`pnpm test\` / \`npm test\`
+   - Go：\`go test ./...\`  |  Rust：\`cargo test\`
+   - 项目中未探测到测试框架 → 记录 WARN，跳过本门并继续（非阻塞）
 
-   **9.2 Determine the change scope** — the test set to run is:
-   - Test files produced by this change's \`[测试]\` tasks (read their \`Spec Ref\` / file paths from \`tasks.md\`)
-   - Existing test files that cover the files modified by this change (match by mirrored package path / naming convention, e.g. \`UserServiceImpl\` → \`UserServiceImplTest\`)
+   **9.2 确定变更范围** —— 需要运行的测试集为：
+   - 本变更 \`[测试]\` 任务产出的测试文件（从 \`tasks.md\` 读取其 \`Spec Ref\` / 文件路径）
+   - 覆盖本变更所修改文件的既有测试文件（按镜像包路径 / 命名约定匹配，如 \`UserServiceImpl\` → \`UserServiceImplTest\`）
 
-   **9.3 Run the change-scope tests** — execute only the scope from §9.2. Do NOT run the full suite as a pass/fail criterion.
+   **9.3 运行变更范围测试** —— 只执行 §9.2 的范围。不得把全量测试套件的结果作为通过/失败判据。
 
-   **9.4 Verdict**
-   - **All in-scope tests pass** → record and proceed to §10
-   - **Pre-existing failures OUTSIDE the change scope** → report as WARN only. These MUST NOT count as this change's failure and MUST NOT block the flow (projects with an already-red suite are common; a full-suite criterion would make this gate unusable and push users to bypass it)
-   - **Failures INSIDE the change scope** → enter the failure-handling branch (§9.5)
+   **9.4 判定**
+   - **范围内测试全部通过** → 记录并进入 §10
+   - **变更范围外的存量失败** → 仅作为 WARN 报告。MUST NOT 计为本变更的失败，MUST NOT 阻塞流程（存量红灯套件很常见；以全量套件为判据会让本门不可用，并促使用户绕过它）
+   - **变更范围内的失败** → 进入失败处理分支（§9.5）
 
-   **9.5 In-scope failure handling**
-   - Auto-fix and re-run, up to 3 attempts (same retry budget as §8.7). Distinguish: test code wrong → fix the test; production code defective → fix the implementation (per \`openspec/rules/ai-coding.md\`)
-   - If failures remain after 3 attempts: pause and report to the user. MUST NOT mark the corresponding task \`[x]\`, MUST NOT proceed to archiving
-   - If a test's expected behavior must be narrowed or simplified to pass → apply the scope-creep guard: mark **[待确认]**, explain the difference, ask the user
+   **9.5 范围内失败处理**
+   - 自动修复并重跑，最多 3 次（与 §8.7 相同的重试预算）。区分：测试代码有误 → 修测试；生产代码有缺陷 → 修实现（按 \`openspec/rules/ai-coding.md\`）
+   - 3 次后仍有失败：暂停并向用户报告。MUST NOT 把对应任务标为 \`[x]\`，MUST NOT 进入归档
+   - 若必须收窄或简化测试的预期行为才能通过 → 适用范围蔓延护栏：标 **[待确认]**，说明差异并询问用户
 
-   **9.6 Test gate report** — summarize: scope covered, in-scope pass/fail counts, out-of-scope pre-existing failures (WARN), coverage figure if the coverage tool ran (see \`iagent_test\` §5.1)
+   **9.6 测试门报告** —— 汇总：覆盖范围、范围内通过/失败数、范围外存量失败（WARN）、覆盖率工具运行时的覆盖率数据（见 \`iagent_test\` §5.1）
 
-10. **Unified temp workspace cleanup** ⚠️ MANDATORY
-   - After BOTH the compile check (§8) and the test execution gate (§9) have finished — whether they passed, failed, or were skipped — delete the entire temp workspace in a single cleanup step
-   - The cleanup scope INCLUDES the shared context pack and its output ledger (both live inside the temp workspace) — they are flow-scoped artifacts and MUST NOT be left behind
-   - If the cleanup fails (file locked, permission denied): log a WARN with the workspace path so the user can remove it manually, and continue the flow without blocking
+10. **统一临时工作区清理** ⚠️ 强制
+   - 编译检查（§8）与测试执行门（§9）都结束后 —— 无论通过、失败还是跳过 —— 在单次清理中删除整个临时工作区
+   - 清理范围**包含**共享上下文包及其产出登记表（二者都在临时工作区内）—— 它们是流程级制品，MUST NOT 遗留
+   - 若清理失败（文件被占用、权限不足）：记录 WARN 并给出工作区路径，便于用户手动删除，流程继续、不阻塞
 
-11. **Final status and archive suggestion**
+11. **最终状态与归档建议**
 
-   Display:
-   - Compile check results summary
-   - Test execution gate results summary
-   - All tasks complete status
-   - Suggest archiving the change via iagent spec archive "<name>" --yes (or the iagent_spec_archive skill)
+   展示：
+   - 编译检查结果汇总
+   - 测试执行门结果汇总
+   - 全部任务完成状态
+   - 建议通过 iagent spec archive "<name>" --yes（或 iagent_spec_archive 技能）归档变更
 
 <!-- CMD:SKIP -->
-**Output During Implementation**
+**Output（实现过程中）**
 
 \`\`\`
 ## Implementing: <change-name> (schema: <schema-name>)
@@ -391,7 +391,7 @@ Working on task 6/7: <task description>
 ✓ Task complete
 \`\`\`
 
-**Output On Completion**
+**Output（完成时）**
 
 \`\`\`
 ## Implementation Complete
@@ -420,7 +420,7 @@ Starting compile check...
 All checks passed! You can archive this change via iagent CLI.
 \`\`\`
 
-**Output On Compile Check Failure**
+**Output（编译检查失败时）**
 
 \`\`\`
 ## Implementation Complete
@@ -451,7 +451,7 @@ All checks passed! You can archive this change via iagent CLI.
 请选择处理方式？
 \`\`\`
 
-**Output On Pause (Issue Encountered)**
+**Output（暂停：遇到问题时）**
 
 \`\`\`
 ## Implementation Paused
@@ -471,7 +471,7 @@ All checks passed! You can archive this change via iagent CLI.
 What would you like to do?
 \`\`\`
 
-**Output On Batch Task Failure Pause**
+**Output（批任务失败暂停时）**
 
 \`\`\`
 ## Implementation Paused — Task Failure
@@ -498,34 +498,34 @@ What would you like to do?
 <!-- /CMD:SKIP -->
 
 **Guardrails**
-- Keep going through tasks until done or blocked
-- Always read artifact files (proposal/specs/design/tasks) before starting
-- If task is ambiguous, pause and ask before implementing
-- If implementation reveals issues, pause and suggest artifact updates
-- Keep code changes minimal and scoped to each task
-- Update tasks.md centrally: mark confirmed-complete tasks (\`- [ ]\` → \`- [x]\`) ONLY when the task's spec behavior is fully implemented — partial or delayed implementations SHALL NOT be checked; for directly implemented tasks (serial fallback or single-task batch), mark complete immediately after the task is fully done
-- ⚠️ **Scope-creep guard**: If implementation reveals that a task's spec behavior must be narrowed, delayed, or simplified to pass, MUST surface the finding — mark it **[待确认]** with a clear explanation of the difference between the spec and the actual implementation, and ask the user. Never silently shrink, delay, or simplify spec behavior to make a task checkmark pass. After user confirmation, MUST update proposal/specs/design to reflect the adjusted scope before continuing implementation.
-- Pause on errors, blockers, or unclear requirements - don't guess
-- Never fabricate database field names, types, or API endpoints — verify against existing code
-- Follow layered generation order: Entity/DTO → Mapper/DAO → Service → Controller → Frontend
-- Handle Loading/Empty/Error/Data states for every frontend data-display component
-- Pause immediately when implementation conflicts with existing code or shared utility signatures
-- Before compile check, perform pre-delivery self-check: no guessed fields, API contract aligned, params validated, UI states covered
-- Read artifact files directly from the change directory — don't assume specific file names beyond the standard set
-- ⚠️ **MANDATORY**: Execute Step 8 Compile Check after all tasks complete
-- ⚠️ **MANDATORY**: Execute Step 9 Test Execution Gate after the compile check — scope limited to the change (in-scope failures block; pre-existing out-of-scope failures are WARN only and MUST NOT block)
-- ⚠️ **MANDATORY**: \`[测试]\` tasks MUST be implemented inline following the test generation rules (framework detection → style alignment → BCDE coverage → anti-pattern protection); MUST NOT be delegated to an external skill and MUST NOT be routed through the supplement-document \`产出:\` → \`attachments/\` rule (test code under attachments/ cannot run)
+- 持续推进任务直至完成或被阻塞
+- 开始前始终先阅读制品文件（proposal/specs/design/tasks）
+- 任务含义不明时暂停，先询问再实现
+- 实现暴露问题时暂停，并建议更新制品
+- 保持代码改动最小且限定在单个任务范围内
+- 集中更新 tasks.md：仅当任务的 spec 行为**完整实现**后才把已确认完成的任务标为 \`- [ ]\` → \`- [x]\` —— 部分实现或延后实现 SHALL NOT 勾选；直接实现的任务（串行降级或单任务批）在任务完全做完后立即标记完成
+- ⚠️ **范围蔓延护栏**：若实现揭示必须收窄、延后或简化某任务的 spec 行为才能通过，MUST 显式提出该发现 —— 标 **[待确认]**，清楚说明 spec 与实际实现的差异，并询问用户。绝不为让任务勾选通过而静默缩小、延后或简化 spec 行为。用户确认后，MUST 先更新 proposal/specs/design 以反映调整后的范围，再继续实现。
+- 遇错误、阻塞或需求不清时暂停 —— 不要猜测
+- 绝不编造数据库字段名、类型或 API 端点 —— 对照既有代码核实
+- 遵循分层生成顺序：Entity/DTO → Mapper/DAO → Service → Controller → Frontend
+- 每个前端数据展示组件都要处理 Loading/Empty/Error/Data 状态
+- 实现与既有代码或共享工具签名冲突时立即暂停
+- 编译检查前做交付前自检：无猜测字段、API 契约对齐、参数已校验、UI 状态已覆盖
+- 直接从变更目录读取制品文件 —— 除标准集合外不要假设具体文件名
+- ⚠️ **强制**：全部任务完成后执行 Step 8 编译检查
+- ⚠️ **强制**：编译检查后执行 Step 9 测试执行门 —— 范围限定为本次变更（范围内失败阻塞；范围外存量失败仅 WARN 且 MUST NOT 阻塞）
+- ⚠️ **强制**：\`[测试]\` 任务 MUST 内联实现，遵循测试生成规则（框架探测 → 风格对齐 → BCDE 覆盖 → 反模式防护）；MUST NOT 委派给外部技能，MUST NOT 走补充文档的 \`产出:\` → \`attachments/\` 规则（放在 attachments/ 下的测试代码无法运行）
 
-- ⚠️ **MANDATORY**: Sub-agent dispatch instruction MUST carry the EXIT GUARD (子代理退出守卫) — 完成分配任务后立即停止并返回回执，MUST NOT enter plan mode / design mode / propose next steps；编排器是唯一有权判停和推进阶段的角色
-- ⚠️ **MANDATORY**: Sub-agent MUST FIRST read the context pack before any other action — MUST NOT re-read proposal/specs/design or re-run CodeGraph queries already covered by the pack；仅做增量查询
-- ⚠️ **MANDATORY**: Parse compile errors and offer fix options before suggesting archive
+- ⚠️ **强制**：子代理派发指令 MUST 携带 EXIT GUARD（子代理退出守卫）—— 完成分配任务后立即停止并返回回执，MUST NOT 进入 plan 模式 / 设计模式，也不得提出后续步骤；编排器是唯一有权判停和推进阶段的角色
+- ⚠️ **强制**：子代理 MUST 先读取上下文包，再执行其它任何动作 —— 不得先做其他动作；MUST NOT 重读 proposal/specs/design，MUST NOT 重跑包已覆盖的 CodeGraph 查询；仅做增量查询
+- ⚠️ **强制**：给出归档建议前先解析编译错误并提供修复选项
 
-**Fluid Workflow Integration**
+**流畅工作流集成**
 
-This skill supports the "actions on a change" model:
+本技能支持"对变更的动作"模型：
 
-- **Can be invoked anytime**: Before all artifacts are done (if tasks exist), after partial implementation, interleaved with other actions
-- **Allows artifact updates**: If implementation reveals design issues, suggest updating artifacts - not phase-locked, work fluidly`,
+- **可随时调用**：全部制品完成前（只要有任务存在）、部分实现后、与其他动作交错进行时均可调用
+- **允许更新制品**：实现暴露设计问题时，建议更新制品 —— 不受阶段锁定，流畅推进`,
         license: 'MIT',
         compatibility: '依赖 iagent CLI（spec 命令组）。',
         metadata: { author: 'mi-agent-tools' },

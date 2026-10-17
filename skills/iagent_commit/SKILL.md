@@ -8,10 +8,12 @@ metadata:
   author: mi-agent-tools
   type: commit
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:d70cf97eedcba8e269ed37b191344f93d66911fc16d0c6ffd51c1fd3f0f793c2"
+  generatedFingerprint: "sha256:d3e10d4589d0af5e0d09b281565537507ce4fdbf558a51b5acd59559873fb859"
 ---
 
 提交变更 —— 提交前必须核对变更内容，提交信息必须符合规范。
+
+**输入**：`/iagent:commit` 后可跟提交信息建议或说明（可省略，省略时自动生成后展示确认）。
 
 ## 执行步骤
 

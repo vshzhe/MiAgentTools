@@ -55,7 +55,7 @@ describe('Markdown-first 回归锁', () => {
             .map((r) => r.content)
             .join('\n')}`;
         expect(applyText).toContain('context-pack.md');
-        expect(applyText).toContain('tasks.md checkboxes are authoritative');
+        expect(applyText).toContain('以 tasks.md 的勾选框为唯一权威');
     });
 
     it('instructions 输出不含 jsonTemplate 字段', () => {

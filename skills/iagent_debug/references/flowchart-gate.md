@@ -1,4 +1,4 @@
-### 功能流程图（Functional Flowchart）
+### 功能流程图
 
 **Step 1 — 生成流程图与节点清单**
 
@@ -39,7 +39,7 @@ flowchart TD
 
 **Step 2 — ⛔ GATE: 流程最终确认门（强制停止）**
 
-> **THIS IS A CONFIRMATION GATE. Your response MUST END here. Do NOT continue beyond this point.**
+> **这是一个确认门。本次响应 MUST 到此结束，不得越过此点继续。**
 
 向用户呈现流程图与节点清单并**立即结束本次响应**；用户确认前 MUST NOT 进入探索完成检测，MUST NOT 将流程图传递给提案阶段。
 

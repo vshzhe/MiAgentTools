@@ -1,7 +1,7 @@
 /**
- * 模板派生一致性测试（spec 工作流单一源）。
+ * 模板派生一致性测试（全模板单一源）。
  *
- * 保证 7 个 spec 工作流的 command content 由 skill instructions（唯一源）经
+ * 保证全部 20 个技能模板的 command content 由 skill instructions（唯一源）经
  * deriveCommandContent 派生生成，防止双模板手工双写回归（2026-09-14 漂移教训）：
  *   1. command.content === deriveCommandContent(skill.instructions) —— 派生关系锁定
  *   2. 派生输出非空且无 CMD:SKIP 标记泄漏
@@ -12,14 +12,14 @@ import { describe, it, expect } from 'vitest';
 import { getSkillTemplates, getCommandTemplates } from '../src/core/templates/registry.js';
 import { deriveCommandContent } from '../src/core/templates/derive-command.js';
 
-describe('模板派生一致性（spec 工作流单一源）', () => {
-    const skillEntries = getSkillTemplates('spec');
-    const commandEntries = getCommandTemplates('spec');
+describe('模板派生一致性（全模板单一源）', () => {
+    const skillEntries = getSkillTemplates();
+    const commandEntries = getCommandTemplates();
     const commandById = new Map(commandEntries.map(({ template, id }) => [id, template]));
 
-    it('spec 工作流数量为 7（skill 与 command 成对）', () => {
-        expect(skillEntries.length).toBe(7);
-        expect(commandEntries.length).toBe(7);
+    it('技能与指令成对注册且均为 20 个', () => {
+        expect(skillEntries.length).toBe(20);
+        expect(commandEntries.length).toBe(20);
     });
 
     for (const { template: skill, commandId } of skillEntries) {
@@ -61,26 +61,21 @@ describe('模板派生一致性（spec 工作流单一源）', () => {
         const derived = commandById.get(explore?.commandId ?? '')?.content ?? '';
 
         // 唯一源含本制品
-        expect(instructions).toContain('功能流程图（Functional Flowchart）');
+        expect(instructions).toContain('功能流程图');
         // 派生输出必须保留：块若被 <!-- CMD:SKIP --> 包裹，此断言失败
-        expect(derived).toContain('功能流程图（Functional Flowchart）');
+        expect(derived).toContain('功能流程图');
         // 关键约束语句随块一并保留
         expect(derived).toContain('流程最终确认门');
         expect(derived).toContain('[新建]');
     });
 });
 
-describe('模板派生一致性（project-init 单一源）', () => {
-    // 作用域说明（任务 5.3 的「已评估、判定无需测试」结论）：
-    // 本块只覆盖 project-init.ts —— 它是功能命名家族纳入派生的第一步（增量迁移，沿用 2026-09-14
-    // 只改 spec-* 的先例）。其余 18 个非 spec 模板（feature / workflow / full-workflow /
-    // auto-workflow / debug / frontend / migration / migration-check / proposal-review /
-    // test / commit / svn-commit / review / version / package / pwd+skills(tools.ts) /
-    // feature-doc / requirement-doc）**不在本规则作用域内**，仍以手工双写
-    // 形式存在，其产物 MUST NOT 因本次改造而变动，故不为其新增派生断言：
-    // 为未改动的文件补断言属无效覆盖（断言必然通过且不锁定任何本次行为），且会把
-    // 「作用域边界」这一待后续变更处理的决策伪装成已覆盖。作用域扩张须由独立变更实施
-    // 并同步扩写本块。
+describe('模板派生一致性（project-init 迁移后的代表性回归）', () => {
+    // 作用域说明（变更 improve-template-language-consistency 后已全量扩张）：
+    // 上方「全模板单一源」块已锁定全部 20 个技能/指令对均由 deriveCommandContent 派生。
+    // 本块保留 project-init 的**代表性细粒度断言** —— 它是功能命名家族首个纳入派生的模板
+    // （增量迁移先例），其「双模板漂移已消除」「关键防护语句全部保留」「未标记 CMD:SKIP」
+    // 三条断言验证派生改造未丢失任何步骤或防护语句，作为回归样例长期保留。
 
     const initSkill = getSkillTemplates('init')[0];
     const initCommand = getCommandTemplates('init')[0];

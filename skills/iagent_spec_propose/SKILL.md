@@ -8,16 +8,16 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:ef56989888bccaa30f261a24ce2a7ed341b83e222e63e9983cbcae004d25527a"
+  generatedFingerprint: "sha256:90d63f79ecc6b012d7351c7d29d0d080c4620fb76a9d5c5afb936efecb49c014"
 ---
 
-Propose a new change - create the change and generate all artifacts in one step.
+提出新变更 —— 一步创建变更并生成全部制品。
 
-**Planning Boundary**: 触发此工作流的用户请求授权的是规划——即使请求要求"实现它"或"开始编码"，也只完成规划 artifacts（不编辑项目代码）；全部 artifacts 生成且 Phase 3 验证通过后停止，等待用户发起新请求（/iagent:spec-apply）才进入实现；本工作流不启动代码实现。
+**规划边界（Planning Boundary）**: 触发此工作流的用户请求授权的是规划——即使请求要求"实现它"或"开始编码"，也只完成规划制品（不编辑项目代码）；全部制品生成且 Phase 3 验证通过后停止，等待用户发起新请求（/iagent:spec-apply）才进入实现；本工作流不启动代码实现。
 
-I'll create a change with OpenSpec Markdown artifacts:
+我将以 OpenSpec Markdown 制品创建一个变更：
 - proposal.md / design.md / specs/<capability>/spec.md
-- tasks.md (implementation steps and checkbox state)
+- tasks.md（实现步骤与 checkbox 状态）
 
 准备好实现时，告知我即可开始执行任务。
 
@@ -27,15 +27,15 @@ I'll create a change with OpenSpec Markdown artifacts:
 
 ---
 
-**Input**: The user's request should include a change name (kebab-case) OR a description of what they want to build. 编排器可传 `mode=delegated`（委派执行模式）与 `exploration-file=<path>`：delegated 模式下**跳过 Step 0 的用户选择提示**（直接迁移 `exploration-file`）、**抑制结尾规划边界停点**、**抑制自身 Phase 3 验证**（由编排器的验证超集承担），并输出**结构化回执**。默认 `mode=interactive` 行为与既有完全一致（保留 Step 0 提示、自身 Phase 3、结尾停点）。`iagent_spec_apply` 既有的 `auto-mode=true` 为 `mode=delegated` 的等价别名。
+**Input**: 用户请求应包含变更名（kebab-case）或对想构建内容的描述。编排器可传 `mode=delegated`（委派执行模式）与 `exploration-file=<path>`：delegated 模式下**跳过 Step 0 的用户选择提示**（直接迁移 `exploration-file`）、**抑制结尾规划边界停点**、**抑制自身 Phase 3 验证**（由编排器的验证超集承担），并输出**结构化回执**。默认 `mode=interactive` 行为与既有完全一致（保留 Step 0 提示、自身 Phase 3、结尾停点）。`iagent_spec_apply` 既有的 `auto-mode=true` 为 `mode=delegated` 的等价别名。
 
 ## ⛔ GATE PROTOCOL — ACTIVE
 
-This skill contains **CONFIRMATION GATES** marked with **⛔ GATE:**. Each gate is a HARD STOP:
-- When you reach a ⛔ GATE, **YOUR RESPONSE ENDS THERE** — output the gate content, then STOP
-- Do NOT execute, describe, or pre-generate steps beyond the gate
-- The user's next message is the confirmation signal — resume from AFTER the gate only when they respond
-- **VIOLATION**: executing beyond a gate without user confirmation is a critical error that corrupts the workflow
+本技能包含以 **⛔ GATE:** 标记的**确认门**。每个门都是硬性停止点：
+- 走到 ⛔ GATE 时，**本次响应到此结束** —— 输出门内容后立即停止
+- 不得执行、描述或预生成门之后的任何步骤
+- 用户的下一则消息即为确认信号 —— 仅在其响应后从门之后继续
+- **违规**：未经用户确认而执行门之后的步骤，是破坏工作流的严重错误
 
 **Steps**
 
@@ -45,9 +45,9 @@ This skill contains **CONFIRMATION GATES** marked with **⛔ GATE:**. Each gate 
 
 在创建变更前，MUST 扫描并关联探索文件：
 
-0.1. **能力级探索记忆检测（Capability Exploration Memory Injection）**
-   - 从用户描述/变更名推断涉及的 capability（参照 Naming Convention 的 Module Identification：Glob `openspec/specs/` 匹配模块关键词）
-   - 对每个涉及的 capability，检测 `openspec/specs/<capability>/explorations.md` 是否存在
+0.1. **能力级探索记忆检测**
+   - 从用户描述/变更名推断涉及的能力（参照命名规范的模块识别：Glob `openspec/specs/` 匹配模块关键词）
+   - 对每个涉及的能力，检测 `openspec/specs/<capability>/explorations.md` 是否存在
    - 存在：读取该文件，将历史 Decisions、术语、边界场景注入探索与提案生成上下文
      - 标注「已过时（由 <change-name> 取代）」的分节仅作历史参考，以取代变更的决策为准
    - 不存在：记录 "无能力级探索记忆 — 全新探索"，正常流程
@@ -69,7 +69,7 @@ This skill contains **CONFIRMATION GATES** marked with **⛔ GATE:**. Each gate 
    > 是否关联探索文件到此变更？
    > [关联选择的文件] [跳过]
 
-0.5. **CONTEXT.md 检查（MANDATORY CHECKPOINT）**
+0.5. **CONTEXT.md 检查（强制检查点）**
    - 如果用户选择关联探索文件，在迁移前检查 `openspec/CONTEXT.md`
    - 如果 CONTEXT.md 存在：
      - 验证所有探索文件术语表条目已写入
@@ -98,23 +98,23 @@ This skill contains **CONFIRMATION GATES** marked with **⛔ GATE:**. Each gate 
      - 读取 Codebase Findings 章节 → 生成 tasks.md
 <!-- /CMD:SKIP -->
 
-1. **If no clear input provided, ask what they want to build**
+1. **若未提供清晰输入，询问用户想构建什么**
 
-   Use the **AskUserQuestion tool** (open-ended, no preset options) to ask:
-   > "What change do you want to work on? Describe what you want to build or fix."
+   使用 **AskUserQuestion tool**（开放式、不预设选项）提问：
+   > "你想处理哪个变更？描述你想构建或修复的内容。"
 
-   From their description, derive a kebab-case name following the naming convention below.
+   根据其描述，按下方命名规范派生 kebab-case 名称。
 
-   **IMPORTANT**: Do NOT proceed without understanding what the user wants to build.
+   **IMPORTANT**：未理解用户想构建什么之前，不得继续。
 
-**Naming Convention**
+**命名规范**
 
-Apply the following naming rules when deriving a change name:
+派生变更名时应用以下命名规则：
 
-**Format**: `{prefix}-{module}-{feature}` (or `{prefix}-{feature}` if module unknown)
+**格式**：`{prefix}-{module}-{feature}`（模块未知时用 `{prefix}-{feature}`）
 
-**Prefix Recognition** (keyword → prefix):
-| Keywords | Prefix |
+**前缀识别**（关键词 → 前缀）：
+| 关键词 | 前缀 |
 |----------|--------|
 | 新增, 添加, 增加, add | `add-` |
 | 修复, bug, 问题, fix | `fix-` |
@@ -125,142 +125,142 @@ Apply the following naming rules when deriving a change name:
 | 安全, 漏洞, 权限, security | `security-` |
 | 配置, 参数, config | `config-` |
 | 性能, 加速, perf | `perf-` |
-| 定制, 适配, sync + customer name | `sync-{customer}-` |
+| 定制, 适配, sync + 客户名 | `sync-{customer}-` |
 
-**Prefix Priority** (when multiple keywords match): security > fix > sync > add > remove > improve > refactor > perf > config > docs
+**前缀优先级**（多个关键词同时命中时）：security > fix > sync > add > remove > improve > refactor > perf > config > docs
 
-**Module Identification**:
-- Use Glob tool to scan `openspec/specs/` directory for module names
-- Match user description keywords against module names
+**模块识别**：
+- 使用 Glob 工具扫描 `openspec/specs/` 目录获取模块名
+- 将用户描述中的关键词与模块名匹配
 <!-- CMD:SKIP -->
-- Common module keywords: archive→cli-archive, artifact/workflow→cli-artifact-workflow, validate→cli-validate, workspace→workspace-foundation, change→change-creation
+- 常见模块关键词：archive→cli-archive, artifact/workflow→cli-artifact-workflow, validate→cli-validate, workspace→workspace-foundation, change→change-creation
 <!-- /CMD:SKIP -->
-- If no module matches, use simplified format `{prefix}-{feature}`
+- 若无模块匹配，使用简化格式 `{prefix}-{feature}`
 
-**Example Transformations**:
-| User Input | Generated Name |
+**示例转换**：
+| 用户输入 | 生成的名称 |
 |------------|----------------|
 | "新增归档索引功能" | `add-cli-archive-index` |
 | "修复 artifact graph 解析问题" | `fix-artifact-graph-parsing` |
 | "优化 workspace 查询性能" | `perf-workspace-foundation-query` |
 | "修复登录安全漏洞" | `security-auth-login-vulnerability` |
 
-**User-provided name**: If user provides a valid name, use it. If it has correct prefix but missing module, add module identifier.
+**用户提供的名称**：若用户提供了合法名称，直接使用。若其前缀正确但缺少模块，补上模块标识。
 
-2. **Create the change directory**
+2. **创建变更目录**
    ```bash
    iagent spec new "<name>"
    ```
-   This creates a scaffolded change in the planning home resolved by the CLI with `.openspec.yaml`.
+   这会在 CLI 依据 `.openspec.yaml` 解析出的 planning home 中创建脚手架化变更。
 
-   **按 `openspec/rules/artifact-generation.md` 协议执行 artifact 生成。**
+   **按 `openspec/rules/artifact-generation.md` 协议执行制品生成。**
 
-3. **Get the artifact build order**
+3. **获取制品构建顺序**
    ```bash
    iagent spec status --change "<name>" --json
    ```
-   Parse the JSON to get:
-   - `applyRequires`: array of artifact IDs needed before implementation (e.g., `["tasks"]`)
-   - `artifacts`: list of all artifacts with their status and dependencies (resolved as transitive closure of `applyRequires` ∪ `requires`)
-   - `planningHome`, `changeRoot`, `artifactPaths`, and `actionContext`: path and scope context. Use these instead of assuming repo-local paths.
+   解析 JSON 以获取：
+   - `applyRequires`：实现前所需的制品 ID 数组（例如 `["tasks"]`）
+   - `artifacts`：全部制品及其状态与依赖列表（解析为 `applyRequires` ∪ `requires` 的传递闭包）
+   - `planningHome`、`changeRoot`、`artifactPaths` 与 `actionContext`：路径与范围上下文。使用这些字段，不得臆断仓库本地路径。
 
-4. **Create artifacts in sequence until apply-ready**
+4. **按顺序创建制品直至 apply-ready**
 
-   Use the **TodoWrite tool** to track progress through the artifacts.
+   使用 **TodoWrite tool** 跟踪制品创建进度。
 
-   Loop through artifacts in dependency order (artifacts with no pending dependencies first):
+   按依赖顺序遍历制品（无待办依赖的制品优先）：
 
-   a. **For each artifact that is `ready` (dependencies satisfied)**:
-      - Get instructions:
+   a. **对每个 `ready`（依赖已满足）的制品**：
+      - 获取指令：
         ```bash
         iagent spec instructions <artifact-id> --change "<name>" --json
         ```
-      - The instructions JSON includes:
-        - `template`: OpenSpec Markdown 结构模板
-        - `outputPath` / `resolvedOutputPath`: 当前 artifact 的 Markdown 路径
-        - `dependencies`: 需要重新读取的已完成制品
-      - **Re-read dependency artifacts from disk**: 生成新 artifact 需读取已完成的依赖 artifact 时，从磁盘重新读取最新内容，不依赖会话缓存
-      - Read any completed dependency files for context
-      - **Write Markdown truth source**: proposal → proposal.md；specs → specs/<capability>/spec.md；design → design.md；tasks → tasks.md
+      - instructions JSON 包含：
+        - `template`：OpenSpec Markdown 结构模板
+        - `outputPath` / `resolvedOutputPath`：当前制品的 Markdown 路径
+        - `dependencies`：需要重新读取的已完成制品
+      - **从磁盘重新读取依赖制品**：生成新制品需读取已完成的依赖制品时，从磁盘重新读取最新内容，不依赖会话缓存
+      - 读取任何已完成的依赖文件作为上下文
+      - **写入 Markdown 真源**：proposal → proposal.md；specs → specs/<capability>/spec.md；design → design.md；tasks → tasks.md
       - 写入后运行 `iagent spec validate --change "<name>"`，修复路径/行号诊断；MUST NOT 通过生成 JSON 副本绕过校验
-      - Show brief progress: "Created <artifact-id>"
+      - 简要展示进度："已创建 <artifact-id>"
 
-   b. **Continue until all required artifacts are complete (apply-ready = applyRequires 传递闭包)**
-      - 停止条件：按 requires 边构建 applyRequires 的传递闭包作为必需集（applyRequires ∪ 其传递依赖），所有必需 artifact 均 status "done" 才视为 apply-ready
+   b. **持续直到全部必需制品完成（apply-ready = applyRequires 传递闭包）**
+      - 停止条件：按 requires 边构建 applyRequires 的传递闭包作为必需集（applyRequires ∪ 其传递依赖），所有必需制品状态均为 "done" 才视为 apply-ready
       - 防止早停：tasks 已 done 而 specs 未写时，applyRequires 只列 tasks 不能视为完成；闭包展开后 specs 也属必需
-      - After creating each artifact, re-run `iagent spec status --change "<name>" --json`
-      - Check if every artifact ID in the transitive closure of `applyRequires` has `status: "done"` in the artifacts array
-      - Stop when all required artifacts (closure) are done
+      - 每创建一个制品后重新运行 `iagent spec status --change "<name>" --json`
+      - 检查 `applyRequires` 传递闭包中的每个制品 ID 在 artifacts 数组中的状态是否为 `"done"`
+      - 必需制品（闭包）全部 done 时停止
 
-   c. **If an artifact requires user input** (unclear context):
-      - Use **AskUserQuestion tool** to clarify
-      - Then continue with creation
+   c. **若某制品需要用户输入**（上下文不清晰）：
+      - 使用 **AskUserQuestion tool** 澄清
+      - 然后继续创建
 
-   d. **Parallel delta spec generation (multi-capability only)**:
-      - When the `specs` artifact is ready for generation AND the change involves two or more capabilities (per the proposal's Capabilities section): dispatch one sub-agent per capability (Task tool) to generate that capability's delta spec in parallel — every sub-agent takes the completed proposal.md and capability context as input
-      - Merge all generated delta specs before proceeding to the next artifact in the dependency order (the proposal → specs → design → tasks chain is unchanged)
-      - For a single-capability change: generate the delta spec directly in the artifact loop (automatic serial fallback, no dispatch)
-      - On a sub-agent failure: the main workflow regenerates that capability's delta spec serially
+   d. **并行生成 delta spec（仅多能力）**：
+      - 当 `specs` 制品可供生成，且变更涉及两个及以上能力（依据提案的 Capabilities 段）时：为每个能力派发一个子代理（Task 工具）并行生成该能力的 delta spec —— 每个子代理以已完成的 proposal.md 与能力上下文为输入
+      - 在按依赖顺序推进到下一制品前，合并所有已生成的 delta spec（proposal → specs → design → tasks 链路不变）
+      - 单能力变更：在制品循环中直接生成 delta spec（自动串行降级，不派发）
+      - 子代理失败时：主工作流串行重新生成该能力的 delta spec
 
-   e. **Skipped artifacts handling (skipped 联动)**:
-      - status 报告 `skipped` 状态的 artifact（如变更声明 `skip_specs` 后的 specs）不创建文件
-      - 其依赖视为满足，继续推进后续 artifact
-      - 在 TodoWrite 中标记该 artifact 为 skipped 而非 done
+   e. **skipped 制品处理（skipped 联动）**：
+      - 状态报告为 `skipped` 的制品（如变更声明 `skip_specs` 后的 specs）不创建文件
+      - 其依赖视为满足，继续推进后续制品
+      - 在 TodoWrite 中标记该制品为 skipped 而非 done
 
-5. **Show final status**
+5. **展示最终状态**
    ```bash
    iagent spec status --change "<name>"
    ```
 
-6. **Phase 3 Verification (auto — MANDATORY, no skip)**
+6. **Phase 3 验证（自动 —— 强制，不可跳过）**
    > **delegated 模式分支**：若 `mode=delegated`，**抑制本节**——不调用 `iagent_spec_verify_proposal`、不生成需求文档（编排器的 Phase 3 为其超集，含 `proposal_review` 深度复查），直接输出结构化回执交回编排器。`interactive` 模式照常执行本节。
-   After all `applyRequires` artifacts are done, automatically enter Phase 3 verification (do NOT end the workflow at "Ready for implementation" before verification):
-   - Invoke the `iagent_spec_verify_proposal` **skill** (via Skill tool) for D1-D5 scoring. (`iagent_spec_verify_proposal` is a skill name, NOT a valid `iagent spec instructions` artifact ID — do not run it as a CLI instruction.)
-   - **Verification review sub-agent**: dispatch an independent read-only review sub-agent (Task tool, subagent_type: "general-purpose") to perform the D1-D5 scoring — the sub-agent reads the change's artifacts without modifying them. On sub-agent dispatch failure: fall back to main-workflow inline scoring with a WARN log (never silently skip verification).
-   - **PASS (≥90%)**: 验证通过后可对提案做一次内联深度复查（由主工作流在通过后直接执行一次 read-only 复查，不依赖专门技能名）。深度复查收束后，以非交互模式调用 `iagent_requirement_doc` 生成需求文档于 `openspec/changes/<change-name>/需求文档.md`。生成失败不阻塞（WARN + 继续）。
-   - **FAIL (<90%)**: auto-generate fixes, apply, re-run; if still FAIL, offer [Manual edit] / [Return to exploration (/iagent:spec-explore)] / [View diff] (no skip-to-apply).
-   - Fallback if skill unavailable: AI inline D1-D5 scoring + WARN log; never silently skip.
+   全部 `applyRequires` 制品完成后，自动进入 Phase 3 验证（不得在验证前以 "准备就绪，可进入实现" 结束工作流）：
+   - 调用 `iagent_spec_verify_proposal` **skill**（通过 Skill 工具）执行 D1-D5 评分。（`iagent_spec_verify_proposal` 是技能名，而非合法的 `iagent spec instructions` 制品 ID —— 不得把它当作 CLI 指令运行。）
+   - **验证复查子代理**：派发一个独立的只读复查子代理（Task 工具，subagent_type: "general-purpose"）执行 D1-D5 评分 —— 该子代理读取变更制品但不修改。子代理派发失败时：降级（回退）到主工作流内联评分并记录 WARN 日志（绝不静默跳过验证）。
+   - **PASS (≥90%)**：验证通过后可对提案做一次内联深度复查（由主工作流在通过后直接执行一次只读复查，不依赖专门技能名）。深度复查收束后，以非交互模式调用 `iagent_requirement_doc` 生成需求文档于 `openspec/changes/<change-name>/需求文档.md`。生成失败不阻塞（WARN + 继续）。
+   - **FAIL (<90%)**：自动生成修复、应用、重跑；若仍 FAIL，提供 [手动编辑] / [返回探索 (/iagent:spec-explore)] / [查看差异]（无跳过直接实现的通道）。
+   - 技能不可用时降级（回退）：AI 内联 D1-D5 评分 + WARN 日志；绝不静默跳过。
    - 验证使用 90% 通过阈值。
 
 **Output**
 
 > **delegated 模式分支**：若 `mode=delegated`，输出**结构化回执**（change-name、生成制品清单、apply-ready 状态、探索文件迁移结果），MUST NOT 输出"等待用户确认"停点——阶段推进主权归编排器。下述 interactive 输出仅适用于默认模式。
 
-After completing all artifacts AND Phase 3 verification passes:
-- Change name and location
-- List of artifacts created with brief descriptions
-- Verification result: "Phase 3 verification passed (≥90%). Inline deep review completed."
-- Requirement document: generated at `openspec/changes/<change-name>/需求文档.md`（非交互调用 iagent_requirement_doc；生成失败 WARN 非阻断）
-- **Downgrade note (if applicable)**: 流程基准缺失或未获用户确认时标注 "流程基准不可用：已降级为仅凭 exploration.md 生成（未确认的流程图未被当作既定前提）"
-- What's ready: "All artifacts created and verified! Ready for implementation."
-- Prompt: "告知我即可开始执行任务。"
+全部制品完成且 Phase 3 验证通过后：
+- 变更名与位置
+- 已创建制品的清单与简要说明
+- 验证结果："Phase 3 验证通过（≥90%）。内联深度复查已完成。"
+- 需求文档：生成于 `openspec/changes/<change-name>/需求文档.md`（非交互调用 iagent_requirement_doc；生成失败 WARN 非阻断）
+- **降级说明（如适用）**：流程基准缺失或未获用户确认时标注 "流程基准不可用：已降级为仅凭 exploration.md 生成（未确认的流程图未被当作既定前提）"
+- 就绪状态："全部制品已创建并验证！准备就绪，可进入实现。"
+- 提示语："告知我即可开始执行任务。"
 
-**Artifact Creation Guidelines**
+**制品创建指南**
 
-- Follow the `instruction` field from `iagent spec instructions` for each artifact type
-- The schema defines what each artifact should contain - follow it
-- Read dependency artifacts for context before creating new ones
-- **Markdown-first**: 直接写 proposal.md、design.md、specs/**/*.md 和 tasks.md；使用 `iagent spec validate` 校验，不创建 JSON 真源或渲染副本
-- **IMPORTANT**: `context` and `rules` are constraints for YOU, not content for the file
-  - Do NOT copy `<context>`, `<rules>`, `<project_context>` blocks into the artifact
-  - These guide what you write, but should never appear in the output
+- 对每种制品类型，遵循 `iagent spec instructions` 的 `instruction` 字段
+- schema 定义了每个制品应包含的内容 —— 遵循它
+- 创建新制品前先读取依赖制品作为上下文
+- **Markdown-first**：直接写 proposal.md、design.md、specs/**/*.md 和 tasks.md；使用 `iagent spec validate` 校验，不创建 JSON 真源或渲染副本
+- **IMPORTANT**：`context` 与 `rules` 是对你的约束，而不是文件内容
+  - 不得把 `<context>`、`<rules>`、`<project_context>` 块复制进制品
+  - 它们指导你写什么，但绝不应出现在输出中
 
-**Task Type Labels (for tasks.md generation):**
-- Each task MUST include a type label: `- [ ] [代码] N.M ...` / `- [ ] [测试][单元][P0] N.M ...` / `- [ ] [DB脚本] N.M ...` etc.
-- Four parallel label types: `[代码]` (implementation) / `[测试]` (test code) / `[DB脚本]` (database scripts) / `[使用说明]` (supplement docs)
-- `[测试]` tasks MUST carry sub-annotations: **level** (`[单元]` unit / `[功能]` functional) + **priority** (`[P0]`/`[P1]`/`[P2]`)
-- Supplement tasks (non-`[代码]` **and** non-`[测试]`) MUST include `产出:` field as indented content — `[测试]` tasks MUST NOT use the `产出:` → `attachments/` routing, because test code belongs in the project's test source tree
-- Default output path: `attachments/<filename>` (relative to changeRoot)
-- See `schemas/spec-driven/templates/tasks.md` template for full label reference
+**任务类型标签（用于 tasks.md 生成）：**
+- 每个任务 MUST 附带类型标签：`- [ ] [代码] N.M ...` / `- [ ] [测试][单元][P0] N.M ...` / `- [ ] [DB脚本] N.M ...` 等。
+- 四类并列标签：`[代码]`（实现）/ `[测试]`（测试代码）/ `[DB脚本]`（数据库脚本）/ `[使用说明]`（补充文档）
+- `[测试]` 任务 MUST 带子标注：**层级**（`[单元]` 单元 / `[功能]` 功能）+ **优先级**（`[P0]`/`[P1]`/`[P2]`）
+- 补充类任务（非 `[代码]` **且** 非 `[测试]`）MUST 以缩进内容包含 `产出:` 字段 —— `[测试]` 任务 MUST NOT 使用 `产出:` → `attachments/` 路由，因为测试代码属于项目的测试源码树
+- 默认输出路径：`attachments/<filename>`（相对于 changeRoot）
+- 完整标签参考见 `schemas/spec-driven/templates/tasks.md` 模板
 
-**Test Planning (测试规划判定, for tasks.md generation):**
-- Walk the `specs/**/*.md` Requirement/Scenario blocks one by one and judge whether each is testable（历史 JSON-only 变更仅只读降级）
-- **Testable scenario** → MUST produce a `[测试]` task carrying level + priority
-- **Untestable scenario** (pure documentation / configuration change with no verifiable behavior) → MUST STILL produce a `[测试]` task recording the verdict and its rationale, e.g. `- [ ] [测试][单元][P2] 4.2 评估：纯文档变更，无需测试（依据：无可验证行为）`
-  - Rationale: a recorded verdict makes "no tests written" distinguishable from "never evaluated" — the same principle as the no-test gate in `iagent_test`
-- Test tasks depend on their implementation tasks — when a test task covers behavior implemented by another task, note the dependency in the task description so apply schedules them serially
+**测试规划判定（用于 tasks.md 生成）：**
+- 逐个遍历 `specs/**/*.md` 的 Requirement/Scenario 块，判定每个是否可测（历史 JSON-only 变更仅只读降级）
+- **可测场景** → MUST 生成一个带层级 + 优先级的 `[测试]` 任务
+- **不可测场景**（无可验证行为的纯文档 / 配置变更）→ MUST 仍然生成一个记录判定结论及其依据的 `[测试]` 任务，例如 `- [ ] [测试][单元][P2] 4.2 评估：纯文档变更，无需测试（依据：无可验证行为）`
+  - 理由：留痕的判定结论使"未编写测试"可与"从未评估"区分 —— 与 `iagent_test` 的不测闸门同一原则
+- 测试任务依赖其对应的实现任务 —— 当某测试任务覆盖由另一任务实现的行为时，在任务描述中标注依赖，使 apply 串行调度它们
 
-**流程基准消费规则（Flowchart Basis Consumption）**
+**流程基准消费规则**
 
 当关联的 `exploration.md` 含**经用户确认**的 `## 功能流程图` 段时，该流程图即**流程基准**，本技能 MUST 以其为**生成锚点**：
 
@@ -276,15 +276,15 @@ After completing all artifacts AND Phase 3 verification passes:
   并 SHALL 在**生成报告**中标注该降级
 
 **Guardrails**
-- Create ALL artifacts needed for implementation (as defined by schema's `apply.requires`)
-- Always read dependency artifacts before creating a new one
-- If context is critically unclear, mark as **[待确认]** and ask the user. Never guess!
-- **Material ambiguity划分**: 影响范围/行为契约/向后兼容性/验收标准的歧义 MUST 表面化并向用户提问（标记 [待确认]）；细节性歧义可做合理假设并记录到 planning artifacts
-- After all artifacts are created, display a design blueprint summary and wait for user confirmation before suggesting implementation.（**delegated 模式例外**：抑制该停点，改输出结构化回执并交回主权）
-- If a change with that name already exists, ask if user wants to continue it or create a new one
-- Verify each artifact file exists after writing before proceeding to next
+- 创建实现所需的全部制品（由 schema 的 `apply.requires` 定义）
+- 创建新制品前始终读取依赖制品
+- 若上下文严重不清晰，标记为 **[待确认]** 并询问用户。绝不猜测！
+- **实质性歧义划分**：影响范围/行为契约/向后兼容性/验收标准的歧义 MUST 表面化并向用户提问（标记 [待确认]）；细节性歧义可做合理假设并记录到规划制品
+- 全部制品创建后，展示设计蓝图摘要并等待用户确认，之后才建议实现。（**delegated 模式例外**：抑制该停点，改输出结构化回执并交回主权）
+- 若同名变更已存在，询问用户是要继续它还是新建一个
+- 每次写入后确认制品文件存在，再继续下一个
 
-## Markdown Artifact Generation (MANDATORY — Markdown-first)
+## Markdown 制品生成（强制 —— Markdown-first）
 
 严格引用 `openspec/rules/artifact-generation.md` 的 G1-G7 协议：
 
@@ -295,8 +295,8 @@ After completing all artifacts AND Phase 3 verification passes:
 - 每个可测 Scenario 必须在 tasks.md 有实现或测试任务，并标注 `Spec Ref` / `Scenario Ref`。
 - 依赖文件必须从磁盘重新读取；context/rules 只作为本技能约束，不复制进制品。
 
-**Task Type Labels**：`[代码]` / `[测试][单元|功能][P0|P1|P2]` / `[DB脚本]` / `[使用说明]`。补充文档任务写 `产出:`，测试任务不走 attachments 路径。
+**任务类型标签**：`[代码]` / `[测试][单元|功能][P0|P1|P2]` / `[DB脚本]` / `[使用说明]`。补充文档任务写 `产出:`，测试任务不走 attachments 路径。
 
-**Test Planning**：逐个读取 specs Markdown 的 Scenario；可测场景生成 [测试] 任务，不可测场景也生成记录“已评估、无需测试”的任务。测试任务依赖被测实现任务。
+**测试规划**：逐个读取 specs Markdown 的 Scenario；可测场景生成 [测试] 任务，不可测场景也生成记录“已评估、无需测试”的任务。测试任务依赖被测实现任务。
 
 **流程基准**：若 exploration.md 含经确认的功能流程图，design.md 引用原流程，tasks.md 标注节点 id；未确认流程图不得作为既定前提并在报告中记录降级。

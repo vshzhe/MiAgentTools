@@ -87,8 +87,8 @@ describe('A1 探索文件移动语义（成功删源 / 失败保留）', () => {
 describe('A2 归档阶段需求文档检查点（双分支）', () => {
     /** 两个归档技能各自的预归档检查点步骤标识 */
     const CHECKPOINTS: Record<string, RegExp> = {
-        iagent_spec_archive: /4\.8 \*\*Pre-Archive Requirement Document Checkpoint/,
-        iagent_spec_bulk_archive: /a\.6 \*\*Pre-archive requirement document/,
+        iagent_spec_archive: /4\.8 \*\*归档前需求文档检查点/,
+        iagent_spec_bulk_archive: /a\.6 \*\*归档前需求文档生成/,
     };
 
     it('预归档检查点步骤存在且含双分支断句', () => {
@@ -206,7 +206,7 @@ describe('A6 生成能力收敛到验证阶段 + 归档阶段对齐', () => {
 
     it('auto-workflow 的 Phase 5 归档步骤枚举含需求文档对齐引用', () => {
         const body = instructions('iagent_auto_workflow');
-        expect(body).toContain('requirement document alignment');
+        expect(body).toContain('需求文档对齐');
         expect(body).toContain('iagent_spec_archive');
         expect(body).toContain('4.8');
     });
@@ -214,7 +214,7 @@ describe('A6 生成能力收敛到验证阶段 + 归档阶段对齐', () => {
     it('双分支正文唯一：预归档检查点标题只在两个归档技能中定义', () => {
         const owners = skills
             .filter(({ template }) =>
-                /4\.8 \*\*Pre-Archive Requirement Document Checkpoint|a\.6 \*\*Pre-archive requirement document/.test(
+                /4\.8 \*\*归档前需求文档检查点|a\.6 \*\*归档前需求文档生成/.test(
                     template.instructions
                 )
             )
@@ -239,7 +239,7 @@ describe('A6 生成能力收敛到验证阶段 + 归档阶段对齐', () => {
             'iagent_spec_bulk_archive',
         ]);
         // 引用语境自证：auto-workflow 明示「不复制分支正文、只引用 step 4.8」
-        expect(instructions('iagent_auto_workflow')).toContain('MUST NOT copy the branch rule text');
+        expect(instructions('iagent_auto_workflow')).toContain('MUST NOT 复制该分支规则正文');
         // 禁令语境自证：debug 明示需求文档不在其范围内
         const debugBody = instructions('iagent_debug');
         expect(debugBody).toContain('MUST NOT');

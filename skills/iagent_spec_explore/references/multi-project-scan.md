@@ -1,50 +1,51 @@
-### 1.2.1.5 Multi-Project CodeGraph Agent Scan (条件触发 — 检测到其他项目路径时执行)
+### 1.2.1.5 多项目 CodeGraph 子代理扫描（条件触发 — 检测到其他项目路径时执行）
 
-**⚠️ CONDITIONAL: Only executes when exploration context contains other project paths**
+**⚠️ 条件触发：仅当探索上下文含其他项目路径时执行**
 
-After the 1.2.1 base scan (current project), system MUST check if the exploration context contains paths to other projects (e.g., user-specified `--project-path`, auto-migration SOURCE_PROJECT/TARGET_PROJECT, or paths confirmed during conversation).
+1.2.1 基础扫描（当前项目）之后，系统 MUST 检查探索上下文是否含其他项目的路径（如用户指定的 `--project-path`、自动迁移的 SOURCE_PROJECT/TARGET_PROJECT，或对话中确认的路径）。
 
-**When other project paths are detected**:
+**检测到其他项目路径时**：
 
-1. **Check CodeGraph initialization** for each other project path:
-   - Run Bash `ls <path>/.codegraph/` to check whether the target project has a `.codegraph/` directory (directory contents listed — including codegraph.db — means CodeGraph is initialized). Do NOT use Glob to check dot-prefixed directories (Glob returns false negatives for them)
-   - If initialized (ls succeeds): proceed with Agent scan
-   - If not initialized (ls fails — directory does not exist): log WARN "Other project <path> does not have CodeGraph initialized — falling back to Glob/Grep" and fall back to Glob/Grep
+1. 对每个其他项目路径**检查 CodeGraph 初始化情况**：
+   - 运行 Bash `ls <path>/.codegraph/` 检查目标项目是否有 `.codegraph/` 目录（能列出目录内容 —— 含 codegraph.db —— 即表示 CodeGraph 已初始化）。不得用 Glob 检查点号前缀目录（Glob 对它们会返回假阴性）
+   - 已初始化（ls 成功）：继续子代理扫描
+   - 未初始化（ls 失败 —— 目录不存在）：记录 WARN "其他项目 <path> 未初始化 CodeGraph — 降级到 Glob/Grep"，并降级到 Glob/Grep
 
-2. **Single sub-agent serial scan across all detected projects**:
-   - Spawn **ONE** sub-agent that scans ALL detected projects **serially** inside itself; the system MUST NOT spawn a separate sub-agent for each project path (this removes the N repeated cold starts)
-   - The sub-agent SHALL call the CodeGraph MCP tools once for each project, switching the `projectPath` parameter to that project's path on every call
-   - For each project, execute `codegraph_files` for file structure, `codegraph_search` for symbol search, `codegraph_context` for context understanding
-   - Limit scan depth: `maxDepth: 3`, `maxNodes: 20` to prevent excessive results
-   - The sub-agent MUST NOT modify any files
+2. **对所有检测到的项目用单个子代理串行扫描**：
+   - 只派发**一个**子代理，让其在自身内部**串行**扫描全部检测到的项目；系统 MUST NOT 为每个项目路径各派一个子代理（这样可避免 N 次重复冷启动）
+   - 子代理 SHALL 对每个项目各调用一次 CodeGraph MCP 工具，每次调用把 `projectPath` 参数切到该项目路径
+   - 对每个项目执行 `codegraph_files` 获取文件结构、`codegraph_search` 检索符号、`codegraph_context` 理解上下文
+   - 限制扫描深度：`maxDepth: 3`、`maxNodes: 20`，避免结果过多
+   - 子代理 MUST NOT 修改任何文件
 
-   - **⛔ EXIT GUARD**: the sub-agent MUST stop and return findings immediately after scanning all projects — MUST NOT enter plan mode / design mode / propose next steps / suggest implementation; the sub-agent is a scanner only, its sole output is the structured findings per project; the orchestrator alone owns flow advancement
-   - **MUST only query incrementally**: the sub-agent MUST limit scanning to what was NOT already covered by the 1.2.1 base scan; it MUST NOT re-derive information already available in the current project's exploration file   - Apply a 120s budget for each project (budget exceeded → per-project WARN fallback to Glob/Grep)
+   - **⛔ EXIT GUARD（退出守卫）**：子代理扫描完所有项目后 MUST 立即停止并返回发现 —— MUST NOT 进入 plan 模式 / 设计模式 / 提出后续步骤 / 建议实现；子代理只是扫描器，其唯一产出是按项目分组的结构化发现；流程推进只由编排器掌握
+   - **MUST 只做增量查询**：子代理 MUST 只扫描 1.2.1 基础扫描未覆盖的部分；MUST NOT 重新推导当前项目探索文件中已有的信息
+   - 每个项目施加 120s 预算（超预算 → 该项目按 WARN 降级到 Glob/Grep）
 
-3. **Per-project degradation (project granularity)**:
-   - If one project's CodeGraph is not initialized, its scan fails, or it exceeds the 120s budget: **only that project** falls back to Glob/Grep with a WARN log — the other projects continue their scan normally
-   - One project's failure MUST NOT affect other projects
-   - If an other-project path is identical to the current project path, the sub-agent SHALL skip that project
-   - If the runtime provides no sub-agent capability at all: ALL projects fall back to Glob/Grep with a WARN log
+3. **按项目降级（项目粒度）**：
+   - 某项目 CodeGraph 未初始化、其扫描失败或超出 120s 预算时：**只有该项目**按 WARN 日志降级到 Glob/Grep —— 其他项目照常扫描
+   - 单个项目失败 MUST NOT 影响其他项目
+   - 某其他项目路径与当前项目路径相同时，子代理 SHALL 跳过该项目
+   - 运行时完全不提供子代理能力时：全部项目按 WARN 日志降级到 Glob/Grep
 
-4. **Merge results** into exploration.md:
-   - Write to `## Codebase Findings > ### Other Project Findings` subsection
-   - Prefix results with project path for clear attribution
-   - Results include: discovered files, identified symbols, and call chains
+4. 把结果**合并**进 exploration.md：
+   - 写入 `## Codebase Findings > ### Other Project Findings` 子段
+   - 结果加项目路径前缀，便于归属清晰
+   - 结果含：发现的文件、识别出的符号与调用链
 
-5. **When no other project paths detected**:
-   - Do NOT trigger the multi-project Agent scan
-   - Proceed with the existing 1.2.2 flow unchanged
+5. **未检测到其他项目路径时**：
+   - 不触发多项目子代理扫描
+   - 按既有 1.2.2 流程不变继续
 
-**Fallback**: If Agent spawn fails, sub-agent times out, or CodeGraph is not initialized in the target project:
-- WARN log with specific failure reason
-- Fall back to Glob/Grep for that project
-- Do NOT retry the failed Agent scan
-- This fallback does NOT affect the current project's scan results
+**降级（回退）**：子代理派发失败、子代理超时，或目标项目未初始化 CodeGraph 时：
+- 按 WARN 记录具体失败原因
+- 该项目降级到 Glob/Grep
+- 不重试失败的子代理扫描
+- 该降级不影响当前项目的扫描结果
 
-**Checkpoint Enforcement**:
-- System MUST execute this check after 1.2.1 base scan completes
-- If other project paths exist, system MUST attempt Agent scan (with fallback)
-- Results MUST be written to exploration.md before proceeding to 1.2.2
-- This check MUST NOT block the main workflow — failures degrade gracefully
+**强制检查点**：
+- 系统 MUST 在 1.2.1 基础扫描完成后执行本检查
+- 存在其他项目路径时，系统 MUST 尝试子代理扫描（含降级路径）
+- 进入 1.2.2 之前 MUST 把结果写入 exploration.md
+- 本检查 MUST NOT 阻塞主流程 —— 失败时优雅降级
 

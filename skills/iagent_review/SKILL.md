@@ -8,10 +8,12 @@ metadata:
   author: mi-agent-tools
   type: review
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:251db0339a1ede4f85456ef743fc5d656469c6afe01b7b0be2a50f409330d1c5"
+  generatedFingerprint: "sha256:7061602a2053950a78aee80b634059869189da88141830bb3abf8cff2dc17404"
 ---
 
 审查代码 —— 按维度检查，只报告经过验证的问题，严重程度分级呈现。
+
+**输入**：`/iagent:review` 后跟审查范围（文件路径、分支名或 PR 标识；可省略，默认审查未提交变更）。
 
 ## 审查维度
 

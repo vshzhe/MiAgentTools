@@ -1,53 +1,53 @@
-### 1.3 Grill-With-Docs Questioning
+### 1.3 Grill-With-Docs 追问
 
-Apply the full grill-with-docs discipline: grilling primitive (decision tree walk) + domain-modeling (CONTEXT.md glossary, ADRs, code cross-validation, scenario construction).
+完整执行 grill-with-docs 纪律：grilling 原语（决策树遍历）+ 领域建模（CONTEXT.md 术语表、ADR、代码交叉验证、场景构造）。
 
-#### 1.3.1 Decision Tree Building
+#### 1.3.1 决策树构建
 
-**Before questioning, build a decision tree**:
-- Identify parent-child dependency relationships between decisions
-- Order questions by dependency (resolve parent decisions before child decisions)
-- Record the decision tree structure in exploration.md
+**追问之前先构建决策树**：
+- 识别决策之间的父子依赖关系
+- 按依赖排序问题（先解父决策再解子决策）
+- 把决策树结构记入 exploration.md
 
-#### 1.3.2 Grilling Primitive
+#### 1.3.2 Grilling 原语
 
-**Trigger conditions** - Ask when:
-- Scope is ambiguous (e.g., "add authentication")
-- Technical approach unclear (e.g., "use caching")
-- Requirement not measurable (e.g., "make it fast")
+**触发条件** —— 以下情形应提问：
+- 范围含糊（如"加个认证"）
+- 技术方案不清楚（如"用缓存"）
+- 需求不可度量（如"弄快点"）
 
-**Questioning behavior**:
-- **Decision tree traversal**: Resolve parent decisions before child decisions
-- **Codebase-first**: If question can be answered by exploring code, DO IT instead of asking
-- **One at a time**: Ask single question, wait for response
-- **Provide recommendation**: Always include "My recommendation: <answer>"
-- **Unlimited depth**: Continue until clear, no artificial limits
-- **Track progress**: Update exploration file after each exchange
+**提问行为**：
+- **决策树遍历**：先解父决策，再解子决策
+- **代码库优先**：能通过探查代码回答的问题，直接去查而不要问
+- **一次一个**：一次只问一个问题，等回答
+- **给建议**：始终附上 "我的建议：<answer>"
+- **深度不限**：直到问清楚为止，不设人为上限
+- **跟踪进展**：每轮交流后更新探索文件
 
-#### 1.3.3 Domain-Modeling Integration
+#### 1.3.3 领域建模集成
 
-**Terminology sharpening (MANDATORY — execute per exchange)**:
-Each time a vague or overloaded term is used, immediately:
-1. Propose a precise canonical term with "My recommendation: use '<term>' — definition: <one-sentence>"
-2. Wait for user confirmation
-3. Once confirmed, **MUST write to `openspec/CONTEXT.md` NOW** (not batched, not deferred):
+**术语精确化（强制 —— 每轮交流都执行）**：
+每次出现含糊或含义过载的术语时，立即：
+1. 提出精确的规范术语："我的建议：用 '<term>' —— 定义：<one-sentence>"
+2. 等待用户确认
+3. 确认后**立即写入 `openspec/CONTEXT.md`**（不批量、不延后）：
    ```
    **<Term>**: <one or two sentence definition>
    _Avoid_: <deprecated synonyms>
    ```
-4. MUST also sync to exploration.md 术语表 section (format: `| <Term> | <definition> | <avoid-list> |`)
-5. If CONTEXT.md does not exist yet, create it lazily at first term write
-If user uses a term that conflicts with an existing CONTEXT.md entry, surface the conflict BEFORE accepting the usage.
+4. MUST 同时同步到 exploration.md 术语表 段（格式：`| <Term> | <definition> | <avoid-list> |`）
+5. CONTEXT.md 尚不存在时，在首次写入术语时惰性创建
+用户使用的术语与 CONTEXT.md 既有条目冲突时，在接受该用法**之前**先指出冲突。
 
-**Code cross-validation**: When user makes a claim about existing code behavior, read relevant source files to verify. If code contradicts the claim, surface the contradiction immediately.
+**代码交叉验证**：用户对既有代码行为做出断言时，读取相关源文件核实。代码与断言矛盾时，立即指出矛盾。
 
-**Scenario construction**: For each confirmed decision, invent at least 1 boundary scenario to stress-test it (network failure, timeout, invalid input, concurrent access). Write scenarios to exploration.md 边界场景 section.
+**场景构造**：对每个已确认的决策，至少构造 1 个边界场景做压力测试（网络故障、超时、非法输入、并发访问）。把场景写入 exploration.md 边界场景 段。
 
-**ADR creation**: Offer ADR only when all three conditions are met: (1) hard to reverse, (2) surprising without context, (3) result of a real trade-off. ADR file at `openspec/docs/adr/NNNN-slug.md`. Create directory lazily.
+**ADR 创建**：仅当三个条件同时满足时才提议 ADR：(1) 难以逆转，(2) 脱离上下文会令人意外，(3) 是真实权衡的结果。ADR 文件位于 `openspec/docs/adr/NNNN-slug.md`。目录惰性创建。
 
-#### 1.3.4 Implementation Detail Coverage Check
+#### 1.3.4 实现细节覆盖检查
 
-For each confirmed decision, verify coverage across 6 dimensions:
+对每个已确认的决策，检查 6 个维度的覆盖：
 - 术语已精确定义 → CONTEXT.md
 - 与现有代码一致 → 交叉验证
 - 边界场景已讨论 → ≥1 个场景
@@ -55,33 +55,33 @@ For each confirmed decision, verify coverage across 6 dimensions:
 - 状态转换完整 → 所有路径
 - 模块契约明确 → 入参/出参
 
-Apply the 5-level depth model with **two batch confirmation rounds** (L1-L3 in batch 1, L4-L5 in batch 2). Each round presents the pending items **one per line** with the AI recommendation, then WAIT for user confirmation of the whole batch. This keeps all five dimensions while capping the grill at **≤2 user stops**.
+应用 5 级深度模型，配**两轮批量确认**（批量 1 为 L1-L3，批量 2 为 L4-L5）。每轮**每行一条**列出待确认项并附 AI 建议，然后等待用户对整批确认。这样既保留五个维度，又把 grill 控制在**≤2 次用户停顿**。
 
 **批量 1 — L1-L3（意图 / 方案 / 异常）**:
 - 逐条列出（每条一行，附 AI 建议）：
-  - L1 意图 (What to do?): <proposal>
-  - L2 方案 (How to do it?): <approach with rationale>
-  - L3 异常 (What if it fails?): <error strategy>
-- Wait for user confirmation of the batch
-- ✅ Confirmed → record all three in Decisions
+  - L1 意图（做什么？）: <提案>
+  - L2 方案（怎么做？）: <方案与理由>
+  - L3 异常（失败怎么办？）: <错误处理策略>
+- 等待用户对该批确认
+- ✅ 已确认 → 把三条全部记入 Decisions
 - 用户可对任一条单独修改后再确认（逐条列出便于逐项裁决）
 
 **批量 2 — L4-L5（一致性 / 边界）**:
-- **L4 一致性（cross-decision + codebase）**: Read all recorded Decisions; report 任何矛盾（跨决策矛盾 / 与既有代码模式冲突）；**无矛盾时 SHALL 自动标记一致（non-blocking，无用户提示，不计入停顿）**
+- **L4 一致性（跨决策 + 代码库）**: 读取全部已记录 Decisions；报告任何矛盾（跨决策矛盾 / 与既有代码模式冲突）；**无矛盾时 SHALL 自动标记一致（非阻断，无用户提示，不计入停顿）**
 - **L5 边界**: 构造 ≥1 边界场景，逐条列出 + 建议
-- Wait for user confirmation of the batch（L4 无矛盾时该批仅呈现 L5）
-- ✅ Confirmed → decision is complete
+- 等待用户对该批确认（L4 无矛盾时该批仅呈现 L5）
+- ✅ 已确认 → decision 完成
 
-**Gate rules**:
+**门规则**：
 - 追问 SHALL 至多 **2 个批量确认轮次**（L1-L3、L4-L5）；每轮内逐条列出待确认项
 - **最低深度 L3**: L1+L2+L3 全部确认后 decision 方可标记完成；用户明确“够了”时可提前结束
 - L4 无矛盾时 SHALL 自动直通，不作为额外停顿
 - 跳过的层级 SHALL 记入 Pending（MUST NOT 静默丢弃）
 
-#### 1.3.5 Artifact Synchronization
+#### 1.3.5 制品同步
 
-Sync grill-with-docs outputs to exploration.md in real-time:
-- CONTEXT.md terms → exploration.md 术语表 section
-- ADRs → exploration.md 架构决策 section
-- Boundary scenarios → exploration.md 边界场景 section
+把 grill-with-docs 的产出实时同步到 exploration.md：
+- CONTEXT.md 术语 → exploration.md 术语表 段
+- ADR → exploration.md 架构决策 段
+- 边界场景 → exploration.md 边界场景 段
 

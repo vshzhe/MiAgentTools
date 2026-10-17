@@ -14,6 +14,7 @@
  * 合并后删除后者及其类型。
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
+import { deriveCommandContent } from '../derive-command.js';
 
 const SCHEMA_JAVA = `## Java Schema —— 项目检测、框架分析、模板与运行
 
@@ -719,6 +720,8 @@ export function getTestSkillTemplate(): SkillTemplate {
 
 **目标驱动**：先把验收标准变成可执行的测试，再让它通过。"添加校验" → "先写非法输入的测试，再让它通过"；"修 bug" → "先写复现该 bug 的测试，再修复"。
 
+**输入**：\`/iagent:test\` 后跟被测目标（类名、方法名、文件路径或功能描述）。
+
 ---
 
 ## 阶段一：语言与框架检测（schema 路由）
@@ -986,32 +989,6 @@ export function getTestCommandTemplate(): CommandTemplate {
             '生成测试 —— 多 schema 模式：检测 Java/Node 框架、测试层级路由（单元/功能级）、不测闸门、用例分级、BCDE 场景矩阵、覆盖度度量',
         category: 'iAgent / 测试',
         tags: ['iagent', 'test', 'test', 'tdd', 'java', 'node', 'unit', 'functional'],
-        content: `生成测试 —— 多 schema 模式：检测语言/框架 → 测试层级路由 → 该不该测闸门 → 设计场景与分级 → 去重合并 → 编写 → 运行验证 → 覆盖度度量。
-
-**目标驱动**：先把验收标准变成可执行的测试，再让它通过。
-
-**输入**：\`/iagent:test\` 后跟被测目标（类名、方法名、文件路径或功能描述）。
-
-## 执行步骤
-
-1. **语言/框架检测（schema 路由）**：检测 \`pom.xml\`/\`build.gradle\`（Java）或 \`package.json\`（Node），Read 对应 \`references/schema-*.md\` 加载框架专属内容。
-2. **测试层级路由**：判定单元层级或功能级层级——功能入口或跨 ≥2 组件协作走功能级，其余走单元；缺功能级工具链时降级为单元并提示。
-3. **该不该测闸门**：先判目标是否落入不测清单（纯数据类的取值读写、无分支转发方法、私有方法、框架回调、自动生成代码）；落入则不设计场景，输出"已评估、判定不生成"的依据，不得静默跳过。
-4. **BCDE 场景矩阵 + 优先级分级**：按正常(Basic)/边界(Boundary)/业务规则(Design)/异常(Exception) 四象限设计；边界输入（null/空集/空串/零值/极值）必须标 Boundary 不得标 Basic；**无固定场景数量配额**，数量由复杂度与优先级决定。
-5. **用例优先级分级**：P0 核心链路必生成 / P1 默认生成 / P2 需显式确认才生成——分级影响生成决策，不是仅作标注。
-6. **去重与合并**：同构输入合并为参数化用例，跨方法重复断言提取为共享断言。
-7. **生成代码**：AAA 结构（Given/When/Then）、一测一行为、精确断言、满足 FIRST 五要素。分层编写：Service 层 Mock 外部依赖；Controller 层 HTTP 端到端（Java MockMvc / Node supertest）；工具类参数化。Mock API 按语言从 schema 取用。Java 项目生成前执行测试计划确认门。
-8. **运行验证**：\`mvn test\` / \`gradle test\` / \`pnpm test\` / \`npm test\`，全部通过后报告结果。
-9. **覆盖度度量**：优先实测（Java JaCoCo / Node c8 或 --coverage）；无工具链时降级为"规格场景→用例"静态映射矩阵并**标注"未实测覆盖度"**；两种方式都必须列出未覆盖清单。
-10. **结论留痕**：报告同时含"已生成用例的目标"与"判定不生成的目标及依据"两类清单。
-
-## 约束
-
-- 禁止无断言空转、禁止共享可变状态、禁止日志替代断言
-- 一个测试只验证一个行为；用例必须满足 FIRST（快/独立/可重复/自验证/及时）
-- 禁止为凑数量生成低价值用例；边界输入不得标注为正常路径
-- 不修改被测代码来迁就测试
-- 功能级测试禁止 Mock 内部协作组件（会退化为单元测试）
-- 语言专属约束见 schema-*.md（Java：禁止通配符导入/@Test(expected)；Node：vi.mock hoisting）`,
+        content: deriveCommandContent(getTestSkillTemplate().instructions),
     };
 }

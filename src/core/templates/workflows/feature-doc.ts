@@ -3,6 +3,7 @@
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { CODEGRAPH_MCP } from '../tool-whitelist.js';
+import { deriveCommandContent } from '../derive-command.js';
 
 export function getFeatureDocSkillTemplate(): SkillTemplate {
     return {
@@ -12,25 +13,27 @@ export function getFeatureDocSkillTemplate(): SkillTemplate {
         type: 'docs',
         instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
-Scan a source project's feature modules and generate a complete feature requirement implementation document covering frontend implementation, backend implementation, field-level API contracts, database call chains, and cross-module interactions.
+扫描源项目功能模块，生成完整的功能需求实现文档，覆盖前端实现、后端实现、字段级 API 契约、数据库调用链与跨模块交互。
 
-**Trigger boundary**: This skill scans SOURCE PROJECT CODE to produce feature requirement implementation documents or project feature maps ("scan feature", "扫描功能", "analyze feature implementation", "项目功能地图", "迁移需求文档").
+**触发边界**：本技能扫描**源项目代码**以产出功能需求实现文档或项目功能地图（"scan feature"、"扫描功能"、"analyze feature implementation"、"项目功能地图"、"迁移需求文档"）。
+
+**输入**：在命令后可选提供源项目路径与功能入口；缺失参数交互式收集，已提供的参数跳过；由自动迁移工作流（非交互模式）调用时直接使用注入参数，不提问。
 
 ---
 
-## Step 0: Determine execution mode
+## Step 0: 确定执行模式
 
-**Standalone mode (default when invoked directly)**:
-- Collect parameters interactively using the **AskUserQuestion tool**
-- Every parameter is skippable or has a default — never block startup on missing parameters
-- Skip parameters already provided in the invocation; collect only missing ones
+**独立模式（直接调用时的默认模式）**：
+- 使用 **AskUserQuestion 工具**交互式收集参数
+- 每个参数都可跳过或有默认值 —— 绝不因缺失参数而阻塞启动
+- 调用时已提供的参数跳过，只收集缺失项
 
-**Non-interactive mode (when invoked from the auto-migration workflow)**:
-- The caller injects parameters (source project path, feature entry, output mode, framework profile, output directory)
-- Do NOT ask any questions; skip provided parameters and use defaults for the rest
-- Invalid injected input → fail fast with a clear error report instead of prompting
+**非交互模式（由自动迁移工作流调用时）**：
+- 由调用方注入参数（源项目路径、功能入口、输出模式、框架档案、输出目录）
+- MUST NOT 提问；已提供的参数跳过，其余使用默认值
+- 注入参数无效 → 直接快速失败并给出明确错误报告，而非提示用户
 
-## Step 1: Collect parameters
+## Step 1: 收集参数
 
 | 参数 | 必填 | 默认/跳过行为 |
 |------|------|---------------|
@@ -38,11 +41,11 @@ Scan a source project's feature modules and generate a complete feature requirem
 | 功能入口 | 是 | 全项目（跳过时） |
 | 输出模式 | 否 | 新人上手模式 |
 | 框架档案 | 否 | 未知框架 → 自动探测（Step 2） |
-| 输出目录 | 否 | 按输出路由规则（见 Output routing） |
+| 输出目录 | 否 | 按输出路由规则（见输出路由） |
 
-**Path validation**: verify the source project path exists and is readable before scanning (Windows drive paths like \`e:\\project\\src\` and POSIX paths are both valid input). If the path is invalid, report the error explicitly and ask the user to re-enter it — NEVER guess-correct, silently normalize, or proceed on a presumed path.
+**路径校验**：扫描前校验源项目路径存在且可读（Windows 盘符路径如 \`e:\\project\\src\` 与 POSIX 路径均为合法输入）。路径无效时 MUST 明确报错并要求用户重新输入 —— MUST NOT 猜测纠正、静默归一化，或按推测路径继续。
 
-### 输出模式 (output modes)
+### 输出模式
 
 | 模式 | 适用场景 | 文档侧重 | 输出范围 |
 |------|----------|----------|----------|
@@ -51,82 +54,82 @@ Scan a source project's feature modules and generate a complete feature requirem
 | **设计文档模式** | 编写正式技术文档 | 规范化格式、完整接口说明、数据库设计 | 指定模块规范文档 |
 | **全景扫描模式** | 全面了解整个项目 | 全模块地图、交叉依赖、交互全景 | 全项目所有模块 |
 
-## Step 2: Collect the framework profile (框架档案)
+## Step 2: 收集框架档案
 
-The framework profile parameterizes the source project's framework-specific development knowledge. Fields:
+框架档案把源项目的框架专属开发知识参数化。字段如下：
 
 | 档案字段 | 说明 |
 |----------|------|
-| 框架名 | Framework identity detected from the source project |
-| 路由配置文件 | Where URL → Controller mappings live (annotation-based mapping counts as config) |
-| 前端交互方式清单 | Interaction channels observed in the source project (Ajax / form submit / URL direct / reverse push / ...) |
-| 特有机制清单 | Framework-specific mechanisms that drive page rendering or data access |
-| 框架标准方法清单（可选） | Standard methods the framework generates or dispatches, if documented |
+| 框架名 | 从源项目探测到的框架标识 |
+| 路由配置文件 | URL → Controller 映射的所在位置（基于注解的映射也算配置） |
+| 前端交互方式清单 | 源项目中观测到的交互通道（Ajax / 表单提交 / URL 直达 / 反向推送 / ...） |
+| 特有机制清单 | 驱动页面渲染或数据访问的框架特有机制 |
+| 框架标准方法清单（可选） | 框架生成或派发的标准方法（如有文档） |
 
-**No built-in framework presets.** The profile MUST be derived from the **actual source project** (auto-detection + user confirmation) or supplied by the caller — never hardcoded. A caller-provided profile always wins over detection. Never assume any framework without confirmed detection evidence.
+**不内置任何框架预设。** 档案 MUST 来自**实际源项目**（自动探测 + 用户确认）或由调用方提供 —— MUST NOT 硬编码。调用方提供的档案始终优先于探测结果。在无已确认的探测证据前 MUST NOT 假定任何框架。
 
-**Unknown framework (自动探测降级)** — when the user selects 未知框架 or provides no profile:
-1. Read project structure files (\`pom.xml\` / \`build.gradle\`, \`web.xml\`, \`package.json\`, \`application.properties\`, \`struts.xml\`, annotation patterns in source) to detect the framework type and routing configuration
-2. Present the detection conclusion as **[待确认：框架档案探测]** — the user must confirm before scanning continues
-3. In non-interactive mode, record the detection conclusion in the output report; a caller-provided profile always wins over detection
+**未知框架（自动探测降级）** —— 当用户选择「未知框架」或未提供档案时：
+1. 读取项目结构文件（\`pom.xml\` / \`build.gradle\`、\`web.xml\`、\`package.json\`、\`application.properties\`、\`struts.xml\`、源码中的注解模式）以探测框架类型与路由配置
+2. 以 **[待确认：框架档案探测]** 呈现探测结论 —— 用户 MUST 确认后才继续扫描
+3. 非交互模式下，把探测结论记入输出报告；调用方提供的档案始终优先于探测结果
 
-## Step 3: Determine scan scope (入口类型识别)
+## Step 3: 确定扫描范围（入口类型识别）
 
 | 入口类型 | 识别规则 | 处理方式 |
 |----------|----------|----------|
-| **文件路径** | Contains source file extensions (\`.java\`, \`.jsp\`, \`.html\`, \`.xml\`, \`.properties\`, ...) or a package/directory path | Read the file(s), extract routes and dependencies, recursively scan the dependency chain (Controller → Service → DAO → Bean, related pages) |
-| **URL路由** | A URL string ending in the framework's route suffix (\`.do\`, \`.action\`, or the profile's equivalent) | Look up the routing config from the profile, locate the Action/Controller class, scan its dependency chain |
-| **模块名称** | A descriptive feature name (e.g., "账号管理", "登录功能") | Infer the package path from the name, scan the module's Action/Service/DAO/Entity, match related tables and pages |
-| **全项目** | "全部", "整个项目", "所有模块", "全景" | Layered full-project flow (see 全项目扫描模式) |
+| **文件路径** | 包含源码文件扩展名（\`.java\`、\`.jsp\`、\`.html\`、\`.xml\`、\`.properties\` 等）或包/目录路径 | 读取文件、提取路由与依赖，递归扫描依赖链（Controller → Service → DAO → Bean、相关页面） |
+| **URL路由** | 以框架路由后缀结尾的 URL 字符串（\`.do\`、\`.action\` 或档案中的等价形式） | 按档案中的路由配置查找、定位 Action/Controller 类并扫描其依赖链 |
+| **模块名称** | 描述性功能名（如 "账号管理"、"登录功能"） | 按名称推断包路径，扫描模块的 Action/Service/DAO/Entity，匹配相关表与页面 |
+| **全项目** | "全部", "整个项目", "所有模块", "全景" | 分层全项目流程（见全项目扫描模式） |
 
-## Step 4: Deep scan the feature implementation
+## Step 4: 深度扫描功能实现
 
-### 4.1 Backend scan
+### 4.1 后端扫描
 
-- **Controller layer**: class inheritance, all public method signatures, request dispatch logic (method-parameter routing or annotation mapping), parameter acquisition (\`request.getParameter()\`, form binding), return handling (setAttribute + forward / JSON write / redirect); locate URL mappings in the profile's routing config
-- **Service layer**: per-method business logic (计算/转换/判断/校验), transaction control, permission checks, external service calls (WebService / MQ / SSH), async processing
-- **DAO layer**: every SQL (SELECT/INSERT/UPDATE/DELETE); parameterization (\`?\` placeholders vs string concatenation — SQL injection risk MUST be judged from actual code); return types; connection handling; involved tables and fields
-- **Entity layer**: field names, types, table mappings
+- **Controller 层**：类继承关系、全部 public 方法签名、请求派发逻辑（方法参数路由或注解映射）、参数获取（\`request.getParameter()\`、表单绑定）、返回处理（setAttribute + forward / JSON 写出 / redirect）；在档案的路由配置中定位 URL 映射
+- **Service 层**：逐方法业务逻辑（计算/转换/判断/校验）、事务控制、权限校验、外部服务调用（WebService / MQ / SSH）、异步处理
+- **DAO 层**：每条 SQL（SELECT/INSERT/UPDATE/DELETE）；参数化（\`?\` 占位符 vs 字符串拼接 —— SQL 注入风险 MUST 依据实际代码判定）；返回类型；连接处理；涉及的表与字段
+- **Entity 层**：字段名、类型、表映射
 
-### 4.2 Frontend scan
+### 4.2 前端扫描
 
-- Identify page types (主页面/详情页/弹窗页/嵌套页); record form fields, validation rules, buttons and their bound JavaScript functions, navigation logic
-- Analyze data fetch and display through EVERY interaction channel listed in the framework profile — never limit the scan to one channel
-- Record field-level request parameters and response handling per interaction (Principle B)
+- 识别页面类型（主页面/详情页/弹窗页/嵌套页）；记录表单字段、校验规则、按钮及其绑定的 JavaScript 函数、跳转逻辑
+- 通过框架档案中列出的**每一条**交互通道分析数据获取与展示 —— MUST NOT 只扫描单一通道
+- 按交互记录字段级请求参数与响应处理（原则 B）
 
-### 4.3 Config scan
+### 4.3 配置扫描
 
-Read the profile's routing config and other key configs (\`web.xml\`, DWR config, database connection config, workflow config) to build the global view.
+读取档案的路由配置及其它关键配置（\`web.xml\`、DWR 配置、数据库连接配置、工作流配置），建立全局视图。
 
-### 4.4 Database scan
+### 4.4 数据库扫描
 
-Extract tables and fields from SQL statements and entities; obtain full table structures (types, lengths, defaults, comments); analyze indexes, constraints, logical relations, and enum field values.
+从 SQL 语句与实体中提取表与字段；获取完整表结构（类型、长度、默认值、注释）；分析索引、约束、逻辑关系与枚举字段取值。
 
-## Step 5: Build the feature hierarchy decomposition
+## Step 5: 构建功能层次分解
 
-Decompose the scanned feature: 功能模块 → 功能组 → 功能点 → 子功能 → 实现点 (implementation points reference concrete classes/methods/pages).
+分解被扫描的功能：功能模块 → 功能组 → 功能点 → 子功能 → 实现点（实现点指向具体的类/方法/页面）。
 
-Generate:
-1. A Mermaid **mindmap** of the hierarchy down to implementation points
-2. A Mermaid **graph** of feature relations inside the module (which features call or depend on each other)
+生成：
+1. 层次分解到实现点级别的 Mermaid **mindmap**
+2. 模块内功能关系的 Mermaid **graph**（各功能之间的调用或依赖）
 
-## Step 6: Build the cross-module interaction panorama
+## Step 6: 构建跨模块交互全景
 
-Analyze at three levels:
-- **Level 1 模块级依赖**: package import dependencies, cross-module config references → dependency matrix
-- **Level 2 接口级调用**: cross-module Action/Service calls, call style (method call / WebService / MQ / HTTP), data format
-- **Level 3 数据流级联动**: cascading table operations, state synchronization, consistency maintenance
+从三个层次分析：
+- **Level 1 模块级依赖**：包 import 依赖、跨模块配置引用 → 依赖矩阵
+- **Level 2 接口级调用**：跨模块 Action/Service 调用、调用方式（方法调用 / WebService / MQ / HTTP）、数据格式
+- **Level 3 数据流级联动**：级联表操作、状态同步、一致性维护
 
-Generate the module interaction panorama graph and, for each cross-module interaction, a detail table: 源模块 / 目标模块 / 交互场景 / 调用链（类→方法→类→方法）/ 数据传递 / 数据库联动 / 状态同步 / 异常处理 / 事务边界.
+生成模块交互全景图，并为每个跨模块交互给出明细表：源模块 / 目标模块 / 交互场景 / 调用链（类→方法→类→方法）/ 数据传递 / 数据库联动 / 状态同步 / 异常处理 / 事务边界。
 
-## Step 7: Draw the 4 mandatory diagram types
+## Step 7: 绘制 4 类必备图表
 
-**⚠️ All 4 types are mandatory outputs. A document missing any type is unqualified.**
+**⚠️ 4 类图表均为必备产出。缺少任一类即文档不合格。**
 
-### 7.1 前后端业务交互时序图 (per core feature point)
+### 7.1 前后端业务交互时序图（每个核心功能点）
 
-Trace: 用户 → 前端JS → HTTP请求 → Controller → Service → Util → DAO → DB → 响应 → 前端渲染.
-Requirements: every node annotated with \`文件名:行号\` or \`类名.方法名()\`; HTTP method + URL; frontend encryption/serialization; backend return type; frontend DOM operations in callbacks. At minimum cover: main business operations, list queries, import/export chains.
+追踪链路：用户 → 前端JS → HTTP请求 → Controller → Service → Util → DAO → DB → 响应 → 前端渲染.
+要求：每个节点标注 \`文件名:行号\` 或 \`类名.方法名()\`；HTTP 方法与 URL；前端加密/序列化；后端返回类型；回调中的前端 DOM 操作。至少覆盖：主要业务操作、列表查询、导入/导出链路。
 
 \`\`\`mermaid
 sequenceDiagram
@@ -156,9 +159,9 @@ sequenceDiagram
     F->>F: 前端渲染(DOM操作/刷新/提示)
 \`\`\`
 
-### 7.2 接口交互流程图 (per Controller / route entry)
+### 7.2 接口交互流程图（每个 Controller / 路由入口）
 
-Show how frontend buttons/links map to dispatch parameters, Controller methods, return types, and frontend handling of each return type.
+展示前端按钮/链接如何映射到派发参数、Controller 方法、返回类型，以及前端对每种返回类型的处理。
 
 \`\`\`mermaid
 flowchart TD
@@ -176,9 +179,9 @@ flowchart TD
     end
 \`\`\`
 
-### 7.3 功能间交互流程图 (mandatory when 2+ Controllers or 3+ tables are involved)
+### 7.3 功能间交互流程图（涉及 ≥2 个 Controller 或 ≥3 张表时必备）
 
-Show cross-feature call chains, shared utilities, table dependencies, and async trigger points.
+展示跨功能调用链、共享工具、表依赖与异步触发点。
 
 \`\`\`mermaid
 flowchart LR
@@ -201,9 +204,9 @@ flowchart LR
     B2 --> T2
 \`\`\`
 
-### 7.4 后端决策流程图 (mandatory for methods with if/else over 3 levels or switch over 3 cases)
+### 7.4 后端决策流程图（if/else 超 3 层或 switch 超 3 个 case 的方法必备）
 
-Every condition node must come from actual if statements; every branch shows its real logic, DB operations, and exception paths.
+每个条件节点 MUST 来自实际的 if 语句；每个分支展示其真实逻辑、数据库操作与异常路径。
 
 \`\`\`mermaid
 flowchart TD
@@ -217,7 +220,7 @@ flowchart TD
     F --> H[记录日志/返回错误]
 \`\`\`
 
-### Step 7 self-check
+### Step 7 自查
 
 - [ ] 7.1 时序图: 每个核心功能点都有？
 - [ ] 7.2 接口交互流程图: 每个 Controller 的分发都有？
@@ -225,13 +228,13 @@ flowchart TD
 - [ ] 7.4 决策流程: 所有复杂 if/else/switch 都有？
 - [ ] 所有图中的方法名能在源码中找到？URL/参数与前端代码一致？
 
-## Step 8: Database call chain tracing
+## Step 8: 数据库调用链追踪
 
-Per feature point:
-1. **数据库操作汇总表**: 步骤 / SQL类型 / 表名 / 操作说明 / 关键字段 / 调用位置（类.方法():行号）
-2. **数据变换追踪**: 前端表单数据 → Controller 参数 → Service 变换（加密/转换/计算）→ SQL 参数 → 数据库存储值, layer by layer with concrete values and transformations
+按功能点：
+1. **数据库操作汇总表**：步骤 / SQL类型 / 表名 / 操作说明 / 关键字段 / 调用位置（类.方法():行号）
+2. **数据变换追踪**：前端表单数据 → Controller 参数 → Service 变换（加密/转换/计算）→ SQL 参数 → 数据库存储值，逐层给出具体取值与变换
 
-## Anti-hallucination rules (6 rules — highest priority)
+## 反幻觉规则（6 条 —— 最高优先级）
 
 ### 规则1: 分析结论必须有代码证据
 
@@ -275,46 +278,46 @@ Per feature point:
 
 **验证方法**: 全文搜索禁止词汇，每个命中点必须被替换或标注为 \`[待确认]\`。
 
-## Detail-level mandates (A-G)
+## 细节要求（A-G）
 
-> Purpose: the document must be detailed enough that a migration team can re-implement the feature from this document alone, without guessing any implementation detail.
+> 目的：文档必须足够详细，使迁移团队仅凭本文档即可重新实现该功能，无需猜测任何实现细节。
 
 ### 原则A: 每个前端页面独立文档化
 
-Each page gets: 页面名称 / 页面类型（列表页/表单页/详情页/弹窗页/嵌套页）/ 路由入口 / 触发方式, plus:
+每个页面包含：页面名称 / 页面类型（列表页/表单页/详情页/弹窗页/嵌套页）/ 路由入口 / 触发方式，以及：
 - **完整字段列表**（每个字段一行，不允许"等"省略）: 字段名 / 数据库字段 / UI组件类型 / 是否只读 / 校验规则 / 默认值来源 / 事件绑定
 - **组件交互逻辑**: 字段联动/级联/显隐关系，按钮点击后的完整链路
 - **页面JavaScript函数列表**: 函数名 / 触发时机 / 功能 / 调用的后端URL
 
 ### 原则B: 前后端字段级契约
 
-Each frontend-backend interaction gets: 操作名称 / 触发页面:行号 / 触发方式（Ajax POST / Form提交 / URL跳转 / 框架特有方式）, plus:
+每个前后端交互包含：操作名称 / 触发页面:行号 / 触发方式（Ajax POST / Form 提交 / URL 跳转 / 框架特有方式），以及：
 - **请求参数-字段级**: 参数名 / 来源字段或JS变量 / 类型 / 是否必填 / 前端处理（加密/编码/默认值）/ 后端接收方式
 - **响应处理-字段级**: 响应字段 / 类型 / 前端使用方式 / DOM操作目标
 
 ### 原则C: 后端每个方法独立文档化
 
-Each Controller/Service/Util method gets: 方法名 / 类 / 代码位置（行号范围）/ 功能 / 返回值类型, plus:
+每个 Controller/Service/Util 方法包含：方法名 / 类 / 代码位置（行号范围）/ 功能 / 返回值类型，以及：
 - **处理步骤**（逐步骤标注代码行）
 - **数据库操作**表（SQL语句 / 表名 / 操作类型 / 执行位置）
 - **调用的工具类/其他模块**表（类名 / 方法 / 调用位置 / 用途）
 
 ### 原则D: 迁移可执行性验证
 
-Self-ask after generation: 如果只给这份文档，一个不了解项目的人能否完整重新实现该功能？Coverage required: 每个页面的所有字段及组件类型、每个字段的前端校验、每个按钮/链接触发的具体 URL 和方法、每个后端方法的入参列表和来源、每张表的字段列表和类型、每条 SQL 的操作类型和条件、每个 if/else 分支的判断条件。
+生成后自问：如果只给这份文档，一个不了解项目的人能否完整重新实现该功能？覆盖要求：每个页面的所有字段及组件类型、每个字段的前端校验、每个按钮/链接触发的具体 URL 和方法、每个后端方法的入参列表和来源、每张表的字段列表和类型、每条 SQL 的操作类型和条件、每个 if/else 分支的判断条件。
 
 ### 原则E: 框架驱动页面的分组文档化
 
-When many pages are rendered by the same framework/template mechanism (per the profile's 特有机制):
-1. One "框架通用机制" subsection explaining how the framework renders pages (关键类和方法、配置→组件映射规则、页面如何读取数据)
-2. Grouped page tables: 页面文件列表（全部列出，不可省略）、共同使用的配置来源、差异点
-3. Each group references the complete field tables (chapter 2) instead of repeating them
+当许多页面由同一框架/模板机制渲染时（对应档案的「特有机制」）：
+1. 一个「框架通用机制」小节，说明框架如何渲染页面（关键类和方法、配置→组件映射规则、页面如何读取数据）
+2. 分组页面表：页面文件列表（全部列出，不可省略）、共同使用的配置来源、差异点
+3. 每个分组引用完整字段表（第 2 章），而非重复抄写
 
-Forbidden: 只列少数页面其余用"等"省略；对每个同模板页面重复抄写相同字段表；完全不提其余页面的存在。
+禁止：只列少数页面其余用"等"省略；对每个同模板页面重复抄写相同字段表；完全不提其余页面的存在。
 
 ### 原则F: 所有方法覆盖（public + private 全覆盖）
 
-Every method of each scanned Controller/Service/Util class must be documented, including private methods:
+被扫描的每个 Controller/Service/Util 类的每个方法 MUST 文档化，包括 private 方法：
 - **复杂方法**（>10行或含分支/循环）→ 逐步骤描述（步骤编号/代码行/操作内容/调用的方法）
 - **简单方法**（≤10行且无分支）→ 方法签名 + 代码行范围 + 一句话功能描述
 - **纯委托方法** → 标注"委托父类{父类名}.{方法名}()"或"返回{字段名}"
@@ -323,11 +326,11 @@ Every method of each scanned Controller/Service/Util class must be documented, i
 
 ### 原则G: 工具类引用全覆盖
 
-Every imported non-JDK class referenced by the feature gets an independent subsection: 类名 / 来源（项目内/第三方库/框架基础类）/ 引用者, plus a table of ALL used methods: 被使用的方法 / 调用行号（调用者:行号）/ 本功能中的用途 / 方法功能描述.
+功能引用到的每个非 JDK 的 import 类都要有独立小节：类名 / 来源（项目内/第三方库/框架基础类）/ 引用者，以及一张列出**全部**被使用方法的表：被使用的方法 / 调用行号（调用者:行号）/ 本功能中的用途 / 方法功能描述。
 
 **验证**: 从每个类的 import 语句反向检查 — 导入的每个非 JDK 类都有独立小节，代码中调用的每个方法都在方法清单中。禁止"使用了XxxUtil进行类型转换"式的笼统描述。
 
-## Step 9: Generate the document
+## Step 9: 生成文档
 
 **输出结构**（以下章节不可缺失，不可使用概括性描述）:
 
@@ -354,37 +357,37 @@ Every imported non-JDK class referenced by the feature gets an independent subse
    E. 建表SQL
 \`\`\`
 
-**特殊功能点**（第9章）: 安全相关（加密算法/权限校验/SQL注入防护）、性能优化（缓存/分页/批量/异步）、复杂业务逻辑（递归/事务/工作流/定时任务）、系统集成（WebService/SSH/消息通知/SSO）— each documented with 实现位置 / 实现原理 / 关键技术点 / 依赖关系 / 迁移建议.
+**特殊功能点**（第 9 章）：安全相关（加密算法/权限校验/SQL 注入防护）、性能优化（缓存/分页/批量/异步）、复杂业务逻辑（递归/事务/工作流/定时任务）、系统集成（WebService/SSH/消息通知/SSO）—— 每个都记录：实现位置 / 实现原理 / 关键技术点 / 依赖关系 / 迁移建议。
 
-**Naming**:
+**命名**：
 - 单模块: \`{功能模块名}_需求文档.md\`
 - 全项目: \`{项目名}_功能地图.md\` + 各模块独立文档
 - 多个相关模块: \`{模块集名称}_关联分析.md\`
 
-## 全项目扫描模式 (panorama mode / whole-project entry)
+## 全项目扫描模式
 
-Three layers:
-1. **项目总体结构扫描**: read all routing mappings from the profile's routing config, scan all top-level module packages and page directories → 模块总览表 + 模块依赖拓扑图
-2. **模块级分析** (per module, feature-point level — not per-method): 模块名称/包路径、Controller 列表、页面列表、涉及的数据库表、对外提供的接口和依赖的其他模块
-3. **模块交互分析**: Step 6 → 全项目模块交互全景图
+三个层次：
+1. **项目总体结构扫描**：从档案的路由配置读取全部路由映射，扫描所有顶层模块包与页面目录 → 模块总览表 + 模块依赖拓扑图
+2. **模块级分析**（按模块、功能点级别 —— 非逐方法）：模块名称/包路径、Controller 列表、页面列表、涉及的数据库表、对外提供接口与依赖的其他模块
+3. **模块交互分析**：Step 6 → 全项目模块交互全景图
 
-Output: 项目功能地图.md（整体架构图、所有模块列表及功能概述、模块交互全景图、每模块清单、全局配置说明）+ optional per-module detail documents.
+产出：项目功能地图.md（整体架构图、所有模块列表及功能概述、模块交互全景图、每模块清单、全局配置说明）+ 可选的每模块详情文档。
 
-## Output routing
+## 输出路由
 
 | 执行上下文 | 输出路径 |
 |------------|----------|
-| Change context (called by auto-migration, \`openspec/changes/<change-name>/\` exists) | \`openspec/changes/<change-name>/attachments/source-feature-doc/\` |
-| Standalone, user-specified output directory | user-specified directory |
-| Standalone, no directory specified | \`openspec/migration/\` |
+| 变更上下文（由自动迁移调用，存在 \`openspec/changes/<change-name>/\`） | \`openspec/changes/<change-name>/attachments/source-feature-doc/\` |
+| 独立模式，用户指定输出目录 | 用户指定目录 |
+| 独立模式，未指定目录 | \`openspec/migration/\` |
 
-- Use \`path.join()\` to build all output paths (cross-platform: Windows drive letters + POSIX separators)
-- Create the target directory if missing
-- Non-interactive mode always uses the change-context route
+- 所有输出路径 MUST 用 \`path.join()\` 构建（跨平台：Windows 盘符 + POSIX 分隔符）
+- 目标目录缺失时创建
+- 非交互模式始终走变更上下文路由
 
-## CodeGraph strategy
+## CodeGraph 策略
 
-Prefer CodeGraph tools when the source project has an index:
+源项目有索引时优先使用 CodeGraph 工具：
 
 | 分析目标 | CodeGraph 工具 |
 |----------|----------------|
@@ -395,17 +398,17 @@ Prefer CodeGraph tools when the source project has an index:
 | 修改影响范围 | \`codegraph_impact\` |
 | 符号源码 | \`codegraph_node\` |
 
-**Degradation**: if the source project has no CodeGraph index, automatically degrade to Glob/Grep/Read manual scanning and record the degradation in the document header (e.g., "扫描方式: Glob/Grep 手动扫描（CodeGraph 不可用）"). Do NOT block or ask the user. In standalone mode, optionally suggest initializing CodeGraph after the document is generated.
+**降级**：源项目无 CodeGraph 索引时，自动降级为 Glob/Grep/Read 手动扫描，并在文档头部记录降级（如 "扫描方式: Glob/Grep 手动扫描（CodeGraph 不可用）"）。MUST NOT 阻塞或询问用户。独立模式下，可在文档生成后建议初始化 CodeGraph。
 
-## Special scenarios
+## 特殊场景
 
-- **前后端分离架构**: scan the backend API (Controller classes, route annotations) and the frontend project directory (Vue/React etc.) separately; analyze the API contract (request params, response format)
-- **多模块关联扫描**: scan each module → analyze cross dependencies → interaction analysis document → merge into a unified report
-- **交互方式以档案为准**: never assume interaction channels — scan exactly the channels listed in the framework profile, plus any channels evidenced in code
+- **前后端分离架构**：分别扫描后端 API（Controller 类、路由注解）与前端项目目录（Vue/React 等）；分析 API 契约（请求参数、响应格式）
+- **多模块关联扫描**：扫描每个模块 → 分析交叉依赖 → 交互分析文档 → 合并为统一报告
+- **交互方式以档案为准**：MUST NOT 假定交互通道 —— 严格扫描框架档案中列出的通道，外加任何代码中已证实存在的通道
 
-## Output verification
+## 产出校验
 
-After generation, self-check:
+生成后自查：
 
 - [ ] 每条技术描述可追溯到具体代码文件与行号（规则1）
 - [ ] 无法确认的信息已标 **[待确认：...]**，无推测性描述（规则2）
@@ -420,11 +423,11 @@ After generation, self-check:
 - [ ] 文件保存至按执行上下文路由的输出路径（path.join() 构建）
 
 **Guardrails**
-- Never invent algorithms, libraries, tables, endpoints, or business rules — read the code first; mark gaps as **[待确认]**
-- Never assume a framework or interaction channels — the framework profile (selected, provided, or confirmed after detection) is the only source of framework knowledge
-- Invalid paths are reported and re-collected, never guess-corrected
-- Non-interactive mode never blocks on questions; standalone mode never blocks startup on skippable parameters
-- Use \`path.join()\` for all file paths`,
+- MUST NOT 杜撰算法、库、表、端点或业务规则 —— 先读代码；缺口标 **[待确认]**
+- MUST NOT 假定框架或交互通道 —— 框架档案（选定、提供或探测后确认的）是框架知识的唯一来源
+- 无效路径一律报错并重新收集，MUST NOT 猜测纠正
+- 非交互模式绝不因提问阻塞；独立模式绝不因可跳过参数阻塞启动
+- 所有文件路径使用 \`path.join()\``,
         license: 'MIT',
         compatibility: 'CodeGraph MCP 可选；无索引时自动降级为 Glob/Grep/Read 手动扫描。',
         metadata: { author: 'mi-agent-tools' },
@@ -437,67 +440,6 @@ export function getFeatureDocCommandTemplate(): CommandTemplate {
         description: '扫描源项目功能模块，生成功能需求实现文档（功能地图）',
         category: 'iAgent / 文档',
         tags: ['iagent', 'docs', 'feature-doc', 'documentation', 'analysis'],
-        content: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
-
-Scan a source project's feature modules and generate a feature requirement implementation document. **Trigger boundary**: this command scans source project code (feature map / 项目功能地图 / 迁移需求文档).
-
-**Input**: optionally provide the source project path and feature entry after the command. Missing parameters are collected interactively; already-provided parameters are skipped. When invoked from the auto-migration workflow (non-interactive), use the injected parameters without asking.
-
----
-
-## Step 1: Collect parameters
-
-- **源项目根目录路径**: validate existence/readability first (Windows drive paths and POSIX paths both valid). Invalid path → report the error and ask for re-input — never guess-correct a path
-- **功能入口**: 文件路径 / URL路由 / 模块名称 / 全项目
-- **输出模式**: 新人上手（默认）/ 迁移重构 / 设计文档 / 全景扫描
-- **框架档案**: auto-detect the framework profile from the source project structure files (\`pom.xml\`, \`web.xml\`, \`package.json\`, \`struts.xml\`, annotation patterns, ...) → present the conclusion as **[待确认：框架档案探测]** and confirm before scanning. No built-in presets — never assume any framework without confirmed detection evidence or a caller-provided profile
-- **输出目录**: optional (see routing below)
-
-## Step 2: Deep scan (entry-type driven)
-
-- **Backend**: Controller dispatch logic → Service business logic → DAO SQL (parameterization vs concatenation → SQL injection risk from actual code) → entities
-- **Frontend**: every page (fields/components/validation/JS functions), every interaction channel listed in the framework profile, field-level contracts
-- **Config + database**: routing config, full table structures, indexes, enum values
-
-## Step 3: Analysis artifacts (all mandatory)
-
-- **功能-子功能层次分解**: Mermaid mindmap down to implementation points (类.方法() / 页面)
-- **跨模块交互全景**: 模块依赖 → 接口调用 → 数据流联动, with a detail table per interaction
-- **4 类流程图**（缺一不可）: 前后端交互时序图（每核心功能点）/ 接口交互流程图（每 Controller）/ 功能间交互流程图（多 Controller/多表时）/ 后端决策流程图（if/else 超3层或 switch 超3个 case 时）— every method name and condition traceable to actual code
-- **数据库调用链追踪**: 操作汇总表 + 数据变换追踪（前端表单 → Controller 参数 → Service 变换 → SQL 参数 → 存储值）
-
-## Step 4: Generate the document
-
-11-section structure + appendix: 功能概述与层次分解 / 数据库设计（每表全字段）/ 前端页面实现 / API接口设计（字段级契约）/ 4类流程图 / 后端功能实现 / 数据库调用链 / 跨模块交互分析 / 特殊功能点实现方式 / 问题分析与建议 / 迁移建议；附录（文件清单、页面全矩阵、接口全契约、工具类引用全清单、建表SQL）.
-
-Follow the anti-hallucination rules: every conclusion traceable to 文件:行号; unconfirmed information marked **[待确认：...]**; no vague summaries ("等", "主要包括", "相关" — list everything concretely). Follow the detail mandates A-G: per-page field tables, field-level frontend-backend contracts, per-method documentation (public + private 全覆盖), migration executability (re-implementable from the document alone), framework-driven page grouping, utility-class full coverage (every imported class listed with all used methods).
-
-**Naming**: 单模块 \`{功能模块名}_需求文档.md\`; 全项目 \`{项目名}_功能地图.md\` + per-module docs; 多模块 \`{模块集名称}_关联分析.md\`.
-
-**Output routing** (build all paths with \`path.join()\`):
-
-| 执行上下文 | 输出路径 |
-|------------|----------|
-| Change context (auto-migration) | \`openspec/changes/<change-name>/attachments/source-feature-doc/\` |
-| Standalone + user-specified directory | user-specified directory |
-| Standalone, none specified | \`openspec/migration/\` |
-
-**CodeGraph**: prefer CodeGraph tools (\`codegraph_search\` / \`codegraph_callers\` / \`codegraph_callees\` / \`codegraph_impact\`); if the source project has no index, automatically degrade to Glob/Grep/Read, record the degradation in the document header, and continue — never block or ask the user.
-
-## Self-check
-
-- [ ] 每条描述可追溯（文件:行号）；未确认信息已标 **[待确认]**
-- [ ] 无「等/主要包括/相关」概括省略；字段/页面/方法/工具类全部完整列出
-- [ ] 4 类流程图齐全且基于实际代码路径
-- [ ] public + private 方法全覆盖；工具类引用全覆盖
-- [ ] 只读此文档能完整重新实现该功能
-- [ ] 文档保存至按上下文路由的输出路径
-
-**Guardrails**
-- Never invent algorithms, libraries, tables, or endpoints — read the code first
-- Never assume a framework — profile (selected/provided/detected-and-confirmed) is the only source
-- Invalid paths are re-collected, never guess-corrected
-- Non-interactive mode never blocks on questions
-- Use \`path.join()\` for all file paths`,
+        content: deriveCommandContent(getFeatureDocSkillTemplate().instructions),
     };
 }

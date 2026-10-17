@@ -31,7 +31,7 @@ pnpm link --global
 验证安装：
 
 ```bash
-iagent --version    # 输出 6.3.0
+iagent --version    # 输出 6.4.0
 iagent --help       # 查看全部命令
 ```
 

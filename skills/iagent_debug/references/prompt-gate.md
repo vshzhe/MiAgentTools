@@ -1,4 +1,4 @@
-### Prompt Validation Gate (提示词校验门)
+### 提示词校验门
 
 **Step 1 — 清晰度自检**: 逐维判定用户输入，标记 `✅ 清晰` / `⚠️ 歧义` / `❌ 缺失`
 
@@ -25,7 +25,7 @@
 
 **Step 4 — ⛔ GATE: 确认门（强制停止）**
 
-> **THIS IS A CONFIRMATION GATE. Your response MUST END here. Do NOT continue to any subsequent steps.**
+> **这是一个确认门。本次响应 MUST 到此结束，不得继续任何后续步骤。**
 
 - 呈现 `【优化后提示词】` 与 `【优化说明】` 后**立即结束本次响应**
 - 用户确认前 MUST NOT 进入探索、创建探索文件、扫描代码库或发起追问

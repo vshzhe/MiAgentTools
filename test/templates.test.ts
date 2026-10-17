@@ -127,7 +127,7 @@ describe('功能流程图制品内联', () => {
         for (const { name } of FLOWCHART_SKILLS) {
             const skill = skills.find((s) => s.template.name === name);
             expect(skill, `技能 ${name} 未注册`).toBeDefined();
-            expect(skill?.template.instructions).toContain('功能流程图（Functional Flowchart）');
+            expect(skill?.template.instructions).toContain('功能流程图');
         }
     });
 
@@ -219,7 +219,7 @@ describe('对话级确认门未被白名单改动侵蚀', () => {
     /** 功能流程图门关键标识句（段落要求、最终确认门、节点清单） */
     const FLOWCHART_GATE_MARKS = [
         '## 功能流程图',
-        '功能流程图（Functional Flowchart）',
+        '功能流程图',
         // 内联版流程门措辞为"（强制停止）"；"出口有四条，不得只认一条"仅存在于流程图全文版
         '流程最终确认门（强制停止）',
         '出口：确认 / 修改 / 拒绝',

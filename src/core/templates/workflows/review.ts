@@ -2,6 +2,7 @@
  * review 类型技能模板：审查。
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
+import { deriveCommandContent } from '../derive-command.js';
 
 export function getReviewSkillTemplate(): SkillTemplate {
     return {
@@ -10,6 +11,8 @@ export function getReviewSkillTemplate(): SkillTemplate {
         allowedTools: 'Bash(git diff:*), Bash(git log:*), Bash(git status:*), Read, Glob, Grep',
         type: 'review',
         instructions: `审查代码 —— 按维度检查，只报告经过验证的问题，严重程度分级呈现。
+
+**输入**：\`/iagent:review\` 后跟审查范围（文件路径、分支名或 PR 标识；可省略，默认审查未提交变更）。
 
 ## 审查维度
 
@@ -67,28 +70,6 @@ export function getReviewCommandTemplate(): CommandTemplate {
         description: '审查代码 —— 按维度检查质量、核对规范、输出分级审查报告',
         category: 'iAgent / 审查',
         tags: ['iagent', 'review', 'code-review', 'quality'],
-        content: `审查代码 —— 按维度检查，只报告经过验证的问题，严重程度分级呈现。
-
-**输入**：\`/iagent:review\` 后跟审查范围（文件路径、分支名或 PR 标识；可省略，默认审查未提交变更）。
-
-## 审查维度（按优先级）
-
-1. **正确性**：逻辑错误、边界遗漏、空指针、异常分支缺失
-2. **安全性**：SQL 注入、未校验输入、敏感信息泄露、越权访问
-3. **性能**：循环内数据库请求、重复计算、集合初始容量
-4. **可维护性**：命名、职责单一、重复代码、魔法数字
-5. **规范符合度**：分层越界、对象混用、过期 API
-
-## 执行步骤
-
-1. **确定审查范围**：按用户指定；未指定时审查未提交变更（\`git diff\`）。
-2. **通读代码**：先理解意图，对照项目规范而非个人偏好。
-3. **验证发现**：只报告有具体行号 + 触发场景的问题；拿不准的标"待验证"。
-4. **输出报告**：按 CRITICAL / WARNING / SUGGESTION 分级，每条含 文件:行号、描述、场景、修复建议。
-
-## 约束
-
-- 只审查不改码：修复需用户确认后衔接 \`/iagent:workflow\`
-- 不报告纯风格偏好（除非项目规范明确要求）`,
+        content: deriveCommandContent(getReviewSkillTemplate().instructions),
     };
 }

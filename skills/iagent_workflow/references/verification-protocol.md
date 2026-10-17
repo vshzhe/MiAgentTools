@@ -1,16 +1,16 @@
-### 3.1 Auto-Execute Verification (No User Prompt)
+### 3.1 自动执行验证（无用户询问）
 
-**⚠️ Verification is now AUTOMATIC — no user choice prompt**
+**⚠️ 验证现为自动执行——不再出现用户选择询问**
 
-After all artifacts are generated and validated in Phase 2.5, system MUST automatically enter Phase 3 verification without asking the user:
+全部制品在 Phase 2.5 生成并校验后，系统 MUST 不询问用户直接自动进入 Phase 3 验证：
 
-1. **Skip method-specific prompt** — Do NOT show "Propose 方式一步生成，建议运行验证" or "已通过逐步迭代创建，验证可选"
-2. **Skip user choice** — Do NOT ask [立即验证] / [跳过验证]
-3. **Execute directly** — Proceed to 3.2 Verification Execution
+1. **跳过按方式区分的提示** — 不展示 "Propose 方式一步生成，建议运行验证" 或 "已通过逐步迭代创建，验证可选"
+2. **跳过用户选择** — 不询问 [立即验证] / [跳过验证]
+3. **直接执行** — 进入 3.2 验证执行
 
-### 3.2 Verification Execution
+### 3.2 验证执行
 
-Execute D1-D5 core verification by **invoking the `iagent_spec_verify_proposal` skill** (NOT a CLI instruction):
+通过**调用 `iagent_spec_verify_proposal` 技能**执行 D1-D5 核心验证（而不是 CLI 指令）：
 
 ```bash
 # Resolve change status first
@@ -20,21 +20,21 @@ iagent spec status --change "<name>" --json
 # Running `iagent spec instructions iagent_spec_verify_proposal` errors with "Artifact not found".)
 ```
 
-Invoke the skill: use the Skill tool to call `iagent_spec_verify_proposal` for change `<name>`. The skill performs inline D1-D5 scoring by reading the artifacts and exploration.md; it does not depend on any CLI verify command (none exists — the iagent CLI only has `validate` for schema-level checks).
+调用技能：用 Skill 工具为变更 `<name>` 调用 `iagent_spec_verify_proposal`。该技能通过读取制品与 exploration.md 内联完成 D1-D5 评分，不依赖任何 CLI verify 命令（并不存在——iagent CLI 只有做 schema 级检查的 `validate`）。
 
-**Fallback (skill unavailable)**: If the `iagent_spec_verify_proposal` skill is not installed or its invocation fails, fall back to AI inline reading of proposal/specs/design/tasks + D1-D5 manual scoring, and emit WARN log: "iagent_spec_verify_proposal skill unavailable, degraded to inline scoring". Do NOT silently skip verification.
+**降级（回退）（技能不可用）**：若 `iagent_spec_verify_proposal` 技能未安装或调用失败，降级为 AI 内联读取 proposal/specs/design/tasks + D1-D5 手工评分，并输出 WARN 日志："iagent_spec_verify_proposal 技能不可用，已降级为内联评分"。MUST NOT 静默跳过验证。
 
-Execute 5-dimension verification:
-1. **D1: Requirement Coverage** — Decisions → spec requirements
-2. **D2: Technical Consistency** — Technical choices → `design.md`
-3. **D3: Task Completeness** — Spec requirements → tasks
-4. **D4: Boundary Coverage** — Questions/edge cases → spec scenarios
-5. **D5: Pending Resolution** — Pending items → resolved
-6. **D6-D10: 条件维度** — Interaction Detail / API Contract / DB Mapping / Business Steps / Flowchart Node Coverage，由 `iagent_spec_verify_proposal` 按变更类型自动触发；未触发维度不计分
+执行 5 维度验证：
+1. **D1: 需求覆盖** — Decisions → 规格需求
+2. **D2: 技术一致性** — 技术选型 → `design.md`
+3. **D3: 任务完整性** — 规格需求 → 任务
+4. **D4: 边界覆盖** — 问题 / 边界场景 → 规格 Scenario
+5. **D5: Pending 解决** — Pending 事项 → 已解决
+6. **D6-D10: 条件维度** — 交互细节（Interaction Detail）/ API 契约（API Contract）/ 数据库映射（DB Mapping）/ 业务步骤（Business Steps）/ 流程图节点覆盖，由 `iagent_spec_verify_proposal` 按变更类型自动触发；未触发维度不计分
 
-### 3.3 Quantified Score Report
+### 3.3 量化评分报告
 
-Display verification results with scores:
+展示带评分的验证结果：
 
 ```
 ## Verification Report
@@ -51,58 +51,58 @@ Display verification results with scores:
 **Overall Score**: 89%
 ```
 
-Score interpretation (unified 90% threshold — the previous 70%/90% dual-band is removed):
-- ≥90%: High quality, ready for implementation (PASS — auto-trigger deep review per 3.5)
-- <90%: Needs revision before implementation (FAIL — auto-fix per 3.6)
+评分口径（统一 90% 阈值——此前的 70%/90% 双档已移除）：
+- ≥90%：质量达标，可进入实现（PASS——按 3.5 自动触发深度复查）
+- <90%：实现前需修订（FAIL——按 3.6 自动修复）
 
-### 3.4 Tech Stack Detection
+### 3.4 技术栈检测
 
-Detect tech stack from `openspec/config.yaml` context field:
+从 `openspec/config.yaml` 的 context 字段检测技术栈：
 
 ```bash
 # Read config.yaml and parse context field
 # Match keywords: TypeScript, Java/JSP, Python, Go, Rust
 ```
 
-If tech stack detected:
-> "Detected tech stack: [TypeScript]. Run tech-specific validation?"
-> [Yes] [No - basic only]
+检测到技术栈时：
+> "检测到技术栈：[TypeScript]。是否运行技术栈专项校验？"
+> [是] [否 - 仅基础校验]
 
-### 3.5 Verification Pass → Auto-Trigger Deep Review → Auto-Generate Requirement Doc
+### 3.5 验证通过 → 自动触发深度复查 → 自动生成需求文档
 
-When ALL dimensions PASS (≥90%):
+当所有维度 PASS（≥90%）时：
 
-1. **Auto-execute deep review** — Invoke the `iagent_proposal_review` **skill** (via Skill tool) — Do NOT ask user, auto-execute (user can interrupt to skip)
-2. Deep review scope: codebase deep exploration + multi-dimensional completeness
-3. Display results alongside verification report
-4. **Fallback (skill unavailable or call fails)**: degrade to main-workflow inline read-only deep review + WARN log — never silently skip
+1. **自动执行深度复查** — 通过 Skill 工具调用 `iagent_proposal_review` **技能**——不询问用户，自动执行（用户可中断跳过）
+2. 深度复查范围：代码库深度探索 + 多维完整性
+3. 结果与验证报告一并展示
+4. **降级（回退）（技能不可用或调用失败）**：降级为主工作流内联只读深度复查 + WARN 日志——永不静默跳过
 
-> "Verification passed! All D1-D5 ≥90%. Auto-running iagent_proposal_review..."
-> [deep review results displayed]
+> "验证通过！D1-D5 全部 ≥90%。自动运行 iagent_proposal_review..."
+> [展示深度复查结果]
 
-If user wants to skip the deep review, they can interrupt. Otherwise it runs automatically.
+若用户想跳过深度复查，可主动中断；否则自动运行。
 
-5. **Converge — generate the requirement document** — after the deep review converges, invoke `iagent_requirement_doc` in non-interactive mode (via Skill tool) to generate the requirement document at `openspec/changes/<change-name>/需求文档.md`. The document is generated from the CURRENT artifacts (proposal/specs/design/tasks) before implementation begins — the user can review it during the apply phase. Generation failure is non-blocking (WARN log + continue). MUST NOT ask the user for document basic information. After generation, proceed to the Phase 3.7 implementation bridge (do not stop at apply-ready).
-   - Rationale: generating the document at verification time gives the user a review-ready document before implementation starts; the archive phase performs in-place incremental alignment on the existing document
+5. **收束——生成需求文档** — 深度复查收束后，通过 Skill 工具以非交互模式调用 `iagent_requirement_doc`，在 `openspec/changes/<change-name>/需求文档.md` 生成需求文档。该文档在实现开始前由**当前**制品（proposal/specs/design/tasks）生成——用户可在 apply 阶段评审它。生成失败不阻断（WARN 日志 + 继续）。MUST NOT 向用户询问文档基本信息。生成后进入 Phase 3.7 实现桥（不得停在 apply-ready）。
+   - 理由：在验证阶段生成文档，可使用户在实现开始前拿到可评审的文档；归档阶段对既有文档就地增量对齐
 
-> "Deep review complete."
-> "Requirement document: generated at openspec/changes/<name>/需求文档.md."
+> "深度复查完成。"
+> "需求文档：已生成于 openspec/changes/<name>/需求文档.md。"
 
-### 3.6 Verification Fail → Auto-Fix and Re-run
+### 3.6 验证失败 → 自动修复并重跑
 
-**On FAIL, do NOT generate the requirement document.** Generation happens only after fixes pass re-verification (then 3.5 step 5 runs).
+**FAIL 时不生成需求文档。** 仅在修复后经重新验证通过时才生成（此时走 3.5 第 5 步）。
 
-When ANY dimension FAILS (<90%), system MUST auto-fix:
+任一维度 FAIL（<90%）时，系统 MUST 自动修复：
 
-1. **Auto-generate fix suggestions**:
-   - For each FAIL dimension, generate specific fixes (missing scenarios, incomplete sections)
-   - Example: D4 missing boundary scenario → add scenario to spec
+1. **自动生成修复建议**：
+   - 对每个 FAIL 维度生成具体修复项（缺失场景、未完成小节）
+   - 示例：D4 缺失边界场景 → 在 specs 中补充 Scenario
 
-2. **Apply fixes** to artifact files using Edit tool
+2. 用 Edit 工具把修复**应用到制品文件**
 
-3. **Auto re-run verification** after fixes applied
+3. 修复应用后**自动重跑验证**
 
-4. **Display fix summary**:
+4. **展示修复摘要**：
    ```
    ## Auto-Fix Applied
    - D4: Added 2 boundary scenarios to specs/auth/spec.md
@@ -111,10 +111,10 @@ When ANY dimension FAILS (<90%), system MUST auto-fix:
    Re-running verification...
    ```
 
-5. **If re-run passes**: Proceed to 3.5 (auto-trigger deep review)
-6. **If re-run still fails**: Show remaining issues and offer options (no skip-to-apply path):
-   > [1] Manual edit — Fix artifacts yourself
-   > [2] Return to exploration — Add missing decisions
-   > [3] View detailed diff report
+5. **重跑通过**：进入 3.5（自动触发深度复查）
+6. **重跑仍失败**：展示剩余问题并给出选项（无跳过直接 apply 的路径）：
+   > [1] 手动编辑 — 自行修复制品
+   > [2] 返回探索 — 补充缺失决策
+   > [3] 查看详细差异报告
 
 ---

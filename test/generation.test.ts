@@ -3,6 +3,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
     generateSkillContent,
     generateCommand,
@@ -15,6 +18,7 @@ import {
     readGeneratedFingerprint,
 } from '../src/core/command-generation/index.js';
 import { getSkillTemplates, getCommandTemplates } from '../src/core/templates/index.js';
+import { runGenerate } from '../src/commands/generate.js';
 
 describe('SKILL.md 生成', () => {
     const [{ template }] = getSkillTemplates('init');
@@ -180,6 +184,26 @@ describe('OpenCode 指令生成', () => {
             opencodeAdapter
         );
         expect(generated.fileContent.match(/\$ARGUMENTS/g)?.length).toBe(1);
+    });
+});
+
+describe('用户自定义 description 保持原文（生成器不翻译）', () => {
+    it('runGenerate 的 --desc 逐字写入 frontmatter（英文与中英混排均不转换）', () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-desc-'));
+        try {
+            const desc = 'Do NOT translate this 混合 description: keep "quotes" and Keep a Changelog';
+            const result = runGenerate(root, { type: 'impl', name: 'custom-desc', desc });
+            const skillFile = fs.readFileSync(
+                path.join(root, 'skills', result.skillName, 'SKILL.md'),
+                'utf8'
+            );
+            // YAML 转义仅包裹，不改写文本；原文逐字保留
+            expect(skillFile).toContain(escapeYamlValue(desc));
+            expect(skillFile).toContain('Do NOT translate this');
+            expect(skillFile).toContain('Keep a Changelog');
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
     });
 });
 

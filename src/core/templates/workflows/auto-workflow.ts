@@ -3,31 +3,34 @@
  * 编排层技能 —— 一站式全自动工作流，L1-L5 用户确认后全自动化。
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
+import { deriveCommandContent } from '../derive-command.js';
 import { GATE_PROTOCOL_PREAMBLE } from '../prompt-gate.js';
 import { CODEGRAPH_MCP, SUBAGENT_DISPATCH, skillDelegation } from '../tool-whitelist.js';
 
 export function getAutoWorkflowSkillTemplate(): SkillTemplate {
     return {
         name: 'iagent_auto_workflow',
-        description: 'One-stop automated workflow exploration→proposal→verification→auto-apply→auto-archive, L1-L5 user confirmation then full automation; triggers: 全自动工作流 / auto workflow / fully automated pipeline. Use when the user wants a fully automated pipeline without manual apply/archive steps. NOT for interactive guided workflow (use iagent_workflow).',
+        description: '一站式全自动工作流：探索→提案→验证→自动实现→自动归档，L1-L5 用户确认后全自动；触发词"全自动工作流 / auto workflow / fully automated pipeline"。当用户需要完全自动化、无需手工 apply/archive 步骤的管道时使用；NOT for 交互式引导工作流（改用 iagent_workflow）。',
         instructions: `
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
-One-stop automated workflow from exploration to archive.
+一站式全自动工作流：从探索到归档。
 
-This workflow guides you through:
-1. **Exploration phase** - Persistent file + grill-with-docs questioning (L1-L5 user confirmation)
-2. **Proposal phase** - Create change with all artifacts (automated)
-3. **Verification phase** - Automatic quality check (automated)
-4. **Auto-Apply phase** - Automatic implementation without confirmation gate
-5. **Auto-Archive phase** - Automatic archiving on completion
+**输入**：\`/iagent:auto-workflow\` 后可跟用户想构建的主题描述。缺失的参数交互式收集；已提供的参数跳过。
+
+该工作流引导你依次完成：
+1. **探索阶段** —— 常驻探索文件 + grill-with-docs 追问（L1-L5 用户确认）
+2. **提案阶段** —— 生成变更及其全部制品（自动）
+3. **验证阶段** —— 自动质量校验（自动）
+4. **自动实现阶段** —— 不设确认门直接自动实现
+5. **自动归档阶段** —— 完成后自动归档
 
 ${GATE_PROTOCOL_PREAMBLE}
 
 ---
 ## Phase 1: Exploration（委派 iagent_spec_explore）
 
-Phase 1 SHALL 经 Skill 工具委派 \`iagent_spec_explore\`（传 \`mode=delegated\`）执行强制 checkpoint 体系探索（强制建探索文件、提示词校验门、CONTEXT.md 检查、CodeGraph 基础扫描含多项目派发与深度分析、L1-L5 grill 追问、功能流程图与流程最终确认门、聚合一致性门、探索完成检测），MUST NOT 内联执行探索逻辑。
+Phase 1 SHALL 经 Skill 工具委派 \`iagent_spec_explore\`（传 \`mode=delegated\`）执行强制检查点体系探索（强制建探索文件、提示词校验门、CONTEXT.md 检查、CodeGraph 基础扫描含多项目派发与深度分析、L1-L5 grill 追问、功能流程图与流程最终确认门、聚合一致性门、探索完成检测），MUST NOT 内联执行探索逻辑。
 
 委派完成后 SHALL 消费 \`iagent_spec_explore\` 输出的**结构化 handoff**（探索文件路径、提示词基线、流程基准确认状态、Pending 影响符号）并据此推进 Phase 2。
 
@@ -35,20 +38,20 @@ Phase 1 SHALL 经 Skill 工具委派 \`iagent_spec_explore\`（传 \`mode=delega
 
 ## Phase 2: Proposal
 
-**⚠️ AUTO-EXECUTE: This phase begins immediately after Phase 1 completion — no pause, no announcement, no user prompt. If you just completed Phase 1, your next action MUST be Phase 2 step 2.0 (impact analysis). Do NOT output a separate "Exploration Complete" message — continue directly into Phase 2 tool calls. If you ended a response before this point, resume with Phase 2 immediately.**
+**⚠️ 自动执行：本阶段在 Phase 1 完成后立即开始 —— 不停顿、不宣告、不向用户提问。若你刚完成 Phase 1，下一个动作 MUST 是 Phase 2 的 2.0 步（影响分析）。禁止输出单独的「探索完成」消息 —— 直接继续进入 Phase 2 的工具调用。若你在到达此点之前结束了回复，立即从 Phase 2 继续。**
 
-### 2.0 Impact Analysis (Auto-Execute)
+### 2.0 影响分析（自动执行）
 
-If Pending section contains symbols, run impact analysis for each symbol:
+Pending 段含符号时，逐个符号运行影响分析：
 \`\`\`bash
 mcp__codegraph__codegraph_impact --symbol <symbol> --direction upstream
 \`\`\`
 
-**Parallel execution for multiple symbols**: When two or more impact symbols are identified, issue the impact queries in parallel (multiple tool calls in a single response round). Merge all results into the artifact impact sections; a single symbol keeps the existing single-query behavior.
+**多符号并行执行**：识别出两个及以上影响符号时，在单轮回复中并行发起影响查询（多个工具调用）。全部结果合并写入制品的对应影响段；单个符号维持现有的单次查询行为。
 
-**Results stored for**:
-- \`proposal.md\` Impact: Impact Analysis section
-- \`design.md\` Context: Architecture Impact section
+**结果写入位置**：
+- \`proposal.md\` Impact: Impact Analysis 段
+- \`design.md\` Context: Architecture Impact 段
 
 ### 2.1 提案生成（委派 iagent_spec_propose）
 
@@ -58,148 +61,153 @@ Phase 2 的探索文件迁移与全部制品生成 SHALL 经 Skill 工具委派 
 
 ## Phase 3: Verification
 
-**Phase 3 executes automatically after Phase 2 artifact generation completes. No user confirmation needed.**
+**Phase 3 在 Phase 2 制品生成完成后自动执行。无需用户确认。**
 
-### 3.1 Auto-Execute Verification
+### 3.1 自动执行验证
 
-- Skip method-specific prompt — Do NOT show "Propose 方式一步生成" or similar
-- Skip user choice — Do NOT ask [立即验证] / [跳过验证]
-- Execute directly — Run D1-D5 verification automatically
+- 跳过方式选择提示 —— 禁止展示「Propose 方式一步生成」或类似选项
+- 跳过用户选择 —— 禁止询问 [立即验证] / [跳过验证]
+- 直接执行 —— 自动运行 D1-D5 验证
 
-### 3.2 Run Verification
+### 3.2 运行验证
 
-- Invoke the \`iagent_spec_verify_proposal\` **skill** (via Skill tool) for D1-D5 scoring
-- Fallback to AI inline scoring + WARN log if the skill is unavailable; never silently skip
-- Calculate coverage rates and overall score (unified 90% threshold)
-- Detect tech stack from config.yaml context
+- 经 Skill 工具调用 \`iagent_spec_verify_proposal\` **skill** 执行 D1-D5 评分
+- 技能不可用时降级为 AI 内联评分 + WARN 日志；禁止静默跳过
+- 计算覆盖率与总分（统一 90% 阈值）
+- 从 config.yaml 的 context 探测技术栈
 
-### 3.3 Handle Results
+### 3.3 处理结果
 
-**PASS (≥90%)**:
-- Auto-execute deep proposal review: invoke the \`iagent_proposal_review\` skill (via Skill tool) for deep review (no [Yes/No] prompt); fallback to AI inline deep review + WARN log if the skill is unavailable; never silently skip
-- Display results alongside verification report
-- **Converge — generate the requirement document**: after the deep review converges, invoke \`iagent_requirement_doc\` in non-interactive mode (via Skill tool) to generate the requirement document at \`openspec/changes/<change-name>/需求文档.md\`. The document is generated from the CURRENT artifacts (proposal/specs/design/tasks) before implementation begins — the user can review it during the apply phase. Generation failure is non-blocking (WARN log + continue). MUST NOT ask the user for document basic information
-- **Auto-transition to Phase 4**: after requirement document generation completes (or fails), automatically enter Phase 4 (auto-apply)
+**PASS (≥90%)**：
+- 自动执行提案深度复查：经 Skill 工具调用 \`iagent_proposal_review\` skill 做深度复查（不弹 [Yes/No] 询问）；技能不可用时降级为 AI 内联深度复查 + WARN 日志；禁止静默跳过
+- 结果与验证报告一并展示
+- **收敛 —— 生成需求文档**：深度复查收敛后，以非交互模式经 Skill 工具调用 \`iagent_requirement_doc\`，在 \`openspec/changes/<change-name>/需求文档.md\` 生成需求文档。该文档在实现开始前依据**当前**制品（proposal/specs/design/tasks）生成 —— 用户可在实现阶段审阅。生成失败非阻断（WARN 日志 + 继续）。MUST NOT 向用户索取文档基本信息
+- **自动转入 Phase 4**：需求文档生成完成（或失败）后，自动进入 Phase 4（自动实现）
 
-**FAIL (<90%)**:
-- Auto-generate fix suggestions and apply fixes
-- Re-run verification automatically
-- If still FAIL: [Manual edit] [Return to exploration] [View detailed diff] (no skip-to-apply path)
+**FAIL (<90%)**：
+- 自动生成修复建议并应用修复
+- 自动重新运行验证
+- 仍 FAIL 时：[手动修改] [返回探索] [查看详细 diff]（不提供跳过验证直接实现的路径）
 
 ---
 ## Phase 4: Auto-Apply
 
-**Phase 4 executes automatically after Phase 3 verification passes. No user confirmation needed — the apply runs with auto-mode=true to skip the design confirmation gate.**
+**Phase 4 在 Phase 3 验证通过后自动执行。无需用户确认 —— 实现以 auto-mode=true 运行，跳过设计确认门。**
 
-### 4.1 Auto-Execute Apply
+### 4.1 自动执行实现
 
-After verification passes (≥90%) and the deep review has converged:
-- Announce: "## Auto-Apply Phase" with a clear header
-- Display: "Verification passed — automatically entering apply phase"
-- Construct the apply context with:
-  - \`auto-mode=true\` — to skip the design confirmation gate (consistent with iagent_spec_apply: Input passes auto-mode=true; Step 5.5 confirmation gate is skipped in auto-mode, directly entering Step 6 batch scheduling)
-  - \`change-name\` — the current change name from the workflow context
-- **Delegate via the Skill tool**: invoke the \`iagent_spec_apply\` skill with \`auto-mode=true\` + \`change-name\`; the delegated skill owns the apply protocol in full
-  - **shared context pack**（共享上下文包）— the single must-read artifact \`context-pack.md\` (six sections), produced once and appended per batch
-  - **output ledger**（产出登记表）— the pack's \`## 已产出（跨单元可见）\` section, appended by the coordinator after each batch
-  - **minimal receipt**（回执最小化）— the fixed four-column receipt \`<task id> | <status> | <output file> | <public signature>\`, with no code body pasted
-  - **shared instruction prefix**（共享指令前缀）— the fixed order "shared prefix (pack path / spec-points reference / receipt format / prohibitions) → unit delta (task list)"
-- Phase 4 **MUST NOT re-declare or inline the apply protocol text** — the protocol's single source stays in \`iagent_spec_apply\`; this skill only delegates to it (MUST NOT "execute the apply workflow logic" inline, which would contradict this single-source rule)
-- \`auto-mode=true\` **only** skips the design confirmation gate — the shared-resource protocol stays in effect (auto semantics MUST NOT waive it)
-- All apply tasks are implemented automatically by the delegated skill with its existing batch scheduling
+验证通过（≥90%）且深度复查收敛后：
+- 宣告：明确标题「## Auto-Apply Phase」
+- 展示：「验证通过 —— 自动进入实现阶段」
+- 构造实现上下文，包含：
+  - \`auto-mode=true\` —— 跳过设计确认门（与 iagent_spec_apply 一致：Input 传 auto-mode=true；auto-mode 下跳过 Step 5.5 确认门，直接进入 Step 6 批次调度）
+  - \`change-name\` —— 来自工作流上下文的当前变更名
+- **经 Skill 工具委派**：以 \`auto-mode=true\` + \`change-name\` 调用 \`iagent_spec_apply\` skill；被委派技能完整承载 apply 协议
+  - **共享上下文包** —— 唯一必读制品 \`context-pack.md\`（六节），一次性产出、逐批追加
+  - **产出登记表** —— 包内 \`## 已产出（跨单元可见）\` 段，由协调器在每批之后追加
+  - **最小回执** —— 固定四列回执 \`<task id> | <status> | <output file> | <public signature>\`，不粘贴代码正文
+  - **共享指令前缀** —— 固定顺序「共享前缀（包路径 / 规范要点引用 / 回执格式 / 禁止项）→ 单元增量（任务清单）」
+- Phase 4 **MUST NOT 重复声明或内联 apply 协议正文** —— 该协议的单一源留在 \`iagent_spec_apply\`；本技能只做委派（MUST NOT 内联执行 apply 工作流逻辑，也 MUST NOT 自定一套调度指令格式，二者都会与单一源规则矛盾）
+- \`auto-mode=true\` **仅**跳过设计确认门 —— 共享资源协议继续生效（全自动语义 MUST NOT 免除它）
+- 全部实现任务由被委派技能按其既有批次调度自动完成
 
-### 4.2 Auto-Apply Error Handling
+### 4.2 自动实现错误处理
 
-- **Compile check fails** (after 3 auto-fix attempts): pause and wait for user instructions — do NOT proceed to archive
-- **Sub-agent fails**: auto-retry once; if retry fails, pause and report
-- **User interrupts**: complete current batch, mark remaining tasks as incomplete, then pause
+- **编译检查失败**（自动修复 3 次尝试后）：暂停并等待用户指示 —— 不得进入归档
+- **子代理失败**：自动重试一次；重试仍失败则暂停并报告
+- **用户中断**：完成当前批次，其余任务标记为未完成，然后暂停
 
-### 4.3 Test Execution Gate (inherited from iagent_spec_apply §9, auto-pass)
+### 4.3 测试执行门（继承自 iagent_spec_apply §9，自动通过）
 
-Phase 4 inherits \`iagent_spec_apply\`'s **test execution gate** and passes it **automatically** — the auto-pipeline MUST NOT skip the gate, and MUST NOT treat it as "no confirmation needed, therefore no test run":
+Phase 4 继承 \`iagent_spec_apply\` 的**测试执行门**并**自动**通过 —— 全自动管线 MUST NOT 跳过该门，也 MUST NOT 把它当作「无需确认因此无需跑测试」：
 
-- Scope: **change scope only** — tests produced by this change's \`[测试]\` tasks plus existing tests covering the changed files
-- **In-scope tests pass** → auto-pass and continue to Phase 5
-- **Pre-existing failures outside the change scope** → report as WARN only; MUST NOT count as this change's failure, MUST NOT block
-- **In-scope tests fail** → auto-fix and re-run, up to 3 attempts (same budget as the compile check)
-- **Still failing after 3 attempts** → pause and report to the user. MUST NOT silently pass, MUST NOT proceed to archive
-- No test framework in the project → log a WARN, skip the gate, continue
+- 范围：**仅变更范围内** —— 本次变更 \`[测试]\` 任务产出的测试，以及覆盖被改文件的既有测试
+- **范围内测试通过** → 自动通过并进入 Phase 5
+- **变更范围外的既有失败** → 仅报告 WARN；MUST NOT 计入本次变更的失败，MUST NOT 阻断
+- **范围内测试失败** → 自动修复并重跑，至多 3 次尝试（与编译检查同一预算）
+- **3 次尝试后仍失败** → 暂停并向用户报告。MUST NOT 静默通过，MUST NOT 进入归档
+- 项目无测试框架 → 记录 WARN，跳过该门，继续
 
-**Conditional test sub-phase**: when the change's \`tasks.md\` contains \`[测试]\` tasks, delegate the \`iagent_test\` skill (Skill tool) to generate the change-scope tests before the test execution gate; the gate verdict still applies (in-scope failures auto-retry then pause).
+**条件测试子阶段**：变更 \`tasks.md\` 含 \`[测试]\` 任务时，在测试执行门前经 Skill 工具委派 \`iagent_test\` skill 生成变更范围测试；门判定仍然适用（范围内失败自动重试后暂停）。
 
-### 4.4 Implementation Verification Bridge (delegated, MANDATORY)
+### 4.4 实现验证桥（委派，强制）
 
-After the test execution gate passes, MUST delegate the \`iagent_spec_verify\` skill (Skill tool) to verify implementation vs artifacts (specs/tasks/design):
+测试执行门通过后，MUST 经 Skill 工具委派 \`iagent_spec_verify\` skill 校验实现与制品（specs/tasks/design）的一致性：
 
-- **Verification passes** → proceed to Phase 5 (Auto-Archive)
-- **Verification fails** → return to Phase 4 fixes; MUST NOT proceed to archive
-- **Fallback (\`iagent_spec_verify\` unavailable)**: log a WARN and record the explicit omission decision ("implementation verification carried by apply compile check + archive consistency") — MUST NOT silently skip
+- **验证通过** → 进入 Phase 5（自动归档）
+- **验证失败** → 回到 Phase 4 修复；MUST NOT 进入归档
+- **降级（\`iagent_spec_verify\` 不可用）**：记录 WARN 并显式记录省略决策（「实现验证由 apply 编译检查 + 归档一致性承担」）—— MUST NOT 静默跳过
+
+- **⛔ EXIT GUARD (强制 — 子代理退出守卫)**：每条子代理调度指令 MUST 携带退出守卫 —— 完成分配任务后立即停止并返回回执，MUST NOT 进入 plan 模式 / 设计模式 / 提出后续步骤 / 超出分配范围继续；编排器是唯一有权判停、汇总、推进阶段的角色；子代理 MUST NOT 越权替代编排器做阶段收尾决策
+- **MUST FIRST 先读取上下文包**：子代理调度指令 MUST 强制子代理在任何其他动作之前先读上下文包 —— MUST NOT 重读 proposal/specs/design 或重跑包已覆盖的 CodeGraph 查询；仅做增量查询
 
 ---
 ## Phase 5: Auto-Archive
 
-**Phase 5 executes automatically after Phase 4 (auto-apply) completes, the compile check and test gate pass, and the implementation verification bridge (§4.4) has passed or been explicitly omitted. No user confirmation needed.**
+**Phase 5 在 Phase 4（自动实现）完成、编译检查与测试门通过、且实现验证桥（§4.4）通过或已显式省略后自动执行。无需用户确认。**
 
-### 5.1 Auto-Execute Archive
+### 5.1 自动执行归档
 
-After apply completes and compile check passes (verification bridge passed or explicitly omitted):
-- Announce: "## Auto-Archive Phase" with a clear header
-- Display: "Apply complete — automatically entering archive phase"
-- Construct the archive context with:
-  - \`change-name\` — the current change name (skips the change selection prompt)
-- **Delegate via the Skill tool**: invoke the \`iagent_spec_archive\` skill with \`change-name\`; the delegated skill owns the archive protocol in full (delta spec sync, CONTEXT.md sync, CodeGraph check, exploration memory sync, requirement document alignment step 4.8, directory move, requirement document migration to devdocs, ARCHIVE-INDEX.md update) — this skill MUST NOT re-declare or inline that protocol text
-- All archive steps execute automatically inside the delegated skill
-- **requirement document alignment (single-source rule)**: owned by the delegated \`iagent_spec_archive\` step 4.8 (present → in-place incremental alignment preserving 人工域 \`## 基本信息\` / \`## 八、评审记录\` verbatim; absent → non-interactively delegate \`iagent_requirement_doc\`). This skill MUST NOT copy the branch rule text — it only references step 4.8
+实现完成且编译检查通过（验证桥通过或已显式省略）后：
+- 宣告：明确标题「## Auto-Archive Phase」
+- 展示：「实现完成 —— 自动进入归档阶段」
+- 构造归档上下文，包含：
+  - \`change-name\` —— 当前变更名（跳过变更选择提示）
+- **经 Skill 工具委派**：以 \`change-name\` 调用 \`iagent_spec_archive\` skill；被委派技能完整承载归档协议（delta spec 同步、CONTEXT.md 同步、CodeGraph 检查、探索记忆同步、需求文档对齐 step 4.8、目录移动、需求文档迁移至 devdocs、ARCHIVE-INDEX.md 更新）—— 本技能 MUST NOT 重复声明或内联该协议正文
+- 全部归档步骤在被委派技能内部自动执行
+- **需求文档对齐（单一源规则）**：由被委派的 \`iagent_spec_archive\` step 4.8 承载（已存在 → 就地增量对齐，逐字保留人工域 \`## 基本信息\` / \`## 八、评审记录\`；不存在 → 非交互委派 \`iagent_requirement_doc\`）。本技能 MUST NOT 复制该分支规则正文 —— 只引用 step 4.8
 
-### 5.2 Auto-Archive Error Handling
+### 5.2 自动归档错误处理
 
-- **Delta spec sync conflict**: auto-merge with conflict markers (non-blocking)
-- **CONTEXT.md sync fails**: log warning, continue (non-blocking)
-- **CodeGraph not initialized**: skip CodeGraph steps, continue (non-blocking)
-- **Exploration memory sync fails**: log warning, continue (non-blocking)
-- **Requirement document generation or alignment fails**: log warning (target path + reason), continue (non-blocking)
-- **Archive target already exists**: fail with error, suggest renaming
+- **delta spec 同步冲突**：以冲突标记自动合并（非阻断）
+- **CONTEXT.md 同步失败**：记录 warning 并继续（非阻断）
+- **CodeGraph 未初始化**：跳过 CodeGraph 步骤并继续（非阻断）
+- **探索记忆同步失败**：记录 warning 并继续（非阻断）
+- **需求文档生成或对齐失败**：记录 warning（目标路径 + 原因）并继续（非阻断）
+- **归档目标已存在**：以错误失败，建议改名
 
-### 5.3 Completion
+### 5.3 完成
 
-After auto-archive completes:
-- Display the full completion summary with all phases
-- Show: "## Auto-Workflow Complete ✓"
+自动归档完成后：
+- 展示含全部阶段的完整完成摘要
+- 显示："## Auto-Workflow Complete ✓"
 
 ---
 ## Guardrails
 
-- **Don't skip questioning** - Keep asking until truly clear
-- **MUST validate prompt before exploring** - 委派的 spec_explore（delegated）提示词校验门是强制 checkpoint：清晰输入一句话复述理解后直通；不明确输入须先做提示词优化并等待用户确认或修改，未确认前 MUST NOT 推进到后续步骤
-- **Auto semantics never skip the clarification gate** - 委派的 spec_explore 提示词门是澄清门（确认 WHAT），管线为全自动不构成跳过理由；基线确认是自动化的起点
-- **Don't deadlock on the confirmation gate** - 委派的 spec_explore 提示词门有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续），不得反复要求确认
-- **Do persist the prompt baseline** - 原始提示词与确认后的基线一并写入探索文件 \`## 提示词基线\` 段；基线变更 MUST 回到委派的 spec_explore 提示词门重新确认
-- **MUST produce the functional flowchart** - 委派的 spec_explore 流程最终确认门是强制 checkpoint：探索分析完成后 MUST 产出探索文件 \`## 功能流程图\` 段（Mermaid + 节点清单）并执行流程最终确认门；确认前 MUST NOT 进入完成检测，MUST NOT 把未确认流程图当作 propose 锚点
-- **Auto semantics never skip the flowchart confirmation gate** - 委派的 spec_explore 流程最终确认门是确认门（确认流程基准），管线为全自动不构成跳过理由；流程基准的确认是自动化的前置条件
-- **Don't deadlock on the flowchart gate** - 委派的 spec_explore 流程确认门有四条出口（确认 / 修改 / 拒绝后记录未确认状态并按原理解继续 / 显式授权按推断继续），拒绝时 propose 降级为仅凭 exploration.md、verify 节点覆盖度维度 SKIP，不得反复要求确认
-- **MUST NOT silently add flowchart nodes in tasks** - 发现遗漏节点 MUST 回到委派的 spec_explore 更新流程图并重新经用户确认，MUST NOT 在 tasks.md 中静默补节点
-- **Don't auto-proceed on conflict** - Phase transitions proceed automatically when the 1.6 consistency checks pass (consistency passthrough); ask the user only when a hard conflict is detected
-- **Do execute read-only operations directly** - File reading, CodeGraph queries, and analysis steps (impact analysis) run without asking the user for confirmation
-- **Read-only passthrough does not cover clarification gates** - grill L1-L5 requirement-clarification gates still wait for user confirmation
-- **Do auto-verify** - automatically verify after proposal without user prompt
-- **Do auto-apply after verification pass** - Phase 4 executes automatically with auto-mode=true (iagent_spec_apply Step 5.5 gate skipped)
-- **Do auto-archive after apply complete** - Phase 5 executes automatically with change name passed from context (following the iagent_spec_archive skill template)
-- **Do inherit and auto-pass the test execution gate** - Phase 4 runs iagent_spec_apply §9 limited to the change scope; in-scope failures auto-retry up to 3 times, then pause and report; pre-existing out-of-scope failures are WARN only; no test framework → WARN and skip
-- **Don't silently pass a failing test gate** - a failing in-scope test gate MUST pause before archive; auto semantics never justify skipping the gate or the archive block
-- **Do converge after the deep review** - After full pass, invoke \`iagent_proposal_review\` for deep review (fallback inline deep review + WARN), then generate the requirement document (non-interactive \`iagent_requirement_doc\`; failure is non-blocking WARN), then auto-transition to Phase 4
-- **MUST create file before questioning** - Phase 1 checkpoint is mandatory
-- **MUST verify file before migration** - Phase 2 checkpoint is mandatory
-- **MUST preserve source on migration failure** - Never lose user data
-- **MUST NOT offer method selection** - Phase 2 proceeds directly to inline propose-style generation
-- **MUST follow the Markdown-first protocol in Phase 2** - Inline generation MUST follow \`openspec/rules/artifact-generation.md\`: write the Markdown source of truth (proposal.md / specs/**/*.md / design.md / tasks.md) → \`iagent spec validate --change "<name>"\` → on validation failure fix the Markdown and re-run; validation unavailable produces WARN
-- **Do explore codebase** - Before asking, check if codebase answers the question
-- **Do provide recommendations** - Every question includes AI's recommendation
-- **Do update file real-time** - After each exchange, write to exploration file
-- **Do use structured format** - Background, Questions, Decisions, Pending sections
-- **Do show quantified scores** - Verification results include coverage percentages
-- **Do inject capability memory** - Phase 1 reads specs/<capability>/explorations.md when it exists
-- **Do scan other projects with CodeGraph** - When exploration context contains other project paths, spawn sub-agent to scan them using CodeGraph projectPath parameter; fall back to Glob/Grep on failure
-- **Don't lose exploration** - File persists even on abandon (unless deleted)
+- **不要跳过追问** —— 一直问到真正清晰为止
+- **MUST 在探索前校验提示词** —— 委派的 spec_explore（delegated）提示词校验门是强制检查点：清晰输入一句话复述理解后直通；不明确输入须先做提示词优化并等待用户确认或修改，未确认前 MUST NOT 推进到后续步骤
+- **全自动语义不得跳过澄清门** —— 委派的 spec_explore 提示词门是澄清门（确认 WHAT），管线为全自动不构成跳过理由；基线确认是自动化的起点
+- **不得在确认门上死锁** —— 委派的 spec_explore 提示词门有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续），不得反复要求确认
+- **持久化提示词基线** —— 原始提示词与确认后的基线一并写入探索文件 \`## 提示词基线\` 段；基线变更 MUST 回到委派的 spec_explore 提示词门重新确认
+- **MUST 产出功能流程图** —— 委派的 spec_explore 流程最终确认门是强制检查点：探索分析完成后 MUST 产出探索文件 \`## 功能流程图\` 段（Mermaid + 节点清单）并执行流程最终确认门；确认前 MUST NOT 进入完成检测，MUST NOT 把未确认流程图当作 propose 锚点
+- **全自动语义不得跳过流程确认门** —— 委派的 spec_explore 流程最终确认门是确认门（确认流程基准），管线为全自动不构成跳过理由；流程基准的确认是自动化的前置条件
+- **不得在流程门上死锁** —— 委派的 spec_explore 流程确认门有四条出口（确认 / 修改 / 拒绝后记录未确认状态并按原理解继续 / 显式授权按推断继续），拒绝时 propose 降级为仅凭 exploration.md、verify 节点覆盖度维度 SKIP，不得反复要求确认
+- **MUST NOT 在 tasks 中静默补流程图节点** —— 发现遗漏节点 MUST 回到委派的 spec_explore 更新流程图并重新经用户确认，MUST NOT 在 tasks.md 中静默补节点
+- **硬冲突时不得自动推进** —— 1.6 一致性检查通过时阶段自动推进（一致性直通）；仅在检测到硬冲突时询问用户
+- **只读操作直接执行** —— 文件读取、CodeGraph 查询与分析步骤（影响分析）无需用户确认即可运行
+- **只读直通不覆盖澄清门** —— grill L1-L5 需求澄清门仍等待用户确认
+- **自动验证** —— 提案后无需用户提示即自动验证
+- **验证通过后自动实现** —— Phase 4 以 auto-mode=true 自动执行（跳过 iagent_spec_apply Step 5.5 门）
+- **实现完成后自动归档** —— Phase 5 自动执行，变更名由上下文传入（遵循 iagent_spec_archive 技能模板）
+- **继承并自动通过测试执行门** —— Phase 4 执行 iagent_spec_apply §9 且仅限变更范围内；范围内失败自动重试至多 3 次，随后暂停并报告；既有的变更范围外失败仅 WARN；项目无测试框架 → WARN 并跳过
+- **测试门失败时不得静默通过** —— 范围内的测试门失败 MUST 在归档前暂停；全自动语义绝不构成跳过该门或跳过归档阻断的理由
+- **深度复查后收敛** —— 全部通过后调用 \`iagent_proposal_review\` 做深度复查（不可用则内联深度复查 + WARN），随后生成需求文档（非交互 \`iagent_requirement_doc\`；失败为非阻断 WARN），再自动转入 Phase 4
+- **MUST 先建探索文件再追问** —— Phase 1 检查点为强制
+- **MUST 迁移前校验文件** —— Phase 2 检查点为强制
+- **MUST 迁移失败时保留源文件** —— 绝不丢失用户数据
+- **MUST NOT 提供方式选择** —— Phase 2 直接进入内联 propose 式生成
+- **Phase 2 MUST 遵循 Markdown-first 协议** —— 内联生成 MUST 遵循 \`openspec/rules/artifact-generation.md\`：写入 Markdown 真源（proposal.md / specs/**/*.md / design.md / tasks.md）→ \`iagent spec validate --change "<name>"\` → 校验失败则修正 Markdown 并重跑；校验不可用则产出 WARN
+- **先探索代码库** —— 提问前先看代码库能否回答该问题
+- **给出推荐** —— 每个问题都附 AI 的推荐
+- **实时更新文件** —— 每轮交互后即时写入探索文件
+- **使用结构化格式** —— Background、Questions、Decisions、Pending 段
+- **展示量化评分** —— 验证结果包含覆盖率百分比
+- **注入能力记忆** —— Phase 1 在存在时读取 specs/<capability>/explorations.md
+- **用 CodeGraph 扫描其他项目** —— 探索上下文含其他项目路径时，派发子代理用 CodeGraph 的 projectPath 参数扫描；失败时降级为 Glob/Grep
+- **不丢失探索内容** —— 即使放弃探索文件也保留（除非被删除）
+- **MUST NOT 进入 plan 模式** —— 子代理（Agent/Task）完成分配任务后 MUST NOT 进入 plan 模式 / 设计模式 / 提出后续步骤；Phase 4 auto-mode 仅跳过设计确认门，MUST NOT 免除退出守卫或共享资源协议
+- **MUST FIRST 读取共享上下文** —— 子代理 MUST 先读共享上下文包再做增量查询；MUST NOT 绕过包重读 proposal/specs/design 或重跑已覆盖的 CodeGraph 查询
 `,
         allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(mvn:*), Bash(gradle:*), Bash(ant:*), Bash(go:*), Bash(cargo:*), Bash(git:*), Bash(ls:*), Bash(mv:*), ${CODEGRAPH_MCP}, ${skillDelegation(['spec_explore', 'spec_propose', 'spec_verify_proposal', 'proposal_review', 'requirement_doc', 'spec_apply', 'spec_verify', 'test', 'spec_archive'])}, ${SUBAGENT_DISPATCH}`,
         type: 'impl',
@@ -215,45 +223,6 @@ export function getAutoWorkflowCommandTemplate(): CommandTemplate {
         description: '一站式全自动工作流：探索（L1-L5 确认）→ 自动提案 → 自动验证 → 自动实现（auto-mode）→ 自动归档',
         category: 'iAgent / 实现',
         tags: ['iagent', 'impl', 'auto-workflow', 'automation'],
-        content: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
-
-One-stop automated workflow from exploration to archive. **Trigger boundary**: full pipeline only — interactive guided workflow is \`iagent_workflow\`.
-
-**Input**: The argument after the command is the user's topic description (what they want to build). Missing parameters are collected interactively; already-provided parameters are skipped.
-
----
-## Phase 1: Exploration（委派 iagent_spec_explore）
-
-Phase 1 SHALL 经 Skill 工具委派 \`iagent_spec_explore\`（传 \`mode=delegated\`）执行强制 checkpoint 体系探索（强制建探索文件、提示词校验门、CONTEXT.md 检查、CodeGraph 基础扫描含多项目派发与深度分析、L1-L5 grill 追问、功能流程图与流程最终确认门、聚合一致性门、探索完成检测），MUST NOT 内联执行探索逻辑。
-
-委派完成后 SHALL 消费 \`iagent_spec_explore\` 输出的**结构化 handoff**（探索文件路径、提示词基线、流程基准确认状态、Pending 影响符号）并据此推进 Phase 2。
-
-**退出守卫**：被委派的 \`iagent_spec_explore\` 完成后 MUST NOT 自行进入提案或实现；阶段完成判定与推进主权归编排器。
-
-## Phase 2: Proposal（委派 iagent_spec_propose）
-
-Phase 2 经 Skill 工具委派 \`iagent_spec_propose\`（\`mode=delegated\` + \`exploration-file\`）生成全部制品，MUST NOT 内联生成提案制品。
-
-## Phase 3: Verification (automated)
-
-Auto-execute D1-D5 verification: invoke the \`iagent_spec_verify_proposal\` skill (Skill tool) for scoring; fallback to AI inline scoring + WARN if unavailable; unified 90% threshold; tech stack detected from config.yaml. **PASS (≥90%)**: auto-execute deep proposal review (\`iagent_proposal_review\` skill; fallback inline deep review + WARN) → converge → generate requirement document (non-interactive \`iagent_requirement_doc\`; failure non-blocking WARN) → auto-transition to Phase 4. **FAIL (<90%)**: auto-fix and re-run; if still FAIL, offer [Manual edit] / [Return to exploration] / [View detailed diff] (no skip-to-apply path).
-
-## Phase 4: Auto-Apply (automated, auto-mode=true)
-
-After verification passes and the deep review has converged: announce "## Auto-Apply Phase"; construct apply context with \`auto-mode=true\` (skip design confirmation gate — consistent with iagent_spec_apply: Step 5.5 gate skipped in auto-mode, directly Step 6 batch scheduling) and \`change-name\`; **delegate via the Skill tool to the \`iagent_spec_apply\` skill** — the delegated skill owns the apply protocol in full (dispatch protocol / shared-resource protocol: shared context pack / output ledger / minimal receipt / shared instruction prefix / batch scheduling); this skill MUST NOT define its own dispatch-instruction format or re-declare or inline the protocol text; auto-mode=true only skips the design confirmation gate — the shared-resource protocol stays in effect; all tasks implemented automatically with existing batch scheduling. **Test execution gate inherited from iagent_spec_apply §9 and auto-passed**: change-scope tests only; in-scope failures auto-retry up to 3 times then pause and report; pre-existing out-of-scope failures are WARN only and must not block; no test framework → WARN and skip; a failing in-scope gate MUST pause before archive. Error handling: compile check fails (after 3 auto-fix attempts) → pause and wait for user, do NOT proceed to archive; in-scope test gate still failing after 3 attempts → pause and report, MUST NOT silently pass, MUST NOT proceed to archive; sub-agent fails → auto-retry once, then pause and report; user interrupts → complete current batch, mark remaining as incomplete, then pause. **Implementation verification bridge (MANDATORY)**: after the test gate, delegate the \`iagent_spec_verify\` skill before Phase 5; verification failure returns to Phase 4 (MUST NOT proceed to archive); if unavailable, log a WARN and record the explicit omission decision — MUST NOT silently skip.
-
-- **⛔ EXIT GUARD (MANDATORY)**: every sub-agent dispatch instruction MUST carry the exit guard — 完成分配任务后立即停止返回回执，MUST NOT enter plan mode / design mode / propose next steps / continue beyond assigned scope；编排器是唯一有权判停、汇总、推进阶段的角色；子代理 MUST NOT 越权替代编排器做阶段收尾决策
-- **MUST FIRST read pack**: sub-agent dispatch instruction MUST enforce that the sub-agent reads the context pack FIRST before any other action — MUST NOT re-read proposal/specs/design or re-run CodeGraph queries already covered by the pack；仅做增量查询
-## Phase 5: Auto-Archive (automated)
-
-After apply completes and compile check passes (and the implementation verification bridge passed or was explicitly omitted): announce "## Auto-Archive Phase"; construct archive context with \`change-name\` (skips selection prompt); **delegate via the Skill tool to the \`iagent_spec_archive\` skill** with change-name — the delegated skill owns the archive protocol in full (delta spec sync, CONTEXT.md sync, CodeGraph check, exploration memory sync, requirement document alignment per step 4.8 [present → in-place incremental alignment preserving 人工域; absent → non-interactively delegate iagent_requirement_doc], directory move, requirement document migration to devdocs, ARCHIVE-INDEX.md update); this skill MUST NOT re-declare or inline that protocol text. Error handling: delta spec sync conflict → auto-merge with conflict markers (non-blocking); CONTEXT.md sync fails → WARN, continue; CodeGraph not initialized → skip CodeGraph steps, continue; exploration memory sync fails → WARN, continue; requirement document generation/alignment fails → WARN (target path + reason), continue; archive target already exists → fail with error, suggest renaming. Completion: display full summary and "## Auto-Workflow Complete ✓".
-
----
-## Guardrails
-
-- **MUST NOT enter plan mode**: 子代理（Agent/Task）完成分配任务后 MUST NOT enter plan mode / design mode / propose next steps；Phase 4 auto-mode 仅跳过设计确认门，MUST NOT 免除退出守卫或共享资源协议
-- **MUST FIRST read shared context**: 子代理 MUST 先读共享上下文包再做增量查询；MUST NOT 绕过包重读 proposal/specs/design 或重跑已覆盖的 CodeGraph 查询
-Don't skip questioning; don't auto-proceed on hard conflict (consistency passthrough only when no hard conflict); read-only operations (file reading, CodeGraph, analysis) run without confirmation but L1-L5 clarification gates still wait; MUST validate prompt before exploring (委派的 spec_explore（delegated）提示词校验门，清晰直通 / 不明确须优化并确认，未确认不推进); auto semantics never skip the clarification gate; don't deadlock on the confirmation gate (确认 / 修改 / 拒绝 / 授权按推断四条出口); do persist the prompt baseline into \`## 提示词基线\`; MUST produce the functional flowchart (委派的 spec_explore 强制产出探索文件 \`## 功能流程图\` 段并执行流程最终确认门，确认前不进入完成检测、不把未确认流程图当作 propose 锚点); auto semantics never skip the flowchart confirmation gate; don't deadlock on the flowchart gate (确认 / 修改 / 拒绝记录未确认状态 / 授权按推断四条出口); don't silently add flowchart nodes in tasks (遗漏节点回委派的 spec_explore 更新并重新确认); auto-verify after proposal; auto-apply after verification pass with auto-mode=true (iagent_spec_apply Step 5.5 skipped); auto-archive after apply complete (iagent_spec_archive skill); auto-inherit the test execution gate from iagent_spec_apply §9 with auto-pass (in-scope failures auto-retry 3 times then pause and report; pre-existing out-of-scope failures WARN only; no test framework → WARN and skip); never silently pass a failing in-scope test gate (pause before archive); do converge after the deep review (iagent_proposal_review deep review → generate requirement document non-interactively → auto-transition to Phase 4; requirement document failure is non-blocking WARN); MUST create file before questioning; MUST verify file before migration; MUST preserve source on migration FAILURE only (on success the source is deleted — exactly one resident copy); MUST follow the Markdown-first shared protocol in Phase 2 (\`openspec/rules/artifact-generation.md\`: write the Markdown source of truth → \`iagent spec validate\` → fix the Markdown on validation failure / inline checks + WARN); MUST NOT offer method selection; do explore codebase before asking; do provide recommendations; do update file real-time; do use structured format; do show quantified scores; do inject capability memory; do scan other projects with CodeGraph; don't lose exploration (file persists). Build all paths with \`path.join()\`.
-`,
+        content: deriveCommandContent(getAutoWorkflowSkillTemplate().instructions),
     };
 }

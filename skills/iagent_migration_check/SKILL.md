@@ -8,100 +8,100 @@ metadata:
   author: mi-agent-tools
   type: review
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:55b290974bb6d1235bc832c8ca18a447f4cbafc98c32702fa87cf8a3e409d8ac"
+  generatedFingerprint: "sha256:e21d1a0e9e5408cfc716de5076449231cc5762e2103c069ecb13df7ec7325459"
 ---
 
 **适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
-Check functional consistency after migrating a source project to a target project. Identify lost functionality, inconsistent implementations, and framework-difference issues across the backend (Controller / Service / DAO), frontend pages, SQL statements, and database schema. Every comparison result MUST be written into documents containing actual data — creating empty directories or template-only documents is forbidden.
+检查源项目迁移到目标项目后的功能一致性。识别后端（Controller / Service / DAO）、前端页面、SQL 语句与数据库 schema 中丢失的功能、不一致的实现与框架差异问题。每条对比结果 MUST 写入含真实数据的文档 —— 禁止创建空目录或仅含模板的文档。
 
-**Input**: The user's request should include the source project path and the target project path, plus an optional check scope. If omitted, check if they can be inferred from conversation context (the current project is the usual target). If ambiguous, ask the user.
+**Input**: 可在 `/iagent:migration-check` 后指定源项目与目标项目路径（如 `/iagent:migration-check /path/to/source-project /path/to/target-project`），并可附检查范围。省略时优先从对话上下文推断（当前项目通常为目标项目）；若仍模糊则询问用户。
 
 ---
 
-## Step 1: Determine execution mode
+## Step 1: 确定执行模式
 
-**Standalone mode (default when invoked directly)**:
-- Collect parameters interactively using the **AskUserQuestion tool**:
-  1. SOURCE_PROJECT — 源项目根目录 (source project root directory)
-  2. TARGET_PROJECT — 目标项目根目录 (target project root directory; defaults to the current project)
-  3. CHECK_SCOPE — 检查范围 (module names or a feature list; 「全部」 means the whole project)
-- For CHECK_SCOPE, offer common choices: 「全部」, or module names detected from the source project's directory structure (multi-select when applicable).
+**独立模式（直接调用时的默认）**：
+- 使用 **AskUserQuestion 工具**交互式收集参数：
+  1. SOURCE_PROJECT — 源项目根目录
+  2. TARGET_PROJECT — 目标项目根目录（默认为当前项目）
+  3. CHECK_SCOPE — 检查范围（模块名或功能清单；「全部」表示整个项目）
+- CHECK_SCOPE 提供常见选项：「全部」，或从源项目目录结构探测到的模块名（适用时多选）。
 
-**Non-interactive mode (when invoked from the auto-migration workflow)**:
-- The calling flow injects the parameters (source/target paths, check scope, framework profiles, output directory).
-- Do NOT ask questions; skip every parameter already provided.
-- Record missing non-blocking parameters as gaps in the final summary — never block mid-run.
+**非交互模式（由自动迁移工作流调用时）**：
+- 调用方流程注入参数（源/目标路径、检查范围、框架档案、输出目录）。
+- MUST NOT 提问；已提供的参数一律跳过。
+- 缺失的非阻塞参数记入最终摘要的缺口项 —— 不得中途阻塞。
 
-## Step 2: Validate paths and scope
+## Step 2: 校验路径与范围
 
-For SOURCE_PROJECT and TARGET_PROJECT:
+对 SOURCE_PROJECT 与 TARGET_PROJECT：
 
-1. Verify each path exists and is readable (list its top-level entries).
-2. If a path does not exist or is not readable: report a clear error naming the path and the reason, ask the user to re-enter it, and do NOT start any comparison.
+1. 校验每个路径存在且可读（列出其顶层条目）。
+2. 若路径不存在或不可读：报出明确错误（指明路径与原因），请用户重新输入，且 MUST NOT 启动任何对比。
 
-Rules:
+规则：
 
-- **Identical source and target paths are valid input** (same-framework upgrade / version iteration scenario). Accept the input and compare by version or directory differences (for example two release directories or two versions of the same project) — never reject it just because the paths are equal.
-- CHECK_SCOPE 「全部」 scans the whole project; otherwise restrict scanning to the named modules or features. If a scope entry cannot be located in either project, mark it **[待确认]** in the summary instead of guessing a match.
+- **源路径与目标路径相同是合法输入**（同框架升级 / 版本迭代场景）。接受该输入并按版本或目录差异对比（例如两个发布目录或同一项目的两个版本）—— MUST NOT 仅因路径相同就拒绝。
+- CHECK_SCOPE 为「全部」时扫描整个项目；否则将扫描限定在指定模块或功能。若某个范围条目在任一项目中都无法定位，在摘要中标 **[待确认]**，不得猜测匹配。
 
-## Step 3: Collect framework profiles (method comparison is profile-driven)
+## Step 3: 收集框架档案（方法对比由档案驱动）
 
-This skill is framework-agnostic. Framework-specific knowledge comes ONLY from user-provided 框架档案 (framework profiles) — never from built-in presets.
+本技能与框架无关。框架专有知识**仅**来自用户提供的框架档案 —— MUST NOT 来自内置预设。
 
-A profile contains (all items optional except the framework name):
+档案包含（除框架名外各项均可选）：
 
 | 档案项 | 用途 |
 |--------|------|
-| 框架名 (framework name) | Identifies the source or target framework in the report |
-| 框架标准方法清单 (framework standard method list) | Methods the framework auto-provides per layer (e.g., a configuration-driven framework that generates CRUD methods invisible in source code) |
-| 框架特有机制说明 (framework-specific mechanisms) | Other framework behavior notes relevant to the comparison |
+| 框架名 | 在报告中标识源或目标框架 |
+| 框架标准方法清单 | 框架按层自动提供的方法（例如配置驱动的框架生成源码中不可见的 CRUD 方法） |
+| 框架特有机制说明 | 与对比相关的其他框架行为说明 |
 
-Collection:
+收集：
 
-- Non-interactive mode: use the profiles injected by the caller.
-- Standalone mode: ask whether the source project uses a framework that auto-generates methods; if yes, ask the user to provide the standard method list (pasted text or a file path).
-- Never guess or reconstruct a framework method list — if the user cannot provide one, treat the profile as absent and use the fallback below.
-- A target-side profile is optional (useful when the two sides use different frameworks); without one, the target side is always compared by its actual source code.
+- 非交互模式：使用调用方注入的档案。
+- 独立模式：询问源项目是否使用自动生成方法的框架；若是，请用户提供标准方法清单（粘贴文本或文件路径）。
+- MUST NOT 猜测或重建框架方法清单 —— 用户无法提供时，视档案缺失并采用下方降级（回退）方案。
+- 目标侧档案可选（两侧使用不同框架时有用）；无目标侧档案时，目标侧一律按其真实源码对比。
 
-**Method comparison rule**:
+**方法对比规则**：
 
-- **WHEN** the framework profile contains a framework standard method list **THEN** compare each method in that list against the target project implementation one by one (mapping by function: list page, add, update, delete, detail, import, export, etc.) — those methods may be invisible in the source code because the framework provides them.
-- **WHEN** no method list is provided **THEN** extract the actual method signatures from the source code and compare them one by one against the target project.
-- This skill MUST NOT contain built-in method-mapping presets for any specific framework. Any framework-specific method mapping exists only inside the user-provided profile content.
+- **WHEN** 框架档案含框架标准方法清单 **THEN** 将该清单中每个方法与目标项目实现逐一对比（按功能映射：列表页、新增、更新、删除、详情、导入、导出等）—— 这些方法可能因框架提供而在源码中不可见。
+- **WHEN** 未提供方法清单 **THEN** 从源码提取真实方法签名并与目标项目逐一对比。
+- 本技能 MUST NOT 内置任何特定框架的方法映射预设。任何框架专有方法映射只存在于用户提供的档案内容中。
 
-## Step 4: Determine the output root
+## Step 4: 确定输出根目录
 
-Route by execution context:
+按执行上下文路由：
 
-| Context | Output root |
+| Context | 输出根目录 |
 |---------|-------------|
-| Invoked from the auto-migration workflow (change context) | `openspec/changes/{change-name}/attachments/migration-check/` |
-| Standalone execution | User-specified directory, or the default `openspec/migration/` in the target project |
+| 由自动迁移工作流调用（变更上下文） | `openspec/changes/{change-name}/attachments/migration-check/` |
+| 独立执行 | 用户指定目录，或目标项目中的默认 `openspec/migration/` |
 
-- Build every path with `path.join()` (cross-platform: Windows and POSIX).
-- Create the output directory structure before writing documents (recursive mkdir semantics).
+- 所有路径用 `path.join()` 构造（跨平台：Windows 与 POSIX）。
+- 写文档前先创建输出目录结构（递归 mkdir 语义）。
 
-## Step 5: Six-layer comparison (write real data, then verify)
+## Step 5: 六层对比（先写真实数据再验证）
 
-Core principle — for EVERY layer:
+核心原则 —— 对**每一层**：
 
-1. Read the actual code from both projects (Read / Glob / Grep).
-2. Compare deeply — functionality, not line counts.
-3. Write the analysis results into the layer's comparison document.
-4. Read the document back and verify it contains actual data (Step 7).
+1. 读取两个项目的真实代码（Read / Glob / Grep）。
+2. 深入对比 —— 比功能，不比行数。
+3. 将分析结果写入该层的对比文档。
+4. 回读该文档，确认其含真实数据（Step 7）。
 
-Use the **TodoWrite tool** to track the six layers plus the issue list and summary, marking each layer completed only after its read-back verification passes.
+使用 **TodoWrite 工具**跟踪六层以及问题清单与摘要，仅在某层回读验证通过后才标记该层完成。
 
-### Tech stack detection (once, before Layer 1)
+### 技术栈探测（一次，在 Layer 1 之前）
 
-This skill is stack-agnostic. Detect each project's stack once and reuse the result for all layers:
+本技能与技术栈无关。每个项目的技术栈只探测一次，并在所有层复用结果：
 
-1. Read `openspec/config.yaml` `context` for the target project's declared tech stack (if present).
-2. Check build/dependency files in both projects (e.g., `package.json`, `pom.xml`, `build.gradle`, `go.mod`) — the two sides may use different stacks.
-3. Derive stack-appropriate file patterns, method-signature extraction patterns, and SQL dialect from the detection result. Do not assume a specific stack.
+1. 读取 `openspec/config.yaml` 的 `context`，获取目标项目声明的技术栈（如存在）。
+2. 检查两个项目的构建/依赖文件（如 `package.json`、`pom.xml`、`build.gradle`、`go.mod`）—— 两侧可能使用不同技术栈。
+3. 由探测结果推导适配技术栈的文件模式、方法签名提取模式与 SQL 方言。不得假设特定技术栈。
 
-Output structure under the output root (from Step 4):
+输出根目录下的结构（来自 Step 4）：
 
 ```
 {OUTPUT_ROOT}/
@@ -133,9 +133,9 @@ Output structure under the output root (from Step 4):
     └── 06_C6_SQL条件完整性.md
 ```
 
-**Adversarial check rules (C1-C6, cross-cutting):**
+**对抗检查规则（C1-C6，横切）：**
 
-The adversarial checks are cross-cutting dimensions that run AFTER each layer's comparison completes. They inspect the code already read for that layer, looking for migration quality issues that the functional comparison alone would miss.
+对抗检查是横切维度，在每层对比完成后执行。它们检视该层已读取的代码，寻找仅靠功能对比会遗漏的迁移质量问题。
 
 | 检查维度 | 关联层 | 执行时机 | 问题分级 |
 |----------|--------|---------|---------|
@@ -146,21 +146,21 @@ The adversarial checks are cross-cutting dimensions that run AFTER each layer's 
 | C5 精度/类型一致性 | DAO 层 + Service 层 | DAO 层对比完成后 | P1 |
 | C6 SQL 条件完整性 | SQL 层 | SQL 层对比完成后 | P0 |
 
-**C1 — 空实现/硬编码检测**: scan the target code for `return null;`, `return [];`, `// TODO`, `// FIXME`, placeholder comments, and hardcoded stub values. Each finding is a P2 issue.
+**C1 — 空实现/硬编码检测**：扫描目标代码中的 `return null;`、`return [];`、`// TODO`、`// FIXME`、占位注释与硬编码桩值。每条发现记为 P2 问题。
 
-**C2 — 分支逻辑完整性**: compare the source and target code's conditional branches (if/else, switch, ternary). When the source has N branches but the target has fewer, report the missing branches as P0 issues. Quote the specific condition values from the source to show what was lost.
+**C2 — 分支逻辑完整性**：对比源与目标代码的条件分支（if/else、switch、三元）。源有 N 个分支而目标更少时，将缺失分支报为 P0 问题。引用源中的具体条件值以说明丢失内容。
 
-**C3 — 事务边界一致性**: check that the source project's transaction boundaries (Tx.begin/commit/rollback, @Transactional, transactionTemplate) have equivalent transaction management in the target. Missing transaction management on write operations (create/update/delete) is a P0 issue.
+**C3 — 事务边界一致性**：检查源项目的事务边界（Tx.begin/commit/rollback、@Transactional、transactionTemplate）在目标中是否有等价的事务管理。写操作（create/update/delete）缺失事务管理为 P0 问题。
 
-**C4 — 异常处理完整性**: compare try-catch blocks between source and target. An empty catch block (`catch (e) {}`) or a completely missing try-catch where the source has one is a P1 issue. Report the specific exception types being caught.
+**C4 — 异常处理完整性**：对比源与目标的 try-catch 块。空 catch 块（`catch (e) {}`）或源有 try-catch 而目标完全缺失为 P1 问题。报出被捕获的具体异常类型。
 
-**C5 — 精度/类型一致性**: compare numeric precision and types between source and target (BigDecimal vs double/float, int vs long, number of decimal places). A precision mismatch that could cause data loss is a P1 issue.
+**C5 — 精度/类型一致性**：对比源与目标的数值精度与类型（BigDecimal 与 double/float、int 与 long、小数位数）。可能导致数据丢失的精度不匹配为 P1 问题。
 
-**C6 — SQL 条件完整性**: compare the WHERE/JOIN conditions between source and target SQL statements. When the source has additional conditions (e.g., `WHERE a=1 AND b=2` vs `WHERE a=1`), report the missing conditions as P0 issues.
+**C6 — SQL 条件完整性**：对比源与目标 SQL 语句的 WHERE/JOIN 条件。源有额外条件时（例如 `WHERE a=1 AND b=2` 与 `WHERE a=1` 的差异），将缺失条件报为 P0 问题。
 
-Each adversarial check report must follow the same format as the layer reports (header block, comparison table, findings list). Write the 6 reports under `07_对抗检查/`.
+每份对抗检查报告 MUST 与层报告格式一致（头块、对比表、发现清单）。将 6 份报告写入 `07_对抗检查/`。
 
-Every comparison document must contain: a header block (check time, SOURCE_PROJECT, TARGET_PROJECT, framework profiles used), the layer's inventory comparison table, per-item method/field comparison tables with concrete data, a difference analysis section, and the issues found (each tagged with its P0/P1/P2 level). Document skeleton — all `{...}` placeholders must be replaced with actual data before writing:
+每份对比文档 MUST 包含：头块（检查时间、SOURCE_PROJECT、TARGET_PROJECT、所用框架档案）、该层的清单对比表、含具体数据的逐项方法/字段对比表、差异分析段，以及发现的问题（每条标注 P0/P1/P2 等级）。文档骨架 —— 写入前必须把所有 `{...}` 占位符替换为真实数据：
 
 ```markdown
 # {层名} 对比报告
@@ -193,75 +193,75 @@ Every comparison document must contain: a header block (check time, SOURCE_PROJE
 - **问题 #N** — 位置: {project}/{file}/{method} | 类型: {type} | 等级: P0/P1/P2 | 说明: {description} | 验证方法: {verification}
 ```
 
-A submitted document that still contains unfilled `{...}` placeholders fails the Step 7 read-back verification — rewrite it with actual data.
+提交的文档若仍含未填充的 `{...}` 占位符，则 Step 7 回读验证不通过 —— 用真实数据重写。
 
-**Matching methodology**:
+**匹配方法**：
 
-- Match by functionality, not by name alone: when a file or method was renamed during migration, correlate it via route paths, table names, or business semantics and report it as migrated (with the rename noted), not as missing.
-- Logic moved between layers (for example from Controller to Service) must be traced into the destination layer and compared there before being reported as missing.
-- Never conclude "missing" from line counts or file sizes — verify by reading the actual implementation.
+- 按功能匹配，而非仅按名称：迁移中文件或方法被改名时，通过路由路径、表名或业务语义关联，报为已迁移（注明改名），而非缺失。
+- 层间移动的逻辑（例如从 Controller 移到 Service）MUST 追溯到目标层并在该层对比后，才可报为缺失。
+- MUST NOT 从行数或文件大小臆断「缺失」—— 须读取真实实现验证。
 
 ### Layer 1: Controller 层对比 (01_后端对比/01_Controller层对比.md)
 
-1. Glob both projects for controller files using stack-appropriate patterns (e.g., `**/*Controller.java`, `**/*Controller.ts`, `**/controllers/**`). Detect the stack from project files; do not assume a specific stack.
-2. Build the file inventory comparison table: both-present / source-only (missing in target) / target-only (newly added), with full paths, plus coverage statistics (source N, target M, coverage P%).
-3. For each controller in scope:
-   - Read the source controller; enumerate its methods per the Step 3 rule: the profile's standard method list when provided, otherwise the actual method signatures extracted via Grep (adjust the pattern per language).
-   - Read the target controller; extract method signatures and route/mapping annotations.
-   - Build the method comparison table covering: method existence, signature (return type, parameters), route mapping, permission/authorization check, and view/JSON return type.
-   - When core business logic differs (not just code placement), quote the actual code fragments read from BOTH sides and analyze the difference — logic moved to another layer must be verified in that layer before being reported as missing.
-4. Write the document with the inventory table, per-controller method comparison tables, difference analysis, and issues found. Read back and verify.
+1. 用适配技术栈的模式为两个项目 Glob controller 文件（如 `**/*Controller.java`、`**/*Controller.ts`、`**/controllers/**`）。由项目文件探测技术栈；不得假设特定技术栈。
+2. 构建文件清单对比表：双方均存在 / 仅源存在（目标缺失）/ 仅目标存在（新增），含完整路径，并给出覆盖率统计（源 N 个、目标 M 个、覆盖率 P%）。
+3. 对范围内的每个 controller：
+   - 读取源 controller；按 Step 3 规则枚举其方法：提供了档案标准方法清单时用清单，否则用 Grep 提取的真实方法签名（按语言调整模式）。
+   - 读取目标 controller；提取方法签名与路由/映射注解。
+   - 构建方法对比表，覆盖：方法是否存在、签名（返回类型、参数）、路由映射、权限/授权校验、视图/JSON 返回类型。
+   - 核心业务逻辑不同（而非仅代码位置不同）时，引用**双方**读取的真实代码片段并分析差异 —— 移到其他层的逻辑 MUST 在该层验证后才可报为缺失。
+4. 写入文档：含清单表、逐 controller 方法对比表、差异分析与发现的问题。回读并验证。
 
 ### Layer 2: Service 层对比 (01_后端对比/02_Service层对比.md)
 
-1. Glob both projects for service classes; build the inventory table as in Layer 1.
-2. For each service in scope, compare method by method (existence, signature, return type, parameters), applying the Step 3 rule when the source framework auto-provides service methods.
-3. Cross-cutting checks (apply the ones relevant to the detected stack; report the rest as not applicable):
-   - Transaction management on create/update/delete methods
-   - Logging / audit records on operations
-   - Notification / messaging on data changes
-   - Data isolation / tenant filtering on queries
-4. When available, use CodeGraph tools (search / context / callers / callees) to verify call chains (Controller → Service → DAO); fall back to Grep when CodeGraph is unavailable.
-5. Write the document with the inventory table, per-service method comparison tables, cross-cutting check results, and issues found. Read back and verify.
+1. 为两个项目 Glob service 类；按 Layer 1 方式构建清单表。
+2. 对范围内的每个 service 逐方法对比（是否存在、签名、返回类型、参数）；源框架自动提供 service 方法时应用 Step 3 规则。
+3. 横切检查（应用与探测到的技术栈相关的项；其余报为不适用）：
+   - create/update/delete 方法上的事务管理
+   - 操作上的日志 / 审计记录
+   - 数据变更上的通知 / 消息
+   - 查询上的数据隔离 / 租户过滤
+4. 可用时使用 CodeGraph 工具（search / context / callers / callees）验证调用链（Controller → Service → DAO）；CodeGraph 不可用时降级（回退）到 Grep。
+5. 写入文档：含清单表、逐 service 方法对比表、横切检查结果与发现的问题。回读并验证。
 
 ### Layer 3: DAO 层对比 (01_后端对比/03_DAO层对比.md)
 
-1. Glob the target project for DAO / mapper / repository files. When the source project has no dedicated DAO layer (configuration-driven frameworks), compare against its configuration/bean definitions instead, guided by the framework profile's mechanism notes.
-2. For each data-access unit, extract and compare: table names, selected fields, WHERE conditions, JOIN conditions, ORDER BY clauses, and parameter binding.
-3. Write the document with the inventory table, per-unit data-access comparison tables, and issues found. Read back and verify.
+1. 为目标项目 Glob DAO / mapper / repository 文件。源项目无独立 DAO 层时（配置驱动框架），改用其配置/bean 定义对比，并以框架档案的机制说明为引导。
+2. 对每个数据访问单元提取并对比：表名、选取字段、WHERE 条件、JOIN 条件、ORDER BY 子句与参数绑定。
+3. 写入文档：含清单表、逐单元数据访问对比表与发现的问题。回读并验证。
 
 ### Layer 4: 前端对比 (02_前端对比/)
 
-1. Glob both projects for page/template files using stack-appropriate patterns (e.g., `**/*.jsp`, `**/*.html`, `**/*.vue`, `**/*.tsx`).
-2. For each page in scope, Read both versions and compare:
-   - Page existence and inventory — 01_页面文件对比.md
-   - Form fields: name, type, required, validation rules — 02_表单字段对比.md
-   - JavaScript functions, AJAX request URLs, and static resource references — 03_JavaScript函数对比.md
-3. Write each document with actual tables and field-level differences. Read back and verify each one.
+1. 用适配技术栈的模式为两个项目 Glob 页面/模板文件（如 `**/*.jsp`、`**/*.html`、`**/*.vue`、`**/*.tsx`）。
+2. 对范围内的每个页面，Read 两个版本并对比：
+   - 页面是否存在与清单 —— 01_页面文件对比.md
+   - 表单字段：名称、类型、是否必填、校验规则 —— 02_表单字段对比.md
+   - JavaScript 函数、AJAX 请求 URL 与静态资源引用 —— 03_JavaScript函数对比.md
+3. 每份文档写入真实表格与字段级差异。逐一回读并验证。
 
 ### Layer 5: SQL 对比 (03_SQL对比/01_SQL语句对比.md)
 
-1. Extract SQL statements from both projects: mapper/configuration files, embedded strings, and `.sql` scripts.
-2. Compare statement by statement for the in-scope features: SELECT field completeness, WHERE conditions, JOIN conditions, ORDER BY clauses, LIKE usage, and field aliases.
-3. Write the document with statement-level comparison tables and concrete differences. Read back and verify.
+1. 从两个项目提取 SQL 语句：mapper/配置文件、内嵌字符串与 `.sql` 脚本。
+2. 对范围内功能逐语句对比：SELECT 字段完整性、WHERE 条件、JOIN 条件、ORDER BY 子句、LIKE 用法与字段别名。
+3. 写入文档：含语句级对比表与具体差异。回读并验证。
 
 ### Layer 6: 数据库对比 (04_数据库对比/01_表结构对比.md)
 
-1. Extract table structures from `.sql` scripts or entity/model classes on both sides.
-2. Compare: table existence, column lists, column types, nullability, defaults, indexes, and audit columns.
-3. Write the document with table-level and column-level comparison tables and concrete differences. Read back and verify.
+1. 从双方的 `.sql` 脚本或实体/模型类提取表结构。
+2. 对比：表是否存在、列清单、列类型、可空性、默认值、索引与审计列。
+3. 写入文档：含表级与列级对比表及具体差异。回读并验证。
 
-## Step 6: Classify issues into P0/P1/P2
+## Step 6: 将问题分为 P0/P1/P2
 
-Classification rules:
+分级规则：
 
-| Level | 含义 | Criteria |
+| Level | 含义 | 判定标准 |
 |-------|------|----------|
-| P0 🔴 严重问题 | Fix immediately | 功能完全缺失 (functionality completely missing); 核心业务逻辑错误 (core business logic errors); 数据完整性风险 (data integrity risk); 安全漏洞 (security vulnerabilities) |
-| P1 🟡 重要问题 | Fix as soon as possible | 功能部分缺失 (partial functionality missing); 日志记录不完整 (incomplete logging); 权限配置问题 (permission configuration issues) |
-| P2 🟢 一般问题 | Suggestions | 代码规范问题 (code standards); 注释缺失 (missing comments); 命名不规范 (naming suggestions) |
+| P0 🔴 严重问题 | 立即修复 | 功能完全缺失；核心业务逻辑错误；数据完整性风险；安全漏洞 |
+| P1 🟡 重要问题 | 尽快修复 | 功能部分缺失；日志记录不完整；权限配置问题 |
+| P2 🟢 一般问题 | 建议 | 代码规范问题；注释缺失；命名不规范 |
 
-Every issue MUST contain: 位置 (location — project/file/method), 类型 (type), 等级 (level), 说明 (description), 验证方法 (verification method). Issue entry format (used in all three documents):
+每条问题 MUST 包含：位置（project/file/method）、类型、等级、说明、验证方法。问题条目格式（三份文档通用）：
 
 ```markdown
 ### 问题 #N: {标题}
@@ -273,13 +273,13 @@ Every issue MUST contain: 位置 (location — project/file/method), 类型 (typ
 - **验证方法**: {how to verify the gap or the fix}
 ```
 
-Write three documents under `05_问题清单/`:
+在 `05_问题清单/` 下写入三份文档：
 
 - `01_严重问题.md` (P0), `02_重要问题.md` (P1), `03_一般问题.md` (P2)
-- **When a level has no issues, its document MUST still be written and state 「未发现该级别问题」 — never omit the document.**
-- `06_修复建议/01_修复方案汇总.md`: consolidated fix suggestions grouped by issue and referencing the issue lists; when no issues were found at any level, state that instead.
+- **某级别无问题时，其文档 MUST 仍然写入并声明「未发现该级别问题」—— MUST NOT 省略该文档。**
+- `06_修复建议/01_修复方案汇总.md`：按问题归组的整合修复建议，并引用问题清单；所有级别均无问题时则声明该情况。
 
-Finally write `00_检查摘要.md`: check time, SOURCE_PROJECT, TARGET_PROJECT, CHECK_SCOPE, framework profiles used, per-layer statistics, and P0/P1/P2 issue counts. Skeleton:
+最后写入 `00_检查摘要.md`：检查时间、SOURCE_PROJECT、TARGET_PROJECT、CHECK_SCOPE、所用框架档案、逐层统计与 P0/P1/P2 问题数。骨架：
 
 ```markdown
 # 迁移检查摘要
@@ -304,41 +304,41 @@ Finally write `00_检查摘要.md`: check time, SOURCE_PROJECT, TARGET_PROJECT, 
 **问题统计**: P0 {N} 个 / P1 {N} 个 / P2 {N} 个
 ```
 
-## Step 7: Write-back verification (mandatory)
+## Step 7: 写回验证（强制）
 
-After EVERY document is written, use the Read tool to read it back and confirm:
+每份文档写入后，用 Read 工具回读并确认：
 
-1. The file exists and is non-empty.
-2. It contains comparison tables with concrete rows (real file names, method names, field names — not placeholders).
-3. It is not a template with unfilled headings only.
+1. 文件存在且非空。
+2. 含具体行的对比表（真实文件名、方法名、字段名 —— 而非占位符）。
+3. 不是仅含未填充标题的模板。
 
-If verification fails, rewrite the document with the actual data before moving on. Never report a layer as checked based on a template-only or empty document.
+验证不通过时，先用真实数据重写文档再继续。MUST NOT 基于仅含模板或空的文档将某层报为已检查。
 
-## Final summary
+## 最终摘要
 
-After all documents are verified, report to the user:
+所有文档验证完成后，向用户报告：
 
-- The output root path (from Step 4)
-- Per-layer completion status (documents written and verified)
-- P0/P1/P2 issue counts and the most critical issues (P0 first)
-- Any **[待确认]** items and parameters that were missing in non-interactive mode
+- 输出根目录路径（来自 Step 4）
+- 逐层完成状态（文档已写入并验证）
+- P0/P1/P2 问题数与最关键问题（P0 在前）
+- 所有 **[待确认]** 项，以及非交互模式下缺失的参数
 
-## Output verification
+## 输出验证
 
-After the check completes, verify:
+检查完成后，验证：
 
-- [ ] All six layers compared and each document written with actual data
-- [ ] Every document read back and verified non-template (Step 7)
-- [ ] Issue lists written per level; each issue has 位置/类型/等级/说明/验证方法
-- [ ] Empty levels state 「未发现该级别问题」 and are not omitted
-- [ ] 00_检查摘要.md written with paths, scope, profiles, and statistics
-- [ ] Output routed per Step 4, all paths built with `path.join()`
-- [ ] Framework method comparison driven only by provided profiles — no invented method lists; gaps marked **[待确认]**
-- [ ] Adversarial checks (C1-C6) executed for each applicable layer
-- [ ] 07_对抗检查/ reports written with header, comparison table, and findings list
+- [ ] 六层均已对比，且每份文档写入真实数据
+- [ ] 每份文档已回读并验证非模板（Step 7）
+- [ ] 问题清单按级别写入；每条问题含 位置/类型/等级/说明/验证方法
+- [ ] 空级别声明「未发现该级别问题」且未被省略
+- [ ] 00_检查摘要.md 已写入路径、范围、档案与统计
+- [ ] 输出按 Step 4 路由，所有路径用 `path.join()` 构造
+- [ ] 框架方法对比仅由提供的档案驱动 —— MUST NOT 编造方法清单；缺口标 **[待确认]**
+- [ ] 每个适用层均已执行对抗检查（C1-C6）
+- [ ] 07_对抗检查/ 报告已写入头块、对比表与发现清单
 
 **Guardrails**
-- Never invent methods, fields, tables, or differences — report only what the actual code shows; mark uncertain findings as **[待确认]**
-- Never compare by line count or file size alone — compare functionality (methods, fields, SQL semantics)
-- Non-interactive mode (auto-migration integration): never block on questions; record gaps in the summary instead
-- Use `path.join()` for all file paths
+- MUST NOT 编造方法、字段、表或差异 —— 只报真实代码所示内容；不确定的发现标 **[待确认]**
+- MUST NOT 仅按行数或文件大小对比 —— 比功能（方法、字段、SQL 语义）
+- 非交互模式（自动迁移集成）：MUST NOT 因提问而阻塞；改为在摘要中记录缺口
+- 所有文件路径用 `path.join()`

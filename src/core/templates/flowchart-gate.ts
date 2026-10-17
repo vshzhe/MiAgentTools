@@ -107,7 +107,7 @@ function renderColumnTable(columns: FlowNodeColumn[]): string {
  * @returns 可直接内联进技能正文的 Markdown 制品文本
  */
 export function buildFlowchartBlock(columns: FlowNodeColumn[]): string {
-    return `### 功能流程图（Functional Flowchart）
+    return `### 功能流程图
 
 **Step 1 — 生成流程图与节点清单**
 
@@ -135,7 +135,7 @@ ${renderColumnTable(columns)}
 
 **Step 2 — ⛔ GATE: 流程最终确认门（强制停止）**
 
-> **THIS IS A CONFIRMATION GATE. Your response MUST END here. Do NOT continue beyond this point.**
+> **这是一个确认门。本次响应 MUST 到此结束，不得越过此点继续。**
 
 向用户呈现流程图与节点清单并**立即结束本次响应**；用户确认前 MUST NOT 进入探索完成检测，MUST NOT 将流程图传递给提案阶段。
 
@@ -164,7 +164,7 @@ ${renderColumnTable(columns)}
  */
 export function buildFlowchartCompact(columns: FlowNodeColumn[]): string {
     const columnNames = columns.map((c) => c.name).join(' / ');
-    return `**功能流程图（Functional Flowchart）**: 把探索发现的业务功能流程固化为探索产物 \`## 功能流程图\` 段（Mermaid \`flowchart TD\` + 关键操作节点清单表）。
+    return `**功能流程图**：把探索发现的业务功能流程固化为探索产物 \`## 功能流程图\` 段（Mermaid \`flowchart TD\` + 关键操作节点清单表）。
 - **节点粒度** = 可独立验证的业务操作单元（用户操作 / 业务判定 / 数据写入 / 外部调用）；节点标识在图中与表中 MUST 一致，多流程时全局唯一递增
 - **清单列集**：${columnNames}
 - **证据追溯（硬约束）**：每节点 MUST 填 \`文件:行\` 或 类.方法；新建功能标 \`[新建]\` + 预期产物；无法追溯证据的节点 MUST NOT 进入清单

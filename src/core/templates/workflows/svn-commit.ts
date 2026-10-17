@@ -2,6 +2,7 @@
  * commit 类型技能模板：SVN 交互式提交推送（迁移自源 SKILL svn-commit）+ 提案分类提交。
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
+import { deriveCommandContent } from '../derive-command.js';
 
 export function getSvnCommitSkillTemplate(): SkillTemplate {
     return {
@@ -14,6 +15,8 @@ export function getSvnCommitSkillTemplate(): SkillTemplate {
         allowedTools: 'Bash(svn:*), Bash(powershell:*), Read, Write, Glob, Grep',
         type: 'commit',
         instructions: `SVN 提交注释生成与执行（iagent_svn_commit）—— 四环节确认提交 + 提案分类提交。
+
+**输入**：\`/iagent:svn-commit\` 后可跟变更列表名、点名文件或「提交 <提案名> 提案」；省略时先自动检测活跃提案，无活跃变更再询问是否提交全部。
 
 ## ⚠️ 强制约束
 
@@ -245,42 +248,6 @@ export function getSvnCommitCommandTemplate(): CommandTemplate {
         description: 'SVN 交互式提交 —— 四环节确认提交 + 提案分类提交（迁移自 svn-commit）',
         category: 'iAgent / 提交',
         tags: ['iagent', 'commit', 'svn', 'commit', 'proposal'],
-        content: `SVN 提交注释生成与执行 —— 四环节确认提交 + 提案分类提交。
-
-**输入**：\`/iagent:svn-commit\` 后可跟变更列表名、点名文件或「提交 <提案名> 提案」；省略时先自动检测活跃提案，无活跃变更再询问是否提交全部。
-
-**触发约束**：仅显式调用触发；Git 项目提交请用 iagent_commit。
-
-## 四种提交范围场景
-
-1. 指定变更列表：候选集 = 列表成员（不存在时列出可用列表供选）。
-2. 均未指定：先自动检测活跃提案（唯一直接采用、多个列出供选）；无活跃变更时询问是否提交全部，不带溯源。
-3. 直接点名文件：候选集 = 点名文件。
-4. 提案点名（分类提交）：读取 openspec/changes/<提案名>/ → 变更自动归类 → N 笔分类提交计划 → 确认后依次执行；已归档提案同样可用（提示已归档，按提案内容检查未提交变更继续推进），提案不存在列出活跃供选。
-
-## 四环节强制确认（缺一不可）
-
-范围确定 → 清单与功能描述确认 → 知识库推送询问 → 最终确认；未确认不推进，最终确认前绝不提交；用户可随时终止。
-
-## 提案分类提交要点
-
-- 三类自动分类（路径优先）：src/test/**、test/** 及独立测试文件 → 测试代码（test 前缀）；已纳管 docs/**、其余 *.md、已纳管 openspec/ 制品 → 文档（docs 前缀）；其余产出 → 功能代码（feat/fix/refactor/perf 按性质）。未纳管文件遵循范围排除默认不提交。
-- 溯源标注：每笔提交信息尾行 \`提案: <变更名>\`；非提案场景不带。
-- 提案关联校验：与提案无关的变更在环节 2 单独列出由用户裁决，不阻断。
-- 失败即停：任一笔失败即停后续类别、不回滚已成功笔，汇报完成/未执行明细。
-
-## 提交范围排除（最高优先级）
-
-target/、*.class、surefire-reports、*.log、.idea 及未纳管非源码文件永不提交（优先于「被引用则 add」）；? 忽略、A 不提交不 revert（显式路径提交+提示手动 revert）、M 不提交建议 svn delete；排除项被点名时以用户指令为准。
-
-## 提交执行
-
-1. 完整性检查：被提交集引用的 ? 源码文件经确认后 svn add 纳入。
-2. 注释 UTF-8 无 BOM 落盘读回校验；提交带 --encoding UTF-8 -F，禁止裸 -m 传中文。
-3. 凭据：E230001 加 --trust-server-cert-failures；E215004 从 auth 缓存解密经 stdin 传入；密码只进内存与 stdin，禁止显示/进命令行/写日志，失败一次即停；全程 --non-interactive。
-4. 提交路径与最终清单一致（显式路径或 --changelist / --targets）。
-5. 双验证：svn status 无本笔残留 + svn log -r --xml 无乱码。
-6. 知识库推送（已确认清单时）：llm-wiki MCP 提交（单次最多 5 文件分批），submission_id 待审核；MCP 不可用如实说明。
-7. 汇报：版本号、作者、路径数（M/A/D）、变更列表名、双验证结论、排除清单、知识库结果；分类提交加报各笔分类明细与溯源标注。`,
+        content: deriveCommandContent(getSvnCommitSkillTemplate().instructions),
     };
 }

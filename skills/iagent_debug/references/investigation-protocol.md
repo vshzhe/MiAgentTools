@@ -1,45 +1,45 @@
 ### 2.2 CodeGraph 排查（分层结构）
 
-Adapt the workflow's CodeGraph query system (status check → file scan → symbol + context → call chain + impact → **triage** → explore + deep-dive) to the debug investigation context. Record all findings to the diagnosis record in real time (after EACH query step, not batched at the end) so Phase 6 can persist the full investigation path.
+把工作流的 CodeGraph 查询体系（状态预检 → 文件扫描 → 符号 + 上下文 → 调用链 + 影响 → **分级** → 探索 + 深度分析）适配到调试排查场景。所有发现实时写入诊断记录（在**每一步**查询之后写入，不得在末尾批量补写），以便 Phase 6 持久化完整排查路径。
 
 #### 2.2.0 Status 预检（强制首动作与硬回退）
 
-**MUST run `codegraph_status` as the FIRST action of Phase 2.** Until `codegraph_status` returns unavailable, you MUST NOT use Grep or Glob for symbol/file investigation — the `codegraph_*` tools (2.2.1–2.2.4) are the primary path, not an optional one.
+**MUST 把 `codegraph_status` 作为 Phase 2 的首个动作运行。** 在 `codegraph_status` 返回不可用之前，MUST NOT 用 Grep 或 Glob 做符号/文件排查 —— `codegraph_*` 工具（2.2.1–2.2.4）是主路径，而非可选路径。
 
-- If initialized (files/nodes > 0): proceed with the CodeGraph tools in 2.2.1–2.2.4
-- If `codegraph_status` confirms unavailable (uninitialized, error, or tool not mounted): ONLY THEN fall back to Glob (file structure) and Grep (symbol search), record "CodeGraph unavailable — used Glob/Grep fallback" in the diagnosis record
+- 若已初始化（files/nodes > 0）：继续使用 2.2.1–2.2.4 的 CodeGraph 工具
+- 若 `codegraph_status` 确认不可用（未初始化、报错或工具未挂载）：**仅在此时**才降级（回退）到 Glob（文件结构）与 Grep（符号搜索），并在诊断记录记「CodeGraph 不可用 —— 使用 Glob/Grep 降级」
 
-Grep/Glob is a **last resort**, permitted ONLY after `codegraph_status` confirms unavailability — never as a shortcut to skip CodeGraph. The fallback MUST NOT block the investigation, but it MUST NOT be taken before the availability check runs.
+Grep/Glob 是**最后手段**，仅在 `codegraph_status` 确认不可用后允许 —— MUST NOT 作为跳过 CodeGraph 的捷径。降级（回退）MUST NOT 阻断排查，但 MUST NOT 在可用性检查之前采用。
 
 #### 2.2.1 文件结构扫描（codegraph_files）
 
-- Scan the project file tree with `codegraph_files` to identify directories and files relevant to the bug description
-- Write findings to the diagnosis record Codebase Findings > Discovered Files as "<file-path>: <relevance-reason>"
-- All file paths MUST be constructed with `path.join()` for cross-platform compatibility (Windows/macOS/Linux) — never hardcode slashes
-- Fallback (when CodeGraph unavailable): Glob for file structure discovery
-- **仅增量（摘要命中范围跳过）**: MUST NOT re-run CodeGraph queries already covered — **incremental queries only**（仅执行增量查询，见 2.1.5）；摘要未覆盖的范围照常扫描
+- 用 `codegraph_files` 扫描项目文件树，识别与 bug 描述相关的目录与文件
+- 将发现写入诊断记录的代码库发现 > 已发现文件段，格式为 "<file-path>: <relevance-reason>"
+- 所有文件路径 MUST 用 `path.join()` 构造以兼容跨平台（Windows/macOS/Linux）—— 不得硬编码分隔符
+- 降级（回退）（CodeGraph 不可用时）：用 Glob 做文件结构发现
+- **仅增量（摘要命中范围跳过）**: MUST NOT 重跑已覆盖的 CodeGraph 查询 —— **仅增量查询**（见 2.1.5）；摘要未覆盖的范围照常扫描
 
 #### 2.2.2 符号定位与任务级上下文（codegraph_search + codegraph_context）
 
-- `codegraph_search` — locate the symbols involved in the failing behavior; record "<symbol-name> (<file-path>:<line>): <reason>" to Codebase Findings > Identified Symbols
-- `codegraph_context --task <bug-description>` — build comprehensive task-level context around the bug (aggregating entry points, related symbols, key code), turning the bug description into a scoped investigation context
-- Fallback (when CodeGraph unavailable): Grep for symbol search
-- **仅增量（摘要命中范围跳过）**: MUST NOT re-run CodeGraph queries already covered — **incremental queries only**（仅执行增量查询，见 2.1.5）；摘要未覆盖的符号与上下文照常定位
+- `codegraph_search` —— 定位失败行为涉及的符号；将 "<symbol-name> (<file-path>:<line>): <reason>" 记入代码库发现 > 已识别符号段
+- `codegraph_context --task <bug-description>` —— 围绕 bug 构建完整的任务级上下文（聚合入口点、相关符号、关键代码），把 bug 描述转化为有范围的排查上下文
+- 降级（回退）（CodeGraph 不可用时）：用 Grep 做符号搜索
+- **仅增量（摘要命中范围跳过）**: MUST NOT 重跑已覆盖的 CodeGraph 查询 —— **仅增量查询**（见 2.1.5）；摘要未覆盖的符号与上下文照常定位
 
-#### 2.2.3 调用链追踪与爆炸半径（codegraph_callers / codegraph_callees / codegraph_impact）
+#### 2.2.3 调用链追踪与影响半径（codegraph_callers / codegraph_callees / codegraph_impact）
 
-- `codegraph_callers` / `codegraph_callees` — trace the call chain around the suspected code (upstream callers and downstream callees)
-- `codegraph_impact` — assess the blast radius of the suspected defect AND of the candidate fix
-- Record call chains (ASCII diagrams when helpful) and affected symbols in the diagnosis record for root cause confirmation
-- **仅增量（摘要命中范围跳过）**: MUST NOT re-run CodeGraph queries already covered — **incremental queries only**（仅执行增量查询，见 2.1.5）；摘要未覆盖的调用链与爆炸半径照常追踪
+- `codegraph_callers` / `codegraph_callees` —— 追踪疑似代码周围的调用链（上游调用者与下游被调用者）
+- `codegraph_impact` —— 评估疑似缺陷与候选修复的影响半径
+- 将调用链（适用时附 ASCII 图）与受影响符号记入诊断记录，供根因确认
+- **仅增量（摘要命中范围跳过）**: MUST NOT 重跑已覆盖的 CodeGraph 查询 —— **仅增量查询**（见 2.1.5）；摘要未覆盖的调用链与影响半径照常追踪
 
-#### 2.2.3.5 排查深度分级（Triage · 事前选定排查路径）
+#### 2.2.3.5 排查深度分级（事前选定排查路径）
 
-**⚠️ MANDATORY: 本步在常规查询（2.2.1–2.2.3）之后、深度探索（2.2.4）之前执行。** 三条分级信号全部产自常规查询，故本步不得前移；编号采用**十进制插入**（`2.2.3.5`）以**不重排既有编号**（2.2.0–2.2.4 的编号与语义均不变）。
+**⚠️ 强制: 本步在常规查询（2.2.1–2.2.3）之后、深度探索（2.2.4）之前执行。** 三条分级信号全部产自常规查询，故本步不得前移；编号采用**十进制插入**（`2.2.3.5`）以**不重排既有编号**（2.2.0–2.2.4 的编号与语义均不变）。
 
 **分级信号（三条客观信号，任一命中即深度路径）**：
 
-- **(a) 爆炸半径**：`codegraph_impact` 在 depth ≤ 2 的受影响符号数 **≥ 5**，或受影响文件数 **≥ 3**
+- **(a) 影响半径**：`codegraph_impact` 在 depth ≤ 2 的受影响符号数 **≥ 5**，或受影响文件数 **≥ 3**
 - **(b) 跨模块**：受影响范围跨 **≥ 2** 个模块 / 目录
 - **(c) 根因清晰度**：2.2.2（`codegraph_search` + `codegraph_context`）**未能**一步定位单一高置信根因
 
@@ -56,7 +56,7 @@ Grep/Glob is a **last resort**, permitted ONLY after `codegraph_status` confirms
 - 信号 **(b)(c)** 不依赖 CodeGraph，照常判定
 - 诊断记录 MUST 标注「信号降级」；**MUST NOT 因 CodeGraph 不可用而跳过分级**
 
-**信号可追溯（反幻觉硬约束）**：信号取值 MUST 可追溯至 `codegraph_impact` / `codegraph_files`（降级时为 Grep）的**实测查询结果**并在诊断记录留痕；MUST NOT 以"半径小"等未经实测的结论支撑轻量路径判定（违反 Zero-Assumption）。
+**信号可追溯（反幻觉硬约束）**：信号取值 MUST 可追溯至 `codegraph_impact` / `codegraph_files`（降级时为 Grep）的**实测查询结果**并在诊断记录留痕；MUST NOT 以"半径小"等未经实测的结论支撑轻量路径判定（违反零猜测原则）。
 
 **与 2.5 解耦**：分级结果**只**影响 2.2.4 是否执行；2.5 缺陷链路图与流程最终确认门对两条路径**均强制**产出，轻量路径 MUST NOT 豁免。
 
@@ -73,25 +73,25 @@ Grep/Glob is a **last resort**, permitted ONLY after `codegraph_status` confirms
 
 **⚠️ 兜底是触发条件，不是独立步骤**：本节的内容与编号（2.2.4）**保持不变**；升级兜底即上述条件 2，MUST NOT 为其新建独立章节或编号。
 
-When triggered:
-- `codegraph_explore` — deep exploration of the suspected code area
-- 6-dimension root cause deep analysis (adapted from workflow Implementation Deep-Dive, repositioned for root cause localization — the root cause often hides in WHY the code was designed this way):
-  - **Design Rationale** — why the code was designed this way (code comments, docstrings, ADRs) — root cause may be a violated design intent
-  - **Constraints** — hard constraints that shaped the code (config files, linter rules) — root cause may be a constraint that no longer holds
-  - **Trade-offs** — multi-option trade-offs consciously accepted (TODO/FIXME/HACK comments) — root cause may be a trade-off that failed under new conditions
-  - **Pattern Usage** — design patterns in use (class/interface structure) — root cause may be a pattern misuse
-  - **Historical Context** — design evolution (`git log --follow`, `git blame`) — root cause may be a consciously accepted historical edge case (cross-reference capability memory boundary scenarios)
-  - **Implicit Assumptions** — undocumented assumptions (type guards, default values, missing null checks) — root cause frequently hides here
-- Write findings to the diagnosis record Implementation Deep-Dive section; dimensions with no findings are marked "<!-- No findings -->"
-- Connects to the 2.4 root cause confirmation gate: multiple candidates → STOP and let the user choose; deep-dive insights assist confirmation
+触发时：
+- `codegraph_explore` —— 深度探索疑似代码区域
+- 6 维根因深度分析（改写自 workflow 的实现深度分析，重心移到根因定位 —— 根因常隐藏在「代码为何如此设计」之中）：
+  - **设计意图（Design Rationale）** —— 代码为何如此设计（代码注释、docstring、ADR）—— 根因可能是被违背的设计意图
+  - **约束（Constraints）** —— 塑造该代码的硬约束（配置文件、linter 规则）—— 根因可能是已不再成立的约束
+  - **权衡（Trade-offs）** —— 被有意接受的多方案权衡（TODO/FIXME/HACK 注释）—— 根因可能是在新条件下失效的权衡
+  - **模式运用（Pattern Usage）** —— 采用的设计模式（类/接口结构）—— 根因可能是模式误用
+  - **历史背景（Historical Context）** —— 设计演进（`git log --follow`、`git blame`）—— 根因可能是被有意接受的历史边界情形（交叉参照能力记忆的边界场景）
+  - **隐式假设（Implicit Assumptions）** —— 无文档的假设（类型守卫、默认值、缺失的空值检查）—— 根因常隐藏于此
+- 将发现写入诊断记录的实现深度分析段；无发现的维度标注 "<!-- No findings -->"
+- 衔接 2.4 根因确认门：多候选 → STOP 并让用户选择；深度分析洞见辅助确认
 
 #### 2.2.4.5 摘要增量写入（与诊断记录并行）
 
-**⚠️ MANDATORY: 2.2.1–2.2.4 每步完成后执行。** 每一步的结论 MUST 以 **incrementally appended** 方式写入 `.openspec-tmp/debug-<keyword>/investigation-digest.md` —— 按步骤顺序追加，不批量补写、不重写已有段落。
+**⚠️ 强制: 2.2.1–2.2.4 每步完成后执行。** 每一步的结论 MUST 以**增量追加**方式写入 `.openspec-tmp/debug-<keyword>/investigation-digest.md` —— 按步骤顺序追加，不批量补写、不重写已有段落。
 
 **并行写入、互不替代**：本步与「实时写诊断记录」（见下节 记录规范）**并行执行** —— 摘要写入 MUST NOT 替代诊断记录，诊断记录写入也 MUST NOT 替代摘要，两者各自独立完整。
 
 #### 记录规范（所有子节共用）
 
-All CodeGraph findings (Discovered Files / Identified Symbols / call chains / blast radius / Implementation Deep-Dive) MUST be structured into the diagnosis record's corresponding subsections and updated in real time after EACH query step (not batched at the end of the investigation). When CodeGraph is unavailable and the Glob/Grep fallback is used, findings still follow the same structure with the fallback noted — investigation traceability MUST NOT be lost due to fallback.
+所有 CodeGraph 发现（已发现文件 / 已识别符号 / 调用链 / 影响半径 / 实现深度分析）MUST 结构化写入诊断记录的对应子段，并在**每一步**查询之后实时更新（不得在排查末尾批量补写）。CodeGraph 不可用而使用 Glob/Grep 降级（回退）时，发现仍遵循同一结构并注明降级 —— MUST NOT 因降级而丢失排查可追溯性。
 

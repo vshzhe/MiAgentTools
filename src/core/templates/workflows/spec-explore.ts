@@ -19,18 +19,18 @@ const PROMPT_GATE_FULL = buildPromptGateBlock(REQUIREMENT_DIMENSIONS);
 /** 功能流程图全文（写入 references/flowchart-gate.md，AI 在流程生成时按需读取） */
 const FLOWCHART_FULL = buildFlowchartBlock(REQUIREMENT_FLOW_COLUMNS);
 
-/** 探索强制 checkpoint 体系全文（写入 references/exploration-protocol.md，delegated 模式按需读取） */
-const EXPLORATION_PROTOCOL_FULL = `## 强制 checkpoint 体系（delegated 模式）
+/** 探索强制检查点体系全文（写入 references/exploration-protocol.md，delegated 模式按需读取） */
+const EXPLORATION_PROTOCOL_FULL = `## 强制检查点体系（delegated 模式）
 
-**Input**: User's topic description (what they want to build).
+**Input**: 用户的主题描述（想构建什么）。
 
-Use the **TodoWrite tool** to initialize tracking: \`[{"content": "Phase 1: Exploration", "status": "in_progress"}, {"content": "Phase 2: Proposal", "status": "pending"}, {"content": "Phase 3: Verification", "status": "pending"}, {"content": "Phase 4: Implementation", "status": "pending"}, {"content": "Phase 5: Archive", "status": "pending"}]\`
+用 **TodoWrite 工具** 初始化跟踪：\`[{"content": "Phase 1: Exploration", "status": "in_progress"}, {"content": "Phase 2: Proposal", "status": "pending"}, {"content": "Phase 3: Verification", "status": "pending"}, {"content": "Phase 4: Implementation", "status": "pending"}, {"content": "Phase 5: Archive", "status": "pending"}]\`
 
-### 1.1 Create Exploration File (MANDATORY CHECKPOINT)
+### 1.1 创建探索文件（强制检查点）
 
-**⚠️ MANDATORY: File creation checkpoint at Phase 1 start**
+**⚠️ 强制：Phase 1 开始时执行文件创建检查点**
 
-When user invokes this command, system MUST create an exploration file before proceeding:
+用户调用本命令时，系统 MUST 先创建探索文件再继续：
 
 \`\`\`bash
 # Determine keyword from user's topic
@@ -38,36 +38,36 @@ When user invokes this command, system MUST create an exploration file before pr
 # Example: "add user authentication" -> user-auth-explore-001.md
 \`\`\`
 
-**File Creation Process**:
+**文件创建过程**：
 
-1. **Extract keyword** from user's topic
-   - Convert to kebab-case (max 50 chars)
-   - Default to "explore" if extraction fails
+1. 从用户主题中**提取关键词**
+   - 转为 kebab-case（最多 50 字符）
+   - 提取失败时默认用 "explore"
 
-2. **Determine sequence number**
-   - Find highest sequence for that keyword in \`openspec/explorations/\`
-   - Increment sequence (001, 002, etc.)
+2. **确定序号**
+   - 在 \`openspec/explorations/\` 中查找该关键词的最大序号
+   - 序号递增（001、002 等）
 
-3. **Handle filename collisions**
-   - If file exists, increment sequence
-   - If collision persists after 3 retries, append timestamp suffix
-   - Log collision resolution for transparency
+3. **处理文件名冲突**
+   - 文件已存在时序号递增
+   - 重试 3 次后仍冲突时追加时间戳后缀
+   - 记录冲突解决过程以便追溯
 
-4. **Create file at**: \`openspec/explorations/<keyword>-explore-<sequence>.md\`
+4. **创建文件于**：\`openspec/explorations/<keyword>-explore-<sequence>.md\`
 
-5. **Verify file creation**
-   - Check file exists and is writable
-   - If verification fails, abort and report error
-   - Log creation status to user
+5. **校验文件创建结果**
+   - 检查文件存在且可写
+   - 校验失败时中止并报告错误
+   - 向用户记录创建状态
 
-**Checkpoint Enforcement**:
-- System MUST NOT proceed to questioning without valid exploration file
-- If file creation fails, system MUST stop and report error
-- User MUST be informed of file creation status
+**强制检查点**：
+- 没有有效探索文件时，系统 MUST NOT 进入追问环节
+- 文件创建失败时，系统 MUST 停止并报告错误
+- 系统 MUST 告知用户文件创建状态
 
-Use \`path.join()\` for cross-platform compatibility.
+使用 \`path.join()\` 保证跨平台兼容。
 
-**TodoWrite tracking**: Initialize TodoWrite with Phase 1 items:
+**TodoWrite 跟踪**：用 Phase 1 的条目初始化 TodoWrite：
 \`\`\`
 - [ ] Phase 1: 创建探索文件
 - [ ] Phase 1: 提示词校验门
@@ -77,13 +77,13 @@ Use \`path.join()\` for cross-platform compatibility.
 - [ ] Phase 1: 完成检测与确认
 \`\`\`
 
-### 1.1.2 Prompt Validation Gate (MANDATORY CHECKPOINT)
+### 1.1.2 提示词校验门（强制检查点）
 
-**⚠️ MANDATORY: 本门在任何探索动作之前执行，不得跳过。**
+**⚠️ 强制：本门在任何探索动作之前执行，不得跳过。**
 
 **门的校验对象是用户最终提供的需求描述**：调用未携带主题时，先交互收集主题描述，再以收集后的描述执行本门，MUST NOT 对空输入执行校验。
 
-**Prompt Validation Gate (提示词校验门)**: 探索前强制自检用户输入，维度为 目标 Goal / 对象 Object / 范围 Scope / 约束 Constraints / 验收 Acceptance / 歧义 Ambiguity。
+**提示词校验门**: 探索前强制自检用户输入，维度为 目标 Goal / 对象 Object / 范围 Scope / 约束 Constraints / 验收 Acceptance / 歧义 Ambiguity。
 - **清晰**（目标 Goal / 对象 Object / 范围 Scope / 歧义 Ambiguity 均无 \`❌\` 与实质 \`⚠️\`）→ 一句话复述理解后直通，不输出校验表、不要求确认
 - **不明确**（任一维 \`❌\` 或实质 \`⚠️\`）→ 先做提示词优化，输出 \`【优化后提示词】\`（推断项标 \`[推断]\`、未知项标 \`[待确认]\`）与 \`【优化说明】\`，**⛔ GATE: 立即结束本次响应并等待用户确认或修改**（本次响应到此结束，收到用户响应后继续；出口：确认 / 修改 / 拒绝 / 显式授权按推断），**不得陷入等待死循环**
 - **软不明确**（仅细节级歧义）→ 记 \`[假设]\` 继续
@@ -99,23 +99,23 @@ Use \`path.join()\` for cross-platform compatibility.
 - 不明确分支的确认门是**澄清门（确认 WHAT）**：用户确认或修改前 MUST NOT 推进到 1.1.5 及之后的任何步骤
 - 校验结论（原始提示词 + 确认后的提示词基线）写入探索文件 1.2 结构中的 \`## 提示词基线\` 段
 
-### 1.1.5 CONTEXT.md Startup Check (MANDATORY CHECKPOINT)
+### 1.1.5 CONTEXT.md 启动检查（强制检查点）
 
-**⚠️ MANDATORY: CONTEXT.md check at Phase 1 start — BEFORE questioning begins**
+**⚠️ 强制：Phase 1 开始时、追问开始之前执行 CONTEXT.md 检查**
 
-1. **Check if \`openspec/CONTEXT.md\` exists** using Glob or Read tool
-2. **If EXISTS**: Read all existing terms and inject them into exploration.md 术语表 section
-   - Use existing terminology in all questions (do not re-define)
-3. **If NOT EXISTS**: Record "No existing glossary — will create during exploration" in exploration.md 术语表 section
-   - Mark TodoWrite: \`- [ ] Phase 1: 创建 CONTEXT.md\`
+1. 用 Glob 或 Read 工具**检查 \`openspec/CONTEXT.md\` 是否存在**
+2. **若存在**：读取全部既有术语并注入 exploration.md 术语表 段
+   - 所有提问沿用既有术语（不重新定义）
+3. **若不存在**：在 exploration.md 术语表 段记录"无既有术语表 — 将在探索中创建"
+   - 标记 TodoWrite：\`- [ ] Phase 1: 创建 CONTEXT.md\`
 
-**Checkpoint Enforcement**:
-- System MUST check CONTEXT.md existence before entering Section 1.3 questioning
-- If CONTEXT.md exists, terms MUST be loaded into exploration.md before first question
+**强制检查点**：
+- 进入 1.3 追问之前，系统 MUST 检查 CONTEXT.md 是否存在
+- CONTEXT.md 存在时，MUST 在首次提问前把术语载入 exploration.md
 
-### 1.2 Initialize Structured Format
+### 1.2 初始化结构化格式
 
-Write the initial file structure with enhanced sections:
+写入含增强段的初始文件结构：
 
 \`\`\`markdown
 ## Background
@@ -130,7 +130,7 @@ Write the initial file structure with enhanced sections:
 
 > 下游（提案 / 设计 / 规格 / 任务）以提示词基线为唯一语义来源；基线若变更 MUST 回到 1.1.2 重新确认。
 
-## 功能流程图 (Functional Flowchart)
+## 功能流程图
 
 <!-- 1.5.5 强制产出：Mermaid flowchart TD 承担顺序与分支骨架，节点 id N<序号> 在图中与表中 MUST 稳定一致 -->
 <!-- 初始为空；探索分析完成后由 1.5.5 填写并经流程最终确认门确认 -->
@@ -255,62 +255,62 @@ Write the initial file structure with enhanced sections:
 <!-- No findings -->
 \`\`\`
 
-**Section Guidelines**:
-- **Codebase Findings**: Records discoveries from exploration (files, symbols, patterns)
-- **Decision Process**: Tracks decision evolution with rationale
-- **Pending**: Categorized by type for Phase 2 attention
+**分节指南**：
+- **Codebase Findings**：记录探索所得（文件、符号、模式）
+- **Decision Process**：跟踪决策演进及其理由
+- **Pending**：按类型归类，供 Phase 2 关注
 
-### 1.2.0.5 Capability Exploration Memory Injection (MANDATORY CHECKPOINT)
+### 1.2.0.5 能力级探索记忆注入（强制检查点）
 
-**⚠️ MANDATORY: Inject capability-level exploration memory before questioning begins**
+**⚠️ 强制：追问开始之前注入能力级探索记忆**
 
-After structured format initialization:
+结构化格式初始化之后：
 
-1. **Infer involved capabilities** from the user's topic
-   - Use Glob tool to scan \`openspec/specs/\` directory for module names
-   - Match topic keywords against module names (same logic as change naming module identification)
+1. 从用户主题**推断涉及的能力**
+   - 用 Glob 工具扫描 \`openspec/specs/\` 目录获取模块名
+   - 把主题关键词与模块名匹配（与变更命名时的模块识别同一逻辑）
 
-2. **Detect capability memory file**
-   - For each involved capability \`<capability>\`, check if \`openspec/specs/<capability>/explorations.md\` exists (use \`path.join()\`)
+2. **检测能力记忆文件**
+   - 对每个涉及的能力 \`<capability>\`，检查 \`openspec/specs/<capability>/explorations.md\` 是否存在（用 \`path.join()\`）
 
-3. **Inject memory (when file exists)**
-   - Read the file and inject historical Decisions, 术语, and 边界场景 into the exploration context
-   - Write a summary into exploration.md \`## Codebase Findings\` under a "### Capability Exploration Memory (injected)" subsection
-   - Sections marked \`已过时（由 <change-name> 取代）\` serve as historical reference ONLY — the superseding change's decisions are current
+3. **注入记忆（文件存在时）**
+   - 读取该文件，把历史 Decisions、术语 与 边界场景 注入探索上下文
+   - 把摘要写入 exploration.md 的 \`## Codebase Findings\` 段下 "### Capability Exploration Memory (injected)" 子段
+   - 标有 \`已过时（由 <change-name> 取代）\` 的段落仅作历史参考 — 取代它的变更的决策才是当前有效决策
 
-4. **No memory file**
-   - Log: "无能力级探索记忆 — 全新探索"
-   - Proceed with normal exploration
+4. **无记忆文件时**
+   - 记录："无能力级探索记忆 — 全新探索"
+   - 按常规探索继续
 
-**Checkpoint Enforcement**:
-- System MUST execute capability memory detection before entering questioning
-- Injected memory MUST be reflected in exploration.md before the first question
+**强制检查点**：
+- 进入追问之前，系统 MUST 执行能力记忆检测
+- 首次提问前，注入的记忆 MUST 反映到 exploration.md
 
-### 1.2.1 Mandatory CodeGraph Base Scan (MANDATORY CHECKPOINT)
+### 1.2.1 强制 CodeGraph 基础扫描（强制检查点）
 
-**⚠️ MANDATORY: CodeGraph base scan before questioning begins**
+**⚠️ 强制：追问开始之前执行 CodeGraph 基础扫描**
 
-After structured format initialization, system MUST execute mandatory CodeGraph base scan:
+结构化格式初始化之后，系统 MUST 执行强制的 CodeGraph 基础扫描：
 
-0. **Check CodeGraph availability (mandatory first action)**:
-   - **MUST run \`codegraph_status\` FIRST.** Until it returns unavailable, you MUST NOT use Glob/Grep for file or symbol investigation — the \`codegraph_*\` tools below are the primary path, not an optional one.
-   - If available: proceed with CodeGraph tools below
-   - If \`codegraph_status\` confirms unavailable (uninitialized or error): ONLY THEN log "CodeGraph not initialized — using Glob/Grep fallback" and skip to the fallback below
-   - Grep/Glob is a last resort, permitted ONLY after \`codegraph_status\` confirms unavailability — never as a shortcut to skip CodeGraph
+0. **检查 CodeGraph 可用性（强制的首个动作）**：
+   - **MUST 先运行 \`codegraph_status\`。** 在它返回不可用之前，MUST NOT 用 Glob/Grep 做文件或符号调查 —— 下面的 \`codegraph_*\` 工具才是主路径，而非可选路径。
+   - 可用时：继续使用下面的 CodeGraph 工具
+   - \`codegraph_status\` 确认不可用（未初始化或报错）时：**只有此时**才记录 "CodeGraph 未初始化 — 降级到 Glob/Grep" 并跳到下面的降级路径
+   - Grep/Glob 是最后手段，**只有**在 \`codegraph_status\` 确认不可用后才允许使用 —— 绝不作为跳过 CodeGraph 的捷径
 
-1. **Scan project file structure** using \`codegraph_files\` tool
-   - Get full project file tree with metadata
-   - Identify relevant directories and files matching exploration topic
-   - Write results to \`## Codebase Findings > Discovered Files\`
+1. 用 \`codegraph_files\` 工具**扫描项目文件结构**
+   - 获取带元数据的完整项目文件树
+   - 识别与探索主题相关的目录与文件
+   - 把结果写入 \`## Codebase Findings > Discovered Files\`
 
-2. **Search for relevant symbols** using \`codegraph_search\` tool
-   - Search for symbols matching exploration topic keywords
-   - Record discovered symbols with file:line locations
-   - Write results to \`## Codebase Findings > Identified Symbols\`
+2. 用 \`codegraph_search\` 工具**检索相关符号**
+   - 检索与探索主题关键词匹配的符号
+   - 记录发现的符号及其 file:line 位置
+   - 把结果写入 \`## Codebase Findings > Identified Symbols\`
 
-   **Note**: \`codegraph_context\` is deferred to Section 1.4 (after questioning, when task description is clearer).
+   **注意**：\`codegraph_context\` 延后到 1.4（追问之后、任务描述更清晰时）。
 
-3. **Record scan results** in exploration file:
+3. 在探索文件中**记录扫描结果**：
    \`\`\`markdown
    ## Codebase Findings
 
@@ -324,42 +324,42 @@ After structured format initialization, system MUST execute mandatory CodeGraph 
    - <pattern-name>: <example-location>
    \`\`\`
 
-**Fallback (last resort)**: Permitted ONLY after \`codegraph_status\` confirms CodeGraph MCP tools are unavailable (uninitialized or error):
-- Fall back to Glob tool for file structure discovery
-- Fall back to Grep tool for symbol search
-- Record in exploration file: "CodeGraph unavailable — used Glob/Grep fallback"
+**降级（回退，最后手段）**：**只有**在 \`codegraph_status\` 确认 CodeGraph MCP 工具不可用（未初始化或报错）后才允许：
+- 文件结构发现降级到 Glob 工具
+- 符号检索降级到 Grep 工具
+- 在探索文件中记录："CodeGraph 不可用 — 已用 Glob/Grep 降级"
 
-**Checkpoint Enforcement**:
-- System MUST execute base scan before entering Section 1.3 questioning
-- If CodeGraph AND Glob/Grep both fail, system MUST warn but NOT block
-- Scan results MUST be written to exploration file before proceeding
+**强制检查点**：
+- 进入 1.3 追问之前，系统 MUST 执行基础扫描
+- CodeGraph 与 Glob/Grep 都失败时，系统 MUST 告警但不阻塞
+- 继续之前 MUST 把扫描结果写入探索文件
 
-### 1.2.1.5 Multi-Project CodeGraph Agent Scan（条件触发 — 检测到其他项目路径时执行）
+### 1.2.1.5 多项目 CodeGraph 子代理扫描（条件触发 — 检测到其他项目路径时执行）
 
 > 完整细则见 \`references/multi-project-scan.md\`；检测到其他项目路径时 MUST 先 \`Read\` 该文件。
 
-### 1.2.2 Smart Detection: New Feature vs Modify Existing Code
+### 1.2.2 智能判定：新增功能 vs 修改既有代码
 
-**Purpose**: Determine whether to trigger deep analysis (\`codegraph_explore\` + \`codegraph_impact\`).
+**目的**：判断是否触发深度分析（\`codegraph_explore\` + \`codegraph_impact\`）。
 
-**Detection Logic**:
-1. **Analyze user input keywords** for modification intent:
-   - "modify", "update", "change", "edit", "refactor", "enhance", "优化", "修改", "重构" → triggers deep analysis
-   - "add", "create", "new", "introduce", "implement", "新增", "添加" → may skip deep analysis
+**判定逻辑**：
+1. **分析用户输入关键词**中的修改意图：
+   - "modify"、"update"、"change"、"edit"、"refactor"、"enhance"、"优化"、"修改"、"重构" → 触发深度分析
+   - "add"、"create"、"new"、"introduce"、"implement"、"新增"、"添加" → 可跳过深度分析
 
-2. **Cross-reference with CodeGraph findings**:
-   - If base scan found relevant existing symbols → likely modifying existing code
-   - If base scan found no relevant symbols → likely new feature
+2. **与 CodeGraph 发现结果交叉核对**：
+   - 基础扫描找到相关既有符号 → 很可能是修改既有代码
+   - 基础扫描未找到相关符号 → 很可能是新增功能
 
-3. **Decision**:
-   - **Modify existing code detected**: System MUST trigger deep analysis hook
-     - Execute \`codegraph_explore\` for deep dive
-     - Execute \`codegraph_impact\` for blast radius
-     - Record results in \`## Implementation Deep-Dive\` section
-   - **Pure new feature**: Skip deep analysis, keep only base scan results
-   - **Ambiguous**: Default to trigger deep analysis (safer)
+3. **判定**：
+   - **检测到修改既有代码**：系统 MUST 触发深度分析钩子
+     - 执行 \`codegraph_explore\` 做深潜
+     - 执行 \`codegraph_impact\` 分析影响半径
+     - 把结果记入 \`## Implementation Deep-Dive\` 段
+   - **纯新增功能**：跳过深度分析，仅保留基础扫描结果
+   - **无法确定**：默认触发深度分析（更安全）
 
-4. **Log decision** in exploration file:
+4. 在探索文件中**记录判定**：
    \`\`\`
    ## Analysis
    ### Deep Analysis Trigger
@@ -368,68 +368,68 @@ After structured format initialization, system MUST execute mandatory CodeGraph 
    - Scope: <affected symbols/files>
    \`\`\`
 
-### 1.2.3 CodeGraph Deep Analysis (Conditional — trigger-based)
+### 1.2.3 CodeGraph 深度分析（条件触发 — 基于触发器）
 
-**Trigger**: When 1.2.2 detects modification intent OR Scope.Modify keyword detected.
+**触发**：1.2.2 检测到修改意图，或检测到 Scope.Modify 关键词时。
 
-Execute deep analysis when triggered:
-1. \`codegraph_explore\` — Deep exploration of specific symbols
-2. \`codegraph_impact\` — Blast radius analysis of affected symbols
-3. Write results to exploration.md \`## Implementation Deep-Dive\` section
+触发后执行深度分析：
+1. \`codegraph_explore\` — 对具体符号做深度探索
+2. \`codegraph_impact\` — 分析受影响符号的影响半径
+3. 把结果写入 exploration.md 的 \`## Implementation Deep-Dive\` 段
 
-**Scope Control** (by trigger level):
-- 🔴 Auto (Scope.Modify): All 6 analysis dimensions, up to 10 core symbols
-- 🟡 Prompt (Scope.Add): Rationale + Constraints + Assumptions, up to 10 core symbols
-- 🟢 Manual (Depth.Deep): User-selected dimensions
+**范围控制**（按触发级别）：
+- 🔴 自动（Scope.Modify）：全部 6 个分析维度，最多 10 个核心符号
+- 🟡 提示（Scope.Add）：理由 + 约束 + 假设，最多 10 个核心符号
+- 🟢 手动（Depth.Deep）：由用户选定维度
 
-### 1.2.4 Post-Scan Update of Exploration File
+### 1.2.4 扫描后更新探索文件
 
-After base scan (and deep analysis if triggered):
-1. Update \`## Codebase Findings\` section with all discovered files and symbols
-2. Update \`## Analysis\` section with architecture and business flow findings
-3. Update \`## Pending > For Phase 2 Impact Analysis\` with identified symbols
-4. If 1.2.1.5 multi-project Agent scan ran, include its results in the Codebase Findings section under \`### Other Project Findings\`
-5. Log: "CodeGraph scan complete — <N> files, <M> symbols found"
+基础扫描（以及触发时的深度分析）之后：
+1. 用发现的所有文件与符号更新 \`## Codebase Findings\` 段
+2. 用架构与业务流发现更新 \`## Analysis\` 段
+3. 用识别出的符号更新 \`## Pending > For Phase 2 Impact Analysis\`
+4. 若执行了 1.2.1.5 多项目子代理扫描，把其结果并入 Codebase Findings 段的 \`### Other Project Findings\` 下
+5. 记录："CodeGraph 扫描完成 — 发现 <N> 个文件、<M> 个符号"
 
-### 1.3 Grill-With-Docs Questioning
+### 1.3 Grill-With-Docs 追问
 
 > 完整 grill 问题库与 L1-L5 细则（含批量确认规则）见 \`references/grill-playbook.md\`；执行 1.3 前 MUST 先 \`Read\` 该文件。
 
-### 1.4 Keyword Detection and Analysis
+### 1.4 关键词检测与分析
 
 > 完整关键词分析与实现深潜细则见 \`references/deep-analysis.md\`；执行 1.4 前 MUST 先 \`Read\` 该文件。
 
-### 1.5 Update Exploration File
+### 1.5 更新探索文件
 
-**After each exchange, perform these steps in order**:
+**每轮交流之后，按顺序执行以下步骤**：
 
-**Step 1 — Write to CONTEXT.md (MANDATORY if term resolved)**:
-- If a term was resolved in this exchange, MUST write to \`openspec/CONTEXT.md\` NOW
-- Use format: \`**<Term>**: <definition>\\\\n_Avoid_: <synonyms>\`
-- If CONTEXT.md does not exist, create it lazily now
+**Step 1 — 写入 CONTEXT.md（术语已定则强制）**：
+- 本轮若敲定某术语，MUST 立即写入 \`openspec/CONTEXT.md\`
+- 使用格式：\`**<Term>**: <definition>\\\\n_Avoid_: <synonyms>\`
+- CONTEXT.md 不存在时，此时惰性创建
 
-**Step 2 — Update exploration.md sections**:
+**Step 2 — 更新 exploration.md 各段**：
 
-| Content type | Section |
+| 内容类型 | 段落 |
 |--------------|---------|
-| User's original input | Background |
-| Analysis results (if run) | Analysis |
-| Resolved terminology (from CONTEXT.md) | 术语表 |
-| AI's questions + user answers | Questions |
-| ADRs created | 架构决策 |
-| Constructed boundary scenarios | 边界场景 |
-| Confirmed choices | Decisions |
-| Unresolved items | Pending |
+| 用户原始输入 | Background |
+| 分析结果（若已运行） | Analysis |
+| 已定术语（来自 CONTEXT.md） | 术语表 |
+| AI 提问 + 用户回答 | Questions |
+| 新建的 ADR | 架构决策 |
+| 构造的边界场景 | 边界场景 |
+| 已确认的选择 | Decisions |
+| 未决项 | Pending |
 
-Use markdown format with proper syntax.
+使用 Markdown 格式，语法规范。
 
-### 1.5.5 Functional Flowchart & Flow Final Confirmation Gate (MANDATORY CHECKPOINT)
+### 1.5.5 功能流程图与流程最终确认门（强制检查点）
 
-**⚠️ MANDATORY: 探索分析完成后必须强制产出功能流程图，并经流程最终确认门确认后才进入 1.6。**
+**⚠️ 强制：探索分析完成后必须强制产出功能流程图，并经流程最终确认门确认后才进入 1.6。**
 
 触发点：1.3 grill L1-L5 与 1.4 关键词分析均已执行、1.5 探索文件已更新之后。本制品是**强制产出**——不因"本次判定无流程"而跳过，也 MUST NOT 留空。
 
-**功能流程图（Functional Flowchart）**: 把探索发现的业务功能流程固化为探索产物 \`## 功能流程图\` 段（Mermaid \`flowchart TD\` + 关键操作节点清单表）。
+**功能流程图**：把探索发现的业务功能流程固化为探索产物 \`## 功能流程图\` 段（Mermaid \`flowchart TD\` + 关键操作节点清单表）。
 - **节点粒度** = 可独立验证的业务操作单元（用户操作 / 业务判定 / 数据写入 / 外部调用）；节点标识在图中与表中 MUST 一致，多流程时全局唯一递增
 - **清单列集**：节点 / 操作 / 触发条件 / 证据位置 / 异常路径
 - **证据追溯（硬约束）**：每节点 MUST 填 \`文件:行\` 或 类.方法；新建功能标 \`[新建]\` + 预期产物；无法追溯证据的节点 MUST NOT 进入清单
@@ -449,198 +449,199 @@ Use markdown format with proper syntax.
 - **确认前不得推进**：用户确认前 MUST NOT 进入 1.6 探索完成检测，MUST NOT 向提案阶段传递流程基准
 - **流程基准用途**：确认后的流程图 = **流程基准**，随探索文件迁移（Phase 2.3）一并进入变更目录，由 1.6.6 聚合一致性门与下游 propose / verify 共同消费
 
-### 1.6 Exploration Completion Detection
+### 1.6 探索完成检测
 
-When all ambiguities resolved:
-- Pending section empty OR all items have answers
-- User confirms clarity (or says "that's enough")
+所有歧义都消解时：
+- Pending 段为空，或所有条目都有答案
+- 用户确认已清晰（或表示 "that's enough"）
 
-**Consistency passthrough (replaces the transition confirmation prompt)**:
+**一致性直通（取代过渡确认提示）**：
 
-1. Run the 1.6.5 CONTEXT.md checkpoint and the 1.6.6 aggregate consistency gate
-2. **Both pass (no hard conflicts across decisions)**: announce "Checks passed — generating proposal directly" and enter Phase 2 immediately — do NOT ask "Ready to proceed to proposal?"
-3. **Hard conflict detected**: present the conflicting decisions (list the conflicting decision pair) and ask the user which direction to follow; continue only after the conflict is resolved
-4. grill L1-L5 requirement-clarification gates (1.3.4) still wait for user confirmation; 1.7 abandon handling (user-initiated stop) is preserved
+1. 执行 1.6.5 的 CONTEXT.md 检查点与 1.6.6 的聚合一致性门
+2. **两者均通过（决策之间无硬冲突）**：宣告 "校验通过 — 直接生成提案" 并立即进入 Phase 2 —— 不得问 "准备好进入提案了吗？"
+3. **检测到硬冲突**：呈现冲突的决策（列出冲突决策对）并询问用户按哪个方向走；冲突解决后才继续
+4. grill L1-L5 需求澄清门（1.3.4）仍需等待用户确认；1.7 放弃处理（用户主动停止）保留
 
-### 1.6.5 CONTEXT.md Checkpoint — Phase 1 End (MANDATORY CHECKPOINT)
+### 1.6.5 CONTEXT.md 检查点 — Phase 1 收尾（强制检查点）
 
-**⚠️ MANDATORY: CONTEXT.md validation before Phase 1 ends**
+**⚠️ 强制：Phase 1 结束前校验 CONTEXT.md**
 
-After user confirms exploration complete, system MUST validate CONTEXT.md:
+用户确认探索完成后，系统 MUST 校验 CONTEXT.md：
 
-1. **Check if \`openspec/CONTEXT.md\` exists** using Glob or Read tool
+1. 用 Glob 或 Read 工具**检查 \`openspec/CONTEXT.md\` 是否存在**
 
-2. **If EXISTS**: Validate all terms in exploration.md 术语表 section are written to CONTEXT.md
-   - Read CONTEXT.md content
-   - Compare with exploration.md 术语表 section
-   - If terms missing from CONTEXT.md, auto-sync them (write missing terms)
-   - Log: "CONTEXT.md validated — <N> terms synced"
+2. **若存在**：校验 exploration.md 术语表 段的全部术语均已写入 CONTEXT.md
+   - 读取 CONTEXT.md 内容
+   - 与 exploration.md 术语表 段比对
+   - 有术语缺失于 CONTEXT.md 时自动同步（补写缺失术语）
+   - 记录："CONTEXT.md 已校验 — 同步 <N> 个术语"
 
-3. **If NOT EXISTS**: Auto-generate CONTEXT.md from exploration.md 术语表 section
-   - Create \`openspec/CONTEXT.md\` with all resolved terms
-   - Format: \`**<Term>**: <definition>\\\\n_Avoid_: <synonyms>\`
-   - Log: "CONTEXT.md created — <N> terms from exploration"
+3. **若不存在**：从 exploration.md 术语表 段自动生成 CONTEXT.md
+   - 用全部已定术语创建 \`openspec/CONTEXT.md\`
+   - 格式：\`**<Term>**: <definition>\\\\n_Avoid_: <synonyms>\`
+   - 记录："CONTEXT.md 已创建 — 来自探索的 <N> 个术语"
 
-4. **Compatibility check** (Task 12.1, narrowed): If no exploration file exists (e.g., running \`iagent:spec-apply\` on existing change):
-   - Before declaring "no exploration file", retry path resolution at least once (handle transient path-resolution failures that could falsely indicate absence)
-   - If genuinely no exploration file: this skip applies **ONLY to the CONTEXT.md check** — log WARN (not silent info): "WARN: Skipping CONTEXT.md check: no exploration file"
-   - This skip does **NOT** extend to the 1.6.6 aggregate consistency gate (see 1.6.6 for no-exemption handling)
-   - Do NOT block the workflow at this checkpoint
+4. **兼容性检查**（Task 12.1，已收窄）：无探索文件时（如在既有变更上运行 \`iagent:spec-apply\`）：
+   - 在宣告"无探索文件"之前，至少重试一次路径解析（处理可能被误判为缺失的瞬时路径解析失败）
+   - 确认确实无探索文件时：该跳过**仅适用于 CONTEXT.md 检查** —— 记录 WARN（不得静默按 info）："WARN: 跳过 CONTEXT.md 检查：无探索文件"
+   - 该跳过**不**扩展到 1.6.6 聚合一致性门（不可豁免的处理见 1.6.6）
+   - 不得因该检查点阻塞工作流
 
-**Checkpoint Enforcement**:
-- System MUST execute CONTEXT.md check before allowing Phase 1→Phase 2 transition
-- If CONTEXT.md is missing and no exploration file, the CONTEXT.md check may be skipped with a WARN log (not a blocker); the 1.6.6 aggregate consistency gate is NOT exempt
-- Log all actions (including skips) for transparency
+**强制检查点**：
+- 允许 Phase 1→Phase 2 转换之前，系统 MUST 执行 CONTEXT.md 检查
+- CONTEXT.md 缺失且无探索文件时，CONTEXT.md 检查可跳过并记 WARN 日志（非阻塞）；1.6.6 聚合一致性门不可豁免
+- 记录全部动作（含跳过）以便追溯
 
-### 1.6.6 Aggregate Consistency Gate — Phase 1 End (MANDATORY CHECKPOINT)
+### 1.6.6 聚合一致性门 — Phase 1 收尾（强制检查点）
 
-**⚠️ MANDATORY: Cross-decision aggregate consistency scan before Phase 1 ends**
+**⚠️ 强制：Phase 1 结束前做跨决策聚合一致性扫描**
 
-**默认直通语义（non-blocking）**: 本门是兜底门——**无硬冲突时自动直通**（记录日志后继续，**不计入用户停顿**），仅在检测到硬冲突时暂停呈现。该门 MUST NOT 被删除（它是 1.3.4 增量 L4 检查的兜底）。
+**默认直通语义（非阻断）**: 本门是兜底门——**无硬冲突时自动直通**（记录日志后继续，**不计入用户停顿**），仅在检测到硬冲突时暂停呈现。该门 MUST NOT 被删除（它是 1.3.4 增量 L4 检查的兜底）。
 
-This gate is the backstop for the per-decision L4 check (1.3.4). The L4 check runs incrementally per new decision and auto-marks "no conflict" silently — late Scope Changes can introduce cross-decision contradictions that L4 never re-scans. This gate reads ALL recorded Decisions together and catches such residual contradictions. **This gate is NOT exempt** by the Task 12.1 "no exploration file" skip.
+本门是逐决策 L4 检查（1.3.4）的兜底。L4 检查随每个新决策增量执行，并静默标记"无冲突"—— 后期出现的 Scope Changes 可能引入 L4 从未重扫的跨决策矛盾。本门把全部已记录 Decisions 一并读取，捕获这类残留矛盾。**本门不豁免**于 Task 12.1 的"无探索文件"跳过。
 
-After the 1.6.5 CONTEXT.md checkpoint, system MUST execute the aggregate scan:
+1.6.5 的 CONTEXT.md 检查点之后，系统 MUST 执行聚合扫描：
 
-1. **Read all Decisions** from exploration.md \`## Decisions\` section
+1. 从 exploration.md 的 \`## Decisions\` 段**读取全部 Decisions**
 
-2. **If exploration.md missing or Decisions section empty**:
-   - Log WARN: "Aggregate consistency gate: exploration.md/Decisions empty — nothing to scan, gate passed by vacuity"
-   - Do NOT silently skip (distinct from the CONTEXT.md skip) — record the vacuity-pass explicitly
-   - Proceed to Phase 2
+2. **exploration.md 缺失或 Decisions 段为空时**：
+   - 记录 WARN："聚合一致性门：exploration.md/Decisions 为空 — 无可扫描，按空集通过"
+   - 不得静默跳过（与 CONTEXT.md 的跳过不同）—— 显式记录"空集通过"
+   - 进入 Phase 2
 
-3. **If Decisions present**: scan every decision pair for three hard-conflict types:
-   - **Technical-selection conflict**: e.g., Decision A selects SQLite, Decision B relies on Postgres-specific features
-   - **Dependency-direction conflict**: e.g., Decision A depends on B's output, but Decision B depends on A's output (circular)
-   - **Constraint mutual exclusion**: e.g., Decision A mandates IE compatibility (no ES6+), Decision B requires ES6+ syntax
+3. **Decisions 非空时**：逐对扫描全部决策，检查三类硬冲突：
+   - **技术选型冲突**：如 Decision A 选 SQLite，Decision B 依赖 Postgres 专有特性
+   - **依赖方向冲突**：如 Decision A 依赖 B 的产出，而 Decision B 又依赖 A 的产出（循环）
+   - **约束互斥**：如 Decision A 要求兼容 IE（不用 ES6+），Decision B 要求 ES6+ 语法
 
-4. **If a hard conflict is found**:
-   - Pause and surface the conflict to the user: "Decision A <X> conflicts with Decision B <Y> — which direction should we follow?"
-   - MUST NOT auto-resolve or silently proceed
-   - Record the resolution in exploration.md \`## Scope Changes\` / \`## Decisions\`
+4. **发现硬冲突时**：
+   - 暂停并向用户呈现冲突："Decision A <X> 与 Decision B <Y> 冲突 — 按哪个方向走？"
+   - MUST NOT 自动裁决或静默继续
+   - 把裁决结果记入 exploration.md 的 \`## Scope Changes\` / \`## Decisions\`
 
-5. **If no hard conflict**: log "Aggregate consistency gate passed — <N> decisions scanned, 0 hard conflicts" and proceed to Phase 2
+5. **无硬冲突时**：记录"聚合一致性门通过 — 扫描 <N> 个决策，0 个硬冲突"，并进入 Phase 2
 
-**Checkpoint Enforcement**:
-- System MUST execute this gate after 1.6.5 and before 1.7 / Phase 2
-- This gate MUST NOT be skipped via the Task 12.1 "no exploration file" exemption (that exemption is CONTEXT.md-only)
-- Soft inconsistencies (style, naming) do NOT block; only the three hard-conflict types block
+**强制检查点**：
+- 系统 MUST 在 1.6.5 之后、1.7 / Phase 2 之前执行本门
+- 本门 MUST NOT 借 Task 12.1 的"无探索文件"豁免跳过（该豁免仅限 CONTEXT.md）
+- 软不一致（风格、命名）不阻塞；仅上述三类硬冲突阻塞
 
-### 1.7 Abandon Exploration Handling
+### 1.7 放弃探索处理
 
-If user says "abandon", "stop", "cancel":
-> "Delete exploration file or keep it?"
-> [Delete] [Keep]
+用户说 "abandon"、"stop"、"cancel" 时：
+> "删除探索文件还是保留？"
+> [删除] [保留]
 
-- **Delete**: Remove file from \`openspec/explorations/\`
-- **Keep**: File remains for future reference
+- **删除**：从 \`openspec/explorations/\` 移除文件
+- **保留**：文件保留以备后用
 
 ---
 
 `;
 
-const MULTI_PROJECT_SCAN_FULL = `### 1.2.1.5 Multi-Project CodeGraph Agent Scan (条件触发 — 检测到其他项目路径时执行)
+const MULTI_PROJECT_SCAN_FULL = `### 1.2.1.5 多项目 CodeGraph 子代理扫描（条件触发 — 检测到其他项目路径时执行）
 
-**⚠️ CONDITIONAL: Only executes when exploration context contains other project paths**
+**⚠️ 条件触发：仅当探索上下文含其他项目路径时执行**
 
-After the 1.2.1 base scan (current project), system MUST check if the exploration context contains paths to other projects (e.g., user-specified \`--project-path\`, auto-migration SOURCE_PROJECT/TARGET_PROJECT, or paths confirmed during conversation).
+1.2.1 基础扫描（当前项目）之后，系统 MUST 检查探索上下文是否含其他项目的路径（如用户指定的 \`--project-path\`、自动迁移的 SOURCE_PROJECT/TARGET_PROJECT，或对话中确认的路径）。
 
-**When other project paths are detected**:
+**检测到其他项目路径时**：
 
-1. **Check CodeGraph initialization** for each other project path:
-   - Run Bash \`ls <path>/.codegraph/\` to check whether the target project has a \`.codegraph/\` directory (directory contents listed — including codegraph.db — means CodeGraph is initialized). Do NOT use Glob to check dot-prefixed directories (Glob returns false negatives for them)
-   - If initialized (ls succeeds): proceed with Agent scan
-   - If not initialized (ls fails — directory does not exist): log WARN "Other project <path> does not have CodeGraph initialized — falling back to Glob/Grep" and fall back to Glob/Grep
+1. 对每个其他项目路径**检查 CodeGraph 初始化情况**：
+   - 运行 Bash \`ls <path>/.codegraph/\` 检查目标项目是否有 \`.codegraph/\` 目录（能列出目录内容 —— 含 codegraph.db —— 即表示 CodeGraph 已初始化）。不得用 Glob 检查点号前缀目录（Glob 对它们会返回假阴性）
+   - 已初始化（ls 成功）：继续子代理扫描
+   - 未初始化（ls 失败 —— 目录不存在）：记录 WARN "其他项目 <path> 未初始化 CodeGraph — 降级到 Glob/Grep"，并降级到 Glob/Grep
 
-2. **Single sub-agent serial scan across all detected projects**:
-   - Spawn **ONE** sub-agent that scans ALL detected projects **serially** inside itself; the system MUST NOT spawn a separate sub-agent for each project path (this removes the N repeated cold starts)
-   - The sub-agent SHALL call the CodeGraph MCP tools once for each project, switching the \`projectPath\` parameter to that project's path on every call
-   - For each project, execute \`codegraph_files\` for file structure, \`codegraph_search\` for symbol search, \`codegraph_context\` for context understanding
-   - Limit scan depth: \`maxDepth: 3\`, \`maxNodes: 20\` to prevent excessive results
-   - The sub-agent MUST NOT modify any files
+2. **对所有检测到的项目用单个子代理串行扫描**：
+   - 只派发**一个**子代理，让其在自身内部**串行**扫描全部检测到的项目；系统 MUST NOT 为每个项目路径各派一个子代理（这样可避免 N 次重复冷启动）
+   - 子代理 SHALL 对每个项目各调用一次 CodeGraph MCP 工具，每次调用把 \`projectPath\` 参数切到该项目路径
+   - 对每个项目执行 \`codegraph_files\` 获取文件结构、\`codegraph_search\` 检索符号、\`codegraph_context\` 理解上下文
+   - 限制扫描深度：\`maxDepth: 3\`、\`maxNodes: 20\`，避免结果过多
+   - 子代理 MUST NOT 修改任何文件
 
-   - **⛔ EXIT GUARD**: the sub-agent MUST stop and return findings immediately after scanning all projects — MUST NOT enter plan mode / design mode / propose next steps / suggest implementation; the sub-agent is a scanner only, its sole output is the structured findings per project; the orchestrator alone owns flow advancement
-   - **MUST only query incrementally**: the sub-agent MUST limit scanning to what was NOT already covered by the 1.2.1 base scan; it MUST NOT re-derive information already available in the current project's exploration file   - Apply a 120s budget for each project (budget exceeded → per-project WARN fallback to Glob/Grep)
+   - **⛔ EXIT GUARD（退出守卫）**：子代理扫描完所有项目后 MUST 立即停止并返回发现 —— MUST NOT 进入 plan 模式 / 设计模式 / 提出后续步骤 / 建议实现；子代理只是扫描器，其唯一产出是按项目分组的结构化发现；流程推进只由编排器掌握
+   - **MUST 只做增量查询**：子代理 MUST 只扫描 1.2.1 基础扫描未覆盖的部分；MUST NOT 重新推导当前项目探索文件中已有的信息
+   - 每个项目施加 120s 预算（超预算 → 该项目按 WARN 降级到 Glob/Grep）
 
-3. **Per-project degradation (project granularity)**:
-   - If one project's CodeGraph is not initialized, its scan fails, or it exceeds the 120s budget: **only that project** falls back to Glob/Grep with a WARN log — the other projects continue their scan normally
-   - One project's failure MUST NOT affect other projects
-   - If an other-project path is identical to the current project path, the sub-agent SHALL skip that project
-   - If the runtime provides no sub-agent capability at all: ALL projects fall back to Glob/Grep with a WARN log
+3. **按项目降级（项目粒度）**：
+   - 某项目 CodeGraph 未初始化、其扫描失败或超出 120s 预算时：**只有该项目**按 WARN 日志降级到 Glob/Grep —— 其他项目照常扫描
+   - 单个项目失败 MUST NOT 影响其他项目
+   - 某其他项目路径与当前项目路径相同时，子代理 SHALL 跳过该项目
+   - 运行时完全不提供子代理能力时：全部项目按 WARN 日志降级到 Glob/Grep
 
-4. **Merge results** into exploration.md:
-   - Write to \`## Codebase Findings > ### Other Project Findings\` subsection
-   - Prefix results with project path for clear attribution
-   - Results include: discovered files, identified symbols, and call chains
+4. 把结果**合并**进 exploration.md：
+   - 写入 \`## Codebase Findings > ### Other Project Findings\` 子段
+   - 结果加项目路径前缀，便于归属清晰
+   - 结果含：发现的文件、识别出的符号与调用链
 
-5. **When no other project paths detected**:
-   - Do NOT trigger the multi-project Agent scan
-   - Proceed with the existing 1.2.2 flow unchanged
+5. **未检测到其他项目路径时**：
+   - 不触发多项目子代理扫描
+   - 按既有 1.2.2 流程不变继续
 
-**Fallback**: If Agent spawn fails, sub-agent times out, or CodeGraph is not initialized in the target project:
-- WARN log with specific failure reason
-- Fall back to Glob/Grep for that project
-- Do NOT retry the failed Agent scan
-- This fallback does NOT affect the current project's scan results
+**降级（回退）**：子代理派发失败、子代理超时，或目标项目未初始化 CodeGraph 时：
+- 按 WARN 记录具体失败原因
+- 该项目降级到 Glob/Grep
+- 不重试失败的子代理扫描
+- 该降级不影响当前项目的扫描结果
 
-**Checkpoint Enforcement**:
-- System MUST execute this check after 1.2.1 base scan completes
-- If other project paths exist, system MUST attempt Agent scan (with fallback)
-- Results MUST be written to exploration.md before proceeding to 1.2.2
-- This check MUST NOT block the main workflow — failures degrade gracefully
+**强制检查点**：
+- 系统 MUST 在 1.2.1 基础扫描完成后执行本检查
+- 存在其他项目路径时，系统 MUST 尝试子代理扫描（含降级路径）
+- 进入 1.2.2 之前 MUST 把结果写入 exploration.md
+- 本检查 MUST NOT 阻塞主流程 —— 失败时优雅降级
 
 `;
 
-const GRILL_PLAYBOOK_FULL = `### 1.3 Grill-With-Docs Questioning
+const GRILL_PLAYBOOK_FULL = `### 1.3 Grill-With-Docs 追问
 
-Apply the full grill-with-docs discipline: grilling primitive (decision tree walk) + domain-modeling (CONTEXT.md glossary, ADRs, code cross-validation, scenario construction).
+完整执行 grill-with-docs 纪律：grilling 原语（决策树遍历）+ 领域建模（CONTEXT.md 术语表、ADR、代码交叉验证、场景构造）。
 
-#### 1.3.1 Decision Tree Building
+#### 1.3.1 决策树构建
 
-**Before questioning, build a decision tree**:
-- Identify parent-child dependency relationships between decisions
-- Order questions by dependency (resolve parent decisions before child decisions)
-- Record the decision tree structure in exploration.md
+**追问之前先构建决策树**：
+- 识别决策之间的父子依赖关系
+- 按依赖排序问题（先解父决策再解子决策）
+- 把决策树结构记入 exploration.md
 
-#### 1.3.2 Grilling Primitive
+#### 1.3.2 Grilling 原语
 
-**Trigger conditions** - Ask when:
-- Scope is ambiguous (e.g., "add authentication")
-- Technical approach unclear (e.g., "use caching")
-- Requirement not measurable (e.g., "make it fast")
+**触发条件** —— 以下情形应提问：
+- 范围含糊（如"加个认证"）
+- 技术方案不清楚（如"用缓存"）
+- 需求不可度量（如"弄快点"）
 
-**Questioning behavior**:
-- **Decision tree traversal**: Resolve parent decisions before child decisions
-- **Codebase-first**: If question can be answered by exploring code, DO IT instead of asking
-- **One at a time**: Ask single question, wait for response
-- **Provide recommendation**: Always include "My recommendation: <answer>"
-- **Unlimited depth**: Continue until clear, no artificial limits
-- **Track progress**: Update exploration file after each exchange
+**提问行为**：
+- **决策树遍历**：先解父决策，再解子决策
+- **代码库优先**：能通过探查代码回答的问题，直接去查而不要问
+- **一次一个**：一次只问一个问题，等回答
+- **给建议**：始终附上 "我的建议：<answer>"
+- **深度不限**：直到问清楚为止，不设人为上限
+- **跟踪进展**：每轮交流后更新探索文件
 
-#### 1.3.3 Domain-Modeling Integration
+#### 1.3.3 领域建模集成
 
-**Terminology sharpening (MANDATORY — execute per exchange)**:
-Each time a vague or overloaded term is used, immediately:
-1. Propose a precise canonical term with "My recommendation: use '<term>' — definition: <one-sentence>"
-2. Wait for user confirmation
-3. Once confirmed, **MUST write to \`openspec/CONTEXT.md\` NOW** (not batched, not deferred):
+**术语精确化（强制 —— 每轮交流都执行）**：
+每次出现含糊或含义过载的术语时，立即：
+1. 提出精确的规范术语："我的建议：用 '<term>' —— 定义：<one-sentence>"
+2. 等待用户确认
+3. 确认后**立即写入 \`openspec/CONTEXT.md\`**（不批量、不延后）：
    \`\`\`
    **<Term>**: <one or two sentence definition>
    _Avoid_: <deprecated synonyms>
    \`\`\`
-4. MUST also sync to exploration.md 术语表 section (format: \`| <Term> | <definition> | <avoid-list> |\`)
-5. If CONTEXT.md does not exist yet, create it lazily at first term write
-If user uses a term that conflicts with an existing CONTEXT.md entry, surface the conflict BEFORE accepting the usage.
+4. MUST 同时同步到 exploration.md 术语表 段（格式：\`| <Term> | <definition> | <avoid-list> |\`）
+5. CONTEXT.md 尚不存在时，在首次写入术语时惰性创建
+用户使用的术语与 CONTEXT.md 既有条目冲突时，在接受该用法**之前**先指出冲突。
 
-**Code cross-validation**: When user makes a claim about existing code behavior, read relevant source files to verify. If code contradicts the claim, surface the contradiction immediately.
+**代码交叉验证**：用户对既有代码行为做出断言时，读取相关源文件核实。代码与断言矛盾时，立即指出矛盾。
 
-**Scenario construction**: For each confirmed decision, invent at least 1 boundary scenario to stress-test it (network failure, timeout, invalid input, concurrent access). Write scenarios to exploration.md 边界场景 section.
+**场景构造**：对每个已确认的决策，至少构造 1 个边界场景做压力测试（网络故障、超时、非法输入、并发访问）。把场景写入 exploration.md 边界场景 段。
 
-**ADR creation**: Offer ADR only when all three conditions are met: (1) hard to reverse, (2) surprising without context, (3) result of a real trade-off. ADR file at \`openspec/docs/adr/NNNN-slug.md\`. Create directory lazily.
+**ADR 创建**：仅当三个条件同时满足时才提议 ADR：(1) 难以逆转，(2) 脱离上下文会令人意外，(3) 是真实权衡的结果。ADR 文件位于 \`openspec/docs/adr/NNNN-slug.md\`。目录惰性创建。
 
-#### 1.3.4 Implementation Detail Coverage Check
+#### 1.3.4 实现细节覆盖检查
 
-For each confirmed decision, verify coverage across 6 dimensions:
+对每个已确认的决策，检查 6 个维度的覆盖：
 - 术语已精确定义 → CONTEXT.md
 - 与现有代码一致 → 交叉验证
 - 边界场景已讨论 → ≥1 个场景
@@ -648,56 +649,56 @@ For each confirmed decision, verify coverage across 6 dimensions:
 - 状态转换完整 → 所有路径
 - 模块契约明确 → 入参/出参
 
-Apply the 5-level depth model with **two batch confirmation rounds** (L1-L3 in batch 1, L4-L5 in batch 2). Each round presents the pending items **one per line** with the AI recommendation, then WAIT for user confirmation of the whole batch. This keeps all five dimensions while capping the grill at **≤2 user stops**.
+应用 5 级深度模型，配**两轮批量确认**（批量 1 为 L1-L3，批量 2 为 L4-L5）。每轮**每行一条**列出待确认项并附 AI 建议，然后等待用户对整批确认。这样既保留五个维度，又把 grill 控制在**≤2 次用户停顿**。
 
 **批量 1 — L1-L3（意图 / 方案 / 异常）**:
 - 逐条列出（每条一行，附 AI 建议）：
-  - L1 意图 (What to do?): <proposal>
-  - L2 方案 (How to do it?): <approach with rationale>
-  - L3 异常 (What if it fails?): <error strategy>
-- Wait for user confirmation of the batch
-- ✅ Confirmed → record all three in Decisions
+  - L1 意图（做什么？）: <提案>
+  - L2 方案（怎么做？）: <方案与理由>
+  - L3 异常（失败怎么办？）: <错误处理策略>
+- 等待用户对该批确认
+- ✅ 已确认 → 把三条全部记入 Decisions
 - 用户可对任一条单独修改后再确认（逐条列出便于逐项裁决）
 
 **批量 2 — L4-L5（一致性 / 边界）**:
-- **L4 一致性（cross-decision + codebase）**: Read all recorded Decisions; report 任何矛盾（跨决策矛盾 / 与既有代码模式冲突）；**无矛盾时 SHALL 自动标记一致（non-blocking，无用户提示，不计入停顿）**
+- **L4 一致性（跨决策 + 代码库）**: 读取全部已记录 Decisions；报告任何矛盾（跨决策矛盾 / 与既有代码模式冲突）；**无矛盾时 SHALL 自动标记一致（非阻断，无用户提示，不计入停顿）**
 - **L5 边界**: 构造 ≥1 边界场景，逐条列出 + 建议
-- Wait for user confirmation of the batch（L4 无矛盾时该批仅呈现 L5）
-- ✅ Confirmed → decision is complete
+- 等待用户对该批确认（L4 无矛盾时该批仅呈现 L5）
+- ✅ 已确认 → decision 完成
 
-**Gate rules**:
+**门规则**：
 - 追问 SHALL 至多 **2 个批量确认轮次**（L1-L3、L4-L5）；每轮内逐条列出待确认项
 - **最低深度 L3**: L1+L2+L3 全部确认后 decision 方可标记完成；用户明确“够了”时可提前结束
 - L4 无矛盾时 SHALL 自动直通，不作为额外停顿
 - 跳过的层级 SHALL 记入 Pending（MUST NOT 静默丢弃）
 
-#### 1.3.5 Artifact Synchronization
+#### 1.3.5 制品同步
 
-Sync grill-with-docs outputs to exploration.md in real-time:
-- CONTEXT.md terms → exploration.md 术语表 section
-- ADRs → exploration.md 架构决策 section
-- Boundary scenarios → exploration.md 边界场景 section
+把 grill-with-docs 的产出实时同步到 exploration.md：
+- CONTEXT.md 术语 → exploration.md 术语表 段
+- ADR → exploration.md 架构决策 段
+- 边界场景 → exploration.md 边界场景 段
 
 `;
 
-const DEEP_ANALYSIS_FULL = `### 1.4 Keyword Detection and Analysis
+const DEEP_ANALYSIS_FULL = `### 1.4 关键词检测与分析
 
-**Scan user input for keywords** before or during grill-with-docs questioning.
+在 grill-with-docs 追问之前或期间**扫描用户输入中的关键词**。
 
-#### Keyword Detection Rules
+#### 关键词检测规则
 
-**Layer 1: Category Keywords** (trigger analysis category)
+**Layer 1: 类目关键词**（触发分析类目）
 
-| Category | Keywords |
+| 类目 | 关键词 |
 |----------|----------|
 | Security | security, authentication, auth, login, password, token, session, vulnerability, xss, sql injection, csrf, sanitization, validation, sanitize, escape |
 | Architecture | architecture, refactor, restructure, migrate, move, rename, extract, merge, split, component, module, service, api, endpoint, route, call chain, dependency, integration |
 | Business | business, workflow, process, flow, state, transition, rule, logic, validation, trigger, event, handler, step, procedure |
 | Impact | impact, change, modify, update, delete, remove, add, replace, rename, signature, parameter, return type, breaking |
 
-**Layer 2: Sub-category Keywords** (refine analysis type)
+**Layer 2: 子类目关键词**（细化分析类型）
 
-| Sub-category | Keywords |
+| 子类目 | 关键词 |
 |--------------|----------|
 | Security.InputValidation | input, validate, sanitize, escape, user input, form, request, parameter |
 | Security.Authentication | login, signin, authenticate, password, token, jwt, oauth, session |
@@ -708,9 +709,9 @@ const DEEP_ANALYSIS_FULL = `### 1.4 Keyword Detection and Analysis
 | Business.StateTransition | state, transition, status, change, trigger, event, condition |
 | Business.Validation | validate, rule, check, constraint, requirement, condition |
 
-**Layer 3: Context Modifier Keywords** (adjust analysis scope)
+**Layer 3: 上下文修饰关键词**（调整分析范围）
 
-| Modifier | Keywords |
+| 修饰符 | 关键词 |
 |----------|----------|
 | Scope.Modify | modify, update, change, edit, refactor, enhance |
 | Scope.Add | add, create, new, introduce, implement |
@@ -718,7 +719,7 @@ const DEEP_ANALYSIS_FULL = `### 1.4 Keyword Detection and Analysis
 | Depth.Deep | deep, comprehensive, thorough, full, complete |
 | Depth.Targeted | targeted, specific, particular, focused |
 
-#### Detection Logic
+#### 检测逻辑
 
 \`\`\`
 1. Exact match priority: Check exact keyword match first
@@ -727,19 +728,19 @@ const DEEP_ANALYSIS_FULL = `### 1.4 Keyword Detection and Analysis
 4. Multi-category: Allow multiple categories detected simultaneously
 \`\`\`
 
-#### Analysis Auto-Execution
+#### 分析自动执行
 
-**Single or multiple categories detected**:
-> "Detected [Security/Architecture/Business] keywords. Running corresponding analyses automatically."
+**检测到单个或多个类目**：
+> "检测到 [Security/Architecture/Business] 关键词，自动运行相应分析。"
 
-**Modifier detected**:
-> "Detected [Modify] scope with [Deep] depth. Running deep analysis automatically."
+**检测到修饰词**：
+> "检测到 [Modify] 范围与 [Deep] 深度，自动运行深度分析。"
 
-Analyses execute directly upon keyword detection — do NOT offer run/skip options to the user. The recommended option ("Run all") is the default behavior.
+关键词一经检测即直接执行分析 —— 不得向用户提供运行/跳过选项。推荐选项（"全部运行"）即默认行为。
 
-#### Analysis Execution
+#### 分析执行
 
-**Security Analysis (Semgrep)**:
+**安全分析（Semgrep）**：
 Semgrep MCP 为可选增强：不可用时该分析跳过并记录，不阻塞工作流。
 
 \`\`\`bash
@@ -750,7 +751,7 @@ mcp__plugin_semgrep_semgrep__semgrep_scan --code-files <paths>
 mcp__plugin_semgrep_semgrep__semgrep_findings --repos <repo> --issue-type ISSUE_TYPE_SAST
 \`\`\`
 
-**Architecture Analysis (CodeGraph)**:
+**架构分析（CodeGraph）**:
 \`\`\`bash
 # Use symbols from 1.2.1 base scan results (already searched)
 # Find callers/callees for deeper understanding
@@ -761,7 +762,7 @@ mcp__codegraph__codegraph_callees --symbol <symbol>
 mcp__codegraph__codegraph_context --task <description>
 \`\`\`
 
-**Business Analysis (CodeGraph)**:
+**业务分析（CodeGraph）**:
 \`\`\`bash
 # Use symbols from 1.2.1 base scan results (already searched)
 # Build context from task description (after questioning, now clearer)
@@ -771,9 +772,9 @@ mcp__codegraph__codegraph_context --task <business-flow>
 mcp__codegraph__codegraph_explore --query <topic>
 \`\`\`
 
-#### Analysis Results in Exploration File
+#### 分析结果写入探索文件
 
-Add Analysis section after Background:
+在 Background 之后加入 Analysis 段：
 
 \`\`\`markdown
 ## Analysis
@@ -797,9 +798,9 @@ Add Analysis section after Background:
 ...
 \`\`\`
 
-#### Pending Section Enhancement
+#### Pending 段增强
 
-Add categorized subsections for Phase 2 attention:
+加入按类型归类的子段，供 Phase 2 关注：
 
 \`\`\`markdown
 ## Pending
@@ -814,9 +815,9 @@ Add categorized subsections for Phase 2 attention:
 - <Validation question>: <Context>
 \`\`\`
 
-#### Analysis-Driven Follow-Up Questions (NEW)
+#### 分析驱动的跟进问题（NEW）
 
-**After analysis completes**, automatically generate follow-up questions:
+**分析完成后**，自动生成跟进问题：
 
 \`\`\`
 Algorithm: generateFollowUpQuestions(analysisResults)
@@ -837,16 +838,16 @@ Algorithm: generateFollowUpQuestions(analysisResults)
    - Include: state change, validation rule, edge cases
 \`\`\`
 
-**Question Priority Logic**:
-- **HIGH priority**: Automatically ask (Security CRITICAL, Architecture breaking changes, Business decisions)
-- **MEDIUM/LOW priority**: Ask only when user requests: "Show me all follow-up questions"
+**问题优先级逻辑**：
+- **HIGH 优先级**：自动提问（安全 CRITICAL、架构破坏性变更、业务决策）
+- **MEDIUM/LOW 优先级**：仅在用户要求时提问："展示全部跟进问题"
 
-**Depth-First Questioning**:
-- From discovered vulnerability → ask about related security areas
-- From breaking change → ask about migration strategy and deprecation timeline
-- From decision point → ask about edge cases and error handling
+**深度优先追问**：
+- 从发现的漏洞 → 追问相关安全领域
+- 从破坏性变更 → 追问迁移策略与弃用时间线
+- 从决策点 → 追问边界场景与错误处理
 
-**Example**:
+**示例**：
 \`\`\`
 After Security analysis finds XSS vulnerability:
 
@@ -859,44 +860,44 @@ AI: "Security analysis found XSS vulnerability in sanitizeInput() at user-utils.
     My recommendation: Yes - review all input validation in auth module."
 \`\`\`
 
-### 1.4.5 Implementation Deep-Dive Analysis (NEW)
+### 1.4.5 实现深潜分析（NEW）
 
-**Trigger**: When layered trigger mechanism detects Scope.Modify, Scope.Add + existing code touch, or Depth.Deep keywords.
+**触发**：分层触发机制检测到 Scope.Modify、Scope.Add + 触及既有代码，或 Depth.Deep 关键词时。
 
-**Purpose**: Go beyond surface analysis ("what calls what") to understand WHY the code is designed this way before making changes.
+**目的**：超越表层分析（"谁调用谁"），在动手改动前理解代码**为什么**这样设计。
 
-**Analysis Dimensions**:
+**分析维度**：
 
-| Dimension | Primary Source | Backup Source |
+| 维度 | 主要来源 | 备用来源 |
 |-----------|---------------|---------------|
-| Design Rationale | Code comments, JavaDoc/docstring | ADR docs, README, design docs |
-| Constraints | package.json engines, tsconfig, linter configs | .browserslistrc, CI configs |
-| Trade-offs | TODO/FIXME/HACK comments | Code review records, benchmarks |
-| Pattern Usage | Class/interface structure, naming conventions | Design pattern library matching |
-| Historical Context | \`git log --follow\`, \`git blame\` | CHANGELOG.md, version tags |
-| Implicit Assumptions | Type guards, default values, missing null checks | Env var dependencies, magic numbers |
+| 设计理由 | 代码注释、JavaDoc/docstring | ADR 文档、README、设计文档 |
+| 约束 | package.json engines、tsconfig、linter 配置 | .browserslistrc、CI 配置 |
+| 权衡取舍 | TODO/FIXME/HACK 注释 | 代码评审记录、基准测试 |
+| 模式使用 | 类/接口结构、命名约定 | 设计模式库匹配 |
+| 历史背景 | \`git log --follow\`、\`git blame\` | CHANGELOG.md、版本标签 |
+| 隐含假设 | 类型守卫、默认值、缺失的空值检查 | 环境变量依赖、魔法数字 |
 
-**Scope Control** (by trigger level):
+**范围控制**（按触发级别）：
 
-| Trigger Level | Dimensions | Max Symbols |
+| 触发级别 | 维度 | 符号上限 |
 |--------------|------------|-------------|
-| 🔴 Auto (Scope.Modify) | All 6 dimensions | 10 core symbols |
-| 🟡 Prompt (Scope.Add) | Rationale + Constraints + Assumptions | 10 core symbols |
-| 🟢 Manual (Depth.Deep) | User-selected | 10 core symbols |
+| 🔴 自动（Scope.Modify） | 全部 6 个维度 | 10 个核心符号 |
+| 🟡 提示（Scope.Add） | 理由 + 约束 + 假设 | 10 个核心符号 |
+| 🟢 手动（Depth.Deep） | 用户选定 | 10 个核心符号 |
 
-**Confidence Marking**:
-- \`HIGH\`: Found in code comments, ADRs, or design docs — explicitly documented
-- \`MEDIUM\`: Inferred from git history, naming patterns, or structural analysis
-- \`LOW\`: AI inference from code patterns — MUST generate follow-up question for user confirmation
+**置信度标记**：
+- \`HIGH\`：见于代码注释、ADR 或设计文档 —— 有明确记载
+- \`MEDIUM\`：由 git 历史、命名模式或结构分析推断
+- \`LOW\`：AI 从代码模式推断 —— MUST 生成跟进问题请用户确认
 
-**Integration with Grill-With-Docs**:
-- LOW confidence findings → auto-generate follow-up questions
-- Implicit assumptions → always generate confirmation questions
-- Trade-offs → ask if they still hold for current requirements
+**与 Grill-With-Docs 的集成**：
+- LOW 置信度的发现 → 自动生成跟进问题
+- 隐含假设 → 一律生成确认问题
+- 权衡取舍 → 询问在当前需求下是否仍成立
 
-**Output**: Write findings to exploration.md \`## Implementation Deep-Dive\` section.
-Sub-sections with no findings are marked \`<!-- No findings -->\`.
-The entire section is conditionally shown — only when deep analysis is triggered.
+**产出**：把发现写入 exploration.md 的 \`## Implementation Deep-Dive\` 段。
+无发现的子段标记 \`<!-- No findings -->\`。
+整段为条件显示 —— 仅在触发深度分析时显示。
 
 `;
 
@@ -904,59 +905,59 @@ The entire section is conditionally shown — only when deep analysis is trigger
 
 const EXPLORATION_GUIDANCE = `> 探索指南（派生自上游 OpenSpec \`openspec-explore\`，供探索阶段参考；iagent 专有门控见主 SKILL.md）
 
-## The Stance
+## 立场
 
-- **Curious, not prescriptive** - Ask questions that emerge naturally, don't follow a script
-- **Open threads, not interrogations** - Surface multiple interesting directions and let the user follow what resonates. Don't funnel them through a single path of questions.
-- **Visual** - Use ASCII diagrams liberally when they'd help clarify thinking
-- **Adaptive** - Follow interesting threads, pivot when new information emerges
-- **Patient** - Don't rush to conclusions, let the shape of the problem emerge
-- **Grounded** - Explore the actual codebase when relevant, don't just theorize
+- **好奇，而非规定** —— 提问应自然浮现，不照脚本走
+- **展开线索，而非审问** —— 浮现多个有意思的方向，让用户跟随有共鸣的那个。不要把它们挤进单一路径的问题串。
+- **可视化** —— 有助于厘清思路时，多加使用 ASCII 图
+- **自适应** —— 跟随有意思的线索，新信息出现时及时转向
+- **耐心** —— 不急于下结论，让问题的轮廓自然浮现
+- **落地** —— 相关时就去探查真实代码库，不要只做空想
 
 ---
 
-## What You Might Do
+## 可以做的事
 
-Depending on what the user brings, you might:
+视用户带来的内容而定，你可能：
 
-**Explore the problem space**
-- Ask clarifying questions that emerge from what they said
-- Challenge assumptions
-- Reframe the problem
-- Find analogies
+**探索问题空间**
+- 顺着用户所说，提出澄清性问题
+- 挑战假设
+- 重新表述问题
+- 寻找类比
 
-**Investigate the codebase**
-- Run CodeGraph base scan (codegraph_files + codegraph_search) to understand project structure
-- **MUST run \`codegraph_status\` FIRST.** Until it confirms unavailable, you MUST NOT use Glob/Grep for codebase investigation — codegraph tools are the primary path. If it confirms unavailable: use Glob/Grep fallback (last resort).
-- Map existing architecture relevant to the discussion
-- Find integration points
-- Identify patterns already in use
-- Surface hidden complexity
-- Grep/Glob is a last resort, used ONLY after \`codegraph_status\` confirms CodeGraph unavailable
-- **Consider saving findings**: After scanning, offer to save results to \`openspec/explorations/\` for later use in workflow
+**调研代码库**
+- 运行 CodeGraph 基础扫描（codegraph_files + codegraph_search）以理解项目结构
+- **MUST 先运行 \`codegraph_status\`。** 在它确认不可用之前，MUST NOT 用 Glob/Grep 调研代码库 —— codegraph 工具才是主路径。确认不可用时：用 Glob/Grep 降级（最后手段）。
+- 梳理与讨论相关的既有架构
+- 寻找集成点
+- 识别已在使用的模式
+- 揭示隐藏的复杂度
+- Grep/Glob 是最后手段，**只有**在 \`codegraph_status\` 确认 CodeGraph 不可用后才使用
+- **考虑保存发现**：扫描之后，可提议把结果保存到 \`openspec/explorations/\`，供后续工作流使用
 
-**Understand design rationale (deep analysis)**
-When modifying existing code, go beyond surface analysis:
+**理解设计理由（深度分析）**
+修改既有代码时，要超越表层分析：
 
-| Dimension | Primary Source | Backup Source |
+| 维度 | 主要来源 | 备用来源 |
 |-----------|---------------|---------------|
-| Design Rationale | Code comments, JavaDoc/docstring | ADR docs, README, design docs |
-| Constraints | package.json engines, tsconfig, linter configs | .browserslistrc, CI configs |
-| Trade-offs | TODO/FIXME/HACK comments | Code review records, benchmarks |
-| Pattern Usage | Class/interface structure, naming conventions | Design pattern library matching |
-| Historical Context | \`git log --follow\`, \`git blame\` | CHANGELOG.md, version tags |
-| Implicit Assumptions | Type guards, default values, missing null checks | Env var dependencies, magic numbers |
+| 设计理由 | 代码注释、JavaDoc/docstring | ADR 文档、README、设计文档 |
+| 约束 | package.json engines、tsconfig、linter 配置 | .browserslistrc、CI 配置 |
+| 权衡取舍 | TODO/FIXME/HACK 注释 | 代码评审记录、基准测试 |
+| 模式使用 | 类/接口结构、命名约定 | 设计模式库匹配 |
+| 历史背景 | \`git log --follow\`、\`git blame\` | CHANGELOG.md、版本标签 |
+| 隐含假设 | 类型守卫、默认值、缺失的空值检查 | 环境变量依赖、魔法数字 |
 
-- **Confidence marking**: HIGH (explicitly documented), MEDIUM (inferred from git/patterns), LOW (AI inference — MUST confirm)
-- Mark LOW-confidence findings with ⚠ and generate follow-up questions
+- **置信度标记**：HIGH（有明确记载）、MEDIUM（由 git / 模式推断）、LOW（AI 推断 —— MUST 确认）
+- 把 LOW 置信度的发现标上 ⚠ 并生成跟进问题
 
-**Compare options**
-- Brainstorm multiple approaches
-- Build comparison tables
-- Sketch tradeoffs
-- Recommend a path (if asked)
+**比较方案**
+- 头脑风暴多种方案
+- 构建对比表
+- 勾画取舍
+- 推荐一条路径（被要求时）
 
-**Visualize**
+**可视化**
 \`\`\`
 ┌─────────────────────────────────────────┐
 │     Use ASCII diagrams liberally        │
@@ -974,90 +975,90 @@ When modifying existing code, go beyond surface analysis:
 └─────────────────────────────────────────┘
 \`\`\`
 
-**Surface risks and unknowns**
-- Identify what could go wrong
-- Find gaps in understanding
-- Suggest spikes or investigations
+**揭示风险与未知**
+- 识别可能出问题的地方
+- 找出理解上的缺口
+- 建议做技术预研或调查
 
-## OpenSpec Awareness
+## OpenSpec 感知
 
-You have full context of the OpenSpec system. Use it naturally, don't force it.
+你完整掌握 OpenSpec 体系。自然使用它，不要硬套。
 
-### Check for context
+### 检查上下文
 
-At the start, quickly check what exists:
+开始时，快速查看现有什么：
 \`\`\`bash
 iagent spec status --json
 \`\`\`
 
-### Check for history (SQLite index)
+### 检查历史（SQLite 索引）
 
-When exploring a capability, check historical context via SQLite index:
-- If \`openspec/.iagent/index.db\` exists → query \`exploration_memory\` table by capability name for prior decisions/terms/edge cases
-- If index.db unavailable → fall back to Glob \`openspec/specs/<capability>/explorations.md\`
-- Inject any found historical decisions/terms into exploration context
+探索某个能力时，通过 SQLite 索引查看历史上下文：
+- \`openspec/.iagent/index.db\` 存在 → 按能力名查询 \`exploration_memory\` 表，获取既往决策 / 术语 / 边界场景
+- index.db 不可用 → 降级到 Glob \`openspec/specs/<capability>/explorations.md\`
+- 把找到的历史决策 / 术语注入探索上下文
 
-This tells you:
-- If there are active changes
-- Their names, schemas, and status
-- What the user might be working on
+这能告诉你：
+- 是否有活跃变更
+- 它们的名称、schema 与状态
+- 用户可能正在做的事
 
-If the user mentioned a specific change name, read its artifacts for context.
+用户提到具体变更名时，读取其制品作为上下文。
 
-### When no change exists
+### 无变更时
 
-Think freely. When insights crystallize, you might offer:
+自由思考。当认识逐渐清晰时，你可以提议：
 
-- "This feels solid enough to start a change. Want me to create a proposal?"
-- Or keep exploring - no pressure to formalize
+- "这听起来已经足够扎实，可以开始一个变更了。要我创建提案吗？"
+- 或继续探索 —— 不必急于形式化
 
-### When a change exists
+### 有变更时
 
-If the user mentions a change or you detect one is relevant:
+用户提到某个变更，或你发现某个变更相关时：
 
-1. **Resolve and read existing artifacts for context**
-   - Run \`iagent spec status --change "<name>" --json\`.
-   - Use \`changeRoot\`, \`artifactPaths\`, and \`actionContext\` from the status JSON.
-   - Read existing files from \`artifactPaths.<artifact>.existingOutputPaths\`.
+1. **定位并读取既有制品作为上下文**
+   - 运行 \`iagent spec status --change "<name>" --json\`。
+   - 使用状态 JSON 中的 \`changeRoot\`、\`artifactPaths\` 与 \`actionContext\`。
+   - 从 \`artifactPaths.<artifact>.existingOutputPaths\` 读取既有文件。
 
-2. **Reference them naturally in conversation**
-   - "Your design mentions using Redis, but we just realized SQLite fits better..."
-   - "The proposal scopes this to premium users, but we're now thinking everyone..."
+2. **在对话中自然地引用它们**
+   - "你的设计里提到用 Redis，但我们刚意识到 SQLite 更合适……"
+   - "提案把范围限定在付费用户，但我们现在想覆盖所有人……"
 
-3. **Offer to capture when decisions are made**
+3. **在决策形成时提议落地**
 
-    | Insight Type               | Where to Capture               |
-    |----------------------------|--------------------------------|
-    | New requirement discovered | \`specs/<capability>/spec.md\` |
-    | Requirement changed        | \`specs/<capability>/spec.md\` |
-    | Design decision made       | \`design.md\` 的 Decisions 段     |
-    | Scope changed              | \`proposal.md\` 的 What Changes 段 |
-    | New work identified        | \`tasks.md\`                   |
-    | Assumption invalidated     | Relevant artifact              |
+    | 洞察类型                   | 落地位置                           |
+    |----------------------------|------------------------------------|
+    | 发现新需求                 | \`specs/<capability>/spec.md\`      |
+    | 需求变更                   | \`specs/<capability>/spec.md\`      |
+    | 形成设计决策               | \`design.md\` 的 Decisions 段        |
+    | 范围变更                   | \`proposal.md\` 的 What Changes 段   |
+    | 识别出新工作               | \`tasks.md\`                        |
+    | 假设被推翻                 | 相关制品                           |
 
-   Example offers:
-   - "That's a design decision. Capture it in \`design.md\` 的 Decisions 段?"
-   - "This is a new requirement. Add it to specs?"
-   - "This changes scope. Update the proposal?"
+   示例提议：
+   - "这是一个设计决策。记到 \`design.md\` 的 Decisions 段？"
+   - "这是一条新需求。加到 specs 里？"
+   - "这改变了范围。更新提案？"
 
-4. **The user decides** - Offer and move on. Don't pressure. Don't auto-capture.
-
----
-
-## What You Don't Have To Do
-
-- Follow a script
-- Ask the same questions every time
-- Produce a specific artifact
-- Reach a conclusion
-- Stay on topic if a tangent is valuable
-- Be brief (this is thinking time)
+4. **由用户决定** —— 提议后就此打住。不要施压。不要自动落地。
 
 ---
 
-## Handling Different Entry Points
+## 不必做的事
 
-**User brings a vague idea:**
+- 照脚本走
+- 每次问同样的问题
+- 产出某个指定制品
+- 得出结论
+- 有价值的岔路出现时仍死守原题
+- 保持简短（这是思考时间）
+
+---
+
+## 处理不同入口形态
+
+**用户带来一个模糊想法：**
 \`\`\`
 User: I'm thinking about adding real-time collaboration
 
@@ -1080,7 +1081,7 @@ You: Real-time collab is a big space. Let me think about this...
       Where's your head at?
 \`\`\`
 
-**User brings a specific problem:**
+**用户带来一个具体问题：**
 \`\`\`
 User: The auth system is a mess
 
@@ -1111,7 +1112,7 @@ You: [reads codebase]
      I see three tangles. Which one's burning?
 \`\`\`
 
-**User is stuck mid-implementation:**
+**用户卡在实现中途：**
 \`\`\`
 User: /iagent:spec-explore add-auth-system
       The OAuth integration is more complex than expected
@@ -1128,7 +1129,7 @@ You: [reads change artifacts]
      Or add a spike task to investigate?
 \`\`\`
 
-**User wants to compare options:**
+**用户想比较方案：**
 \`\`\`
 User: Should we use Postgres or SQLite?
 
@@ -1159,16 +1160,16 @@ You: That changes everything.
 
 ---
 
-## Ending Discovery
+## 结束探索
 
-There's no required ending. Discovery might:
+没有强制的收尾方式。探索可能：
 
-- **Flow into a proposal**: "Ready to start? I can create a change proposal."
-- **Result in artifact updates**: "Updated \`design.md\` 的 Decisions 段 with these decisions"
-- **Just provide clarity**: User has what they need, moves on
-- **Continue later**: "We can pick this up anytime"
+- **流入提案**："可以开始了吗？我来创建一个变更提案。"
+- **落到制品更新**："已把这些决策更新到 \`design.md\` 的 Decisions 段"
+- **只提供清晰度**：用户拿到了所需的答案，继续往前走
+- **以后再继续**："随时都可以接着聊"
 
-When it feels like things are crystallizing, you might summarize:
+当感觉一切正在凝练时，你可以做个小结：
 
 \`\`\`
 ## What We Figured Out
@@ -1184,7 +1185,7 @@ When it feels like things are crystallizing, you might summarize:
 - Keep exploring: just keep talking
 \`\`\`
 
-But this summary is optional. Sometimes the thinking IS the value.
+但这个小结是可选的。有时思考本身就是价值。
 `;
 
 export function getSpecExploreSkillTemplate(): SkillTemplate {
@@ -1195,26 +1196,26 @@ export function getSpecExploreSkillTemplate(): SkillTemplate {
         type: 'spec',
         instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
-Enter explore mode. Think deeply. Visualize freely. Follow the conversation wherever it goes.
+进入探索模式。深度思考。自由可视化。让对话自然流淌。
 
-**IMPORTANT: Explore mode is for thinking, not implementing.** You may read files, search code, and investigate the codebase, but you must NEVER write code or implement features. If the user asks you to implement something, remind them to exit explore mode first and create a change proposal. You MAY create OpenSpec artifacts (proposals, designs, specs) if the user asks—that's capturing thinking, not implementing.
+**重要：探索模式用于思考，而非实现。** 你可以读文件、搜代码、调研代码库，但绝不能写代码或实现功能。用户要求你实现时，提醒其先退出探索模式并创建变更提案。用户要求时你**可以**创建 OpenSpec 制品（proposal、design、specs）—— 那是把思考落下来，不是实现。
 
-**Read-only operations execute without confirmation**: file reading, code searching, and analysis steps run directly — do NOT pause to ask the user for permission to perform read-only investigation. Clarifying questions that emerge from exploration (requirement clarification) are not read-only operations and remain unchanged.
+**只读操作无需确认即可执行**：读文件、搜代码与分析步骤直接执行 —— 不得停下来请求用户许可去做只读调研。探索中浮现的澄清性问题（需求澄清）不属于只读操作，规则不变。
 
-**This is a stance, not a workflow.** There are no fixed steps, no required sequence, no mandatory outputs. You're a thinking partner helping the user explore.
+**这是一种立场，不是工作流。** 没有固定步骤、没有必需顺序、没有强制产出。你是帮助用户探索的思考伙伴。
 
-**Input**: The argument after \`/iagent:spec-explore\` is whatever the user wants to think about. Could be:
-- A vague idea: "real-time collaboration"
-- A specific problem: "the auth system is getting unwieldy"
-- A change name: "add-dark-mode" (to explore in context of that change)
-- A comparison: "postgres vs sqlite for this"
-- Nothing (just enter explore mode)
+**Input**: \`/iagent:spec-explore\` 之后的参数就是用户想思考的内容，可以是：
+- 模糊想法："实时协作"
+- 具体问题："认证系统越来越难维护"
+- 变更名："add-dark-mode"（在该变更的上下文中探索）
+- 对比："这个场景用 postgres 还是 sqlite"
+- 什么都不带（仅进入探索模式）
 
 ${GATE_PROTOCOL_PREAMBLE}
 
 ---
 
-## Prompt Validation Gate (提示词校验门)
+## 提示词校验门
 
 **Trigger: 输入含糊或多义时激活本门；清晰输入直接进入思考伙伴模式。** 这不是固定流程步骤 —— explore 的立场（无固定步骤、无强制产出）不因本门改变。
 
@@ -1230,20 +1231,20 @@ ${PROMPT_GATE}
 
 **本技能内的执行要求**：
 
-- 清晰输入：一句话复述理解后直接进入 The Stance，不输出六维校验表格、不要求确认
+- 清晰输入：一句话复述理解后直接进入立场模式，不输出六维校验表格、不要求确认
 - 含糊输入：先做提示词优化并阻塞等待用户确认或修改；确认前 MUST NOT 进行代码库扫描与需求澄清追问
 - 上游已产出经确认的提示词基线时（如被 full-workflow 的 Stage 1 委派调用）**直接通过，不重复校验或再次要求确认**
 - 基线落盘：写入探索产物的 \`## 提示词基线\` 段；本技能不设强制产出文件，无探索文件时基线保留在会话中，并在创建或关联探索文件时写入
 
 ---
 
-## 探索指南（The Stance / What You Might Do / OpenSpec Awareness / What You Don't Have To Do / Handling Different Entry Points / Ending Discovery）
+## 探索指南（立场 / 可以做的事 / OpenSpec 感知 / 不必做的事 / 处理不同入口形态 / 结束探索）
 
 > 完整探索指南见 \`references/exploration-guidance.md\`；进入思考伙伴模式前按需 \`Read\`。
 
 ---
 
-## Functional Flowchart (功能流程图)
+## 功能流程图
 
 **Trigger: 探索中浮现明确的业务功能流程时产出本制品；纯概念探讨或无业务功能流程时不产出、不阻断。** 这不是固定流程步骤 —— explore 的立场（无固定步骤、无强制产出）不因本制品改变。
 
@@ -1260,9 +1261,9 @@ ${FLOWCHART}
 
 ---
 
-## 强制 checkpoint 体系（delegated 模式）
+## 强制检查点体系（delegated 模式）
 
-**delegated 模式**（编排器传入 \`mode=delegated\`）SHALL 执行强制 checkpoint 体系（不可跳过）：调用即强制创建探索文件 → 提示词校验门 → CONTEXT.md 检查 → CodeGraph 基础扫描（含多项目派发与深度分析）→ L1-L5 grill 追问 → 功能流程图与流程最终确认门 → 聚合一致性门 → 探索完成检测。**完整协议见 \`references/exploration-protocol.md\`——执行 delegated 探索前 MUST 先 \`Read\` 该文件并逐步执行。**
+**delegated 模式**（编排器传入 \`mode=delegated\`）SHALL 执行强制检查点体系（不可跳过）：调用即强制创建探索文件 → 提示词校验门 → CONTEXT.md 检查 → CodeGraph 基础扫描（含多项目派发与深度分析）→ L1-L5 grill 追问 → 功能流程图与流程最终确认门 → 聚合一致性门 → 探索完成检测。**完整协议见 \`references/exploration-protocol.md\`——执行 delegated 探索前 MUST 先 \`Read\` 该文件并逐步执行。**
 
 （interactive 模式保持立场式，不强制上述序列。）
 
@@ -1270,32 +1271,32 @@ ${FLOWCHART}
 
 每个阶段至多 **1 个流程级阻塞确认门**：
 
-- **探索阶段**：**功能流程图门**为唯一流程级阻塞门；提示词校验门仅在输入不明确时触发，且其确认 SHALL 与 grill 批量 1 合并为同一轮；grill 追问 SHALL ≤2 批量轮次（L1-L3、L4-L5）；聚合一致性门默认直通（仅硬冲突时暂停，non-blocking）
+- **探索阶段**：**功能流程图门**为唯一流程级阻塞门；提示词校验门仅在输入不明确时触发，且其确认 SHALL 与 grill 批量 1 合并为同一轮；grill 追问 SHALL ≤2 批量轮次（L1-L3、L4-L5）；聚合一致性门默认直通（仅硬冲突时暂停，非阻断）
 - **提案阶段**：无阻塞门（验证自动执行）
 - **实现阶段**：单一「实现 + 测试桥」
 - **归档阶段**：归档确认门
 
 ## Guardrails
 
-- **Don't implement** - Never write code or implement features. Creating OpenSpec artifacts is fine, writing application code is not.
-- **Don't fake understanding** - If something is unclear, dig deeper
-- **Don't rush** - Discovery is thinking time, not task time
-- **Don't force structure** - Let patterns emerge naturally
-- **Don't auto-capture** - Offer to save insights, don't just do it
-- **Do visualize** - A good diagram is worth many paragraphs
-- **Do explore the codebase** - Ground discussions in reality
-- **Do question assumptions** - Including the user's and your own
-- **Do understand design intent** - Before modifying existing code, analyze WHY it was built that way — not just WHAT it does. Check code comments, git history, and config files for constraints, trade-offs, and rationale. Mark inferences with confidence levels.
-- **Write confirmation is scoped and explicit** - When offering to save findings or update OpenSpec artifacts, confirmation scope is limited to the specifically named file(s). Blanket "yes to all" authorization is never accepted. Answering design questions (discussing approaches, clarifying requirements, explaining terminology) does NOT constitute consent to write operations — each write requires an independent yes/no confirmation.
-- **Re-read files from disk** - Files the user may have edited during the session (CONTEXT.md, exploration.md, change artifacts such as proposal/design/specs/tasks) MUST be re-read from disk before each use. Never rely on session-cached content.
-- **Surface material ambiguities** - Ambiguities affecting scope, behavioral contracts, backward compatibility, or acceptance criteria MUST be surfaced to the user as **[待确认]** questions. Non-material detail-level ambiguities may be resolved with reasonable assumptions, documented alongside the assumption.
-- **Do enforce exit discipline** - 探索结束后 MUST NOT auto-enter plan mode / propose mode / design mode；仅在用户显式要求时进入下一阶段；explore 的立场是思考伙伴，流程推进由用户驱动
-- **Do enforce data sharing for any sub-agent scan** - 如果探索中派发了 CodeGraph 多项目扫描子代理，子代理扫描指令 MUST 包含退出守卫（完成扫描即停止返回结果，MUST NOT enter plan mode）
-- **Do validate the prompt before diving in** - 输入含糊或多义时先过提示词校验门（Step 1-5）：优化后 MUST 等用户确认或修改才继续；清晰输入一句话复述理解后直通（不输出校验表、不要求确认）；变更名输入以该变更既有制品为校验对象；无输入则跳过本门。上游已产出提示词基线时直接通过，不重复确认
-- **Don't deadlock on the prompt gate** - 确认门有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续），不得反复要求确认
-- **Do produce the flowchart when a flow emerges** - 探索浮现明确的业务功能流程时产出 \`## 功能流程图\` 段（Mermaid \`flowchart TD\` + 节点清单表）并执行流程最终确认门；节点粒度 = 可独立验证的业务操作单元，每节点 MUST 含证据位置（\`文件:行\` 或类.方法；新建功能标 \`[新建]\` + 预期产物），无法追溯证据的节点 MUST NOT 进入清单
-- **Don't force a flowchart** - 纯概念探讨或无业务功能流程时记录「本次无功能流程」后直接继续，不为凑制品虚构节点、不阻断探索；"无固定步骤、无强制产出"的定位不变
-- **Don't deadlock on the flowchart gate** - 流程最终确认门同样有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续）；用户拒绝时记录未确认状态后继续，不得反复要求确认`,
+- **不要实现** - 绝不写代码或实现功能。创建 OpenSpec 制品没问题，写应用代码不行。
+- **不要假装理解** - 有不清楚的地方就深挖
+- **不要急于推进** - 发现阶段是思考时间，不是任务时间
+- **不要强求结构** - 让模式自然浮现
+- **不要自动捕捉** - 提议保存洞察，不要直接替用户做
+- **要可视化** - 一幅好图胜过千言万语
+- **要探索代码库** - 让讨论落在现实之上
+- **要质疑假设** - 包括用户的，也包括你自己的
+- **要理解设计意图** - 修改既有代码之前，分析它**为什么**这样构建 —— 而不只是它做了什么。查看代码注释、git 历史与配置文件，找出约束、权衡与理由。推断结论要标注置信度。
+- **写操作确认限定范围且须显式** - 提议保存发现或更新 OpenSpec 制品时，确认范围仅限明确点名的文件。绝不接受一揽子 "全部同意" 式授权。回答设计问题（讨论方案、澄清需求、解释术语）**不构成**写操作的同意 —— 每次写都需独立的同意/拒绝确认。
+- **从磁盘重新读取文件** - 用户在会话中可能改过的文件（CONTEXT.md、exploration.md、proposal/design/specs/tasks 等变更制品）每次使用前 MUST 从磁盘重新读取。绝不依赖会话缓存的内容。
+- **实质性歧义要表面化** - 影响范围、行为契约、向后兼容或验收标准的歧义 MUST 以 **[待确认]** 问题形式提给用户。非实质性的细节级歧义可用合理假设解决，并把假设一并记录。
+- **要执行退出纪律** - 探索结束后 MUST NOT 自动进入 plan 模式 / 提案模式 / 设计模式；仅在用户显式要求时进入下一阶段；explore 的立场是思考伙伴，流程推进由用户驱动
+- **子代理扫描要强制共享数据** - 如果探索中派发了 CodeGraph 多项目扫描子代理，子代理扫描指令 MUST 包含退出守卫（完成扫描即停止返回结果，MUST NOT 进入 plan 模式）
+- **深入前要校验提示词** - 输入含糊或多义时先过提示词校验门（Step 1-5）：优化后 MUST 等用户确认或修改才继续；清晰输入一句话复述理解后直通（不输出校验表、不要求确认）；变更名输入以该变更既有制品为校验对象；无输入则跳过本门。上游已产出提示词基线时直接通过，不重复确认
+- **不要在提示词门上死锁** - 确认门有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续），不得反复要求确认
+- **流程浮现时要产出功能流程图** - 探索浮现明确的业务功能流程时产出 \`## 功能流程图\` 段（Mermaid \`flowchart TD\` + 节点清单表）并执行流程最终确认门；节点粒度 = 可独立验证的业务操作单元，每节点 MUST 含证据位置（\`文件:行\` 或类.方法；新建功能标 \`[新建]\` + 预期产物），无法追溯证据的节点 MUST NOT 进入清单
+- **不要强求流程图** - 纯概念探讨或无业务功能流程时记录「本次无功能流程」后直接继续，不为凑制品虚构节点、不阻断探索；"无固定步骤、无强制产出"的定位不变
+- **不要在流程最终确认门上死锁** - 流程最终确认门同样有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续）；用户拒绝时记录未确认状态后继续，不得反复要求确认`,
         license: 'MIT',
         compatibility: '依赖 iagent CLI（spec 命令组）与 CodeGraph MCP（不可用时回退 Glob/Grep）。',
         metadata: { author: 'mi-agent-tools', version: '1.0' },

@@ -7,6 +7,21 @@
 
 ## [Unreleased]
 
+## [6.4.0] - 2026-10-17
+
+### Added
+
+- 新增语言回归锁 `test/template-language.test.ts`：扫描全部技能正文、references 与 Claude/Pi/OpenCode 三类适配器产物的指令正文，扣除白名单（围栏/行内代码、标识符、路径、协议词、固定标记、英文触发词）后，同一行出现 ≥3 个连续英文单词即判违规；并附「已定中文译法术语禁止残留英文形」的禁用短语表。
+- `test/template-derivation.test.ts` 的派生一致性覆盖由 7 个 spec 模板扩展至**全部 20 个**配对；`test/template-consistency.test.ts` 的派生调用计数断言提升为 `= 20`。
+- `test/generation.test.ts` 新增用户自定义 `--desc` 原文保持测试（中英混排逐字写入 frontmatter，生成器不翻译用户输入）。
+
+### Changed
+
+- 全部 20 个内置技能模板的生成产物改为**中文自然语言**：普通解释性英文（流程说明、阶段与错误处理描述、解释性术语）翻译为中文，仅保留承载契约与机器语义的「特定描述」—— 命令、路径、文件名、标识符、`/iagent:<id>`、`$ARGUMENTS`、工具/协议名（`OpenSpec`/`CodeGraph`/`MCP`/`Skill`）、规范词（`MUST`/`MUST NOT`/`SHALL`）、制品标记（`ADDED`/`MODIFIED`/`REMOVED`/`RENAMED`）、协议标题（`Input`/`Output`/`Phase`/`Step`/`Guardrails`）、英文触发词与 `NOT for`、代码块/正则/JSON-YAML 示例。
+- 统一并固化重复术语译法：`Prompt Validation Gate` → 提示词校验门、`Functional Flowchart` → 功能流程图、`Checkpoint Enforcement` / `MANDATORY CHECKPOINT` → 强制检查点、`hard conflict` → 硬冲突、`Standalone mode` → 独立模式、`Non-interactive mode` → 非交互模式、`output ledger` → 产出登记表、`minimal receipt` → 最小回执、`Pre-Archive ... Checkpoint` → 归档前...检查点 等。
+- 其余 12 个手工双写模板（`auto-workflow`、`workflow`、`debug`、`migration`、`migration-check`、`proposal-review`、`test`、`commit`、`svn-commit`、`review`、`feature-doc`、`requirement-doc`）的指令正文改为经 `deriveCommandContent()` 从技能正文派生，command 不再维护独立完整正文，只保留 `name`/`description`/`category`/`tags` 元数据 —— 至此全部 20 个内置配对均为 **skill 单一源**；仅技能版内容以成对 `CMD:SKIP` 标记安全裁剪（未标记段落默认进入指令版）。
+- 技能 `description`（`iagent_auto_workflow`、`iagent_workflow`、`iagent_debug`）改为中文用途表述，保留英文触发关键词与 `NOT for` 排歧结构。
+
 ## [6.3.0] - 2026-10-17
 
 ### Added
@@ -1104,7 +1119,8 @@
 [2.0.0]: https://github.com/mi-agent-tools/compare/v1.18.1...v2.0.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/mi-agent-tools/compare/v6.3.0...HEAD
+[Unreleased]: https://github.com/mi-agent-tools/compare/v6.4.0...HEAD
+[6.4.0]: https://github.com/mi-agent-tools/compare/v6.3.0...v6.4.0
 [6.3.0]: https://github.com/mi-agent-tools/compare/v6.2.0...v6.3.0
 [6.2.0]: https://github.com/mi-agent-tools/compare/v6.1.0...v6.2.0
 [6.1.0]: https://github.com/mi-agent-tools/compare/v6.0.0...v6.1.0

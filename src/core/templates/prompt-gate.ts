@@ -114,11 +114,11 @@ function renderClearCriterion(dimensions: PromptDimension[]): string {
  * 所有含确认门的技能模板应在正文开头引入此段，以建立"门控 = 硬停止"的行为基线。 */
 export const GATE_PROTOCOL_PREAMBLE = `## ⛔ GATE PROTOCOL — ACTIVE
 
-This skill contains **CONFIRMATION GATES** marked with **⛔ GATE:**. Each gate is a HARD STOP:
-- When you reach a ⛔ GATE, **YOUR RESPONSE ENDS THERE** — output the gate content, then STOP
-- Do NOT execute, describe, or pre-generate steps beyond the gate
-- The user\'s next message is the confirmation signal — resume from AFTER the gate only when they respond
-- **VIOLATION**: executing beyond a gate without user confirmation is a critical error that corrupts the workflow`;
+本技能包含以 **⛔ GATE:** 标记的**确认门**。每个门都是硬性停止点：
+- 走到 ⛔ GATE 时，**本次响应到此结束** —— 输出门内容后立即停止
+- 不得执行、描述或预生成门之后的任何步骤
+- 用户的下一则消息即为确认信号 —— 仅在其响应后从门之后继续
+- **违规**：未经用户确认而执行门之后的步骤，是破坏工作流的严重错误`;
 
 /**
  * 渲染完整提示词校验门文本（Step 1-5 + 入口形态适配）。
@@ -127,7 +127,7 @@ This skill contains **CONFIRMATION GATES** marked with **⛔ GATE:**. Each gate 
  * @returns 可直接内联进技能正文的 Markdown 门文本
  */
 export function buildPromptGateBlock(dimensions: PromptDimension[]): string {
-    return `### Prompt Validation Gate (提示词校验门)
+    return `### 提示词校验门
 
 **Step 1 — 清晰度自检**: 逐维判定用户输入，标记 \`✅ 清晰\` / \`⚠️ 歧义\` / \`❌ 缺失\`
 
@@ -148,7 +148,7 @@ ${renderDimensionTable(dimensions)}
 
 **Step 4 — ⛔ GATE: 确认门（强制停止）**
 
-> **THIS IS A CONFIRMATION GATE. Your response MUST END here. Do NOT continue to any subsequent steps.**
+> **这是一个确认门。本次响应 MUST 到此结束，不得继续任何后续步骤。**
 
 - 呈现 \`【优化后提示词】\` 与 \`【优化说明】\` 后**立即结束本次响应**
 - 用户确认前 MUST NOT 进入探索、创建探索文件、扫描代码库或发起追问
@@ -174,7 +174,7 @@ ${renderDimensionTable(dimensions)}
  */
 export function buildPromptGateCompact(dimensions: PromptDimension[]): string {
     const dimensionNames = dimensions.map((d) => d.name).join(' / ');
-    return `**Prompt Validation Gate (提示词校验门)**: 探索前强制自检用户输入，维度为 ${dimensionNames}。
+    return `**提示词校验门**：探索前强制自检用户输入，维度为 ${dimensionNames}。
 - **清晰**（${renderClearCriterion(dimensions)}）→ 一句话复述理解后直通，不输出校验表、不要求确认
 - **不明确**（任一维 \`❌\` 或实质 \`⚠️\`）→ 先做提示词优化，输出 \`【优化后提示词】\`（推断项标 \`[推断]\`、未知项标 \`[待确认]\`）与 \`【优化说明】\`，**⛔ GATE: 立即结束本次响应并等待用户确认或修改**（本次响应到此结束，收到用户响应后继续；出口：确认 / 修改 / 拒绝 / 显式授权按推断），**不得陷入等待死循环**
 - **软不明确**（仅细节级歧义）→ 记 \`[假设]\` 继续

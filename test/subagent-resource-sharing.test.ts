@@ -52,48 +52,48 @@ describe('A1–A4 · spec-apply 共享资源协议（单一源正文）', () => 
         expect(body).toContain('context-pack.md');
         expect(body).toContain('.openspec-tmp/apply-<change-name>/');
         // 包是子代理唯一必读制品
-        expect(body).toContain("the sub-agent's ONLY required artifact");
+        expect(body).toContain('上下文包是子代理**唯一**必读的制品');
     });
 
     it('A1 一次性产出 + 逐批追加（不重产整包）', () => {
-        expect(body).toContain('produced ONCE before the first dispatch');
-        expect(body).toContain('MUST NOT re-produce the whole pack');
+        expect(body).toContain('只在首次派发前产出一次');
+        expect(body).toContain('MUST NOT 重产整包');
         // 追加动作与批后集中勾选同段
-        expect(body).toContain("append the batch's produced files and public signatures");
+        expect(body).toContain('把本批的产出文件与公开签名追加到包');
     });
 
     it('A2 调度指令不再内联规范摘要，改为引用包', () => {
         // 反向断言：旧的内联规范摘要条目已消失
         expect(body).not.toContain('A summary of the key AI coding guardrails from openspec/rules/ai-coding.md');
         // 正向断言：改为引用 + 明文禁止内联
-        expect(body).toContain('MUST NOT inline the full guardrail summary');
+        expect(body).toContain('指令 MUST NOT 内联完整护栏摘要');
         expect(body).toContain('## 规范要点');
     });
 
     it('A3 禁止项、缺口回执、公开签名定义与空值处置', () => {
-        expect(body).toContain('MUST NOT re-read proposal/specs/design');
-        expect(body).toContain('MUST NOT re-run CodeGraph queries already covered by the pack');
+        expect(body).toContain('MUST NOT 重读 proposal/specs/design');
+        expect(body).toContain('MUST NOT 重跑包已覆盖的 CodeGraph 查询');
         expect(body).toContain('包缺口回执');
         expect(body).toContain('公开签名');
         // 空值处置：不留空、不编造
-        expect(body).toContain('MUST NOT leave blank');
-        expect(body).toContain('MUST NOT fabricate');
+        expect(body).toContain('MUST NOT 留空');
+        expect(body).toContain('MUST NOT 编造');
         // 反幻觉：包是蒸馏视图而非替代品
-        expect(body).toContain('the pack is a distilled view, NOT a substitute');
+        expect(body).toContain('包是蒸馏视图，不是制品的替代品');
     });
 
     it('A4 调度指令共享前缀固定顺序且字节一致', () => {
-        expect(body).toContain('shared prefix');
-        expect(body).toContain('unit-specific difference');
-        expect(body).toContain('byte-identical');
+        expect(body).toContain('共享前缀');
+        expect(body).toContain('单元差异部分');
+        expect(body).toContain('逐字节一致');
     });
 });
 
 describe('A5 · 多项目扫描单代理化（探索委派后归 spec_explore）', () => {
     const SKILL = 'iagent_spec_explore';
     const REQ = [
-        'Spawn **ONE** sub-agent that scans ALL detected projects **serially** inside itself',
-        'MUST NOT spawn a separate sub-agent for each project path',
+        '只派发**一个**子代理，让其在自身内部**串行**扫描全部检测到的项目',
+        'MUST NOT 为每个项目路径各派一个子代理',
     ];
 
     it('spec_explore skill 版：单子代理串行扫描全部项目', () => {
@@ -123,28 +123,34 @@ describe('A6 · debug 流程级探查摘要共享（skill + command 两处）', 
     const SKILL = 'iagent_debug';
     const WORKFLOW_ID = 'debug';
 
-    const REQUIRED = [
+    // 摘要协议设在技能主文件（instructions）—— skill 与 command 两处均须可见
+    const IN_INSTRUCTIONS = [
         'investigation-digest.md',
         'debug-<keyword>/',
-        'read the digest first',
-        'MUST NOT re-run CodeGraph queries already covered',
-        'incremental queries only',
-        'incrementally appended',
-        'clean up the debug workspace',
+        '先读摘要',
+        '仅增量查询',
+        '清理调试工作区',
+    ];
+    // 排查细则下沉 references/investigation-protocol.md —— 指令版以指针引用（与 A5 command 版一致）
+    const IN_REFERENCE = [
+        'MUST NOT 重跑已覆盖的 CodeGraph 查询',
+        '增量追加',
     ];
 
     it('skill 版含探查摘要五类表述', () => {
         const body = skillBody(SKILL);
-        for (const text of REQUIRED) {
+        for (const text of [...IN_INSTRUCTIONS, ...IN_REFERENCE]) {
             expect(body).toContain(text);
         }
     });
 
-    it('command 版含探查摘要五类表述', () => {
+    it('command 版含主文件级摘要表述并指针引用 references', () => {
         const body = commandBody(WORKFLOW_ID);
-        for (const text of REQUIRED) {
+        for (const text of IN_INSTRUCTIONS) {
             expect(body).toContain(text);
         }
+        // 细则下沉 references：指令版引用指针，不内联第二份正文
+        expect(body).toContain('references/investigation-protocol.md');
     });
 
     it('失效规则与 keyword 派生规则已明文', () => {
@@ -173,9 +179,9 @@ describe('A8 · auto-migration 规范要点写入共享包（skill + command 两
     const WORKFLOW_ID = 'migration';
 
     const REQUIRED = [
-        "into the context pack's `## 规范要点` section",
-        'MUST NOT inline the spec essentials',
-        'degrade to per-sub-agent inline injection',
+        'MUST 写入上下文包的 `## 规范要点` 段',
+        'MUST NOT 全文内联规范要点',
+        '降级为逐子代理内联注入',
     ];
 
     it('skill 版：写入包 + 不内联 + 退化分支', () => {

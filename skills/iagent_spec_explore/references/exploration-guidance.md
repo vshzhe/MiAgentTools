@@ -1,58 +1,58 @@
 > 探索指南（派生自上游 OpenSpec `openspec-explore`，供探索阶段参考；iagent 专有门控见主 SKILL.md）
 
-## The Stance
+## 立场
 
-- **Curious, not prescriptive** - Ask questions that emerge naturally, don't follow a script
-- **Open threads, not interrogations** - Surface multiple interesting directions and let the user follow what resonates. Don't funnel them through a single path of questions.
-- **Visual** - Use ASCII diagrams liberally when they'd help clarify thinking
-- **Adaptive** - Follow interesting threads, pivot when new information emerges
-- **Patient** - Don't rush to conclusions, let the shape of the problem emerge
-- **Grounded** - Explore the actual codebase when relevant, don't just theorize
+- **好奇，而非规定** —— 提问应自然浮现，不照脚本走
+- **展开线索，而非审问** —— 浮现多个有意思的方向，让用户跟随有共鸣的那个。不要把它们挤进单一路径的问题串。
+- **可视化** —— 有助于厘清思路时，多加使用 ASCII 图
+- **自适应** —— 跟随有意思的线索，新信息出现时及时转向
+- **耐心** —— 不急于下结论，让问题的轮廓自然浮现
+- **落地** —— 相关时就去探查真实代码库，不要只做空想
 
 ---
 
-## What You Might Do
+## 可以做的事
 
-Depending on what the user brings, you might:
+视用户带来的内容而定，你可能：
 
-**Explore the problem space**
-- Ask clarifying questions that emerge from what they said
-- Challenge assumptions
-- Reframe the problem
-- Find analogies
+**探索问题空间**
+- 顺着用户所说，提出澄清性问题
+- 挑战假设
+- 重新表述问题
+- 寻找类比
 
-**Investigate the codebase**
-- Run CodeGraph base scan (codegraph_files + codegraph_search) to understand project structure
-- **MUST run `codegraph_status` FIRST.** Until it confirms unavailable, you MUST NOT use Glob/Grep for codebase investigation — codegraph tools are the primary path. If it confirms unavailable: use Glob/Grep fallback (last resort).
-- Map existing architecture relevant to the discussion
-- Find integration points
-- Identify patterns already in use
-- Surface hidden complexity
-- Grep/Glob is a last resort, used ONLY after `codegraph_status` confirms CodeGraph unavailable
-- **Consider saving findings**: After scanning, offer to save results to `openspec/explorations/` for later use in workflow
+**调研代码库**
+- 运行 CodeGraph 基础扫描（codegraph_files + codegraph_search）以理解项目结构
+- **MUST 先运行 `codegraph_status`。** 在它确认不可用之前，MUST NOT 用 Glob/Grep 调研代码库 —— codegraph 工具才是主路径。确认不可用时：用 Glob/Grep 降级（最后手段）。
+- 梳理与讨论相关的既有架构
+- 寻找集成点
+- 识别已在使用的模式
+- 揭示隐藏的复杂度
+- Grep/Glob 是最后手段，**只有**在 `codegraph_status` 确认 CodeGraph 不可用后才使用
+- **考虑保存发现**：扫描之后，可提议把结果保存到 `openspec/explorations/`，供后续工作流使用
 
-**Understand design rationale (deep analysis)**
-When modifying existing code, go beyond surface analysis:
+**理解设计理由（深度分析）**
+修改既有代码时，要超越表层分析：
 
-| Dimension | Primary Source | Backup Source |
+| 维度 | 主要来源 | 备用来源 |
 |-----------|---------------|---------------|
-| Design Rationale | Code comments, JavaDoc/docstring | ADR docs, README, design docs |
-| Constraints | package.json engines, tsconfig, linter configs | .browserslistrc, CI configs |
-| Trade-offs | TODO/FIXME/HACK comments | Code review records, benchmarks |
-| Pattern Usage | Class/interface structure, naming conventions | Design pattern library matching |
-| Historical Context | `git log --follow`, `git blame` | CHANGELOG.md, version tags |
-| Implicit Assumptions | Type guards, default values, missing null checks | Env var dependencies, magic numbers |
+| 设计理由 | 代码注释、JavaDoc/docstring | ADR 文档、README、设计文档 |
+| 约束 | package.json engines、tsconfig、linter 配置 | .browserslistrc、CI 配置 |
+| 权衡取舍 | TODO/FIXME/HACK 注释 | 代码评审记录、基准测试 |
+| 模式使用 | 类/接口结构、命名约定 | 设计模式库匹配 |
+| 历史背景 | `git log --follow`、`git blame` | CHANGELOG.md、版本标签 |
+| 隐含假设 | 类型守卫、默认值、缺失的空值检查 | 环境变量依赖、魔法数字 |
 
-- **Confidence marking**: HIGH (explicitly documented), MEDIUM (inferred from git/patterns), LOW (AI inference — MUST confirm)
-- Mark LOW-confidence findings with ⚠ and generate follow-up questions
+- **置信度标记**：HIGH（有明确记载）、MEDIUM（由 git / 模式推断）、LOW（AI 推断 —— MUST 确认）
+- 把 LOW 置信度的发现标上 ⚠ 并生成跟进问题
 
-**Compare options**
-- Brainstorm multiple approaches
-- Build comparison tables
-- Sketch tradeoffs
-- Recommend a path (if asked)
+**比较方案**
+- 头脑风暴多种方案
+- 构建对比表
+- 勾画取舍
+- 推荐一条路径（被要求时）
 
-**Visualize**
+**可视化**
 ```
 ┌─────────────────────────────────────────┐
 │     Use ASCII diagrams liberally        │
@@ -70,90 +70,90 @@ When modifying existing code, go beyond surface analysis:
 └─────────────────────────────────────────┘
 ```
 
-**Surface risks and unknowns**
-- Identify what could go wrong
-- Find gaps in understanding
-- Suggest spikes or investigations
+**揭示风险与未知**
+- 识别可能出问题的地方
+- 找出理解上的缺口
+- 建议做技术预研或调查
 
-## OpenSpec Awareness
+## OpenSpec 感知
 
-You have full context of the OpenSpec system. Use it naturally, don't force it.
+你完整掌握 OpenSpec 体系。自然使用它，不要硬套。
 
-### Check for context
+### 检查上下文
 
-At the start, quickly check what exists:
+开始时，快速查看现有什么：
 ```bash
 iagent spec status --json
 ```
 
-### Check for history (SQLite index)
+### 检查历史（SQLite 索引）
 
-When exploring a capability, check historical context via SQLite index:
-- If `openspec/.iagent/index.db` exists → query `exploration_memory` table by capability name for prior decisions/terms/edge cases
-- If index.db unavailable → fall back to Glob `openspec/specs/<capability>/explorations.md`
-- Inject any found historical decisions/terms into exploration context
+探索某个能力时，通过 SQLite 索引查看历史上下文：
+- `openspec/.iagent/index.db` 存在 → 按能力名查询 `exploration_memory` 表，获取既往决策 / 术语 / 边界场景
+- index.db 不可用 → 降级到 Glob `openspec/specs/<capability>/explorations.md`
+- 把找到的历史决策 / 术语注入探索上下文
 
-This tells you:
-- If there are active changes
-- Their names, schemas, and status
-- What the user might be working on
+这能告诉你：
+- 是否有活跃变更
+- 它们的名称、schema 与状态
+- 用户可能正在做的事
 
-If the user mentioned a specific change name, read its artifacts for context.
+用户提到具体变更名时，读取其制品作为上下文。
 
-### When no change exists
+### 无变更时
 
-Think freely. When insights crystallize, you might offer:
+自由思考。当认识逐渐清晰时，你可以提议：
 
-- "This feels solid enough to start a change. Want me to create a proposal?"
-- Or keep exploring - no pressure to formalize
+- "这听起来已经足够扎实，可以开始一个变更了。要我创建提案吗？"
+- 或继续探索 —— 不必急于形式化
 
-### When a change exists
+### 有变更时
 
-If the user mentions a change or you detect one is relevant:
+用户提到某个变更，或你发现某个变更相关时：
 
-1. **Resolve and read existing artifacts for context**
-   - Run `iagent spec status --change "<name>" --json`.
-   - Use `changeRoot`, `artifactPaths`, and `actionContext` from the status JSON.
-   - Read existing files from `artifactPaths.<artifact>.existingOutputPaths`.
+1. **定位并读取既有制品作为上下文**
+   - 运行 `iagent spec status --change "<name>" --json`。
+   - 使用状态 JSON 中的 `changeRoot`、`artifactPaths` 与 `actionContext`。
+   - 从 `artifactPaths.<artifact>.existingOutputPaths` 读取既有文件。
 
-2. **Reference them naturally in conversation**
-   - "Your design mentions using Redis, but we just realized SQLite fits better..."
-   - "The proposal scopes this to premium users, but we're now thinking everyone..."
+2. **在对话中自然地引用它们**
+   - "你的设计里提到用 Redis，但我们刚意识到 SQLite 更合适……"
+   - "提案把范围限定在付费用户，但我们现在想覆盖所有人……"
 
-3. **Offer to capture when decisions are made**
+3. **在决策形成时提议落地**
 
-    | Insight Type               | Where to Capture               |
-    |----------------------------|--------------------------------|
-    | New requirement discovered | `specs/<capability>/spec.md` |
-    | Requirement changed        | `specs/<capability>/spec.md` |
-    | Design decision made       | `design.md` 的 Decisions 段     |
-    | Scope changed              | `proposal.md` 的 What Changes 段 |
-    | New work identified        | `tasks.md`                   |
-    | Assumption invalidated     | Relevant artifact              |
+    | 洞察类型                   | 落地位置                           |
+    |----------------------------|------------------------------------|
+    | 发现新需求                 | `specs/<capability>/spec.md`      |
+    | 需求变更                   | `specs/<capability>/spec.md`      |
+    | 形成设计决策               | `design.md` 的 Decisions 段        |
+    | 范围变更                   | `proposal.md` 的 What Changes 段   |
+    | 识别出新工作               | `tasks.md`                        |
+    | 假设被推翻                 | 相关制品                           |
 
-   Example offers:
-   - "That's a design decision. Capture it in `design.md` 的 Decisions 段?"
-   - "This is a new requirement. Add it to specs?"
-   - "This changes scope. Update the proposal?"
+   示例提议：
+   - "这是一个设计决策。记到 `design.md` 的 Decisions 段？"
+   - "这是一条新需求。加到 specs 里？"
+   - "这改变了范围。更新提案？"
 
-4. **The user decides** - Offer and move on. Don't pressure. Don't auto-capture.
-
----
-
-## What You Don't Have To Do
-
-- Follow a script
-- Ask the same questions every time
-- Produce a specific artifact
-- Reach a conclusion
-- Stay on topic if a tangent is valuable
-- Be brief (this is thinking time)
+4. **由用户决定** —— 提议后就此打住。不要施压。不要自动落地。
 
 ---
 
-## Handling Different Entry Points
+## 不必做的事
 
-**User brings a vague idea:**
+- 照脚本走
+- 每次问同样的问题
+- 产出某个指定制品
+- 得出结论
+- 有价值的岔路出现时仍死守原题
+- 保持简短（这是思考时间）
+
+---
+
+## 处理不同入口形态
+
+**用户带来一个模糊想法：**
 ```
 User: I'm thinking about adding real-time collaboration
 
@@ -176,7 +176,7 @@ You: Real-time collab is a big space. Let me think about this...
       Where's your head at?
 ```
 
-**User brings a specific problem:**
+**用户带来一个具体问题：**
 ```
 User: The auth system is a mess
 
@@ -207,7 +207,7 @@ You: [reads codebase]
      I see three tangles. Which one's burning?
 ```
 
-**User is stuck mid-implementation:**
+**用户卡在实现中途：**
 ```
 User: /iagent:spec-explore add-auth-system
       The OAuth integration is more complex than expected
@@ -224,7 +224,7 @@ You: [reads change artifacts]
      Or add a spike task to investigate?
 ```
 
-**User wants to compare options:**
+**用户想比较方案：**
 ```
 User: Should we use Postgres or SQLite?
 
@@ -255,16 +255,16 @@ You: That changes everything.
 
 ---
 
-## Ending Discovery
+## 结束探索
 
-There's no required ending. Discovery might:
+没有强制的收尾方式。探索可能：
 
-- **Flow into a proposal**: "Ready to start? I can create a change proposal."
-- **Result in artifact updates**: "Updated `design.md` 的 Decisions 段 with these decisions"
-- **Just provide clarity**: User has what they need, moves on
-- **Continue later**: "We can pick this up anytime"
+- **流入提案**："可以开始了吗？我来创建一个变更提案。"
+- **落到制品更新**："已把这些决策更新到 `design.md` 的 Decisions 段"
+- **只提供清晰度**：用户拿到了所需的答案，继续往前走
+- **以后再继续**："随时都可以接着聊"
 
-When it feels like things are crystallizing, you might summarize:
+当感觉一切正在凝练时，你可以做个小结：
 
 ```
 ## What We Figured Out
@@ -280,4 +280,4 @@ When it feels like things are crystallizing, you might summarize:
 - Keep exploring: just keep talking
 ```
 
-But this summary is optional. Sometimes the thinking IS the value.
+但这个小结是可选的。有时思考本身就是价值。

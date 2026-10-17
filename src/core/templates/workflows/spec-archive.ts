@@ -13,222 +13,222 @@ export function getSpecArchiveChangeSkillTemplate(): SkillTemplate {
         type: 'spec',
         instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
 
-Archive a completed change in the change workflow.
+在变更工作流中归档一个已完成的变更。
 
-**Input**: Optionally specify a change name. If omitted, check if it can be inferred from conversation context. If vague or ambiguous you MUST prompt for available changes. The workflow may also pass a change name directly for automated execution.
+**Input**: 可选指定变更名；省略时检查能否从对话上下文推断。若含糊或有歧义，MUST 提示可用变更供用户选择。工作流也可能为自动执行直接传入变更名。
 
 **Steps**
 
-1. **If no change name provided, prompt for selection**
+1. **未提供变更名时提示选择**
 
-   If a change name was already provided (from workflow auto-archive context), skip the selection prompt and proceed directly to Step 2 (artifact completion check).
+   若已提供变更名（来自 workflow 自动归档上下文），跳过选择提示，直接进入 Step 2（制品完成度检查）。
 
-   Otherwise, run \`iagent spec status --json\` to get available changes. Use the **AskUserQuestion tool** to let the user select.
+   否则运行 \`iagent spec status --json\` 获取可用变更，用 **AskUserQuestion tool** 让用户选择。
 
-   Show only active changes (not already archived).
-   Include the schema used for each change if available.
+   只展示活动变更（尚未归档的）。
+   可用时附带每个变更使用的 schema。
 
-   **IMPORTANT**: Do NOT guess or auto-select a change. Only skip selection when a change name was explicitly provided from the workflow context.
+   **IMPORTANT**：不得猜测或自动选择变更。仅当变更名由工作流上下文显式提供时才跳过选择。
 
-2. **Check artifact completion status**
+2. **检查制品完成状态**
 
-   Run \`iagent spec status --change "<name>" --json\` to check artifact completion.
+   运行 \`iagent spec status --change "<name>" --json\` 检查制品完成度。
 
-   Parse the JSON to understand:
-   - \`schemaName\`: The workflow being used
-   - \`planningHome\`, \`changeRoot\`, \`artifactPaths\`, and \`actionContext\`: path and scope context
-   - \`artifacts\`: List of artifacts with their status (\`done\` or other)
+   解析 JSON 以了解：
+   - \`schemaName\`：正在使用的工作流
+   - \`planningHome\`、\`changeRoot\`、\`artifactPaths\` 与 \`actionContext\`：路径与范围上下文
+   - \`artifacts\`：制品清单及其状态（\`done\` 或其他）
 
-   If status reports \`actionContext.mode: "workspace-planning"\`, explain that workspace archive is not supported in this slice and STOP. Do not move workspace changes into repo-local archives or edit linked repos.
+   若状态报告 \`actionContext.mode: "workspace-planning"\`，说明本切片不支持工作区归档并 STOP。不得把工作区变更移入仓库内归档目录，也不得编辑关联仓库。
 
-   **If any artifacts are not \`done\`:**
-   - Display warning listing incomplete artifacts
-   - Proceed with archiving directly — do NOT prompt for confirmation (warning is informational only)
+   **若有制品状态不是 \`done\`：**
+   - 展示告警并列出未完成的制品
+   - 直接继续归档 —— 不提示确认（告警仅供参考）
 
-3. **Check task completion status**
+3. **检查任务完成状态**
 
-   Read the tasks file (typically \`tasks.md\`) to check for incomplete tasks.
+   读取任务文件（通常为 \`tasks.md\`）以检查未完成任务。
 
-   Count tasks marked with \`- [ ]\` (incomplete) vs \`- [x]\` (complete).
+   统计标记为 \`- [ ]\`（未完成）与 \`- [x]\`（已完成）的任务数。
 
-   **If incomplete tasks found:**
-   - Display warning showing count of incomplete tasks
-   - Proceed with archiving directly — do NOT prompt for confirmation (warning is informational only)
+   **若发现未完成任务：**
+   - 展示告警并给出未完成任务数
+   - 直接继续归档 —— 不提示确认（告警仅供参考）
 
-   **If no tasks file exists:** Proceed without task-related warning.
+   **若不存在任务文件：** 继续，不做任务相关告警。
 
-4. **Assess delta spec sync state and execute AI merge**
+4. **评估 delta spec 同步状态并执行 AI 合并**
 
-   **Markdown source**: Read each delta spec at \`<changeRoot>/specs/<capability>/spec.md\` and apply its operations directly. Classify operations by the section headers \`## ADDED Requirements\` / \`## MODIFIED Requirements\` / \`## REMOVED Requirements\` / \`## RENAMED Requirements\`; REMOVED carries Reason/Migration and RENAMED carries FROM/TO. Do NOT read a JSON mirror.
+   **Markdown 源**：读取 \`<changeRoot>/specs/<capability>/spec.md\` 下的每个 delta spec 并直接应用其操作。按章节标题 \`## ADDED Requirements\` / \`## MODIFIED Requirements\` / \`## REMOVED Requirements\` / \`## RENAMED Requirements\` 对操作分类；REMOVED 携带 Reason/Migration，RENAMED 携带 FROM/TO。不得读取 JSON 镜像。
 
-   **Legacy JSON fallback (WARN)**: If delta spec Markdown is missing and only historical \`change.json\` exists, log a WARN ("delta spec Markdown missing — falling back to legacy JSON specs section") and read its \`specs\` section read-only. The primary Markdown path compares each delta spec (\`specs/<capability>/spec.md\`) with its main spec at \`openspec/specs/<capability>/spec.md\` and classifies operations by kind:
-     - **ADDED**: new requirements/scenarios present in delta but not in main spec
-     - **MODIFIED**: requirement or scenario text/details changed in delta
-     - **REMOVED**: requirements/scenarios deleted in delta
-     - **RENAMED**: requirement identifiers renamed in delta
+   **历史 JSON 降级（WARN）**：若 delta spec Markdown 缺失、只存在历史 \`change.json\`，记录 WARN（"delta spec Markdown 缺失 —— 降级到历史 JSON 的 specs 段"）并只读其 \`specs\` 段。主 Markdown 路径把每个 delta spec（\`specs/<capability>/spec.md\`）与主规格 \`openspec/specs/<capability>/spec.md\` 比对，并按类型分类操作：
+     - **ADDED**：delta 中新增、主规格中不存在的需求/Scenario
+     - **MODIFIED**：delta 中文本/细节已变更的需求或 Scenario
+     - **REMOVED**：delta 中已删除的需求/Scenario
+     - **RENAMED**：delta 中已改名的需求标识
 
-   **If neither source yields delta specs**: proceed without sync.
+   **若两个来源都没有 delta spec**：不做同步继续。
 
-   **If delta specs exist:**
-   - Show a combined summary of what will be applied (counts per ADDED/MODIFIED/REMOVED/RENAMED)
-   - Execute the AI merge directly — do NOT prompt for sync options ("Sync now" is the default behavior)
-   - **Inline AI merge procedure** (no separate skill invocation): for each capability, apply the operations directly to the main \`openspec/specs/<capability>/spec.md\`:
-     - ADDED → append the new requirement (description + scenarios) in the correct section of the main spec
-     - MODIFIED → replace the corresponding requirement/scenario in place within the main spec
-     - REMOVED → remove the corresponding requirement from the main spec (the \`reason\` / \`migration\` values may be quoted in the archive summary)
-     - RENAMED → update the requirement identifier and any cross-references within the main spec
-   - Follow v1.1.20 specs-apply merge semantics for conflict resolution and section placement
-   - Log: "Delta specs merged — <N> operations applied (A added / M modified / R removed / N renamed)" (append \`[source: delta spec Markdown]\` or \`[source: legacy JSON fallback]\` for traceability)
+   **若存在 delta spec：**
+   - 展示将要应用的合并摘要（ADDED/MODIFIED/REMOVED/RENAMED 各自计数）
+   - 直接执行 AI 合并 —— 不提示同步选项（"Sync now" 即默认行为）
+   - **内联 AI 合并流程**（不单独调用技能）：对每个 capability，把操作直接应用到主规格 \`openspec/specs/<capability>/spec.md\`：
+     - ADDED → 在主规格的正确章节追加新需求（描述 + Scenario）
+     - MODIFIED → 在主规格中就地替换对应的需求/Scenario
+     - REMOVED → 从主规格中删除对应需求（\`reason\` / \`migration\` 值可在归档摘要中引用）
+     - RENAMED → 更新主规格中的需求标识及所有交叉引用
+   - 冲突解决与章节放置遵循 v1.1.20 specs-apply 合并语义
+   - 记录日志："delta specs 已合并 —— 应用 <N> 个操作（A 新增 / M 修改 / R 删除 / N 重命名）"（附加 \`[source: delta spec Markdown]\` 或 \`[source: legacy JSON fallback]\` 以便追溯）
 
-   **If already synced**: skip the sync and proceed with archiving.
+   **若已同步**：跳过同步并继续归档。
 
-   **If sync fails**: log a warning and proceed with archiving (non-blocking).
+   **若同步失败**：记录告警并继续归档（非阻塞）。
 
-4.5 **Pre-Archive CONTEXT.md Sync (MANDATORY CHECKPOINT)**
+4.5 **归档前 CONTEXT.md 同步（强制检查点）**
 
-   **⚠️ MANDATORY: CONTEXT.md check before archiving**
+   **⚠️ 强制：归档前 MUST 检查 CONTEXT.md**
 
-   Before archiving, system MUST validate CONTEXT.md contains all change-related terms:
+   归档前，系统 MUST 校验 CONTEXT.md 已包含全部变更相关术语：
 
-   1. **Check if \`openspec/CONTEXT.md\` exists** using Glob or Read tool
+   1. **检查 \`openspec/CONTEXT.md\` 是否存在**（用 Glob 或 Read 工具）
 
-   2. **If EXISTS**: Read CONTEXT.md and scan change directory for terms that should be recorded
-      - Read \`proposal.md\` for key domain terms（历史 JSON-only 降级时只读 change.json）
-      - Read \`design.md\` for technical terms and decisions（历史 JSON-only 降级时只读 change.json）
-      - Cross-reference with CONTEXT.md — if any terms are missing, auto-supplement
-      - Log: "CONTEXT.md synced — <N> terms added"
+   2. **若已存在**：读取 CONTEXT.md，并扫描变更目录中应被记录的术语
+      - 读取 \`proposal.md\` 获取关键领域术语（历史 JSON-only 降级时只读 change.json）
+      - 读取 \`design.md\` 获取技术术语与决策（历史 JSON-only 降级时只读 change.json）
+      - 与 CONTEXT.md 交叉比对 —— 若有术语缺失则自动补全
+      - 记录日志："CONTEXT.md 已同步 —— 新增 <N> 个术语"
 
-   3. **If NOT EXISTS**: Create \`openspec/CONTEXT.md\` with key terms from the change
-      - Extract domain terms from \`proposal.md\` Why
-      - Extract technical terms from \`design.md\` Decisions
-      - Format: \`**<Term>**: <definition>\\n_Avoid_: <synonyms>\`
-      - Log: "CONTEXT.md created — <N> terms from change artifacts"
+   3. **若不存在**：用变更中的关键术语创建 \`openspec/CONTEXT.md\`
+      - 从 \`proposal.md\` 的 Why 提取领域术语
+      - 从 \`design.md\` 的 Decisions 提取技术术语
+      - 格式：\`**<Term>**: <definition>\\n_Avoid_: <synonyms>\`
+      - 记录日志："CONTEXT.md 已创建 —— 来自变更制品的 <N> 个术语"
 
-   4. **Compatibility check**: If the change has neither Markdown artifacts nor legacy JSON, skip and log:
-      "Skipping CONTEXT.md sync: no change artifacts found"
+   4. **兼容性检查**：若变更既无 Markdown 制品也无历史 JSON，跳过并记录日志：
+      "跳过 CONTEXT.md 同步：未找到变更制品"
 
-   **Checkpoint Enforcement**:
-   - System MUST execute CONTEXT.md check before performing archive
-   - If CONTEXT.md is missing, auto-create from change artifacts
-   - Do NOT block archive on check failure — log and proceed
+   **强制检查点**：
+   - 系统 MUST 在执行归档前完成 CONTEXT.md 检查
+   - CONTEXT.md 缺失时，从变更制品自动创建
+   - 不得因检查失败而阻塞归档 —— 记录日志并继续
 
-4.6 **Pre-Archive CodeGraph Status Check (MANDATORY CHECKPOINT)**
+4.6 **归档前 CodeGraph 状态检查（强制检查点）**
 
-   **⚠️ MANDATORY: CodeGraph status check before archiving**
+   **⚠️ 强制：归档前 MUST 检查 CodeGraph 状态**
 
-   Before archiving, check whether CodeGraph is enabled for the project using status-first detection:
+   归档前，用「状态优先」的方式检测项目是否启用了 CodeGraph：
 
-   1. **Run \`codegraph status\` (via Bash) as the single detection step** — do NOT pre-check \`.codegraph/\` directory existence with Glob (dot-prefixed directories return false negatives, causing CodeGraph to be wrongly treated as uninitialized)
-   2. **If the call succeeds**: CodeGraph is initialized and the index is healthy — record the current index statistics (file/node count) reported by the call and proceed to archiving
-   3. **If the call fails** (codegraph CLI not in PATH — command-not-found error signature — or any other error, including CodeGraph not initialized): automatically skip ALL CodeGraph steps (this 4.6 check and the 6.5 sync), log a WARN noting the codegraph CLI is unavailable and sync was skipped, and proceed with archiving — do NOT ask the user whether to retry or continue
+   1. **运行 \`codegraph status\`（经 Bash）作为唯一检测步骤** —— 不得用 Glob 预先检查 \`.codegraph/\` 目录是否存在（点号开头的目录会返回假阴性，导致 CodeGraph 被误判为未初始化）
+   2. **若调用成功**：CodeGraph 已初始化且索引健康 —— 记录该调用报告的当前索引统计（文件/节点数），继续归档
+   3. **若调用失败**（codegraph CLI 不在 PATH —— 命令未找到类错误 —— 或其他任何错误，含 CodeGraph 未初始化）：自动跳过**全部** CodeGraph 步骤（本 4.6 检查与 6.5 同步），记录 WARN 说明 codegraph CLI 不可用且已跳过同步，继续归档 —— 不得询问用户是否重试或继续
 
-   **Checkpoint Enforcement**:
-   - System MUST execute CodeGraph status check before performing archive
-   - If CodeGraph is not initialized, skip ALL CodeGraph steps (this 4.6 check + the 6.5 sync)
-   - If the codegraph CLI is unavailable or the status check fails, skip ALL CodeGraph steps automatically with a WARN — never prompt the user
-   - Do NOT block archive on check failure — log and proceed
-   - Consistent with step 4.5 CONTEXT.md checkpoint philosophy
+   **强制检查点**：
+   - 系统 MUST 在执行归档前完成 CodeGraph 状态检查
+   - CodeGraph 未初始化时，跳过**全部** CodeGraph 步骤（本 4.6 检查 + 6.5 同步）
+   - codegraph CLI 不可用或状态检查失败时，自动跳过**全部** CodeGraph 步骤并记录 WARN —— 绝不询问用户
+   - 不得因检查失败而阻塞归档 —— 记录日志并继续
+   - 与 4.5 的 CONTEXT.md 检查点理念保持一致
 
-4.7 **Pre-Archive Exploration Memory Sync (MANDATORY CHECKPOINT)**
+4.7 **归档前探索记忆同步（强制检查点）**
 
-   **⚠️ MANDATORY: Sync exploration memory to capability specs before archiving**
+   **⚠️ 强制：归档前 MUST 把探索记忆同步到能力规格**
 
-   Executes after delta spec sync assessment, BEFORE moving the change directory to archive:
+   在 delta spec 同步评估之后、把变更目录移入归档**之前**执行：
 
-   1. **Check for exploration file** in the change directory (\`exploration.md\`)
-      - If missing: log "Skipping exploration memory sync: no exploration file" and skip this checkpoint
+   1. **检查变更目录中的探索文件**（\`exploration.md\`）
+      - 缺失时：记录日志"跳过探索记忆同步：无探索文件"，并跳过本检查点
 
-   2. **Determine capability ownership**
-      - Enumerate capabilities from the \`specs/<capability>/\` subdirectories（历史 JSON-only 降级时只读 change.json specs 段）
-      - If the change has no delta specs: capability ownership cannot be determined — log "Skipping exploration memory sync: no delta specs" and skip
+   2. **确定能力归属**
+      - 从 \`specs/<capability>/\` 子目录枚举能力（历史 JSON-only 降级时只读 change.json 的 specs 段）
+      - 若变更没有 delta spec：无法确定能力归属 —— 记录日志"跳过探索记忆同步：无 delta spec"并跳过
 
-   3. **For each involved capability \`<capability>\`**:
-      - Target file: \`openspec/specs/<capability>/explorations.md\` (use \`path.join()\`)
-      - If the file does not exist: create it with a short header explaining it holds cumulative exploration memory for this capability
-      - Extract key memories from the change's exploration.md: Decisions, 术语表, 边界场景, Codebase Findings 要点 — do NOT copy process-oriented content (per-question Q&A, Decision Process)
-      - Append a new section \`## <change-name>（归档日期 YYYY-MM-DD）\` with the extracted memories
-      - If new decisions contradict an earlier change's decisions in the same file: mark the outdated section with \`> 已过时（由 <change-name> 取代）\` — do NOT delete historical content
+   3. **对每个涉及的能力 \`<capability>\`**：
+      - 目标文件：\`openspec/specs/<capability>/explorations.md\`（用 \`path.join()\`）
+      - 文件不存在时：创建它，并写一句简短说明，指出该文件承载此能力的累积探索记忆
+      - 从变更的 exploration.md 提取关键记忆：Decisions、术语表、边界场景、Codebase Findings 要点 —— 不得复制过程性内容（逐题问答、Decision Process）
+      - 追加新章节 \`## <change-name>（归档日期 YYYY-MM-DD）\`，写入提取出的记忆
+      - 若新决策与同一文件中先前变更的决策冲突：用 \`> 已过时（由 <change-name> 取代）\` 标记过时章节 —— 不得删除历史内容
 
-   4. **Failure handling (non-blocking)**:
-      - If memory sync fails (e.g., target directory not writable): log a warning, do NOT block the archive
+   4. **失败处理（非阻塞）**：
+      - 若记忆同步失败（如目标目录不可写）：记录告警，不阻塞归档
 
-   **Checkpoint Enforcement**:
-   - System MUST execute exploration memory sync before moving the change directory
-   - The change's exploration.md still moves to the archive directory with the change (extraction copies, not moves)
-   - Do NOT block archive on sync failure — log and proceed
+   **强制检查点**：
+   - 系统 MUST 在移动变更目录前完成探索记忆同步
+   - 变更的 exploration.md 仍随变更一起移入归档目录（提取是复制，不是移动）
+   - 不得因同步失败而阻塞归档 —— 记录日志并继续
 
-4.8 **Pre-Archive Requirement Document Checkpoint (MANDATORY CHECKPOINT)**
+4.8 **归档前需求文档检查点（强制检查点）**
 
-   **⚠️ MANDATORY: ensure the requirement document is present and aligned BEFORE the archive move**
+   **⚠️ 强制：确保需求文档在归档移动之前就已存在并对齐**
 
-   Executes after the exploration memory sync (4.7) and BEFORE moving the change directory (5). Rationale: the requirement document is now generated at proposal-verification time (Phase 3 / Stage 2 of the workflow pipelines). This checkpoint ensures the archived document is aligned with the FINAL artifacts — new-flow changes already have the document from verification time and only need alignment; legacy changes (created before the verification-time generation rule) still get the document generated here for backward compatibility.
+   在探索记忆同步（4.7）之后、移动变更目录（5）**之前**执行。理由：需求文档现在在提案验证阶段生成（各工作流管线的 Phase 3 / Stage 2）。本检查点确保归档的文档与**最终**制品对齐 —— 新流程变更在验证阶段就已拿到文档，只需对齐；历史变更（在"验证阶段生成"规则之前创建的）仍在此处生成文档，以保持后向兼容。
 
-   **Decision scope**: ONLY \`openspec/changes/<change-name>/需求文档.md\` (build with \`path.join()\`).
+   **决策范围**：仅 \`openspec/changes/<change-name>/需求文档.md\`（用 \`path.join()\` 构建）。
 
-   1. **If the change directory is not readable** (IO error): log a WARN and treat the document as absent — proceed to branch 2
-   2. **Branch A — the document does NOT exist**: invoke the \`iagent_requirement_doc\` skill (Skill tool) in **non-interactive mode** with the change name — no questions to the user, placeholder basic information; the document is written to \`openspec/changes/<change-name>/需求文档.md\`
-   3. **Branch B — the document ALREADY exists** (e.g. generated by a standalone run and then completed by hand): perform an **in-place incremental alignment update** on that file. \`## 基本信息\` (需求编号 / 需求名称 / 交付时间, including placeholder states) and \`## 八、评审记录\` are the **人工域** and MUST NOT be overwritten — preserve them verbatim; sections \`一~七\` SHALL be re-derived from the CURRENT Markdown sources — \`proposal.md\` / \`design.md\` / \`specs/**/*.md\` / \`tasks.md\`. **Do NOT invoke \`iagent_requirement_doc\`** in this branch — its own rule is "when the target file already exists, overwrite it silently", which would erase human-authored review content. The alignment MUST NOT delete sections (only content removed from the artifacts may be dropped); if the document is structurally broken, rebuild the missing sections and log a WARN
-   4. **Failure handling (non-blocking)**: if generation or alignment fails, log a WARN with the target path and the reason, then CONTINUE the archive — never block the archive on this checkpoint
+   1. **若变更目录不可读**（IO 错误）：记录 WARN，视为文档不存在 —— 进入分支 2
+   2. **分支 A —— 文档不存在**：以**非交互模式**调用 \`iagent_requirement_doc\` 技能（Skill 工具）并传入变更名 —— 不向用户提问，基本信息用占位符；文档写入 \`openspec/changes/<change-name>/需求文档.md\`
+   3. **分支 B —— 文档已存在**（例如先独立运行生成、之后有人手工补充）：对该文件执行 **in-place（就地）增量对齐更新**。\`## 基本信息\`（需求编号 / 需求名称 / 交付时间，含占位符状态）与 \`## 八、评审记录\` 属**人工域**，MUST NOT 覆盖 —— 逐字保留；\`一~七\` 章节 SHALL 从**当前** Markdown 源（\`proposal.md\` / \`design.md\` / \`specs/**/*.md\` / \`tasks.md\`）重新推导。本分支**不得调用 \`iagent_requirement_doc\`** —— 该技能自身规则是"目标文件已存在时静默覆盖"，会抹掉人工撰写的评审内容。对齐 MUST NOT 删除章节（仅可丢弃制品中已移除的内容）；若文档结构已损坏，重建缺失章节并记录 WARN
+   4. **失败处理（非阻塞）**：若生成或对齐失败，记录 WARN（含目标路径与原因），然后继续归档 —— 绝不因本检查点阻塞归档
 
-   **Checkpoint Enforcement**:
-   - System MUST execute the requirement document checkpoint before moving the change directory
-   - The generated document stays in the change directory and moves with it; the existing step 6 then migrates it to \`openspec/devdocs/\`
-   - Do NOT block archive on generation or alignment failure — log and proceed
+   **强制检查点**：
+   - 系统 MUST 在移动变更目录前完成需求文档检查点
+   - 生成的文档留在变更目录内并随其移动；随后既有 Step 6 会把它迁移到 \`openspec/devdocs/\`
+   - 不得因生成或对齐失败而阻塞归档 —— 记录日志并继续
 
-5. **Perform the archive**
+5. **执行归档**
 
-   Run the iagent CLI archive command — it performs the state check and directory move in one step:
+   运行 iagent CLI 归档命令 —— 它一步完成状态检查与目录移动：
    \`\`\`bash
    iagent spec archive "<name>" --yes
    \`\`\`
 
-   This creates the \`archive\` directory under \`openspec/changes/\` if it does not exist, generates the dated target name \`YYYY-MM-DD-<change-name>\`, and moves \`changeRoot\` to \`openspec/changes/archive/YYYY-MM-DD-<name>/\`.
+   若 \`openspec/changes/\` 下不存在 \`archive\` 目录则创建它，生成带日期的目标名 \`YYYY-MM-DD-<change-name>\`，并把 \`changeRoot\` 移动到 \`openspec/changes/archive/YYYY-MM-DD-<name>/\`。
 
-   **If the command fails because the target archive directory already exists**: report the error and suggest renaming the existing archive, deleting it if it is a duplicate, or waiting until a different date. Do NOT overwrite.
+   **若命令因目标归档目录已存在而失败**：报告该错误，并建议重命名既有归档、若为重复则删除、或改到另一个日期。不得覆盖。
 
-   Preserve \`.openspec.yaml\` and \`attachments/\` subdirectory — they move with the change directory automatically.
+   保留 \`.openspec.yaml\` 与 \`attachments/\` 子目录 —— 它们会随变更目录自动移动。
 
-6. **Move requirement document to devdocs (if present)**
+6. **把需求文档移入 devdocs（若存在）**
 
-   After the change directory has been moved into the archive, check whether the archived change contains a generated requirement document:
+   变更目录移入归档后，检查归档后的变更是否含已生成的需求文档：
 
    \`\`\`bash
    ls "openspec/changes/archive/YYYY-MM-DD-<name>/需求文档.md"
    \`\`\`
 
-   - **If the file exists**: move it to \`openspec/devdocs/YYYY-MM-DD-<change-name>-需求文档.md\`
-     - The \`YYYY-MM-DD\` prefix comes from the same archive directory name (consistent with the archive command's directory naming logic)
-     - If the archive directory name has no parseable \`YYYY-MM-DD-\` prefix, fall back to \`openspec/devdocs/<change-name>-需求文档.md\` without a timestamp
-     - Create the devdocs directory if it does not exist (use \`path.join()\`); overwrite the target if it already exists
-   - **If the file does not exist**: skip this step silently — no error, no warning, continue with the archive process
+   - **若文件存在**：把它移动到 \`openspec/devdocs/YYYY-MM-DD-<change-name>-需求文档.md\`
+     - \`YYYY-MM-DD\` 前缀取自同一归档目录名（与归档命令的目录命名逻辑一致）
+     - 若归档目录名不含可解析的 \`YYYY-MM-DD-\` 前缀，降级为不带时间戳的 \`openspec/devdocs/<change-name>-需求文档.md\`
+     - devdocs 目录不存在则创建（用 \`path.join()\`）；目标已存在则覆盖
+   - **若文件不存在**：静默跳过本步骤 —— 不报错、不告警，继续归档流程
 
-6.5 **Post-Archive CodeGraph Sync + Verification (conditional)**
+6.5 **归档后 CodeGraph 同步 + 验证（条件执行）**
 
-   **Only execute if step 4.6 confirmed CodeGraph is enabled.** If step 4.6 skipped (CodeGraph not initialized), skip this step entirely.
+   **仅当 Step 4.6 确认 CodeGraph 已启用时才执行。** 若 Step 4.6 被跳过（CodeGraph 未初始化），整体跳过本步骤。
 
-   1. **Sync the CodeGraph knowledge graph** with the just-archived change's implemented code:
-      - Run \`codegraph sync\` (via Bash) to incrementally index the newly implemented code
-      - Display "CodeGraph: syncing implemented code..." before running
-      - Log the sync result after completion
+   1. **同步 CodeGraph 知识图谱**，纳入刚归档变更已实现的代码：
+      - 运行 \`codegraph sync\`（经 Bash）增量索引新实现的代码
+      - 运行前展示 "CodeGraph：正在同步已实现的代码..."
+      - 完成后记录同步结果
 
-   2. **Verify consistency** after sync completes successfully:
-      - Use MCP \`codegraph_search\` to query the change name plus key symbols mentioned in the change's \`tasks.md\` and \`design.md\`
-      - Confirm the implemented symbols are now indexed
-      - Display "CodeGraph: ✓ N symbols verified in index" or warn if no matches
-      - If no symbols found (e.g., config-only or doc-only change), log warning — do NOT treat as failure
+   2. 同步成功后**验证一致性**：
+      - 用 MCP \`codegraph_search\` 查询变更名，以及变更 \`tasks.md\` 与 \`design.md\` 中提到的关键符号
+      - 确认已实现的符号现已被索引
+      - 展示 "CodeGraph：✓ 索引中已校验 N 个符号"，无匹配时告警
+      - 若未找到符号（如仅配置或仅文档变更），记录告警 —— 不要视为失败
 
-   3. **Failure handling** (non-blocking):
-      - If \`codegraph sync\` fails (CLI error, timeout, or CLI not in PATH): log warning, do NOT block archive
-      - If verification query fails or returns no matches: log warning, do NOT block archive
-      - CodeGraph sync runs independent of \`--skip-specs\` / \`--no-validate\` / validation skip choices
+   3. **失败处理**（非阻塞）：
+      - \`codegraph sync\` 失败（CLI 错误、超时或 CLI 不在 PATH）：记录告警，不阻塞归档
+      - 验证查询失败或返回空：记录告警，不阻塞归档
+      - CodeGraph 同步独立于 \`--skip-specs\` / \`--no-validate\` / 跳过校验的选择执行
 
-7. **Update or create ARCHIVE-INDEX.md**
+7. **更新或创建 ARCHIVE-INDEX.md**
 
-   **IMPORTANT**: Skip this step for workspace-scoped changes (actionContext.mode: "workspace-planning").
+   **IMPORTANT**：workspace 范围的变更（actionContext.mode: "workspace-planning"）跳过本步骤。
 
-   The archive index file is located at \`openspec/changes/archive/ARCHIVE-INDEX.md\`.
+   归档索引文件位于 \`openspec/changes/archive/ARCHIVE-INDEX.md\`。
 
-   **If file does not exist, create it**:
+   **文件不存在时创建它**：
 <!-- CMD:SKIP -->
    \`\`\`markdown
    # OpenSpec 变更归档索引
@@ -256,42 +256,42 @@ Archive a completed change in the change workflow.
    \`\`\`
 <!-- /CMD:SKIP -->
 
-   **If file exists, append new entry**:
+   **文件已存在时追加新条目**：
 <!-- CMD:SKIP -->
 
-   a. Extract entry information:
-      - **Archive date**: from archive directory name \`YYYY-MM-DD-{change-name}\`
-      - **Change name**: from directory name (after date prefix)
-      - **Module**: extract from change name pattern \`{prefix}-{module}-{feature}\`, or use "general" if unknown
-      - **Summary**: first paragraph of \`proposal.md\` Why（历史 JSON-only 降级时只读 change.json；max 50 chars）
-      - **Supplement annotation**: read \`tasks.md\` in the change directory（历史 JSON-only 降级时只读 tasks.json）, collect **supplement task types by matching a fixed label whitelist** \`[测试]\` / \`[DB脚本]\` / \`[使用说明]\` (\`[代码]\` excluded), and append \`[含<type1>/<type2>/...]\` to the summary (e.g., \`[含测试/DB脚本]\`). Match on the whitelist ONLY — do NOT collect "all bracketed content": \`[测试]\` tasks carry level/priority sub-annotations (\`[测试][单元][P0]\`) whose \`[单元]\`/\`[P0]\` are NOT task types, and collecting them would produce \`[含测试/单元/P0]\` noise. Labels outside the whitelist are ignored (non-blocking; a WARN MAY be logged). If no supplement task found, skip annotation.
+   a. 提取条目信息：
+      - **归档日期**：取自归档目录名 \`YYYY-MM-DD-{change-name}\`
+      - **变更名称**：取自目录名（日期前缀之后）
+      - **模块**：从变更名模式 \`{prefix}-{module}-{feature}\` 提取，无法判断时用 "general"
+      - **摘要**：\`proposal.md\` Why 的首段（历史 JSON-only 降级时只读 change.json；最多 50 字符）
+      - **补充标注**：读取变更目录中的 \`tasks.md\`（历史 JSON-only 降级时只读 tasks.json），通过**匹配固定标签白名单**收集补充任务类型 \`[测试]\` / \`[DB脚本]\` / \`[使用说明]\`（排除 \`[代码]\`），并把 \`[含<type1>/<type2>/...]\` 追加到摘要（如 \`[含测试/DB脚本]\`）。只按白名单匹配 —— 不得收集"所有方括号内容"：\`[测试]\` 任务带层级/优先级子标注（\`[测试][单元][P0]\`），其中 \`[单元]\`/\`[P0]\` 不是任务类型，收集它们会产生 \`[含测试/单元/P0]\` 噪声。白名单之外的标签一律忽略（非阻塞；MAY 记录 WARN）。若无补充任务，跳过标注。
 
-   b. Add new row to "归档变更列表" table:
+   b. 向 "归档变更列表" 表新增一行：
       \`| {date} | {change-name} | {module} | {summary} |\`
 
-   c. Update "模块统计" table:
-      - Increment count for existing module
-      - Add new row for new module (count: 1)
+   c. 更新 "模块统计" 表：
+      - 已有模块计数 +1
+      - 新模块新增一行（计数：1）
 
-   d. Update footer timestamp to current date
+   d. 把页脚时间戳更新为当前日期
 <!-- /CMD:SKIP -->
 
-   **Cross-platform note**: Use \`path.join()\` for path construction on Windows. Handle case sensitivity differences when checking for existing files.
+   **跨平台说明**：Windows 上用 \`path.join()\` 构建路径。检查文件是否存在时注意大小写敏感性差异。
 
-8. **Display summary**
+8. **展示摘要**
 
-   Show archive completion summary including:
-   - Change name
-   - Schema that was used
-   - Archive location
-   - Whether specs were synced (if applicable)
-   - Archive index updated status
-   - CodeGraph sync status (synced / skipped — not initialized or error)
-   - Exploration memory sync status (synced / skipped — no exploration file or no delta specs / failed — warning logged)
-   - Requirement document status (aligned in place / generated backward compat / failed — warning logged with reason)
-   - Note about any warnings (incomplete artifacts/tasks)
+   展示归档完成摘要，包含：
+   - 变更名称
+   - 使用的 Schema
+   - 归档位置
+   - 规格是否已同步（如适用）
+   - 归档索引更新状态
+   - CodeGraph 同步状态（已同步 / 跳过 —— 未初始化或出错）
+   - 探索记忆同步状态（已同步 / 跳过 —— 无探索文件或无 delta spec / 失败 —— 已记录告警）
+   - 需求文档状态（就地已对齐 / 后向兼容已生成 / 失败 —— 已记录带原因的告警）
+   - 关于任何告警的说明（未完成的制品/任务）
 
-**Output On Success**
+**Output（成功）**
 
 \`\`\`
 ## Archive Complete
@@ -309,7 +309,7 @@ All artifacts complete. All tasks complete.
 \`\`\`
 
 <!-- CMD:SKIP -->
-**Output On Success With Warnings**
+**Output（成功但含告警）**
 
 \`\`\`
 ## Archive Complete (with warnings)
@@ -326,7 +326,7 @@ All artifacts complete. All tasks complete.
 Review the archive if this was not intentional.
 \`\`\`
 
-**Output On Error (Archive Exists)**
+**Output（出错：归档已存在）**
 
 \`\`\`
 ## Archive Failed
@@ -344,25 +344,25 @@ Target archive directory already exists.
 <!-- /CMD:SKIP -->
 
 **Guardrails**
-- Always prompt for change selection if not provided (unless change name was explicitly passed from workflow context)
-- Use artifact graph (iagent spec status --json) for completion checking
-- Don't block archive on warnings - just inform (no confirmation needed)
-- Preserve .openspec.yaml when moving to archive (it moves with the directory)
-- Preserve \`attachments/\` subdirectory — it moves with the change directory automatically
-- When extracting summary for ARCHIVE-INDEX.md, scan \`tasks.md\` for supplement type labels and append \`[含xxx]\` annotation to the summary
-- Sync exploration memory to specs/<capability>/explorations.md for every involved capability before the archive move; skip (with log) when exploration.md or delta specs are missing; never block the archive on sync failure
-Ensure the requirement document at the pre-archive checkpoint (4.8) from the FINAL artifacts: present → in-place alignment preserving the 人工域; absent → delegate iagent_requirement_doc non-interactively (backward compat for legacy changes) (\`## 基本信息\` / \`## 八、评审记录\`) and never calling the skill in that branch; never block the archive on generation or alignment failure
-- When the change declares \`skip_specs\` (status reports specs as skipped), the archive summary MUST note "主规格未同步（skip_specs 声明）" to prevent users from mistaking it as a spec sync omission
-- Show clear summary of what happened
-- If delta specs exist, run the sync assessment, show the combined summary, and execute the inline AI merge directly (ADDED/MODIFIED/REMOVED/RENAMED → main spec, following v1.1.20 specs-apply semantics)
+- 未提供变更时始终提示选择（除非变更名由工作流上下文显式传入）
+- 用制品图（iagent spec status --json）做完成度检查
+- 不要因告警阻塞归档 —— 仅告知（无需确认）
+- 移入归档时保留 .openspec.yaml（它随目录一起移动）
+- 保留 \`attachments/\` 子目录 —— 它随变更目录自动移动
+- 为 ARCHIVE-INDEX.md 提取摘要时，扫描 \`tasks.md\` 的补充类型标签，并把 \`[含xxx]\` 标注追加到摘要
+- 归档移动前，为每个涉及的能力把探索记忆同步到 specs/<capability>/explorations.md；exploration.md 或 delta spec 缺失时跳过（并记日志）；绝不因同步失败阻塞归档
+从**最终**制品确保预归档检查点（4.8）的需求文档：已存在 → 就地增量对齐并保留人工域；不存在 → 以非交互方式委派 iagent_requirement_doc（对历史变更后向兼容）（\`## 基本信息\` / \`## 八、评审记录\`），且该分支绝不调用该技能；绝不因生成或对齐失败阻塞归档
+- 当变更声明 \`skip_specs\`（状态报告 specs 为 skipped）时，归档摘要 MUST 注明 "主规格未同步（skip_specs 声明）"，避免用户误以为规格同步被遗漏
+- 清晰展示发生了什么
+- 若存在 delta spec，执行同步评估、展示合并摘要，并直接执行内联 AI 合并（ADDED/MODIFIED/REMOVED/RENAMED → 主规格，遵循 v1.1.20 specs-apply 语义）
 
-## SQLite Index Sync (Post-Archive)
+## 归档后索引同步（SQLite）
 
-After the archive move (step 5) and CodeGraph sync (step 6.5), MUST rebuild the SQLite cross-change index:
+归档移动（Step 5）与 CodeGraph 同步（Step 6.5）之后，MUST 重建 SQLite 跨变更索引：
 
-1. **MUST run**: \`Bash(iagent spec reindex --force)\` — this rebuilds the full index from all archived changes
-2. On success: report "SQLite index rebuilt — N changes indexed"
-3. On failure: log WARN with the error reason and continue (non-blocking); the index can be rebuilt later with the same command`,
+1. **MUST 运行**：\`Bash(iagent spec reindex --force)\` —— 从所有已归档变更重建完整索引
+2. 成功时：报告 "SQLite 索引已重建 —— 已索引 N 个变更"
+3. 失败时：记录 WARN 及错误原因并继续（非阻塞）；之后可用同一命令重建索引`,
         license: 'MIT',
         compatibility: '依赖 iagent CLI（spec 命令组）与 CodeGraph CLI（可选）。',
         metadata: { author: 'mi-agent-tools' },

@@ -8,12 +8,14 @@ metadata:
   author: mi-agent-tools
   type: test
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:fa77d0b43501f68ff5092459b46fc47f9944cc9d351cb5c89815e6e4b2f9c792"
+  generatedFingerprint: "sha256:c58afd77489513c93c91b1fc407ebc370e12a2d4a08ff3d6351159875fa58582"
 ---
 
 生成测试 —— 多 schema 模式：检测语言/框架 → 加载对应 schema → BCDE 场景矩阵 → 分层编写 → 运行验证。
 
 **目标驱动**：先把验收标准变成可执行的测试，再让它通过。"添加校验" → "先写非法输入的测试，再让它通过"；"修 bug" → "先写复现该 bug 的测试，再修复"。
+
+**输入**：`/iagent:test` 后跟被测目标（类名、方法名、文件路径或功能描述）。
 
 ---
 
