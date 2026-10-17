@@ -64,7 +64,7 @@ export function isSkillType(value: string): value is SkillType {
 /** 指令产物布局 */
 export type CommandLayout = 'namespace-dir' | 'prefixed-file';
 
-/** 目标 AI 工具配置（支持 Claude Code / Pi / Codex，架构预留多工具扩展） */
+/** 目标 AI 工具配置（支持 Claude Code / Pi / Codex / OpenCode，架构预留多工具扩展） */
 export interface AIToolOption {
     /** 工具标识 */
     value: string;
@@ -80,9 +80,20 @@ export interface AIToolOption {
     /**
      * 指令产物布局（commandsDir 为空时省略）：
      *  - `namespace-dir`：`<commandsDir>/<namespace>/<id>.md`（Claude Code）
-     *  - `prefixed-file`：`<commandsDir>/<namespace>-<id>.md`（Pi prompts 扁平布局）
+     *  - `prefixed-file`：`<commandsDir>/<namespace>-<id>.md`（Pi / OpenCode 扁平布局）
      */
     commandsLayout?: CommandLayout;
+    /**
+     * 可选（opt-in）工具：未配置 `tools` 时的默认回退集不包含它，
+     * 仅在 `--tools` 显式指定或 `.iagent/config.yaml` 的 `tools` 显式列出时纳入生效集。
+     */
+    optIn?: boolean;
+    /**
+     * 是否写会话级权限载体（`<skillsDir>/settings.json` 的 Claude 风格 `permissions.allow`）。
+     * 默认 `true`。OpenCode 为 `false`——其权限走 `opencode.json` 的 `permission` 段
+     * （语法不同）且默认宽松，写 `.opencode/settings.json` 是不被读取的惰性文件。
+     */
+    sessionPermissions?: boolean;
 }
 
 export const AI_TOOLS: AIToolOption[] = [
@@ -106,6 +117,19 @@ export const AI_TOOLS: AIToolOption[] = [
         name: 'Codex',
         skillsDir: '.codex',
         commandsDir: '',
+    },
+    {
+        value: 'opencode',
+        name: 'OpenCode',
+        skillsDir: '.opencode',
+        // OpenCode 递归扫描 .opencode/commands/**/*.md，指令名 = 相对路径去 .md；
+        // 扁平前缀布局得 `/iagent-<id>`（与 Pi 约定一致），避免命名空间嵌套名
+        commandsDir: '.opencode/commands',
+        commandsLayout: 'prefixed-file',
+        // 可选（opt-in）工具：未配置不生成，显式列入 tools 才纳入生效集
+        optIn: true,
+        // OpenCode 权限走 opencode.json 的 permission 段，不写 .opencode/settings.json
+        sessionPermissions: false,
     },
 ];
 

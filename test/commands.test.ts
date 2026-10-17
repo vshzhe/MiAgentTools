@@ -477,7 +477,7 @@ describe('工具选择持久化与旧位置清理', () => {
             // 缺省配置可见性：tools 段存在且带「删除该字段回退全部」用途注释
             const config = configBytes(root);
             expect(config).toContain('tools:');
-            expect(config).toContain('回退全部工具');
+            expect(config).toContain('回退默认工具集');
             expect(() => runInit(root, { tools: 'not-a-tool' })).toThrow(/未知的工具标识/);
         } finally {
             fs.rmSync(root, { recursive: true, force: true });
@@ -508,6 +508,32 @@ describe('工具选择持久化与旧位置清理', () => {
             runInit(root, { tools: 'pi' });
             expect(fs.existsSync(path.join(root, '.pi', 'prompts', 'iagent-project-init.md'))).toBe(true);
             expect(fs.existsSync(path.join(root, '.pi', 'commands', 'iagent'))).toBe(false);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('opencode 为 opt-in：未配置不生成，显式 --tools 才生成且不写权限载体', () => {
+        const root = freshRoot();
+        try {
+            // 默认工具集排除 opt-in：不创建 .opencode/
+            const fallback = runInit(root);
+            expect(fallback.tools).toEqual(['claude', 'pi', 'codex']);
+            expect(fs.existsSync(path.join(root, '.opencode'))).toBe(false);
+
+            // 显式指定才纳入：生成技能 + 扁平前缀指令
+            const withOpenCode = runInit(root, { tools: 'opencode' });
+            expect(withOpenCode.tools).toEqual(['opencode']);
+            expect(fs.existsSync(path.join(root, '.opencode', 'skills', 'iagent_project_init', 'SKILL.md'))).toBe(true);
+            const commandFile = path.join(root, '.opencode', 'commands', 'iagent-project-init.md');
+            expect(fs.existsSync(commandFile)).toBe(true);
+            // frontmatter 去 Claude 专有字段
+            const frontmatter = fs.readFileSync(commandFile, 'utf8').split('---')[1] ?? '';
+            expect(frontmatter).toContain('description:');
+            expect(frontmatter).not.toMatch(/^\s*allowed-tools:/m);
+            // OpenCode 不写会话级权限载体（opencode.json 的 permission 段另行承载）
+            expect(fs.existsSync(path.join(root, '.opencode', 'settings.json'))).toBe(false);
+            expect(withOpenCode.permissionSettings).toEqual([]);
         } finally {
             fs.rmSync(root, { recursive: true, force: true });
         }

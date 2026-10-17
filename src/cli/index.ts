@@ -49,7 +49,8 @@ function renderMisplacedCleanup(result: MisplacedCleanupResult): string {
 const require = createRequire(import.meta.url);
 const { version } = require('../../package.json') as { version: string };
 
-const TOOL_IDS = AI_TOOLS.map((t) => t.value).join(', ');
+const DEFAULT_TOOL_IDS = AI_TOOLS.filter((t) => !t.optIn).map((t) => t.value).join(', ');
+const OPT_IN_TOOL_IDS = AI_TOOLS.filter((t) => t.optIn).map((t) => t.value).join(', ');
 const TYPE_IDS = SKILL_TYPES.map((t) => t.id).join(', ');
 
 export function buildProgram(): Command {
@@ -64,7 +65,7 @@ export function buildProgram(): Command {
         .command('init')
         .description('生成全部技能（SKILL.md）与斜杠指令到当前项目，并检测安装依赖（codegraph）')
         .addOption(
-            new Option('--tools <ids>', `目标工具，逗号分隔（默认全部：${TOOL_IDS}；init 持久化所选，update 仅指定时持久化）`)
+            new Option('--tools <ids>', `目标工具，逗号分隔（默认：${DEFAULT_TOOL_IDS}；可选：${OPT_IN_TOOL_IDS}，需显式指定才生成；init 持久化所选，update 仅指定时持久化）`)
         )
         .option('--force', '覆盖已存在的文件')
         .option('--no-deps', '跳过依赖检测与安装（codegraph）')
@@ -167,7 +168,7 @@ export function buildProgram(): Command {
         .command('update')
         .description('更新已安装技能到内置模板最新版（手改过的技能会跳过保护）')
         .addOption(
-            new Option('--tools <ids>', `目标工具，逗号分隔（默认全部：${TOOL_IDS}；显式指定时持久化到 config.yaml）`)
+            new Option('--tools <ids>', `目标工具，逗号分隔（默认：${DEFAULT_TOOL_IDS}；可选：${OPT_IN_TOOL_IDS}，需显式指定才生成；显式指定时持久化到 config.yaml）`)
         )
         .option('--force', '覆盖用户手改过的技能')
         .option('--no-migrate', '跳过旧装机迁移（不搬运旧配置目录、不删除旧技能与指令）')

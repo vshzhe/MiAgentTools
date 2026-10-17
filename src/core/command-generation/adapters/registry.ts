@@ -1,12 +1,14 @@
 /**
  * 指令适配器注册表。
  *
- * MVP 仅注册 Claude Code；新增工具时实现 ToolCommandAdapter 并在此注册即可。
+ * 每个产出指令的工具实现 ToolCommandAdapter 并在此注册；
+ * skills-only 工具（如 Codex）无适配器。
  */
 
 import type { ToolCommandAdapter } from '../types.js';
 import { claudeAdapter } from './claude.js';
 import { piAdapter } from './pi.js';
+import { opencodeAdapter } from './opencode.js';
 
 export class CommandAdapterRegistry {
     private static adapters: Map<string, ToolCommandAdapter> = new Map();
@@ -14,6 +16,7 @@ export class CommandAdapterRegistry {
     static {
         CommandAdapterRegistry.register(claudeAdapter);
         CommandAdapterRegistry.register(piAdapter);
+        CommandAdapterRegistry.register(opencodeAdapter);
     }
 
     /** 注册适配器 */

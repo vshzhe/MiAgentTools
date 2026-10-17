@@ -49,7 +49,7 @@ const REPORT_VERSION = 1;
 
 /**
  * 目录名排除清单：iagent 自身产物目录 + 版本控制/IDE + 构建产物目录。
- * MUST 含 iagent 自身产物（.claude/.iagent/.codegraph/openspec），
+ * MUST 含 iagent 自身产物（.claude/.pi/.codex/.opencode/.iagent/.codegraph/openspec），
  * 否则 .claude/skills/ 下的既有技能目录会被误报为项目信号并可能触发上限。
  */
 const EXCLUDED_DIR_NAMES = new Set([
@@ -59,6 +59,9 @@ const EXCLUDED_DIR_NAMES = new Set([
     '.idea',
     '.vscode',
     '.claude',
+    '.pi',
+    '.codex',
+    '.opencode',
     '.iagent',
     '.codegraph',
     'openspec',

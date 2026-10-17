@@ -5,7 +5,7 @@ dist/
 Thumbs.db
 
 # iagent 本机产物与 codegraph 索引（不入库）
-# .iagent/ = 本项目配置（config.yaml + rules/），.claude/ .pi/ .codex/ = dogfood 产物
+# .iagent/ = 本项目配置（config.yaml + rules/），.claude/ .pi/ .codex/ .opencode/ = dogfood 产物
 # （iagent init / update 生成的各 AI 工具目录）。
 # 均为本机状态而非仓库分发内容；模板的提交源是 skills/ 静态快照，
 # 本机刷新用 `pnpm generate:skills`（快照）与 `iagent update`（dogfood 产物）。
@@ -13,6 +13,7 @@ Thumbs.db
 .claude/
 .pi/
 .codex/
+.opencode/
 .codegraph/
 
 # openspec 本地产物（init 生成，不入库）

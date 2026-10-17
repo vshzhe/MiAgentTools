@@ -43,7 +43,7 @@ src/
 │   │   ├── generator.ts             generateSkillContent / generateCommand
 │   │   ├── fingerprint.ts           产物内容指纹（手改保护判定信号）
 │   │   ├── yaml.ts                  YAML 转义
-│   │   └── adapters/claude.ts       Claude Code 适配器
+│   │   └── adapters/                指令适配器（claude / pi / opencode；codex 无适配器）
 │   ├── spec/                        规格驱动工作流
 │   │   ├── schema.ts               内置 spec-driven 依赖图（Markdown 输出路径）
 │   │   ├── status.ts               Markdown 状态查询（done/ready/blocked/invalid）
@@ -209,7 +209,11 @@ node bin/iagent.js <cmd> # 直接运行 CLI
 - 指令产物布局（`namespace-dir` / `prefixed-file`）与归属识别 MUST 走单一来源
   `src/core/command-artifacts.ts`：适配器取落点，reconcile / uninstall / 旧位置清理做识别与删除。
   Pi 的指令目录是 `.pi/prompts/`（扁平 `iagent-<id>.md`，与 OpenSpec 的 `opsx-*` 共目录），
+  OpenCode 的指令目录是 `.opencode/commands/`（扁平 `iagent-<id>.md`），
   **MUST NOT** 退回 `.pi/commands/` 子目录；`prefixed-file` 删除只认 `iagent-` 前缀、不删承载目录
+- OpenCode 为**可选（opt-in）工具**：`AI_TOOLS` 条目带 `optIn: true`，未配置 `tools` 的默认回退集不含它，
+  仅 `--tools opencode` 或 `config.yaml` 的 `tools` 显式列出时生成；其 `sessionPermissions: false`
+  （权限走 `opencode.json` 的 `permission` 段，不写 `.opencode/settings.json`）
 - 工具选择持久化：`iagent init` 回写 `config.yaml` 的 `tools` 字段，`iagent update` 仅显式 `--tools` 时回写
 - 自定义 iagent 流程为 **Markdown-first**：新变更以 `proposal.md`、`design.md`、
   `specs/<capability>/spec.md`、`tasks.md` 为唯一可编辑真源；CLI `--json` 仅为机器响应，不写回制品。

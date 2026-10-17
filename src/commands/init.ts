@@ -45,7 +45,7 @@ const SETTINGS_FILE = 'settings.json';
 
 /** init 命令选项 */
 export interface InitOptions {
-    /** 目标工具 id 列表（默认全部，当前仅 claude） */
+    /** 目标工具 id 列表（默认工具集：claude / pi / codex；opencode 为可选，需显式指定） */
     tools?: string;
     /** 覆盖已存在文件 */
     force?: boolean;
@@ -154,18 +154,21 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
             skillsInstalled.push(path.relative(projectRoot, skillFile));
         }
 
-        // 会话级权限载体：每个工具独立合并，不受适配器影响
-        try {
-            permissionSettings.push(
-                mergePermissions(projectRoot, path.join(tool.skillsDir, SETTINGS_FILE), permissionEntries)
-            );
-        } catch (error) {
-            permissionSettings.push({
-                path: path.join(tool.skillsDir, SETTINGS_FILE).replaceAll('\\', '/'),
-                state: 'preserved-invalid',
-                added: 0,
-                note: `写入失败（已跳过，不影响技能与指令安装）：${(error as Error).message}`,
-            });
+        // 会话级权限载体：每个工具独立合并，不受适配器影响；
+        // sessionPermissions === false 的工具（OpenCode）不写惰性载体
+        if (tool.sessionPermissions !== false) {
+            try {
+                permissionSettings.push(
+                    mergePermissions(projectRoot, path.join(tool.skillsDir, SETTINGS_FILE), permissionEntries)
+                );
+            } catch (error) {
+                permissionSettings.push({
+                    path: path.join(tool.skillsDir, SETTINGS_FILE).replaceAll('\\', '/'),
+                    state: 'preserved-invalid',
+                    added: 0,
+                    note: `写入失败（已跳过，不影响技能与指令安装）：${(error as Error).message}`,
+                });
+            }
         }
     }
 

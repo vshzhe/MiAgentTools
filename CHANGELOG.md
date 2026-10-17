@@ -7,6 +7,22 @@
 
 ## [Unreleased]
 
+## [6.3.0] - 2026-10-17
+
+### Added
+
+- 新增 **OpenCode** 目标工具适配（`opencode`）：技能生成到 `.opencode/skills/<name>/SKILL.md`，斜杠指令生成到 `.opencode/commands/iagent-<id>.md`（扁平前缀，调用形式 `/iagent-<id>`）。
+- 新增 `opencodeAdapter`（`src/core/command-generation/adapters/opencode.ts`）：frontmatter 仅 OpenCode 官方契约的 `description` + 记账 `metadata`；正文在无参数占位符且 `**Input**:` 非 `None required` 时注入 `**Provided arguments**: $ARGUMENTS`（移植自 OpenSpec 的 OpenCode 适配器）。
+- 新增 `AIToolOption.optIn` 与 `AIToolOption.sessionPermissions` 两个能力开关；OpenCode 标记为可选（opt-in）且不写会话级权限载体。
+- 新增回归测试：OpenCode 适配器路径/frontmatter/参数注入/指纹、opt-in 默认回退与显式启用、指令产物归属与删除边界。
+
+### Changed
+
+- `resolveActiveTools` 的未配置回退改为**默认工具集**（排除 opt-in 工具）；`iagent generate` 的安装目标改用 `resolveActiveTools`，使 opt-in 语义对生成骨架同样生效。
+- `iagent init` / `iagent update` 的会话级权限合并按 `sessionPermissions` 跳过 OpenCode（其权限走 `opencode.json` 的 `permission` 段且默认宽松，`.opencode/settings.json` 为不被读取的惰性文件）。
+- `project-scan` 排除清单增 `.opencode`；`LEGACY_COMMAND_DIRS` 增 `opencode: ''`；`.gitignore` 增 `.opencode/`；CLI `--tools` 帮助文案与 `config.yaml` 注释区分默认工具集与可选工具。
+- 文档（README / AGENTS.md）同步 OpenCode 布局、opt-in 语义与适配器清单。
+
 ## [6.2.0] - 2026-10-16
 
 ### Added
@@ -1088,7 +1104,8 @@
 [2.0.0]: https://github.com/mi-agent-tools/compare/v1.18.1...v2.0.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/mi-agent-tools/compare/v6.2.0...HEAD
+[Unreleased]: https://github.com/mi-agent-tools/compare/v6.3.0...HEAD
+[6.3.0]: https://github.com/mi-agent-tools/compare/v6.2.0...v6.3.0
 [6.2.0]: https://github.com/mi-agent-tools/compare/v6.1.0...v6.2.0
 [6.1.0]: https://github.com/mi-agent-tools/compare/v6.0.0...v6.1.0
 [6.0.0]: https://github.com/mi-agent-tools/compare/v5.0.0...v6.0.0

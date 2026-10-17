@@ -61,6 +61,8 @@ export const LEGACY_COMMAND_DIRS: Readonly<Record<string, string>> = {
     claude: '.claude/commands',
     pi: '.pi/commands',
     codex: '',
+    // OpenCode 无旧 venus 品牌产物：显式空值使遍历键集完整且不误删 .opencode 下内容
+    opencode: '',
 };
 
 /** 旧 bash 补全脚本文件名（用户主目录下） */

@@ -23,6 +23,7 @@ import { scanReconcileOrphans } from '../src/core/reconcile.js';
 const claude = AI_TOOLS.find((t) => t.value === 'claude')!;
 const pi = AI_TOOLS.find((t) => t.value === 'pi')!;
 const codex = AI_TOOLS.find((t) => t.value === 'codex')!;
+const opencode = AI_TOOLS.find((t) => t.value === 'opencode')!;
 
 function freshRoot(): string {
     return fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-cmd-artifacts-'));
@@ -44,6 +45,12 @@ describe('commandFilePath（布局单点）', () => {
     it('prefixed-file：.pi/prompts/iagent-<id>.md', () => {
         expect(commandFilePath('pi', 'spec-apply').replaceAll('\\', '/')).toBe(
             '.pi/prompts/iagent-spec-apply.md'
+        );
+    });
+
+    it('prefixed-file：.opencode/commands/iagent-<id>.md', () => {
+        expect(commandFilePath('opencode', 'spec-apply').replaceAll('\\', '/')).toBe(
+            '.opencode/commands/iagent-spec-apply.md'
         );
     });
 
@@ -92,6 +99,19 @@ describe('listManagedCommands（归属识别）', () => {
             fs.rmSync(root, { recursive: true, force: true });
         }
     });
+
+    it('prefixed-file（opencode）：仅取 iagent- 前缀 .md，忽略用户文件与非 md', () => {
+        const root = freshRoot();
+        try {
+            write(root, '.opencode/commands/iagent-workflow.md');
+            write(root, '.opencode/commands/my-prompt.md');
+            write(root, '.opencode/commands/notes.txt', 'not md');
+            const artifacts = listManagedCommands(root, opencode);
+            expect(artifacts.map((a) => a.id)).toEqual(['workflow']);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
 });
 
 describe('removeManagedCommands（删除边界）', () => {
@@ -120,6 +140,22 @@ describe('removeManagedCommands（删除边界）', () => {
             expect(fs.existsSync(path.join(root, '.pi/prompts/opsx-apply.md'))).toBe(true);
             expect(fs.existsSync(path.join(root, '.pi/prompts/user-note.md'))).toBe(true);
             expect(fs.existsSync(path.join(root, '.pi/prompts'))).toBe(true);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('prefixed-file（opencode）：仅删 iagent-* 文件，保留用户文件与承载目录', () => {
+        const root = freshRoot();
+        try {
+            write(root, '.opencode/commands/iagent-workflow.md');
+            write(root, '.opencode/commands/my-prompt.md');
+            const removed = removeManagedCommands(root, opencode);
+            expect(removed.map((p) => p.replaceAll('\\', '/'))).toEqual([
+                '.opencode/commands/iagent-workflow.md',
+            ]);
+            expect(fs.existsSync(path.join(root, '.opencode/commands/my-prompt.md'))).toBe(true);
+            expect(fs.existsSync(path.join(root, '.opencode/commands'))).toBe(true);
         } finally {
             fs.rmSync(root, { recursive: true, force: true });
         }

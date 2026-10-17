@@ -89,8 +89,8 @@ workflows:
 
 # 选择要生成适配的目标 AI 工具（iagent init/update 据此过滤生成）
 # iagent init 会把本次选择的工具集回写到此处（可查看、可编辑）；
-# iagent update 仅在显式传入 --tools 时回写；删除该字段（或留空）则回退全部工具
-# 当前可用：claude, pi, codex
+# iagent update 仅在显式传入 --tools 时回写；删除该字段（或留空）则回退默认工具集
+# 默认工具集：claude, pi, codex；可选（opt-in）工具：opencode（需显式加入此列表或 --tools 才生成）
 tools:
   - claude
   - pi
@@ -452,7 +452,7 @@ export function writeToolsToConfig(projectRoot: string, tools: string[]): void {
 }
 
 /**
- * 解析生效的工具列表：CLI --tools >  config tools > 全部 AI_TOOLS。
+ * 解析生效的工具列表：CLI --tools > config tools > 默认工具集（全部 AI_TOOLS 排除 opt-in）。
  *
  * @param cliTools - CLI --tools 参数值（逗号分隔字符串，可选）
  * @param configTools - .iagent/config.yaml 的 tools 列表（可选）
@@ -468,7 +468,7 @@ export function resolveActiveTools(
         ? cliTools.split(/[,\s]+/).filter((t) => t.length > 0)
         : configTools && configTools.length > 0
             ? configTools
-            : allTools.map((t) => t.value);
+            : allTools.filter((t) => !t.optIn).map((t) => t.value);
 
     const resolved: AIToolOption[] = [];
     for (const id of raw) {

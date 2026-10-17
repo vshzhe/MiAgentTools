@@ -1,6 +1,6 @@
 # MiAgentTools
 
-AI Agent 技能生成与管理 CLI —— 按技能类型分类生成 `iagent_` 前缀的 SKILL 与斜杠指令，安装到目标项目的 AI 工具目录（`.claude/`、`.pi/`、`.codex/`）。
+AI Agent 技能生成与管理 CLI —— 按技能类型分类生成 `iagent_` 前缀的 SKILL 与斜杠指令，安装到目标项目的 AI 工具目录（`.claude/`、`.pi/`、`.codex/`、`.opencode/`）。
 
 架构参考 [OpenSpec](https://github.com/Fission-AI/OpenSpec) 的"模板层 → 生成层（适配器）→ 命令层"三层设计。
 
@@ -31,7 +31,7 @@ pnpm link --global
 验证安装：
 
 ```bash
-iagent --version    # 输出 6.2.0
+iagent --version    # 输出 6.3.0
 iagent --help       # 查看全部命令
 ```
 
@@ -81,7 +81,7 @@ pnpm exec iagent init
 ```bash
 cd your-project
 
-# 生成全部技能与指令到所有工具目录（.claude/ .pi/ .codex/）
+# 生成全部技能与指令到默认工具目录（.claude/ .pi/ .codex/；OpenCode 为可选，需 --tools opencode）
 iagent init
 
 # 只生成指定工具
@@ -104,6 +104,7 @@ iagent generate --type tools --name env-check --desc "环境检查"
 | Claude Code | `.claude/skills/` | `.claude/commands/iagent/<id>.md` | YAML frontmatter（name/allowed-tools/category/tags）+ Markdown |
 | Pi | `.pi/skills/` | `.pi/prompts/iagent-<id>.md` | Pi prompt 模板：扁平前缀、frontmatter 仅 description + 记账字段 |
 | Codex | `.codex/skills/` | —（skills-invocable） | 仅生成技能，通过 `$` 前缀调用 |
+| OpenCode | `.opencode/skills/` | `.opencode/commands/iagent-<id>.md` | 扁平前缀、frontmatter 仅 description + 记账字段；参数经 `$ARGUMENTS` 注入。**可选（opt-in）**，需显式指定 |
 
 ### 工具选择配置
 
@@ -116,9 +117,10 @@ tools:
   - claude
   - pi
   # 注释掉 codex 即不生成 Codex 适配产物
+  # 加入 opencode 才生成 OpenCode 适配产物（可选工具，默认不生成）
 ```
 
-优先级：`--tools` CLI 参数 > config.yaml `tools` 字段 > 全部工具。
+优先级：`--tools` CLI 参数 > config.yaml `tools` 字段 > 默认工具集（claude / pi / codex；**OpenCode 为可选，未配置不生成**）。
 
 ```bash
 # 指定工具并持久化到 config.yaml
@@ -133,15 +135,15 @@ iagent update --tools claude
 
 `iagent init` 会在目标项目生成 **SKILL 与斜杠指令两套入口**（Pi、Codex 工具同理）：
 
-| 使用方式 | Claude Code | Pi | Codex |
-| :--- | :--- | :--- | :--- |
-| 斜杠指令 | `/iagent:spec-apply` | `/iagent-spec-apply` | —（skills-only） |
-| 技能触发 | 按 description 自动匹配 | 按 description 自动匹配 | `$iagent_spec_apply` |
+| 使用方式 | Claude Code | Pi | OpenCode | Codex |
+| :--- | :--- | :--- | :--- | :--- |
+| 斜杠指令 | `/iagent:spec-apply` | `/iagent-spec-apply` | `/iagent-spec-apply` | —（skills-only） |
+| 技能触发 | 按 description 自动匹配 | 按 description 自动匹配 | 按 description 自动匹配 | `$iagent_spec_apply` |
 
 **使用步骤**（以 Claude Code 为例）：
 
 1. 在目标项目执行 `iagent init`
-2. 打开该项目的 Claude Code / Pi / Codex 会话
+2. 打开该项目的 Claude Code / Pi / OpenCode / Codex 会话
 3. 输入 `/iagent:workflow <需求>`（Codex 用 `$iagent_workflow`），或直接用自然语言描述需求
 4. AI 按技能指引完成探索→提案→验证→实现→归档
 
@@ -176,7 +178,7 @@ iagent update --tools claude
 
 > `release` 与 `tools` 类型保留在类型体系中（供 `iagent generate --type` 扩展），当前无内置技能。
 
-安装产物结构（以 Claude Code 为例，Pi/Codex 目录对称）：
+安装产物结构（以 Claude Code 为例，Pi/OpenCode/Codex 目录对称）：
 
 ```text
 your-project/
@@ -188,6 +190,9 @@ your-project/
 ├── .pi/                                     # Pi 工具
 │   ├── skills/
 │   └── prompts/iagent-<指令 id>.md          # Pi prompt 模板（扁平前缀）
+├── .opencode/                               # OpenCode 工具（可选/opt-in）
+│   ├── skills/
+│   └── commands/iagent-<指令 id>.md         # 斜杠指令（扁平前缀，含 $ARGUMENTS 注入）
 └── .codex/                                  # Codex 工具（仅 skills）
     └── skills/
 ```
@@ -273,9 +278,10 @@ rules:                           # 引用 rules/ 下的文件，顺序即注入�
   - test                     # 新增类型：在 rules/ 建 <type>.md 并在此登记
 
 tools:                           # 目标 AI 工具（iagent init/update 据此过滤生成）
-  - claude                       # 删除该段或留空则回退全部（claude, pi, codex）
+  - claude                       # 删除该段或留空则回退默认工具集（claude, pi, codex）
   - pi
   - codex
+  # - opencode                   # 可选（opt-in）工具：加入才生成 OpenCode 适配产物
 ```
 
 规则文件格式（`.iagent/rules/impl.md`）：
@@ -314,7 +320,7 @@ src/core/command-generation/           生成层：格式化 + 路径解析
   ├── adapters/
   │   ├── claude.ts                    Claude Code 适配器（.claude/commands/iagent/）
   │   ├── pi.ts                        Pi 适配器（.pi/prompts/iagent-<id>.md）
-  │   └── codex.ts                     Codex 适配器（skills-only）
+  │   └── opencode.ts                  OpenCode 适配器（.opencode/commands/iagent-<id>.md）
   ├── generator.ts                     generateCommand / generateSkillContent
   └── yaml.ts                          YAML 转义
             │
@@ -325,8 +331,8 @@ src/cli/index.ts + src/commands/        命令层：iagent init / list / generat
 
 - **内容与形式分离**：模板层定义工具无关的技能内容；适配器负责目标工具的路径与 frontmatter 格式
 - **适配器可扩展**：新增 AI 工具只需实现 `ToolCommandAdapter` 并在 `CommandAdapterRegistry` 注册；skills-invocable 工具（如 Codex）无需适配器，仅生成技能
-- **指令 id 派生**：`iagent_spec_apply` → `spec-apply`；落点按工具布局（Claude 命名空间子目录，Pi 扁平前缀 `prompts/iagent-<id>.md`）
-- **工具选择**：`--tools` CLI 参数或 `.iagent/config.yaml` 的 `tools` 字段控制生成哪些工具的产物；init 持久化所选、update 仅显式 `--tools` 时回写
+- **指令 id 派生**：`iagent_spec_apply` → `spec-apply`；落点按工具布局（Claude 命名空间子目录，Pi / OpenCode 扁平前缀 `iagent-<id>.md`）
+- **工具选择**：`--tools` CLI 参数或 `.iagent/config.yaml` 的 `tools` 字段控制生成哪些工具的产物；init 持久化所选、update 仅显式 `--tools` 时回写；OpenCode 为可选（opt-in），未配置不生成
 
 ### 本地开发调试（修改本项目代码后）
 

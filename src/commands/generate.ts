@@ -16,7 +16,7 @@ import {
 } from '../core/config.js';
 import { generateSkillContent } from '../core/command-generation/index.js';
 import { AI_TOOLS } from '../core/config.js';
-import { readProjectConfig, type ResolvedProjectConfig } from '../core/project-config.js';
+import { readProjectConfig, resolveActiveTools, type ResolvedProjectConfig } from '../core/project-config.js';
 import type { SkillTemplate } from '../core/templates/types.js';
 import { ensureDir, writeFile, pathExists, writeSkillReferences } from '../utils/file-system.js';
 
@@ -124,9 +124,11 @@ export function runGenerate(projectRoot: string, options: GenerateOptions): Gene
     writeFile(sourceFile, generated.fileContent, { force: true });
     writeSkillReferences(sourceDir, generated.references);
 
-    // 2. 安装到各目标工具目录（.claude/skills/...）
+    // 2. 安装到生效工具集目录（.claude/skills/...）：经 resolveActiveTools 解析，
+    //    使 opt-in 工具（OpenCode）仅在显式配置时才安装
+    const activeTools = resolveActiveTools(undefined, projectConfig?.tools, AI_TOOLS);
     let installedPath = '';
-    for (const tool of AI_TOOLS) {
+    for (const tool of activeTools) {
         const installDir = path.join(projectRoot, tool.skillsDir, TOOL_SKILLS_SUBDIR, skillName);
         const installFile = path.join(installDir, 'SKILL.md');
         ensureDir(installDir);

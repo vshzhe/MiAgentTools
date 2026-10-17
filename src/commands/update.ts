@@ -188,18 +188,21 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
             }
         }
 
-        // 会话级权限载体：每个工具独立合并，不受适配器影响
-        try {
-            permissionSettings.push(
-                mergePermissions(projectRoot, path.join(tool.skillsDir, SETTINGS_FILE), permissionEntries)
-            );
-        } catch (error) {
-            permissionSettings.push({
-                path: path.join(tool.skillsDir, SETTINGS_FILE).replaceAll('\\', '/'),
-                state: 'preserved-invalid',
-                added: 0,
-                note: `写入失败（已跳过，不影响产物刷新）：${(error as Error).message}`,
-            });
+        // 会话级权限载体：每个工具独立合并，不受适配器影响；
+        // sessionPermissions === false 的工具（OpenCode）不写惰性载体
+        if (tool.sessionPermissions !== false) {
+            try {
+                permissionSettings.push(
+                    mergePermissions(projectRoot, path.join(tool.skillsDir, SETTINGS_FILE), permissionEntries)
+                );
+            } catch (error) {
+                permissionSettings.push({
+                    path: path.join(tool.skillsDir, SETTINGS_FILE).replaceAll('\\', '/'),
+                    state: 'preserved-invalid',
+                    added: 0,
+                    note: `写入失败（已跳过，不影响产物刷新）：${(error as Error).message}`,
+                });
+            }
         }
     }
 

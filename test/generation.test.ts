@@ -10,6 +10,7 @@ import {
     formatTagsArray,
     claudeAdapter,
     piAdapter,
+    opencodeAdapter,
     fingerprintOf,
     readGeneratedFingerprint,
 } from '../src/core/command-generation/index.js';
@@ -106,6 +107,79 @@ describe('Pi prompt 指令生成', () => {
         const fp = readGeneratedFingerprint(generated.fileContent);
         expect(fp).toBeDefined();
         expect(fp).toBe(fingerprintOf(generated.fileContent));
+    });
+});
+
+describe('OpenCode 指令生成', () => {
+    it('指令路径为 .opencode/commands/iagent-<id>.md（扁平前缀布局）', () => {
+        const normalized = opencodeAdapter.getFilePath('spec-apply').replaceAll('\\', '/');
+        expect(normalized).toBe('.opencode/commands/iagent-spec-apply.md');
+    });
+
+    it('frontmatter 仅 description + 记账字段，去 Claude 专有字段且指纹自洽', () => {
+        const [{ template, id }] = getCommandTemplates('init');
+        const content = {
+            id,
+            name: template.name,
+            description: template.description,
+            category: template.category,
+            tags: template.tags,
+            body: template.content,
+            allowedTools: template.allowedTools,
+            generatedBy: '6.3.0',
+        };
+        const generated = generateCommand(content, opencodeAdapter);
+        expect(generated.path.replaceAll('\\', '/')).toContain('.opencode/commands/iagent-project-init.md');
+
+        const frontmatter = generated.fileContent.split('---')[1] ?? '';
+        expect(frontmatter).toContain('description:');
+        expect(frontmatter).not.toMatch(/^\s*name:/m);
+        expect(frontmatter).not.toMatch(/^\s*allowed-tools:/m);
+        expect(frontmatter).not.toMatch(/^\s*category:/m);
+        expect(frontmatter).not.toMatch(/^\s*tags:/m);
+        expect(frontmatter).toContain('generatedBy: "6.3.0"');
+
+        const fp = readGeneratedFingerprint(generated.fileContent);
+        expect(fp).toBeDefined();
+        expect(fp).toBe(fingerprintOf(generated.fileContent));
+    });
+
+    /** 构造极简 OpenCode 指令内容（仅 body 可变） */
+    function opencodeContent(body: string) {
+        return {
+            id: 'workflow',
+            name: 'workflow',
+            description: '测试指令',
+            category: 'impl',
+            tags: [] as string[],
+            body,
+            allowedTools: 'Read',
+            generatedBy: '6.3.0',
+        };
+    }
+
+    it('无参数占位符且 Input 段需要参数时注入 $ARGUMENTS', () => {
+        const generated = generateCommand(
+            opencodeContent('**Input**: The argument after the command is the topic.\n\n## Steps\n\nDo it.'),
+            opencodeAdapter
+        );
+        expect(generated.fileContent).toContain('**Provided arguments**: $ARGUMENTS');
+    });
+
+    it('Input 段声明 None required 时不注入', () => {
+        const generated = generateCommand(
+            opencodeContent('**Input**: None required (prompts for selection)\n\n## Steps\n\nDo it.'),
+            opencodeAdapter
+        );
+        expect(generated.fileContent).not.toContain('Provided arguments');
+    });
+
+    it('正文已含占位符时不重复注入', () => {
+        const generated = generateCommand(
+            opencodeContent('**Input**: Provide the topic.\n\nUse $ARGUMENTS here.'),
+            opencodeAdapter
+        );
+        expect(generated.fileContent.match(/\$ARGUMENTS/g)?.length).toBe(1);
     });
 });
 
