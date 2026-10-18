@@ -1,6 +1,6 @@
 # iAgent 技能使用说明书
 
-> 适用版本：6.1.0 ｜ 技能总数：**20** ｜ 类型：**9 类**
+> 适用版本：7.0.0 ｜ 技能总数：**20** ｜ 类型：**9 类**
 > 技能快照来源：`skills/` 目录（由 `pnpm build && pnpm generate:skills` 生成，**禁止手工编辑**）
 > 本文是导读索引；每个技能的完整正文以对应 `skills/<name>/SKILL.md` 为准。
 
@@ -36,8 +36,9 @@ MiAgentTools 是 AI Agent 技能生成与管理 CLI，按技能类型生成 `iag
 | `release` | 版本 | 0 | 保留类型，供 `iagent generate --type release` 扩展 |
 | `tools` | 工具 | 0 | 保留类型，供 `iagent generate --type tools` 扩展 |
 
-**命名规则**：技能名 `iagent_<功能名>`（下划线分词）；斜杠指令由技能名派生——去 `iagent_` 前缀、
-下划线转连字符，如 `iagent_spec_apply` → `/iagent:spec-apply`。
+**命名规则**：宿主技能 ID 为 canonical kebab-case `iagent-<workflowId>`（如 `iagent-spec-explore`），
+`workflowId` 即斜杠指令 id（如 `spec-explore`）；斜杠指令形如 `/iagent:spec-explore`。
+内部模板名仍为 `iagent_<功能名>`（`SkillTemplate.name`，派生源）；旧下划线产物由 `iagent init` / `update` 自动迁移。
 
 ### 核心变更生命周期全景
 

@@ -82,8 +82,8 @@ iagent generate --type tools --name env-check --desc "检查 Node/JDK 版本"
 
 生成物：
 
-- `skills/iagent_env_check/SKILL.md` —— 源文件（提交 git，在此填充正文）
-- `.claude/skills/iagent_env_check/SKILL.md` —— 安装位置（Claude 即刻可用）
+- `skills/iagent-env-check/SKILL.md` —— 源文件（提交 git，在此填充正文）
+- `.claude/skills/iagent-env-check/SKILL.md` —— 安装位置（Claude 即刻可用）
 
 骨架正文是引导结构（功能说明/执行步骤/约束），填完即成正式技能。
 

@@ -2,7 +2,7 @@
 
 > 适用技能：iagent_test（version 3.0，多 schema 模式）
 > 文档日期：2026-09-16
-> 依据：`skills/iagent_test/SKILL.md` + `references/schema-java.md` + `references/schema-node.md` 静态快照原文
+> 依据：`skills/iagent-test/SKILL.md` + `references/schema-java.md` + `references/schema-node.md` 静态快照原文
 > 配套文档：[skills-manual.md](skills-manual.md)（全技能总说明书）
 
 ---
@@ -46,7 +46,7 @@ v3.0 将原 TS 专属与 Java 专属（独立类型）两个测试技能合并�
 | `references/schema-java.md` | Java（Maven/Gradle，Spring Boot/MVC/传统Web/纯Java） | 框架类型判定、测试依赖分析报告、7 级测试位置扫描、模板 A-F（JUnit4/5+Mockito/EasyMock/@WebMvcTest/参数化/遗留 XML）、遗留代码测试策略、mvn/gradle 命令、Java 专属约束 | 检测到 `pom.xml` 或 `build.gradle` |
 | `references/schema-node.md` | Node/TS（Vitest/Jest/Mocha/Jasmine） | 框架检测细节、Mock 方式（vi.mock/jest.mock）、分层测试 TS 示例（Service/Controller/Utils）、pnpm/npm 命令、Node 专属约束 | 检测到 `package.json` |
 
-> 子文件路径相对技能目录（如 `.claude/skills/iagent_test/references/schema-java.md`）。
+> 子文件路径相对技能目录（如 `.claude/skills/iagent-test/references/schema-java.md`）。
 > 加载后结合主 SKILL 的通用流程执行后续阶段。
 
 ## 1.3 选择决策与 NOT-for
@@ -397,5 +397,5 @@ AI：运行结果 7/9 通过，2 个失败：
 
 ---
 
-*本文档基于 `skills/iagent_test/SKILL.md` + `references/schema-java.md` +
+*本文档基于 `skills/iagent-test/SKILL.md` + `references/schema-java.md` +
 `references/schema-node.md` 静态快照编写；技能行为以 SKILL.md 与 schema 文件实际内容为准。*

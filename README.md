@@ -31,7 +31,7 @@ pnpm link --global
 验证安装：
 
 ```bash
-iagent --version    # 输出 6.4.0
+iagent --version    # 输出 7.0.0
 iagent --help       # 查看全部命令
 ```
 
@@ -99,12 +99,32 @@ iagent generate --type tools --name env-check --desc "环境检查"
 
 ### 支持的目标工具
 
+技能 ID 采用 canonical kebab-case：`iagent-<workflowId>`（如 `iagent-spec-explore`），
+workflowId 即既有指令 id（如 `spec-explore`）。旧下划线形态 `iagent_<name>` 仅作兼容解析，
+`iagent init` / `update` 会自动迁移既有产物。
+
 | 工具 | 技能目录 | 指令产物 | 说明 |
 | :--- | :--- | :--- | :--- |
-| Claude Code | `.claude/skills/` | `.claude/commands/iagent/<id>.md` | YAML frontmatter（name/allowed-tools/category/tags）+ Markdown |
-| Pi | `.pi/skills/` | `.pi/prompts/iagent-<id>.md` | Pi prompt 模板：扁平前缀、frontmatter 仅 description + 记账字段 |
-| Codex | `.codex/skills/` | —（skills-invocable） | 仅生成技能，通过 `$` 前缀调用 |
-| OpenCode | `.opencode/skills/` | `.opencode/commands/iagent-<id>.md` | 扁平前缀、frontmatter 仅 description + 记账字段；参数经 `$ARGUMENTS` 注入。**可选（opt-in）**，需显式指定 |
+| Claude Code | `.claude/skills/iagent-<workflowId>/` | `.claude/commands/iagent/<id>.md` | YAML frontmatter（name/allowed-tools/category/tags）+ Markdown |
+| Pi | `.pi/skills/iagent-<workflowId>/` | `.pi/prompts/iagent-<id>.md` | Pi prompt 模板：扁平前缀、frontmatter 仅 description + 记账字段；参数经 `$ARGUMENTS` 注入 |
+| Codex | `.codex/skills/iagent-<workflowId>/` | —（skills-invocable） | 仅生成技能，通过 `$` 前缀调用 |
+| OpenCode V2 | `.opencode/skills/iagent-<workflowId>/` | `.opencode/commands/iagent-<id>.md` | V2 口径：指令含 `agent`/`subagent` 元数据；项目级 `.opencode/agents/` 与 `.opencode/opencode.jsonc`（`permissions`）随 init 生成。**可选（opt-in）** |
+
+### 宿主原生编排
+
+技能/指令产物按目标宿主**原生编排能力**生成（共享工作流协议 + 宿主适配器）：
+
+| 宿主 | 技能加载 | 阶段委派 | 确认门 / 状态 |
+| :--- | :--- | :--- | :--- |
+| Claude Code | `Skill` 工具 | `Skill` / `Agent` | `AskUserQuestion` / hooks |
+| OpenCode V2 | `skill` 工具 | `subagent` + 项目级 agent | `question` / `permissions` |
+| Pi strict | `/skill:name` | Pi Runtime Extension | Extension workflow / gate 工具 |
+| Pi degraded | `/skill:name` | 无（本地执行，显式声明不构成委派） | 无 |
+
+**Pi 严格编排运行时**：默认安装 npm 包 `@tintinweb/pi-subagents`（latest，项目级）。
+`iagent init` 默认尝试安装；安装失败、版本不兼容或能力检测失败时**不阻断**，继续生成
+标记为 `degraded` 的产物并写入 `.iagent/pi-runtime.json` 诊断。恢复 strict 可重试安装后
+重新执行 `iagent init` / `update`（Pi 内需 `/reload`）。
 
 ### 工具选择配置
 

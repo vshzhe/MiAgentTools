@@ -174,7 +174,12 @@ node bin/iagent.js <cmd> # 直接运行 CLI
 
 ## 项目约定
 
-- 技能名强制 `iagent_` 前缀，命名方案：`iagent_<功能名>`（下划线分词）。功能名 MUST NOT 含生命周期类型段；
+- **技能 ID 双形态**：内部技能名（`SkillTemplate.name`，`iagent_<功能名>`）是模板注册与 `deriveCommandId` 的源；
+  宿主技能 ID 由 `src/core/skill-id.ts` 的 `deriveSkillId` 派生为 canonical kebab-case `iagent-<workflowId>`
+  （目录名与 frontmatter `name`）。旧下划线形态仅作 **legacy alias** 解析（list/validate/show/uninstall/reconcile 双前缀，
+  `runSkillIdMigration` 在 init/update 生成前自动迁移，冲突保留不覆盖）。canonical `workflowId` = 既有 commandId
+  （如 `spec-explore`），config workflows / 依赖注入 / 指令引用均以它为准
+- 技能名强制内部前缀 `iagent_`（`SKILL_PREFIX`，派生源）。功能名 MUST NOT 含生命周期类型段；
   承载「依赖 openspec/ 与 openspec CLI」的技能保留 `spec_` 领域段（如 `iagent_spec_propose`）。
   类型只出现在 frontmatter `metadata.type`（必须是 `SKILL_TYPES` 之一）、`.iagent/rules/<type>.md`
   文件名与 `iagent generate --type` 参数中，不进技能名
@@ -211,9 +216,22 @@ node bin/iagent.js <cmd> # 直接运行 CLI
   Pi 的指令目录是 `.pi/prompts/`（扁平 `iagent-<id>.md`，与 OpenSpec 的 `opsx-*` 共目录），
   OpenCode 的指令目录是 `.opencode/commands/`（扁平 `iagent-<id>.md`），
   **MUST NOT** 退回 `.pi/commands/` 子目录；`prefixed-file` 删除只认 `iagent-` 前缀、不删承载目录
+- **宿主原生编排**（`src/core/host-orchestration/`）：共享工作流协议（阶段/回执/门/能力）与宿主适配器分离。
+  技能正文 MUST NOT 硬编码 Claude 专属委派机制词（`经 Skill 工具` / `Agent 工具` 等）——机制由生成期按宿主渲染
+  （`renderDelegate` / `adaptSkillContentForHost`）。能力缺失时 strict MUST 阻断（`evaluatePhaseTransition`），
+  degradation 由 `negotiateCapabilities` 显式标记，MUST NOT 把本地执行伪装为委派完成
+- **OpenCode V2 项目产物**（`src/core/opencode-v2.ts`）：`iagent` 在项目 `.opencode/` 下生成
+  `agents/iagent-orchestrator.md`（primary）与 `agents/iagent-<workflowId>.md`（subagent）、以及
+  `opencode.jsonc` 的 V2 `permissions`（动作 `skill` / `subagent`，**非** V1 的 `permission` / `task`）。
+  指令产物含 V2 `agent` / `subagent` 元数据。默认 **MUST NOT** 修改用户根目录配置；
+  `.opencode/settings.json` MUST NOT 生成（Claude 权限载体不适用于 OpenCode）
+- **Pi 编排运行时**（`src/core/pi-runtime.ts`）：默认 provider 为 npm 包 `@tintinweb/pi-subagents`（latest）。
+  `init` 默认尝试项目级安装，失败不阻断并落 `degraded` + `.iagent/pi-runtime.json` 诊断；`update` 仅检测不安装。
+  命令执行器 MUST 由 CLI 显式注入（`defaultPiCommandRunner`），缺省为空执行器（测试与库调用不产生真实进程/网络副作用）；
+  运行时包名可替换为未来 iagent 自有 npm 包，不改变共享协议
 - OpenCode 为**可选（opt-in）工具**：`AI_TOOLS` 条目带 `optIn: true`，未配置 `tools` 的默认回退集不含它，
   仅 `--tools opencode` 或 `config.yaml` 的 `tools` 显式列出时生成；其 `sessionPermissions: false`
-  （权限走 `opencode.json` 的 `permission` 段，不写 `.opencode/settings.json`）
+  （权限走项目级 `.opencode/opencode.jsonc` 的 V2 `permissions` 段，不写 `.opencode/settings.json`）
 - 工具选择持久化：`iagent init` 回写 `config.yaml` 的 `tools` 字段，`iagent update` 仅显式 `--tools` 时回写
 - 自定义 iagent 流程为 **Markdown-first**：新变更以 `proposal.md`、`design.md`、
   `specs/<capability>/spec.md`、`tasks.md` 为唯一可编辑真源；CLI `--json` 仅为机器响应，不写回制品。

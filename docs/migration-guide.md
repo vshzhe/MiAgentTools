@@ -497,5 +497,5 @@ C6 SQL 条件完整性（P0）。
 
 ---
 
-*本文档基于 `skills/iagent_migration/SKILL.md`、`skills/iagent_feature_doc/SKILL.md`、
-`skills/iagent_migration_check/SKILL.md` 静态快照编写；技能行为以 SKILL.md 实际内容为准。*
+*本文档基于 `skills/iagent-migration/SKILL.md`、`skills/iagent-feature-doc/SKILL.md`、
+`skills/iagent-migration-check/SKILL.md` 静态快照编写；技能行为以 SKILL.md 实际内容为准。*
