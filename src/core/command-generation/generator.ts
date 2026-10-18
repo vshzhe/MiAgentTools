@@ -15,6 +15,14 @@ import type { SkillTemplate } from '../templates/types.js';
 import { escapeYamlValue } from './yaml.js';
 import { fingerprintOf, FINGERPRINT_FIELD } from './fingerprint.js';
 import { SKILL_PREFIX } from '../config.js';
+import { deriveSkillId } from '../skill-id.js';
+
+/** 宿主产物中将 legacy 技能引用规范化为 canonical kebab-case。 */
+function normalizeHostSkillRefs(text: string): string {
+    return text.replace(/\biagent_([a-z0-9_]+)\b/g, (_match, suffix: string) =>
+        `iagent-${suffix.replaceAll('_', '-')}`
+    );
+}
 
 /**
  * 生成单个指令文件（工具无关内容 + 工具适配器格式化）。
@@ -69,17 +77,25 @@ const EMPTY_FINGERPRINT_LINE = `  ${FINGERPRINT_FIELD}: ""`;
  */
 export function generateSkillContent(
     template: SkillTemplate,
-    generatedByVersion: string
+    generatedByVersion: string,
+    options: { hostId?: string } = {}
 ): GeneratedSkill {
     if (!template.name.startsWith(SKILL_PREFIX)) {
         throw new Error(`技能名必须以 ${SKILL_PREFIX} 开头：${template.name}`);
     }
+    const skillId = deriveSkillId(template.name);
+    const allowedToolsLine = !options.hostId || options.hostId === 'claude'
+        ? `allowed-tools: ${template.allowedTools}\n`
+        : '';
+    const description = options.hostId ? normalizeHostSkillRefs(template.description) : template.description;
+    const compatibility = options.hostId
+        ? normalizeHostSkillRefs(template.compatibility || '无特殊依赖，通用环境可用。')
+        : template.compatibility || '无特殊依赖，通用环境可用。';
     const placeholder = `---
-name: ${template.name}
-description: ${escapeYamlValue(template.description)}
-allowed-tools: ${template.allowedTools}
-license: ${template.license || 'MIT'}
-compatibility: ${escapeYamlValue(template.compatibility || '无特殊依赖，通用环境可用。')}
+name: ${skillId}
+description: ${escapeYamlValue(description)}
+${allowedToolsLine}license: ${template.license || 'MIT'}
+compatibility: ${escapeYamlValue(compatibility)}
 metadata:
   author: ${template.metadata?.author || 'mi-agent-tools'}
   type: ${template.type}
@@ -90,7 +106,7 @@ ${EMPTY_FINGERPRINT_LINE}
 ${template.instructions}
 `;
     return {
-        dirName: template.name,
+        dirName: skillId,
         fileContent: placeholder.replace(
             EMPTY_FINGERPRINT_LINE,
             `  ${FINGERPRINT_FIELD}: "${fingerprintOf(placeholder)}"`

@@ -467,7 +467,7 @@ Markdown 是唯一真源 —— 直接更新 OpenSpec Markdown 制品；不得�
 
 ### 7.1 调用验证技能
 
-对变更 \`<name>\`，通过 **调用 \`iagent_spec_verify_proposal\` 技能**（经 Skill 工具）执行验证：
+对变更 \`<name>\`，通过 **调用 \`iagent_spec_verify_proposal\` 技能**执行验证：
 
 - \`iagent_spec_verify_proposal\` 是技能名，不是有效的 \`iagent spec instructions\` 制品 ID —— MUST NOT 将其作为 CLI 指令运行
 - 该技能通过读取制品与 exploration.md 执行 D1-D5 核心 + D6-D10 条件评分
@@ -488,16 +488,16 @@ Markdown 是唯一真源 —— 直接更新 OpenSpec Markdown 制品；不得�
 
 验证通过后：
 
-1. **自动调用 \`iagent_proposal_review\` 技能**（经 Skill 工具）对提案做只读深度复查（超出 D1-D5 核心 + D6-D10 条件评分的深度一致性与覆盖率审计）。复查自动运行（不弹 [Yes/No] 提示）。用户 MAY 中断以跳过；否则照常运行。
+1. **自动调用 \`iagent_proposal_review\` 技能**对提案做只读深度复查（超出 D1-D5 核心 + D6-D10 条件评分的深度一致性与覆盖率审计）。复查自动运行（不弹 [Yes/No] 提示）。用户 MAY 中断以跳过；否则照常运行。
    - **降级（回退）（技能不可用）**：技能未安装或调用失败时，降级为 AI 内联只读深度复查并 WARN："iagent_proposal_review 技能不可用，降级为内联复查"。MUST NOT 静默跳过深度复查。
 2. **收束 —— 需求文档不属于本工作流（⚠️ 强制禁止）**：深度复查完成后收束调试工作流，并报告该变更已可归档。本技能 MUST NOT：
    - 生成需求文档（无论 \`openspec/changes/<change-name>/需求文档.md\` 是否存在），
    - 对既有需求文档做就地增量对齐，
-   - 以任何目的调用 \`iagent_requirement_doc\`（经 Skill 工具）。
+   - 以任何目的调用 \`iagent_requirement_doc\`。
    需求文档现由**验证**阶段生成（workflow / auto-workflow / full-workflow 流水线的 Phase 3 / Stage 2）。ARCHIVE 阶段（依 \`iagent_spec_archive\` 步骤 4.8）对既有文档做就地对齐 —— 文档缺失时（遗留变更）为向后兼容生成一份。
 3. **报告**：显示验证结果、深度复查结论，以及：
 
-> 「调试完成。需求文档：在归档时生成 —— 运行 /iagent:spec-archive。」
+> 「调试完成。需求文档已在验证阶段生成；归档阶段仅做对齐 —— 运行 /iagent:spec-archive。」
 > 「已可归档。」
 
 ### 7.4 清理流程级调试工作区（强制）
@@ -542,7 +542,7 @@ Markdown 是唯一真源 —— 直接更新 OpenSpec Markdown 制品；不得�
 ### Phase 7: Verification (覆盖所有修复)
 - Score: XX% — PASS/FAIL
 - Deep review: completed ✓ / WARN (reason)
-- Requirement document: not produced here — generated at archive time (per iagent_spec_archive step 4.8)
+- Requirement document: generated during verification; archive only aligns an existing document (per iagent_spec_archive step 4.8)
 
 Ready for \`/iagent:spec-apply\` (fixes already applied) or archive.
 \`\`\`

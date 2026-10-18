@@ -48,18 +48,18 @@ describe('iagent validate', () => {
     });
 
     it('手改破坏 name/description/type 后报 CRITICAL 且退出码 1', () => {
-        const skillFile = path.join(tempRoot, '.claude', 'skills', 'iagent_review', 'SKILL.md');
+        const skillFile = path.join(tempRoot, '.claude', 'skills', 'iagent-review', 'SKILL.md');
         const original = fs.readFileSync(skillFile, 'utf8');
         // 破坏：name 与目录名不一致 + 删除 description 行
         const broken = original
-            .replace('name: iagent_review', 'name: iagent_wrong_name')
+            .replace('name: iagent-review', 'name: iagent-wrong-name')
             .replace(/^description: .+\n/m, '');
         fs.writeFileSync(skillFile, broken, 'utf8');
 
         const { output, exitCode } = runValidateCommand(tempRoot);
         expect(exitCode).toBe(1);
         expect(output).toContain('CRITICAL');
-        expect(output).toContain('iagent_review');
+        expect(output).toContain('iagent-review');
         expect(output).toContain('不一致');
         expect(output).toContain('缺少 description');
 
@@ -68,14 +68,14 @@ describe('iagent validate', () => {
     });
 
     it('frontmatter 缺 allowed-tools 报 CRITICAL', () => {
-        const skillFile = path.join(tempRoot, '.claude', 'skills', 'iagent_svn_commit', 'SKILL.md');
+        const skillFile = path.join(tempRoot, '.claude', 'skills', 'iagent-svn-commit', 'SKILL.md');
         const original = fs.readFileSync(skillFile, 'utf8');
         const broken = original.replace(/^allowed-tools: .+\n/m, '');
         fs.writeFileSync(skillFile, broken, 'utf8');
 
         const result = runValidate(tempRoot);
         expect(result.failed).toBe(1);
-        const issue = result.issues.find((i) => i.skill === 'iagent_svn_commit');
+        const issue = result.issues.find((i) => i.skill === 'iagent-svn-commit');
         expect(issue?.message).toContain('allowed-tools');
 
         // 还原
@@ -101,32 +101,32 @@ describe('iagent update', () => {
     });
 
     it('删除一个技能后 update 重新安装', () => {
-        const skillDir = path.join(tempRoot, '.claude', 'skills', 'iagent_test');
+        const skillDir = path.join(tempRoot, '.claude', 'skills', 'iagent-test');
         fs.rmSync(skillDir, { recursive: true, force: true });
         const result = runUpdate(tempRoot);
         expect(result.installed.length).toBe(1);
-        expect(result.installed[0]).toContain('iagent_test');
+        expect(result.installed[0]).toContain('iagent-test');
         // 恢复后再次 update 幂等
         expect(runUpdate(tempRoot).installed).toHaveLength(0);
     });
 
     it('用户手改的技能被跳过保护，--force 才覆盖', () => {
-        const skillFile = path.join(tempRoot, '.claude', 'skills', 'iagent_review', 'SKILL.md');
+        const skillFile = path.join(tempRoot, '.claude', 'skills', 'iagent-review', 'SKILL.md');
         const original = fs.readFileSync(skillFile, 'utf8');
         // 模拟用户手改（generatedBy 仍是当前版本，但内容不同）
         fs.writeFileSync(skillFile, original + '\n<!-- 用户自定义补充 -->\n', 'utf8');
 
         const protectedResult = runUpdate(tempRoot);
         expect(protectedResult.skippedModified.length).toBe(1);
-        expect(protectedResult.skippedModified[0]).toContain('iagent_review');
+        expect(protectedResult.skippedModified[0]).toContain('iagent-review');
 
         const forcedResult = runUpdate(tempRoot, { force: true });
         expect(forcedResult.updated.length).toBe(1);
-        expect(forcedResult.updated[0]).toContain('iagent_review');
+        expect(forcedResult.updated[0]).toContain('iagent-review');
         // 覆盖后内容与内置一致（以 frontmatter 头与正文结束符验证）
         const after = fs.readFileSync(skillFile, 'utf8');
         const template = getSkillTemplates().find((e) => e.template.name === 'iagent_review')!.template;
-        expect(after).toContain(`name: ${template.name}`);
+        expect(after).toContain(`name: ${template.name.replaceAll('_', '-')}`);
         expect(after).toContain(template.instructions.slice(0, 30));
         expect(after).not.toContain('用户自定义补充');
 
@@ -144,7 +144,7 @@ describe('iagent update', () => {
  * 改用内容指纹后两个方向都应正确。
  */
 describe('iagent update 手改保护判定（内容指纹）', () => {
-    const SKILL = 'iagent_review';
+    const SKILL = 'iagent-review';
 
     /** 读取目标技能的已装产物路径 */
     function skillFile(): string {
@@ -172,13 +172,12 @@ describe('iagent update 手改保护判定（内容指纹）', () => {
     it('模板正文变更而版本号未递增时仍能升级（本题核心）', () => {
         const file = skillFile();
         const installed = fs.readFileSync(file, 'utf8');
-        const template = getSkillTemplates().find((e) => e.template.name === 'iagent_review')!.template;
         // 模拟"iagent 曾用旧模板写入的产物"：正文与当前模板不同，
         // 但指纹与自身自洽（即未被用户改动）；generatedBy 保持当前版本
         // 用函数式替换：模板正文可能含 `$`，作为替换串会被当特殊模式解析
-        const stale = stampSelfConsistent(
-            installed.replace(template.instructions, () => `${template.instructions}\n（旧版正文）\n`)
-        );
+        // 追加旧内容模拟模板更新：不要直接替换 template.instructions，
+        // 因为宿主适配器可能已对产物正文中的 legacy ID 做 canonical 化。
+        const stale = stampSelfConsistent(`${installed.trimEnd()}\n（旧版正文）\n`);
         fs.writeFileSync(file, stale, 'utf8');
 
         const result = runUpdate(tempRoot);

@@ -2,7 +2,7 @@
  * iagent uninstall 命令。
  *
  * 干净移除 iagent 安装的产物：
- *   - .claude/skills/iagent_<type>_<name>/     全部 iagent 技能
+ *   - .claude/skills/iagent-<workflowId>/     全部 iagent 技能（legacy iagent_<name> 兼容迁移）
  *   - .claude/commands/iagent/                 全部斜杠指令
  *   - .iagent/                                  项目配置（默认保留，--purge-config 才删）
  *
@@ -15,11 +15,12 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
     AI_TOOLS,
-    SKILL_PREFIX,
     TOOL_SKILLS_SUBDIR,
 } from '../core/config.js';
+import { isManagedSkillDirName } from '../core/skill-id.js';
 import { IAGENT_DIR_NAME } from '../core/project-config.js';
 import { listManagedCommands, removeManagedCommands } from '../core/command-artifacts.js';
+import { removeOpenCodeProjectArtifacts } from '../core/opencode-v2.js';
 import { listSubdirectories, pathExists } from '../utils/file-system.js';
 
 /** uninstall 命令选项 */
@@ -66,10 +67,10 @@ export function runUninstall(projectRoot: string, options: UninstallOptions = {}
     let configRemoved = false;
 
     for (const tool of AI_TOOLS) {
-        // 1. 技能目录：只删 iagent_ 前缀
+        // 1. 技能目录：只删 iagent 管理的技能（canonical `iagent-` 与 legacy `iagent_`）
         const skillsRoot = path.join(projectRoot, tool.skillsDir, TOOL_SKILLS_SUBDIR);
         for (const dirName of listSubdirectories(skillsRoot)) {
-            if (!dirName.startsWith(SKILL_PREFIX)) {
+            if (!isManagedSkillDirName(dirName)) {
                 skipped.push(path.relative(projectRoot, path.join(skillsRoot, dirName)));
                 continue;
             }
@@ -98,6 +99,23 @@ export function runUninstall(projectRoot: string, options: UninstallOptions = {}
             for (const removed of removeManagedCommands(projectRoot, tool)) {
                 removedCommands.push(removed);
             }
+        }
+    }
+
+    // 2.1 OpenCode V2 项目级产物（agents + iagent 权限规则）
+    if (!options.dryRun) {
+        removedCommands.push(...removeOpenCodeProjectArtifacts(projectRoot));
+    } else {
+        const agentsDir = path.join(projectRoot, '.opencode', 'agents');
+        if (pathExists(agentsDir)) {
+            for (const name of fs.readdirSync(agentsDir)) {
+                if (name.startsWith('iagent-') && name.endsWith('.md')) {
+                    removedCommands.push(`.opencode/agents/${name}`);
+                }
+            }
+        }
+        if (pathExists(path.join(projectRoot, '.opencode', 'opencode.jsonc'))) {
+            removedCommands.push('.opencode/opencode.jsonc（将移除 iagent 权限规则）');
         }
     }
 

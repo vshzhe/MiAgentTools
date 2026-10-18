@@ -10,6 +10,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { getSkillTemplates } from '../src/core/templates/index.js';
 import { generateSkillContent } from '../src/core/command-generation/index.js';
+import { deriveSkillId } from '../src/core/skill-id.js';
 
 const SKILLS_DIR = path.join(process.cwd(), 'skills');
 
@@ -18,17 +19,19 @@ describe('skills/ 静态快照与模板一致性', () => {
 
     it('快照目录包含全部内置技能', () => {
         for (const { template } of templates) {
-            const skillFile = path.join(SKILLS_DIR, template.name, 'SKILL.md');
+            const skillId = deriveSkillId(template.name);
+            const skillFile = path.join(SKILLS_DIR, skillId, 'SKILL.md');
             expect(
                 fs.existsSync(skillFile),
-                `缺少快照：skills/${template.name}/SKILL.md（运行 pnpm build && pnpm generate:skills）`
+                `缺少快照：skills/${skillId}/SKILL.md（运行 pnpm build && pnpm generate:skills）`
             ).toBe(true);
         }
     });
 
     it('每个快照内容与模板生成结果一致（忽略版本号差异）', () => {
         for (const { template } of templates) {
-            const skillFile = path.join(SKILLS_DIR, template.name, 'SKILL.md');
+            const skillId = deriveSkillId(template.name);
+            const skillFile = path.join(SKILLS_DIR, skillId, 'SKILL.md');
             if (!fs.existsSync(skillFile)) {
                 continue;
             }
@@ -37,13 +40,13 @@ describe('skills/ 静态快照与模板一致性', () => {
             const generated = generateSkillContent(template, 'snapshot');
             expect(
                 snapshot === generated.fileContent,
-                `快照与模板漂移：skills/${template.name}/SKILL.md（运行 pnpm build && pnpm generate:skills 重新生成）`
+                `快照与模板漂移：skills/${skillId}/SKILL.md（运行 pnpm build && pnpm generate:skills 重新生成）`
             ).toBe(true);
         }
     });
 
     it('快照目录无多余技能（模板删除后快照未清理）', () => {
-        const expected = new Set(templates.map((t) => t.template.name));
+        const expected = new Set(templates.map((t) => deriveSkillId(t.template.name)));
         const actual = fs
             .readdirSync(SKILLS_DIR, { withFileTypes: true })
             .filter((e) => e.isDirectory())
@@ -73,7 +76,8 @@ describe('skills/ 静态快照与模板一致性', () => {
         };
 
         for (const { template } of templates) {
-            const skillDir = path.join(SKILLS_DIR, template.name);
+            const skillId = deriveSkillId(template.name);
+            const skillDir = path.join(SKILLS_DIR, skillId);
             const declaredRefs = template.references ?? [];
             const declaredPaths = new Set(declaredRefs.map((r) => r.path));
 
@@ -82,13 +86,13 @@ describe('skills/ 静态快照与模板一致性', () => {
                 const refFile = path.join(skillDir, ref.path);
                 expect(
                     fs.existsSync(refFile),
-                    `缺少参考文件：skills/${template.name}/${ref.path}（运行 pnpm build && pnpm generate:skills）`
+                    `缺少参考文件：skills/${skillId}/${ref.path}（运行 pnpm build && pnpm generate:skills）`
                 ).toBe(true);
                 if (!fs.existsSync(refFile)) continue;
                 const snapshot = fs.readFileSync(refFile, 'utf8');
                 expect(
                     snapshot === ref.content,
-                    `参考文件漂移：skills/${template.name}/${ref.path}（运行 pnpm build && pnpm generate:skills）`
+                    `参考文件漂移：skills/${skillId}/${ref.path}（运行 pnpm build && pnpm generate:skills）`
                 ).toBe(true);
             }
 
@@ -98,7 +102,7 @@ describe('skills/ 静态快照与模板一致性', () => {
                 if (f === 'SKILL.md') continue;
                 expect(
                     declaredPaths.has(f),
-                    `多余参考文件：skills/${template.name}/${f}（模板未声明，运行 pnpm generate:skills 清理）`
+                    `多余参考文件：skills/${skillId}/${f}（模板未声明，运行 pnpm generate:skills 清理）`
                 ).toBe(true);
             }
         }

@@ -17,6 +17,7 @@
 import { Argument, Command, Option } from 'commander';
 import { createRequire } from 'node:module';
 import { runInit } from '../commands/init.js';
+import { defaultPiCommandRunner } from '../core/pi-runtime.js';
 import { runList } from '../commands/list.js';
 import { runGenerate } from '../commands/generate.js';
 import { runValidateCommand } from '../commands/validate.js';
@@ -76,7 +77,7 @@ export function buildProgram(): Command {
             tools?: string; force?: boolean; deps?: boolean; scan?: boolean;
             migrate?: boolean; onboarding?: boolean;
         }) => {
-            const result = runInit(process.cwd(), options);
+            const result = runInit(process.cwd(), { ...options, piRuntimeRunner: defaultPiCommandRunner });
             console.log(`iAgent 初始化完成（工具：${result.tools.join(', ')}）`);
             const migrationReport = renderLegacyMigrationReport(result.legacyMigration);
             if (migrationReport !== '') {
@@ -85,6 +86,17 @@ export function buildProgram(): Command {
             const misplacedReport = renderMisplacedCleanup(result.misplacedCommands);
             if (misplacedReport !== '') {
                 console.log(misplacedReport);
+            }
+            if (result.piRuntime) {
+                console.log(`  Pi 编排：${result.piRuntime.mode}（${result.piRuntime.package}${result.piRuntime.resolved ? `@${result.piRuntime.resolved}` : ''}）`);
+                for (const reason of result.piRuntime.reasons) {
+                    console.log(`    ! ${reason}`);
+                }
+            }
+            if (result.openCodeProject?.warnings.length) {
+                for (const warning of result.openCodeProject.warnings) {
+                    console.log(`  ! ${warning}`);
+                }
             }
             console.log(`  技能：${result.skillsInstalled.length} 个`);
             for (const skill of result.skillsInstalled) {
@@ -173,7 +185,7 @@ export function buildProgram(): Command {
         .option('--force', '覆盖用户手改过的技能')
         .option('--no-migrate', '跳过旧装机迁移（不搬运旧配置目录、不删除旧技能与指令）')
         .action((options: { tools?: string; force?: boolean; migrate?: boolean }) => {
-            const result = runUpdate(process.cwd(), options);
+            const result = runUpdate(process.cwd(), { ...options, piRuntimeRunner: defaultPiCommandRunner });
             console.log(`iAgent 更新完成（工具：${result.tools.join(', ')}）`);
             const migrationReport = renderLegacyMigrationReport(result.legacyMigration);
             if (migrationReport !== '') {
@@ -182,6 +194,17 @@ export function buildProgram(): Command {
             const misplacedReport = renderMisplacedCleanup(result.misplacedCommands);
             if (misplacedReport !== '') {
                 console.log(misplacedReport);
+            }
+            if (result.piRuntime) {
+                console.log(`  Pi 编排：${result.piRuntime.mode}（${result.piRuntime.package}${result.piRuntime.resolved ? `@${result.piRuntime.resolved}` : ''}）`);
+                for (const reason of result.piRuntime.reasons) {
+                    console.log(`    ! ${reason}`);
+                }
+            }
+            if (result.openCodeProject?.warnings.length) {
+                for (const warning of result.openCodeProject.warnings) {
+                    console.log(`  ! ${warning}`);
+                }
             }
             console.log(`  新安装：${result.installed.length} 个`);
             for (const skill of result.installed) {

@@ -29,6 +29,16 @@ export interface CommandContent {
     allowedTools: string;
     /** 生成器版本号（写入 metadata.generatedBy） */
     generatedBy?: string;
+    /**
+     * 宿主专属元数据（可选）。由生成侧按目标宿主的原生契约填充：
+     *   - OpenCode V2：`agent`（项目级 agent ID）、`subagent`（是否后台子会话）；
+     * 未使用该能力的宿主 MUST NOT 写入未知字段。
+     */
+    hostMeta?: {
+        agent?: string;
+        subagent?: boolean;
+        model?: string;
+    };
 }
 
 /** 每个目标工具的格式化策略 */

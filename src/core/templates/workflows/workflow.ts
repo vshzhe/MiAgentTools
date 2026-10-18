@@ -30,7 +30,7 @@ iagent spec status --change "<name>" --json
 # Running \`iagent spec instructions iagent_spec_verify_proposal\` errors with "Artifact not found".)
 \`\`\`
 
-调用技能：用 Skill 工具为变更 \`<name>\` 调用 \`iagent_spec_verify_proposal\`。该技能通过读取制品与 exploration.md 内联完成 D1-D5 评分，不依赖任何 CLI verify 命令（并不存在——iagent CLI 只有做 schema 级检查的 \`validate\`）。
+调用技能：为变更 \`<name>\` 调用 \`iagent_spec_verify_proposal\`。该技能通过读取制品与 exploration.md 内联完成 D1-D5 评分，不依赖任何 CLI verify 命令（并不存在——iagent CLI 只有做 schema 级检查的 \`validate\`）。
 
 **降级（回退）（技能不可用）**：若 \`iagent_spec_verify_proposal\` 技能未安装或调用失败，降级为 AI 内联读取 proposal/specs/design/tasks + D1-D5 手工评分，并输出 WARN 日志："iagent_spec_verify_proposal 技能不可用，已降级为内联评分"。MUST NOT 静默跳过验证。
 
@@ -82,7 +82,7 @@ iagent spec status --change "<name>" --json
 
 当所有维度 PASS（≥90%）时：
 
-1. **自动执行深度复查** — 通过 Skill 工具调用 \`iagent_proposal_review\` **技能**——不询问用户，自动执行（用户可中断跳过）
+1. **自动执行深度复查** — 调用 \`iagent_proposal_review\` **技能**——不询问用户，自动执行（用户可中断跳过）
 2. 深度复查范围：代码库深度探索 + 多维完整性
 3. 结果与验证报告一并展示
 4. **降级（回退）（技能不可用或调用失败）**：降级为主工作流内联只读深度复查 + WARN 日志——永不静默跳过
@@ -92,7 +92,7 @@ iagent spec status --change "<name>" --json
 
 若用户想跳过深度复查，可主动中断；否则自动运行。
 
-5. **收束——生成需求文档** — 深度复查收束后，通过 Skill 工具以非交互模式调用 \`iagent_requirement_doc\`，在 \`openspec/changes/<change-name>/需求文档.md\` 生成需求文档。该文档在实现开始前由**当前**制品（proposal/specs/design/tasks）生成——用户可在 apply 阶段评审它。生成失败不阻断（WARN 日志 + 继续）。MUST NOT 向用户询问文档基本信息。生成后进入 Phase 3.7 实现桥（不得停在 apply-ready）。
+5. **收束——生成需求文档** — 深度复查收束后，以非交互模式委派 \`iagent_requirement_doc\`，在 \`openspec/changes/<change-name>/需求文档.md\` 生成需求文档。该文档在实现开始前由**当前**制品（proposal/specs/design/tasks）生成——用户可在 apply 阶段评审它。生成失败不阻断（WARN 日志 + 继续）。MUST NOT 向用户询问文档基本信息。生成后进入 Phase 3.7 实现桥（不得停在 apply-ready）。
    - 理由：在验证阶段生成文档，可使用户在实现开始前拿到可评审的文档；归档阶段对既有文档就地增量对齐
 
 > "深度复查完成。"
@@ -148,14 +148,14 @@ export function getWorkflowSkillTemplate(): SkillTemplate {
 4. **实现阶段** - 确认桥 → 委派 iagent_spec_apply（条件测试子阶段）
 5. **归档阶段** - 确认桥 → 委派 iagent_spec_archive
 
-探索与提案内联执行（无 Skill 委派断层），验证通过后委派阶段 SKILL 实现与归档，阶段间以确认桥保证完整性。区别于 iagent_auto_workflow（全自动无门）。
+阶段之间直接推进（无委派断层），验证通过后委派阶段实现与归档，阶段间以确认桥保证完整性。区别于 iagent_auto_workflow（全自动无门）。
 
 ${GATE_PROTOCOL_PREAMBLE}
 
 ---
 ## Phase 1: 探索（委派 iagent_spec_explore）
 
-Phase 1 SHALL 经 Skill 工具委派 \`iagent_spec_explore\`（传 \`mode=delegated\`）执行强制检查点体系探索（强制建探索文件、提示词校验门、CONTEXT.md 检查、CodeGraph 基础扫描含多项目派发与深度分析、L1-L5 grill 追问、功能流程图与流程最终确认门、聚合一致性门、探索完成检测），MUST NOT 内联执行探索逻辑。
+Phase 1 SHALL 委派阶段 \`iagent_spec_explore\`（传 \`mode=delegated\`）执行强制检查点体系探索（强制建探索文件、提示词校验门、CONTEXT.md 检查、CodeGraph 基础扫描含多项目派发与深度分析、L1-L5 grill 追问、功能流程图与流程最终确认门、聚合一致性门、探索完成检测），MUST NOT 内联执行探索逻辑。
 
 委派完成后 SHALL 消费 \`iagent_spec_explore\` 输出的**结构化 handoff**（探索文件路径、提示词基线、流程基准确认状态、Pending 影响符号）并据此推进 Phase 2。
 
@@ -290,7 +290,7 @@ Phase 2.0 影响面分析完成（或跳过）后：
 
 ### 2.3 提案生成（委派 iagent_spec_propose）
 
-Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部制品生成（proposal.md / specs/**/*.md / design.md / tasks.md）SHALL 经 Skill 工具委派 \`iagent_spec_propose\`（传 \`mode=delegated\` + \`exploration-file=<Phase 1 探索文件路径>\`）完成，MUST NOT 内联生成提案制品。制品生成遵循 Markdown-first 共享协议（openspec/rules/artifact-generation.md）。规则注入、schema 验证与 CLI 降级由 \`spec_propose\` 承担。
+Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部制品生成（proposal.md / specs/**/*.md / design.md / tasks.md）SHALL 委派阶段 \`iagent_spec_propose\`（传 \`mode=delegated\` + \`exploration-file=<Phase 1 探索文件路径>\`）完成，MUST NOT 内联生成提案制品。制品生成遵循 Markdown-first 共享协议（openspec/rules/artifact-generation.md）。规则注入、schema 验证与 CLI 降级由 \`spec_propose\` 承担。
 
 **退出守卫**：被委派的 \`iagent_spec_propose\` 完成后 MUST NOT 自行进入实现或推进阶段；阶段推进主权归 \`iagent_workflow\`。其结构化回执（change-name / 制品清单 / apply-ready）用于进入 Phase 3 与后续确认桥。
 
@@ -324,14 +324,14 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 ---
 ## Phase 4: 实现（委派 iagent_spec_apply）
 
-**委派 \`iagent_spec_apply\` 技能**（通过 Skill 工具）执行实现：
+**委派 \`iagent_spec_apply\` 技能**执行实现：
 - 传入 change-name + \`auto-mode=true\`（跳过 apply 内部的设计确认门——确认已由 Phase 3.7 实现桥承载，避免重复确认）
 - apply 内部完成：分层代码生成（Entity/DTO → Mapper/DAO → Service → Controller）、tasks.md 勾选更新、编译检查
 - 后端架构规则由 apply 按 \`openspec/rules/ai-coding.md\` 自行处理，workflow 不干预
 
 ### 4.1 条件测试子阶段（tasks.md 含 \`[测试]\` 任务时；计划已在 3.7「实现 + 测试桥」一次确认）
 
-- 委派 \`iagent_test\` 技能（通过 Skill 工具，多 schema 自动检测 Java/Node）
+- 委派 \`iagent_test\` 技能（多 schema 自动检测 Java/Node）
 - **计划确认已在 Phase 3.7 实现 + 测试桥完成**：本子阶段 MUST NOT 再设独立确认门，直接生成测试代码
 - 输出测试代码到项目测试源树并运行验证
 
@@ -343,7 +343,7 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 
 ### 4.3 实现验证桥接（apply → archive 之间，强制）
 
-- 实现与条件测试完成后，MUST 委派 \`iagent_spec_verify\` 技能（通过 Skill 工具）验证实现与制品（specs/tasks/design）一致性
+- 实现与条件测试完成后，MUST 委派 \`iagent_spec_verify\` 技能验证实现与制品（specs/tasks/design）一致性
 - 通过 → 进入 Phase 5 归档桥；失败 → 回 Phase 4 修复，MUST NOT 进入归档
 - **省略声明（fallback）**：若 \`iagent_spec_verify\` 不可用或项目约定不单独跑实现验证，MUST 在归档桥就绪检查中显式声明「实现验证由 apply 编译检查 + 归档一致性承担」并记录该决策；MUST NOT 静默省略
 

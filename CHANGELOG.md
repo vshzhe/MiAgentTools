@@ -7,6 +7,35 @@
 
 ## [Unreleased]
 
+## [7.0.0] - 2026-10-18
+
+### BREAKING
+
+- 宿主技能 ID 由下划线形态 `iagent_<name>` 改为 canonical kebab-case `iagent-<workflowId>`
+  （目录名与 frontmatter `name`，如 `iagent-spec-explore`）。canonical `workflowId` 沿用既有指令 id
+  （`spec-explore`）。旧下划线形态仅作兼容解析，`iagent init` / `update` 在生成前自动迁移既有产物
+  （冲突保留不覆盖），旧名查询经 `list` / `show` / `validate` 仍可解析。
+- 共享工作流模板正文不再硬编码 Claude 专属委派机制词（`经 Skill 工具` / `Agent 工具` 等）；
+  委派机制由生成期按目标宿主原生渲染。
+
+### Added
+
+- 新增宿主无关工作流协议 `src/core/host-orchestration/`：阶段/能力/回执/门契约（`protocol.ts`，
+  `validateReceipt`）、宿主能力协商与 strict/degraded（`hosts.ts`，`negotiateCapabilities` /
+  `negotiationForHost`）、阶段推进判定（`transition.ts`，`evaluatePhaseTransition`）、
+  协议动作宿主渲染与适配段注入（`render.ts` / `actions.ts`）。
+- 新增技能 ID 单一源 `src/core/skill-id.ts`（`deriveSkillId` / `isManagedSkillDirName` /
+  `toCanonicalSkillId` / `skillIdToWorkflowId`）与迁移模块 `src/core/skill-id-migration.ts`。
+- 新增 OpenCode V2 项目级编排产物 `src/core/opencode-v2.ts`：生成 `.opencode/agents/`
+  （primary orchestrator + 阶段 subagent）与项目级 `.opencode/opencode.jsonc` 的 V2 `permissions`
+  （动作 `skill` / `subagent`）；指令 frontmatter 含 `agent` / `subagent` 元数据。
+- 新增 Pi 编排运行时 provider `src/core/pi-runtime.ts`：默认 npm 包 `@tintinweb/pi-subagents`（latest），
+  版本兼容检测、项目级安装、失败降级与 `.iagent/pi-runtime.json` 诊断；provider 可替换为未来 iagent 自有包。
+- Pi 指令适配器新增 `$ARGUMENTS` 参数注入（修复 `/iagent-xxx <参数>` 主题参数丢失）。
+- 新增回归测试：`test/skill-id-migration.test.ts`、`test/host-orchestration.test.ts`、
+  `test/opencode-v2.test.ts`、`test/pi-runtime.test.ts`、`test/claude-host-adapter.test.ts`、
+  `test/host-smoke.test.ts`（跨宿主冒烟）。
+
 ## [6.4.0] - 2026-10-17
 
 ### Added
@@ -1119,7 +1148,8 @@
 [2.0.0]: https://github.com/mi-agent-tools/compare/v1.18.1...v2.0.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/mi-agent-tools/compare/v6.4.0...HEAD
+[Unreleased]: https://github.com/mi-agent-tools/compare/v7.0.0...HEAD
+[7.0.0]: https://github.com/mi-agent-tools/compare/v6.4.0...v7.0.0
 [6.4.0]: https://github.com/mi-agent-tools/compare/v6.3.0...v6.4.0
 [6.3.0]: https://github.com/mi-agent-tools/compare/v6.2.0...v6.3.0
 [6.2.0]: https://github.com/mi-agent-tools/compare/v6.1.0...v6.2.0

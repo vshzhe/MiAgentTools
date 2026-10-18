@@ -39,7 +39,7 @@ ${GATE_PROTOCOL_PREAMBLE}
 ## Phase 1: 生成源需求文档（自动）
 
 1. 先确定变更名（遵循项目的变更命名约定，例如功能迁移用 \`add-<module>-<feature>\`），并用 \`path.join()\` 创建 \`openspec/changes/<change-name>/attachments/source-feature-doc/\` —— Phase 1 的全部产出直接落在该目录，不做暂存或搬运。
-2. 以**非交互模式**经 Skill 工具调用 **iagent_feature_doc** 技能：注入 SOURCE_PROJECT、功能入口、输出模式 = 迁移重构模式、源项目框架档案，以及第 1 步的输出目录。
+2. 以**非交互模式**委派 **iagent_feature_doc** 技能：注入 SOURCE_PROJECT、功能入口、输出模式 = 迁移重构模式、源项目框架档案，以及第 1 步的输出目录。
 3. 生成的需求文档是本次迁移的唯一真源。其中缺口保持 **[待确认]** 标记 —— 在 Phase 2 之前与用户确认解决，不得猜测。
 4. **蒸馏并确认核心功能（蒸馏确认）**：从需求文档中蒸馏出核心功能清单（核心功能、业务规则、API 契约要点 —— 蒸馏产物，不是整份文档）。将清单提交用户确认（AskUserQuestion；用户可删减条目）。清单与文档/源码不一致处标 **[待确认]** 并由用户裁决（修正清单或更新文档）—— 不得猜测。清单**为空即阻断**流程：请用户重新扫描源项目或收窄功能入口 —— 绝不允许带着空清单继续。确认后把清单写入 \`openspec/changes/<change-name>/exploration.md\` 的 \`## 蒸馏核心功能清单\` 段（该文件在 Phase 1 末尾创建；Phase 2 第 1 步合并探索材料时保留此段）。确认后的清单既是 Phase 2 提案的派生输入，也是 Phase 4 的复查范围基线；用户删减的条目记录在 exploration.md 中，并**排除**在 Phase 4 复查范围之外（绝不计为功能缺失 P0/P1）。
 
@@ -68,7 +68,7 @@ ${GATE_PROTOCOL_PREAMBLE}
 
 ## Phase 4: 复查子代理迁移检查 + 修复循环
 
-1. **派发独立复查子代理**（Agent 工具）交叉核对源/目标功能并产出报告。调度指令 MUST 显式注入全部输入：已确认核心功能清单（exploration.md 路径）、源需求文档路径、目标实现范围、SOURCE_PROJECT、TARGET_PROJECT、双方框架档案，以及输出目录 \`openspec/changes/<change-name>/attachments/migration-check/\`。子代理内部：以**非交互模式**经 Skill 工具调用 **iagent_migration_check** 技能并传入这些参数（技能委派 —— 不得内联重实现对比逻辑），再在对比结果之上叠加核心功能交叉核对（功能覆盖矩阵 + 差异说明），产出最终复查报告。复查范围**排除**用户删减的功能（绝不计为功能缺失 P0/P1）。
+1. **派发独立复查子代理**交叉核对源/目标功能并产出报告。调度指令 MUST 显式注入全部输入：已确认核心功能清单（exploration.md 路径）、源需求文档路径、目标实现范围、SOURCE_PROJECT、TARGET_PROJECT、双方框架档案，以及输出目录 \`openspec/changes/<change-name>/attachments/migration-check/\`。子代理内部：以**非交互模式**委派 **iagent_migration_check** 技能并传入这些参数（技能委派 —— 不得内联重实现对比逻辑），再在对比结果之上叠加核心功能交叉核对（功能覆盖矩阵 + 差异说明），产出最终复查报告。复查范围**排除**用户删减的功能（绝不计为功能缺失 P0/P1）。
 
    **B组架构融入检查**：复查子代理 MUST 在迁移检查结果之上再执行 3 项架构一致性检查：
    - **C11 — 异常体系融入检查**：扫描目标迁移代码中残留的源项目异常处理构造（例如源项目专有异常类、吞掉错误的空 catch 块）。残留的源项目错误处理构造属 P0 问题。

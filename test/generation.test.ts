@@ -18,6 +18,7 @@ import {
     readGeneratedFingerprint,
 } from '../src/core/command-generation/index.js';
 import { getSkillTemplates, getCommandTemplates } from '../src/core/templates/index.js';
+import { deriveSkillId } from '../src/core/skill-id.js';
 import { runGenerate } from '../src/commands/generate.js';
 
 describe('SKILL.md 生成', () => {
@@ -25,8 +26,9 @@ describe('SKILL.md 生成', () => {
 
     it('frontmatter 含 name/description/type 字段', () => {
         const generated = generateSkillContent(template, '0.1.0');
-        expect(generated.dirName).toBe(template.name);
-        expect(generated.fileContent).toContain(`name: ${template.name}`);
+        const skillId = deriveSkillId(template.name);
+        expect(generated.dirName).toBe(skillId);
+        expect(generated.fileContent).toContain(`name: ${skillId}`);
         expect(generated.fileContent).toContain(`allowed-tools: ${template.allowedTools}`);
         expect(generated.fileContent).toContain(`  type: ${template.type}`);
         expect(generated.fileContent).toContain('generatedBy: "0.1.0"');
@@ -111,6 +113,44 @@ describe('Pi prompt 指令生成', () => {
         const fp = readGeneratedFingerprint(generated.fileContent);
         expect(fp).toBeDefined();
         expect(fp).toBe(fingerprintOf(generated.fileContent));
+    });
+
+    /** 构造极简 Pi 指令内容（仅 body 可变） */
+    function piContent(body: string) {
+        return {
+            id: 'workflow',
+            name: 'workflow',
+            description: '测试指令',
+            category: 'impl',
+            tags: [] as string[],
+            body,
+            allowedTools: 'Read',
+            generatedBy: '6.5.0',
+        };
+    }
+
+    it('无参数占位符且 Input 段需要参数时注入 $ARGUMENTS', () => {
+        const generated = generateCommand(
+            piContent('**Input**: The argument after the command is the topic.\n\n## Steps\n\nDo it.'),
+            piAdapter
+        );
+        expect(generated.fileContent).toContain('**Provided arguments**: $ARGUMENTS');
+    });
+
+    it('Input 段声明 None required 时不注入', () => {
+        const generated = generateCommand(
+            piContent('**Input**: None required (prompts for selection)\n\n## Steps\n\nDo it.'),
+            piAdapter
+        );
+        expect(generated.fileContent).not.toContain('Provided arguments');
+    });
+
+    it('正文已含占位符时不重复注入', () => {
+        const generated = generateCommand(
+            piContent('**Input**: Provide the topic.\n\nUse $ARGUMENTS here.'),
+            piAdapter
+        );
+        expect(generated.fileContent.match(/\$ARGUMENTS/g)?.length).toBe(1);
     });
 });
 

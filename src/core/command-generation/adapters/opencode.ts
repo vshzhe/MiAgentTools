@@ -53,9 +53,16 @@ export const opencodeAdapter: ToolCommandAdapter = {
         const fpLine = fingerprintPlaceholder !== undefined
             ? `\n  generatedFingerprint: "${fingerprintPlaceholder}"`
             : '';
+        // V2 原生编排元数据：agent（primary orchestrator）+ subagent（前台/后台）
+        const agentLine = content.hostMeta?.agent
+            ? `agent: ${content.hostMeta.agent}\n`
+            : '';
+        const subagentLine = content.hostMeta?.subagent !== undefined
+            ? `subagent: ${content.hostMeta.subagent}\n`
+            : '';
         return `---
 description: ${escapeYamlValue(content.description)}
-metadata:
+${agentLine}${subagentLine}metadata:
   generatedBy: "${content.generatedBy || ''}"${fpLine}
 ---
 

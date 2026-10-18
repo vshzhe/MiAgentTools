@@ -12,6 +12,7 @@ import {
     TOOL_SKILLS_SUBDIR,
     SKILL_TYPES,
 } from '../core/config.js';
+import { SKILL_ID_PREFIX, toCanonicalSkillId } from '../core/skill-id.js';
 import { readFileIfExists } from '../utils/file-system.js';
 import { readGeneratedBy } from '../core/command-generation/index.js';
 import { scanInstalledSkills } from './list.js';
@@ -99,12 +100,16 @@ function parseFrontmatter(content: string): {
  */
 export function findSkills(projectRoot: string, query: string): SkillDetail[] {
     const installed = scanInstalledSkills(projectRoot);
-    // 匹配：全名 / 去前缀段（iagent_review → review 段）
+    // 查询归一化：legacy `iagent_xxx` 与 canonical `iagent-xxx` 视为同一技能
+    const normalizedQuery = toCanonicalSkillId(query);
+    // 匹配：canonical 全名 / 去前缀段（iagent-review → review 段）/ legacy 别名词
     const matches = installed.filter((s) => {
-        if (s.name === query) {
+        if (s.name === normalizedQuery || s.name === query) {
             return true;
         }
-        const stripped = s.name.startsWith(SKILL_PREFIX) ? s.name.slice(SKILL_PREFIX.length) : s.name;
+        const stripped = s.name.startsWith(SKILL_ID_PREFIX)
+            ? s.name.slice(SKILL_ID_PREFIX.length)
+            : s.name;
         return stripped.startsWith(query) || (query.length >= 3 && s.name.includes(query));
     });
 
@@ -112,12 +117,24 @@ export function findSkills(projectRoot: string, query: string): SkillDetail[] {
     for (const match of matches) {
         // 遍历工具目录找第一个存在的技能文件（多工具间去重，取第一个命中）
         for (const tool of AI_TOOLS) {
-            const file = path.join(projectRoot, tool.skillsDir, TOOL_SKILLS_SUBDIR, match.name, 'SKILL.md');
-            const content = readFileIfExists(file);
-            if (content === undefined) {
+            // canonical 优先；存量 legacy 下划线目录作为兼容回退
+            const legacyName = match.name.startsWith(SKILL_ID_PREFIX)
+                ? `${SKILL_PREFIX}${match.name.slice(SKILL_ID_PREFIX.length).replaceAll('-', '_')}`
+                : match.name;
+            const dirs = legacyName === match.name ? [match.name] : [match.name, legacyName];
+            let found: { file: string; content: string } | null = null;
+            for (const dirName of dirs) {
+                const file = path.join(projectRoot, tool.skillsDir, TOOL_SKILLS_SUBDIR, dirName, 'SKILL.md');
+                const content = readFileIfExists(file);
+                if (content !== undefined) {
+                    found = { file, content };
+                    break;
+                }
+            }
+            if (found === null) {
                 continue;
             }
-            const parsed = parseFrontmatter(content);
+            const parsed = parseFrontmatter(found.content);
             const typeMeta = parsed.type
                 ? SKILL_TYPES.find((t) => t.id === parsed.type)
                 : undefined;
@@ -125,7 +142,7 @@ export function findSkills(projectRoot: string, query: string): SkillDetail[] {
                 name: match.name,
                 ...parsed,
                 typeName: typeMeta ? `${typeMeta.name}（${typeMeta.id}）` : null,
-                file: path.relative(projectRoot, file),
+                file: path.relative(projectRoot, found.file),
             });
             break; // 找到第一个已安装目录即停止，避免多工具重复
         }

@@ -36,10 +36,10 @@ describe('iagent init', () => {
         expect(result.skipped.length).toBe(0);
 
         // 技能文件实际存在且内容合法
-        const wfFile = path.join(tempRoot, '.claude', 'skills', 'iagent_workflow', 'SKILL.md');
+        const wfFile = path.join(tempRoot, '.claude', 'skills', 'iagent-workflow', 'SKILL.md');
         expect(fs.existsSync(wfFile)).toBe(true);
         const wfContent = fs.readFileSync(wfFile, 'utf8');
-        expect(wfContent).toContain('name: iagent_workflow');
+        expect(wfContent).toContain('name: iagent-workflow');
         expect(wfContent).toContain('type: impl');
         expect(wfContent).toContain('workflow');
 
@@ -68,7 +68,7 @@ describe('iagent init', () => {
         // references 在前序 init 测试中已生成，直接检查已有文件
 
         // 验证 Gate 模板的 references 文件存在且非空
-        const exploreRefs = path.join(tempRoot, '.claude', 'skills', 'iagent_spec_explore', 'references');
+        const exploreRefs = path.join(tempRoot, '.claude', 'skills', 'iagent-spec-explore', 'references');
         expect(fs.existsSync(exploreRefs)).toBe(true);
         const promptGateRef = path.join(exploreRefs, 'prompt-gate.md');
         expect(fs.existsSync(promptGateRef)).toBe(true);
@@ -81,7 +81,7 @@ describe('iagent init', () => {
         expect(fs.readFileSync(flowchartRef, 'utf8').length).toBeGreaterThan(200);
 
         // 验证 project-init references 存在
-        const initRefs = path.join(tempRoot, '.claude', 'skills', 'iagent_project_init', 'references');
+        const initRefs = path.join(tempRoot, '.claude', 'skills', 'iagent-project-init', 'references');
         expect(fs.existsSync(initRefs)).toBe(true);
         expect(fs.existsSync(path.join(initRefs, 'doc-architecture.md'))).toBe(true);
     });
@@ -99,7 +99,7 @@ describe('iagent list', () => {
     it('扫描结果包含 20 个技能且类型解析正确', () => {
         const skills = scanInstalledSkills(tempRoot);
         expect(skills.length).toBe(20);
-        const wf = skills.find((s) => s.name === 'iagent_workflow');
+        const wf = skills.find((s) => s.name === 'iagent-workflow');
         expect(wf?.type).toBe('impl');
         expect(wf?.description).toBeTruthy();
     });
@@ -131,22 +131,22 @@ describe('iagent generate', () => {
             name: 'env-check',
             desc: '环境检查',
         });
-        expect(result.skillName).toBe('iagent_env_check');
+        expect(result.skillName).toBe('iagent-env-check');
 
-        const sourceFile = path.join(tempRoot, 'skills', 'iagent_env_check', 'SKILL.md');
-        const installedFile = path.join(tempRoot, '.claude', 'skills', 'iagent_env_check', 'SKILL.md');
+        const sourceFile = path.join(tempRoot, 'skills', 'iagent-env-check', 'SKILL.md');
+        const installedFile = path.join(tempRoot, '.claude', 'skills', 'iagent-env-check', 'SKILL.md');
         expect(fs.existsSync(sourceFile)).toBe(true);
         expect(fs.existsSync(installedFile)).toBe(true);
 
         const content = fs.readFileSync(sourceFile, 'utf8');
-        expect(content).toContain('name: iagent_env_check');
+        expect(content).toContain('name: iagent-env-check');
         expect(content).toContain('环境检查');
         expect(content).toContain('（待补充技能正文）');
     });
 
     it('生成的技能能被 list 扫描到（类型为 tools）', () => {
         const skills = scanInstalledSkills(tempRoot);
-        const generated = skills.find((s) => s.name === 'iagent_env_check');
+        const generated = skills.find((s) => s.name === 'iagent-env-check');
         expect(generated?.type).toBe('tools');
     });
 
@@ -178,11 +178,11 @@ describe('workflows 过滤（profile 生效）', () => {
             expect(result.injectedDeps).toEqual(['requirement-doc']);
             // 默认集内技能存在
             expect(
-                fs.existsSync(path.join(root, '.claude', 'skills', 'iagent_project_init', 'SKILL.md'))
+                fs.existsSync(path.join(root, '.claude', 'skills', 'iagent-project-init', 'SKILL.md'))
             ).toBe(true);
             // 非默认集技能不存在
             expect(
-                fs.existsSync(path.join(root, '.claude', 'skills', 'iagent_commit', 'SKILL.md'))
+                fs.existsSync(path.join(root, '.claude', 'skills', 'iagent-commit', 'SKILL.md'))
             ).toBe(false);
             expect(result.reconcileOrphans.skills).toEqual([]);
             expect(result.reconcileOrphans.commands).toEqual([]);
@@ -202,7 +202,7 @@ describe('workflows 过滤（profile 生效）', () => {
             expect(result.skillsInstalled.length).toBe(9); // 3 templates × 3 tools
             expect(result.injectedDeps).toEqual(['spec-verify-proposal']);
             expect(
-                fs.existsSync(path.join(root, '.claude', 'skills', 'iagent_spec_verify_proposal', 'SKILL.md'))
+                fs.existsSync(path.join(root, '.claude', 'skills', 'iagent-spec-verify-proposal', 'SKILL.md'))
             ).toBe(true);
         } finally {
             fs.rmSync(root, { recursive: true, force: true });
@@ -224,10 +224,10 @@ describe('workflows 过滤（profile 生效）', () => {
             expect(result.reconcileOrphans.skills.length).toBe(57);
             expect(result.reconcileOrphans.commands.length).toBe(38);
             expect(
-                result.reconcileOrphans.skills.some((s) => s.includes('iagent_workflow'))
+                result.reconcileOrphans.skills.some((s) => s.includes('iagent-workflow'))
             ).toBe(true);
             expect(
-                fs.existsSync(path.join(root, '.claude', 'skills', 'iagent_workflow', 'SKILL.md'))
+                fs.existsSync(path.join(root, '.claude', 'skills', 'iagent-workflow', 'SKILL.md'))
             ).toBe(true);
             expect(
                 fs.existsSync(path.join(root, '.claude', 'commands', 'iagent', 'workflow.md'))
@@ -244,7 +244,7 @@ describe('workflows 过滤（profile 生效）', () => {
             writeWorkflowsToConfig(root, ['spec-explore']);
             runInit(root);
             // 手改非配置集技能（模拟旧产物），update 不应碰它
-            const orphanFile = path.join(root, '.claude', 'skills', 'iagent_workflow', 'SKILL.md');
+            const orphanFile = path.join(root, '.claude', 'skills', 'iagent-workflow', 'SKILL.md');
             fs.mkdirSync(path.dirname(orphanFile), { recursive: true });
             fs.writeFileSync(orphanFile, 'old orphan content', 'utf8');
 
@@ -253,7 +253,7 @@ describe('workflows 过滤（profile 生效）', () => {
             expect(result.commandsWritten).toBe(0); // 配置集内一致，幂等
             // 非配置集产物保留原内容
             expect(fs.readFileSync(orphanFile, 'utf8')).toBe('old orphan content');
-            expect(result.reconcileOrphans.skills.some((s) => s.includes('iagent_workflow'))).toBe(true);
+            expect(result.reconcileOrphans.skills.some((s) => s.includes('iagent-workflow'))).toBe(true);
         } finally {
             fs.rmSync(root, { recursive: true, force: true });
         }
@@ -297,7 +297,7 @@ describe('iagent init 旧装机迁移（CLI 端到端）', () => {
     it('默认打印迁移报告段落并清空旧产物', () => {
         const { root, home } = makeLegacyFixture('migrate');
         try {
-            const output = execCli(root, ['init', '--no-scan', '--no-deps'], home);
+            const output = execCli(root, ['init', '--tools', 'claude', '--no-scan', '--no-deps'], home);
 
             expect(output).toContain('旧装机迁移');
             expect(output).toContain('搬运项：');
@@ -315,7 +315,7 @@ describe('iagent init 旧装机迁移（CLI 端到端）', () => {
     it('--no-migrate：零搬运零删除且不打印迁移段落', () => {
         const { root, home } = makeLegacyFixture('nomigrate');
         try {
-            const output = execCli(root, ['init', '--no-scan', '--no-deps', '--no-migrate'], home);
+            const output = execCli(root, ['init', '--tools', 'claude', '--no-scan', '--no-deps', '--no-migrate'], home);
 
             expect(output).not.toContain('旧装机迁移');
             expect(fs.existsSync(path.join(root, '.venus', 'config.yaml'))).toBe(true);
@@ -382,7 +382,7 @@ describe('指令白名单继承与会话级权限载体（端到端）', () => {
         expect(skills.length).toBe(20);
         for (const { template, commandId } of skills) {
             const skillAllowed = readAllowedTools(
-                fs.readFileSync(artifactPath('skills', template.name), 'utf8')
+                fs.readFileSync(artifactPath('skills', template.name.replaceAll('_', '-')), 'utf8')
             );
             const commandAllowed = readAllowedTools(
                 fs.readFileSync(artifactPath('commands', commandId), 'utf8')
@@ -524,7 +524,7 @@ describe('工具选择持久化与旧位置清理', () => {
             // 显式指定才纳入：生成技能 + 扁平前缀指令
             const withOpenCode = runInit(root, { tools: 'opencode' });
             expect(withOpenCode.tools).toEqual(['opencode']);
-            expect(fs.existsSync(path.join(root, '.opencode', 'skills', 'iagent_project_init', 'SKILL.md'))).toBe(true);
+            expect(fs.existsSync(path.join(root, '.opencode', 'skills', 'iagent-project-init', 'SKILL.md'))).toBe(true);
             const commandFile = path.join(root, '.opencode', 'commands', 'iagent-project-init.md');
             expect(fs.existsSync(commandFile)).toBe(true);
             // frontmatter 去 Claude 专有字段

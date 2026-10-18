@@ -39,6 +39,24 @@ import { ensureDir, writeFile, pathExists, writeSkillReferences } from '../utils
 import { initDatabase, isSqlite3Available, resolveIndexDb } from '../core/spec/sqlite-index.js';
 import { runLegacyMigration, type LegacyMigrationReport } from '../core/legacy-migration.js';
 import { cleanupMisplacedCommands, type MisplacedCleanupResult } from '../core/command-artifacts.js';
+import { runSkillIdMigration, type SkillIdMigrationReport } from '../core/skill-id-migration.js';
+import {
+    ORCHESTRATOR_AGENT_ID,
+    writeOpenCodeProjectArtifacts,
+    type OpenCodeProjectArtifactsResult,
+} from '../core/opencode-v2.js';
+import {
+    adaptSkillContentForHost,
+    negotiationForHost,
+} from '../core/host-orchestration/index.js';
+import {
+    ensurePiRuntime,
+    renderPiRuntimeMetadata,
+    PI_RUNTIME_METADATA_FILE,
+    type PiCommandRunner,
+    type PiRuntimeStatus,
+} from '../core/pi-runtime.js';
+import { deriveCommandId } from '../core/templates/index.js';
 
 /** 目标工具设置文件的相对路径（会话级权限载体） */
 const SETTINGS_FILE = 'settings.json';
@@ -55,6 +73,8 @@ export interface InitOptions {
     migrate?: boolean;
     /** 用户主目录（旧补全产物所在；仅测试与自定义环境注入，默认 os.homedir()） */
     homeDir?: string;
+    /** Pi 运行时命令执行器（仅 CLI 注入真实执行器；缺省为安全空执行器 = degraded） */
+    piRuntimeRunner?: PiCommandRunner;
 }
 
 /** init 执行结果（供测试与 --json 输出） */
@@ -84,6 +104,12 @@ export interface InitResult {
     legacyMigration: LegacyMigrationReport;
     /** 清理早期错误位置 .pi/commands/iagent/ 的结果 */
     misplacedCommands: MisplacedCleanupResult;
+    /** legacy 下划线技能目录 → canonical kebab-case 的迁移报告 */
+    skillIdMigration: SkillIdMigrationReport;
+    /** OpenCode V2 项目级编排产物（未纳入 opencode 时为 null） */
+    openCodeProject: OpenCodeProjectArtifactsResult | null;
+    /** Pi 编排运行时状态（未纳入 pi 时为 null） */
+    piRuntime: PiRuntimeStatus | null;
 }
 
 /** 读取当前包版本（供 metadata.generatedBy） */
@@ -115,6 +141,9 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
     // 0.1 清理早期版本错误生成到 .pi/commands/iagent/ 的产物（幂等，失败仅告警）
     const misplacedCommands = cleanupMisplacedCommands(projectRoot);
 
+    // 0.2 legacy 下划线技能目录 → canonical kebab-case 迁移（须先于产物生成）
+    const skillIdMigration = runSkillIdMigration(projectRoot);
+
     // 读项目配置，解析生效 workflow 集（未配置用默认集 + 依赖注入补全）
     const projectConfig = readProjectConfig(projectRoot);
     const tools = resolveActiveTools(options.tools, projectConfig?.tools, AI_TOOLS);
@@ -134,13 +163,34 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
     // 已知指令 id：正文引用按工具布局改写时使用（单一源，派生自注册表）
     const knownCommandIds = getKnownCommandIds();
 
+    // Pi 运行时能力检测与安装（仅 Pi 在生效集内时）；失败不阻断，落 degraded
+    let piStatus: PiRuntimeStatus | null = null;
+    if (tools.some((t) => t.value === 'pi')) {
+        piStatus = ensurePiRuntime({ projectRoot, runner: options.piRuntimeRunner });
+        try {
+            ensureDir(path.join(projectRoot, '.iagent'));
+            writeFile(path.join(projectRoot, PI_RUNTIME_METADATA_FILE), renderPiRuntimeMetadata(piStatus), {
+                force: true,
+            });
+        } catch {
+            // 元数据写入失败不阻断
+        }
+    }
+
     // 1. 技能生成（遍历所有工具，不依赖适配器）
     for (const tool of tools) {
         const skillsRoot = path.join(projectRoot, tool.skillsDir, TOOL_SKILLS_SUBDIR);
         ensureDir(skillsRoot);
+        const negotiation = negotiationForHost(tool.value, piStatus?.mode);
         for (const { template } of getSkillTemplates(undefined, resolved.workflows)) {
-            const instructions = rewriteCommandRefs(template.instructions, tool.commandsLayout, knownCommandIds);
-            const generated = generateSkillContent({ ...template, instructions }, packageVersion);
+            const base = rewriteCommandRefs(template.instructions, tool.commandsLayout, knownCommandIds);
+            const instructions =
+                negotiation === null
+                    ? base
+                    : adaptSkillContentForHost(base, negotiation, deriveCommandId(template.name));
+            const generated = generateSkillContent({ ...template, instructions }, packageVersion, {
+                hostId: tool.value,
+            });
             const skillDir = path.join(skillsRoot, generated.dirName);
             const skillFile = path.join(skillDir, 'SKILL.md');
             if (pathExists(skillFile) && !options.force) {
@@ -178,16 +228,26 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
         if (!adapter) {
             continue;
         }
+        const negotiation = negotiationForHost(tool.value, piStatus?.mode);
         for (const { template, id } of getCommandTemplates(undefined, resolved.workflows)) {
+            const baseBody = rewriteCommandRefs(template.content, tool.commandsLayout, knownCommandIds);
             const content: CommandContent = {
                 id,
                 name: template.name,
                 description: template.description,
                 category: template.category,
                 tags: template.tags,
-                body: rewriteCommandRefs(template.content, tool.commandsLayout, knownCommandIds),
+                body:
+                    negotiation === null
+                        ? baseBody
+                        : adaptSkillContentForHost(baseBody, negotiation, id),
                 allowedTools: template.allowedTools,
                 generatedBy: packageVersion,
+                // OpenCode V2：指令在 iagent orchestrator 的 primary 会话中运行（非后台子会话）
+                hostMeta:
+                    tool.value === 'opencode'
+                        ? { agent: ORCHESTRATOR_AGENT_ID, subagent: false }
+                        : undefined,
             };
             const generated = generateCommand(content, adapter);
             const commandFile = path.join(projectRoot, generated.path);
@@ -198,6 +258,16 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
             writeFile(commandFile, generated.fileContent, { force: true });
             commandsInstalled.push(path.relative(projectRoot, commandFile));
         }
+    }
+
+    // 3. OpenCode V2 项目级编排产物（agents + permissions），仅显式纳入时生成
+    let openCodeProject: OpenCodeProjectArtifactsResult | null = null;
+    if (tools.some((t) => t.value === 'opencode')) {
+        const stages = getSkillTemplates(undefined, resolved.workflows).map((entry) => ({
+            workflowId: entry.commandId,
+            description: entry.template.description,
+        }));
+        openCodeProject = writeOpenCodeProjectArtifacts(projectRoot, stages);
     }
 
     // 4. 项目级配置（.iagent/config.yaml + .iagent/rules/，已存在则跳过）
@@ -246,5 +316,8 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
         indexDbStatus,
         legacyMigration,
         misplacedCommands,
+        skillIdMigration,
+        openCodeProject,
+        piRuntime: piStatus,
     };
 }

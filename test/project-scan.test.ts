@@ -362,13 +362,13 @@ describe('2.6 iagent init 端到端', () => {
         write(root, 'build.xml', '<project name="cli" default="war"><target name="war"></target></project>');
         const binPath = fileURLToPath(new URL('../bin/iagent.js', import.meta.url));
 
-        const withScan = execInit(binPath, root, ['--no-deps']);
+        const withScan = execInit(binPath, root, ['--tools', 'claude', '--no-deps']);
         expect(withScan).toContain('项目预扫描');
         const baselinePath = path.join(root, SCAN_BASELINE_PATH);
         expect(fs.existsSync(baselinePath)).toBe(true);
 
         fs.rmSync(baselinePath, { force: true });
-        const noScan = execInit(binPath, root, ['--no-scan', '--no-deps']);
+        const noScan = execInit(binPath, root, ['--tools', 'claude', '--no-scan', '--no-deps']);
         expect(noScan).not.toContain('项目预扫描');
         expect(fs.existsSync(baselinePath)).toBe(false);
     });

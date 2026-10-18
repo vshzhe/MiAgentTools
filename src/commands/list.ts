@@ -7,12 +7,12 @@
 import path from 'path';
 import {
     AI_TOOLS,
-    SKILL_PREFIX,
     SKILL_TYPES,
     isSkillType,
     TOOL_SKILLS_SUBDIR,
     type SkillType,
 } from '../core/config.js';
+import { isManagedSkillDirName, toCanonicalSkillId } from '../core/skill-id.js';
 import { listSubdirectories, readFileIfExists } from '../utils/file-system.js';
 
 /** 单个已安装技能的信息 */
@@ -61,23 +61,24 @@ export function scanInstalledSkills(projectRoot: string): InstalledSkillInfo[] {
     for (const tool of AI_TOOLS) {
         const skillsRoot = path.join(projectRoot, tool.skillsDir, TOOL_SKILLS_SUBDIR);
         for (const dirName of listSubdirectories(skillsRoot)) {
-            // 只关注 iagent_ 前缀的技能（其他技能不属于本工具管理范围）
-            if (!dirName.startsWith(SKILL_PREFIX)) {
+            // 只关注 iagent 管理的技能（canonical `iagent-` 与 legacy `iagent_` 两种前缀）
+            if (!isManagedSkillDirName(dirName)) {
                 continue;
             }
-            // 多工具间去重：同一技能名在不同工具目录中只计一次
-            if (seen.has(dirName)) {
+            // 展示与去重统一用 canonical kebab-case ID（legacy 下划线名归一化）
+            const canonical = toCanonicalSkillId(dirName);
+            if (seen.has(canonical)) {
                 continue;
             }
-            seen.add(dirName);
+            seen.add(canonical);
             const content = readFileIfExists(path.join(skillsRoot, dirName, 'SKILL.md'));
             if (content === undefined) {
                 // 目录存在但无 SKILL.md：仅登记名称
-                skills.push({ name: dirName, type: null, description: null });
+                skills.push({ name: canonical, type: null, description: null });
                 continue;
             }
             const parsed = parseSkillFile(content);
-            skills.push({ name: dirName, ...parsed });
+            skills.push({ name: canonical, ...parsed });
         }
     }
     return skills;

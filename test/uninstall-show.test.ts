@@ -35,7 +35,7 @@ describe('iagent uninstall', () => {
         expect(preview.removedSkills.length).toBe(63); // (20 内置 + 1 生成) × 3 工具
         expect(preview.removedCommands.length).toBe(40); // 20 内置 × 2 适配器
         // 未删除：文件仍在
-        expect(fs.existsSync(path.join(tempRoot, '.claude', 'skills', 'iagent_project_init', 'SKILL.md'))).toBe(true);
+        expect(fs.existsSync(path.join(tempRoot, '.claude', 'skills', 'iagent-project-init', 'SKILL.md'))).toBe(true);
     });
 
     it('非 iagent 技能不被删除', () => {
@@ -49,7 +49,7 @@ describe('iagent uninstall', () => {
         // 其他技能保留
         expect(fs.existsSync(path.join(otherDir, 'SKILL.md'))).toBe(true);
         // iagent 技能已删
-        expect(fs.existsSync(path.join(tempRoot, '.claude', 'skills', 'iagent_project_init'))).toBe(false);
+        expect(fs.existsSync(path.join(tempRoot, '.claude', 'skills', 'iagent-project-init'))).toBe(false);
         // 指令目录已删
         expect(fs.existsSync(path.join(tempRoot, '.claude', 'commands', 'iagent'))).toBe(false);
     });
@@ -75,7 +75,7 @@ describe('iagent show', () => {
         runInit(tempRoot);
         const { output, exitCode } = runShow(tempRoot, 'iagent_project_init');
         expect(exitCode).toBe(0);
-        expect(output).toContain('iagent_project_init');
+        expect(output).toContain('iagent-project-init');
         expect(output).toContain('工具白名单');
         expect(output).toContain('Bash(ls');
         expect(output).toContain('init');
@@ -85,23 +85,23 @@ describe('iagent show', () => {
     it('前缀匹配（svn 片段）', () => {
         const details = findSkills(tempRoot, 'svn');
         expect(details.length).toBe(1);
-        expect(details[0].name).toBe('iagent_svn_commit');
+        expect(details[0].name).toBe('iagent-svn-commit');
     });
 
     it('多命中报错并列出候选', () => {
-        // migration 片段命中 iagent_migration + iagent_migration_check 两个
+        // migration 片段命中 iagent-migration + iagent-migration-check 两个
         const { output, exitCode } = runShow(tempRoot, 'migration');
         expect(exitCode).toBe(1);
         expect(output).toContain('多个');
-        expect(output).toContain('iagent_migration');
-        expect(output).toContain('iagent_migration_check');
+        expect(output).toContain('iagent-migration');
+        expect(output).toContain('iagent-migration-check');
     });
 
     it('未命中报错并列出已安装', () => {
         const { output, exitCode } = runShow(tempRoot, 'no-such-skill');
         expect(exitCode).toBe(1);
         expect(output).toContain('未找到');
-        expect(output).toContain('iagent_project_init');
+        expect(output).toContain('iagent-project-init');
     });
 
     it('JSON 输出结构合法', () => {
@@ -113,7 +113,7 @@ describe('iagent show', () => {
             allowedTools: string;
             file: string;
         };
-        expect(parsed.name).toBe('iagent_project_init');
+        expect(parsed.name).toBe('iagent-project-init');
         expect(parsed.type).toBe('init');
         expect(parsed.allowedTools).toContain('Bash(ls');
         expect(parsed.file).toContain('SKILL.md');

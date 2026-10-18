@@ -194,7 +194,7 @@ export function getSpecBulkArchiveSkillTemplate(): SkillTemplate {
    a.6 **归档前需求文档生成（强制检查点，位于目录移动之前）**：
       - **决策范围**：仅 \`openspec/changes/<change-name>/需求文档.md\`（用 \`path.join()\`）
       - **若变更目录不可读**（IO 错误）：记录 WARN，视为文档不存在 —— 进入"不存在"分支
-      - **不存在** → 以**非交互模式**调用 \`iagent_requirement_doc\` 技能（Skill 工具）并传入本变更名（不提问，基本信息用占位符）；输出到 \`openspec/changes/<change-name>/需求文档.md\`
+      - **不存在** → 以**非交互模式**委派 \`iagent_requirement_doc\` 技能并传入本变更名（不提问，基本信息用占位符）；输出到 \`openspec/changes/<change-name>/需求文档.md\`
       - **已存在** → 执行 **in-place（就地）增量对齐更新**：\`## 基本信息\` 与 \`## 八、评审记录\` 属**人工域**，MUST NOT 覆盖（逐字保留，含占位符状态）；\`一~七\` 章节 SHALL 从**当前** Markdown 源（\`proposal.md\` / \`design.md\` / \`specs/**/*.md\` / \`tasks.md\`）重新推导。本分支**不得调用 \`iagent_requirement_doc\`** —— 该技能自身规则是"目标文件已存在时静默覆盖"，会抹掉人工撰写的评审内容。对齐 MUST NOT 删除章节（仅可丢弃制品中已移除的内容）；若文档结构已损坏，重建缺失章节并记录 WARN
       - **失败处理（非阻塞）**：若生成或对齐失败，记录 WARN（含目标路径与原因）并**继续**本变更的剩余步骤 —— 此处失败 MUST NOT 中止该变更单元，MUST NOT 中止整批
       - 生成的文档留在变更目录内，在步骤 b 随其一起移动，并由步骤 c 迁移到 \`openspec/devdocs/\`

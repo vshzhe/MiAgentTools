@@ -166,7 +166,7 @@ export function getSpecArchiveChangeSkillTemplate(): SkillTemplate {
    **决策范围**：仅 \`openspec/changes/<change-name>/需求文档.md\`（用 \`path.join()\` 构建）。
 
    1. **若变更目录不可读**（IO 错误）：记录 WARN，视为文档不存在 —— 进入分支 2
-   2. **分支 A —— 文档不存在**：以**非交互模式**调用 \`iagent_requirement_doc\` 技能（Skill 工具）并传入变更名 —— 不向用户提问，基本信息用占位符；文档写入 \`openspec/changes/<change-name>/需求文档.md\`
+   2. **分支 A —— 文档不存在**：以**非交互模式**委派 \`iagent_requirement_doc\` 技能并传入变更名 —— 不向用户提问，基本信息用占位符；文档写入 \`openspec/changes/<change-name>/需求文档.md\`
    3. **分支 B —— 文档已存在**（例如先独立运行生成、之后有人手工补充）：对该文件执行 **in-place（就地）增量对齐更新**。\`## 基本信息\`（需求编号 / 需求名称 / 交付时间，含占位符状态）与 \`## 八、评审记录\` 属**人工域**，MUST NOT 覆盖 —— 逐字保留；\`一~七\` 章节 SHALL 从**当前** Markdown 源（\`proposal.md\` / \`design.md\` / \`specs/**/*.md\` / \`tasks.md\`）重新推导。本分支**不得调用 \`iagent_requirement_doc\`** —— 该技能自身规则是"目标文件已存在时静默覆盖"，会抹掉人工撰写的评审内容。对齐 MUST NOT 删除章节（仅可丢弃制品中已移除的内容）；若文档结构已损坏，重建缺失章节并记录 WARN
    4. **失败处理（非阻塞）**：若生成或对齐失败，记录 WARN（含目标路径与原因），然后继续归档 —— 绝不因本检查点阻塞归档
 

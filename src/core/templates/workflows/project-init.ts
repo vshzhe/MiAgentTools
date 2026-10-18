@@ -277,7 +277,7 @@ export function getProjectInitSkillTemplate(): SkillTemplate {
 | \`references/doc-api.md\` | API 规范 |
 | \`references/doc-security.md\` | 安全规范 |
 
-> 子文件路径相对技能目录（如 \`.claude/skills/iagent_project_init/references/doc-api.md\`）。
+> 子文件路径相对技能目录（如 \`.claude/skills/iagent-project-init/references/doc-api.md\`）。
 
 ## 约束
 

@@ -360,8 +360,8 @@ describe('2.3 端到端迁移（iagent init）', () => {
         expect(result.workflowsSource).toBe('user');
         expect(result.injectedDeps).toEqual(['spec-verify-proposal']);
         expect(result.skillsInstalled.length).toBe(9); // 3 模板 × 3 工具
-        expect(fs.existsSync(path.join(projectRoot, '.claude', 'skills', 'iagent_test', 'SKILL.md'))).toBe(true);
-        expect(fs.existsSync(path.join(projectRoot, '.claude', 'skills', 'iagent_debug', 'SKILL.md'))).toBe(true);
+        expect(fs.existsSync(path.join(projectRoot, '.claude', 'skills', 'iagent-test', 'SKILL.md'))).toBe(true);
+        expect(fs.existsSync(path.join(projectRoot, '.claude', 'skills', 'iagent-debug', 'SKILL.md'))).toBe(true);
     });
 });
 

@@ -12,11 +12,11 @@
 import path from 'path';
 import {
     AI_TOOLS,
-    SKILL_PREFIX,
     SKILL_TYPE_IDS,
     isSkillType,
     TOOL_SKILLS_SUBDIR,
 } from '../core/config.js';
+import { isManagedSkillDirName, toCanonicalSkillId } from '../core/skill-id.js';
 import { listSubdirectories, readFileIfExists } from '../utils/file-system.js';
 
 /** 校验问题级别 */
@@ -65,7 +65,8 @@ export interface ValidateResult {
 function validateSkillContent(
     skillDirName: string,
     content: string | undefined,
-    relativeFile: string
+    relativeFile: string,
+    toolId: string
 ): ValidationIssue[] {
     const issues: ValidationIssue[] = [];
     const critical = (message: string): void => {
@@ -108,9 +109,10 @@ function validateSkillContent(
         critical('frontmatter 缺少 description 字段');
     }
 
-    // allowed-tools 字段
-    if (!/^allowed-tools: .+/m.test(frontmatter)) {
-        critical('frontmatter 缺少 allowed-tools 字段（技能将无法执行任何命令）');
+    // allowed-tools 是 Claude Code 的会话级授权字段；Pi/OpenCode/Codex 使用各自宿主能力，
+    // Agent Skills 规范本身将其定义为可选，因此非 Claude 产物不要求该字段。
+    if (toolId === 'claude' && !/^allowed-tools: .+/m.test(frontmatter)) {
+        critical('frontmatter 缺少 allowed-tools 字段（Claude 技能将无法自动放行命令）');
     }
 
     // metadata.type 字段
@@ -143,19 +145,20 @@ export function runValidate(projectRoot: string): ValidateResult {
     for (const tool of AI_TOOLS) {
         const skillsRoot = path.join(projectRoot, tool.skillsDir, TOOL_SKILLS_SUBDIR);
         for (const dirName of listSubdirectories(skillsRoot)) {
-            // 只校验 iagent 管理的技能，其他技能不属本工具职责
-            if (!dirName.startsWith(SKILL_PREFIX)) {
+            // 只校验 iagent 管理的技能（canonical `iagent-` 与 legacy `iagent_` 两种前缀）
+            if (!isManagedSkillDirName(dirName)) {
                 continue;
             }
-            // 多工具间去重：同一技能名在不同工具目录中只校验一次
-            if (seen.has(dirName)) {
+            // 多工具间去重：同一技能（canonical ID）在不同工具目录中只校验一次
+            const canonical = toCanonicalSkillId(dirName);
+            if (seen.has(canonical)) {
                 continue;
             }
-            seen.add(dirName);
+            seen.add(canonical);
             const skillFile = path.join(skillsRoot, dirName, 'SKILL.md');
             const relativeFile = path.relative(projectRoot, skillFile);
             const content = readFileIfExists(skillFile);
-            const skillIssues = validateSkillContent(dirName, content, relativeFile);
+            const skillIssues = validateSkillContent(dirName, content, relativeFile, tool.value);
             results.push({
                 skill: dirName,
                 valid: skillIssues.filter((i) => i.level === 'CRITICAL').length === 0,

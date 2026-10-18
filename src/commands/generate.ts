@@ -129,11 +129,14 @@ export function runGenerate(projectRoot: string, options: GenerateOptions): Gene
     const activeTools = resolveActiveTools(undefined, projectConfig?.tools, AI_TOOLS);
     let installedPath = '';
     for (const tool of activeTools) {
+        const installed = tool.value === 'claude'
+            ? generated
+            : generateSkillContent(template, packageVersion, { hostId: tool.value });
         const installDir = path.join(projectRoot, tool.skillsDir, TOOL_SKILLS_SUBDIR, skillName);
         const installFile = path.join(installDir, 'SKILL.md');
         ensureDir(installDir);
-        writeFile(installFile, generated.fileContent, { force: true });
-        writeSkillReferences(installDir, generated.references);
+        writeFile(installFile, installed.fileContent, { force: true });
+        writeSkillReferences(installDir, installed.references);
         installedPath = path.relative(projectRoot, installFile);
     }
 

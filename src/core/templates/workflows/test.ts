@@ -750,7 +750,7 @@ fi
 | \`references/schema-java.md\` | Java（Maven/Gradle，Spring Boot/MVC/传统Web/纯Java） | 框架类型判定、测试依赖分析报告、7 级测试位置扫描、模板 A-F（JUnit4/5+Mockito/EasyMock/@WebMvcTest/参数化/遗留 XML）、遗留代码测试策略、mvn/gradle 命令、Java 专属约束 | 检测到 \`pom.xml\` 或 \`build.gradle\` |
 | \`references/schema-node.md\` | Node/TS（Vitest/Jest/Mocha/Jasmine） | 框架检测细节、Mock 方式（vi.mock/jest.mock）、分层测试 TS 示例（Service/Controller/Utils）、pnpm/npm 命令、Node 专属约束 | 检测到 \`package.json\` |
 
-> 子文件路径相对技能目录（如 \`.claude/skills/iagent_test/references/schema-java.md\`）。加载后结合本 SKILL 的通用流程执行后续阶段。
+> 子文件路径相对技能目录（如 \`.claude/skills/iagent-test/references/schema-java.md\`）。加载后结合本 SKILL 的通用流程执行后续阶段。
 
 **未识别语言**：输出检测结果并建议用户指定框架，或默认输出与项目最接近的风格代码。
 

@@ -210,7 +210,7 @@ ${GATE_PROTOCOL_PREAMBLE}
 6. **Phase 3 验证（自动 —— 强制，不可跳过）**
    > **delegated 模式分支**：若 \`mode=delegated\`，**抑制本节**——不调用 \`iagent_spec_verify_proposal\`、不生成需求文档（编排器的 Phase 3 为其超集，含 \`proposal_review\` 深度复查），直接输出结构化回执交回编排器。\`interactive\` 模式照常执行本节。
    全部 \`applyRequires\` 制品完成后，自动进入 Phase 3 验证（不得在验证前以 "准备就绪，可进入实现" 结束工作流）：
-   - 调用 \`iagent_spec_verify_proposal\` **skill**（通过 Skill 工具）执行 D1-D5 评分。（\`iagent_spec_verify_proposal\` 是技能名，而非合法的 \`iagent spec instructions\` 制品 ID —— 不得把它当作 CLI 指令运行。）
+   - 调用 \`iagent_spec_verify_proposal\` **skill** 执行 D1-D5 评分。（\`iagent_spec_verify_proposal\` 是技能名，而非合法的 \`iagent spec instructions\` 制品 ID —— 不得把它当作 CLI 指令运行。）
    - **验证复查子代理**：派发一个独立的只读复查子代理（Task 工具，subagent_type: "general-purpose"）执行 D1-D5 评分 —— 该子代理读取变更制品但不修改。子代理派发失败时：降级（回退）到主工作流内联评分并记录 WARN 日志（绝不静默跳过验证）。
    - **PASS (≥90%)**：验证通过后可对提案做一次内联深度复查（由主工作流在通过后直接执行一次只读复查，不依赖专门技能名）。深度复查收束后，以非交互模式调用 \`iagent_requirement_doc\` 生成需求文档于 \`openspec/changes/<change-name>/需求文档.md\`。生成失败不阻塞（WARN + 继续）。
    - **FAIL (<90%)**：自动生成修复、应用、重跑；若仍 FAIL，提供 [手动编辑] / [返回探索 (/iagent:spec-explore)] / [查看差异]（无跳过直接实现的通道）。

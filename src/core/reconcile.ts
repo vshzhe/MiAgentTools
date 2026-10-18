@@ -2,18 +2,18 @@
  * reconcile 扫描：识别已安装但不在生效 workflow 集内的 iagent 产物。
  *
  * 供 init/update 在过滤生成后扫描遗留 —— 保留不删，仅收集供输出提示用户手工处理。
- * 复用 uninstall 的产物识别模式（iagent_ 前缀技能目录 + iagent 命名空间指令文件）。
+ * 复用 uninstall 的产物识别模式（iagent- / legacy iagent_ 技能目录 + iagent 命名空间指令文件）。
  */
 
 import * as path from 'node:path';
-import { AI_TOOLS, SKILL_PREFIX, TOOL_SKILLS_SUBDIR } from './config.js';
-import { deriveCommandId } from './templates/registry.js';
+import { AI_TOOLS, TOOL_SKILLS_SUBDIR } from './config.js';
+import { isManagedSkillDirName, skillIdToWorkflowId } from './skill-id.js';
 import { listManagedCommands } from './command-artifacts.js';
 import { listSubdirectories } from '../utils/file-system.js';
 
 /** reconcile 扫描结果 */
 export interface ReconcileOrphans {
-    /** 已装但不在生效集的技能路径（项目相对，如 .claude/skills/iagent_feature） */
+    /** 已装但不在生效集的技能路径（项目相对，如 .claude/skills/iagent-feature） */
     skills: string[];
     /** 已装但不在生效集的指令路径（项目相对，如 .claude/commands/iagent/feature.md） */
     commands: string[];
@@ -39,13 +39,13 @@ export function scanReconcileOrphans(
     const commands: string[] = [];
 
     for (const tool of AI_TOOLS) {
-        // 技能目录：iagent_ 前缀，派生 workflowId 与生效集比对
+        // 技能目录：canonical `iagent-` 与 legacy `iagent_` 两种前缀，派生 workflowId 与生效集比对
         const skillsRoot = path.join(projectRoot, tool.skillsDir, TOOL_SKILLS_SUBDIR);
         for (const dirName of listSubdirectories(skillsRoot)) {
-            if (!dirName.startsWith(SKILL_PREFIX)) {
+            if (!isManagedSkillDirName(dirName)) {
                 continue;
             }
-            const wfId = deriveCommandId(dirName);
+            const wfId = skillIdToWorkflowId(dirName);
             if (!set.has(wfId)) {
                 skills.push(path.relative(projectRoot, path.join(skillsRoot, dirName)));
             }

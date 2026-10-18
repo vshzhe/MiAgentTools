@@ -128,7 +128,7 @@ export const AI_TOOLS: AIToolOption[] = [
         commandsLayout: 'prefixed-file',
         // 可选（opt-in）工具：未配置不生成，显式列入 tools 才纳入生效集
         optIn: true,
-        // OpenCode 权限走 opencode.json 的 permission 段，不写 .opencode/settings.json
+        // OpenCode V2 权限走项目级 .opencode/opencode.jsonc 的 permissions 段，不写 .opencode/settings.json
         sessionPermissions: false,
     },
 ];
