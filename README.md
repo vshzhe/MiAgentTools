@@ -31,7 +31,7 @@ pnpm link --global
 验证安装：
 
 ```bash
-iagent --version    # 输出 7.0.1
+iagent --version    # 输出 7.1.0
 iagent --help       # 查看全部命令
 ```
 
@@ -106,7 +106,7 @@ workflowId 即既有指令 id（如 `spec-explore`）。旧下划线形态 `iage
 | 工具 | 技能目录 | 指令产物 | 说明 |
 | :--- | :--- | :--- | :--- |
 | Claude Code | `.claude/skills/iagent-<workflowId>/` | `.claude/commands/iagent/<id>.md` | YAML frontmatter（name/allowed-tools/category/tags）+ Markdown |
-| Pi | `.pi/skills/iagent-<workflowId>/` | `.pi/prompts/iagent-<id>.md` | Pi prompt 模板：扁平前缀、frontmatter 仅 description + 记账字段；参数经 `$ARGUMENTS` 注入 |
+| Pi | `.pi/skills/iagent-<workflowId>/` | `.pi/prompts/iagent-<id>.md` | Pi prompt 模板：扁平前缀、frontmatter 仅 description + 记账字段；参数经 `$ARGUMENTS` 注入；另生成 `.pi/agents/` 原生 agent 定义（orchestrator + 阶段） |
 | Codex | `.codex/skills/iagent-<workflowId>/` | —（skills-invocable） | 仅生成技能，通过 `$` 前缀调用 |
 | OpenCode V2 | `.opencode/skills/iagent-<workflowId>/` | `.opencode/commands/iagent-<id>.md` | V2 口径：指令含 `agent`/`subagent` 元数据；项目级 `.opencode/agents/` 与 `.opencode/opencode.jsonc`（`permissions`）随 init 生成。**可选（opt-in）** |
 
@@ -118,13 +118,19 @@ workflowId 即既有指令 id（如 `spec-explore`）。旧下划线形态 `iage
 | :--- | :--- | :--- | :--- |
 | Claude Code | `Skill` 工具 | `Skill` / `Agent` | `AskUserQuestion` / hooks |
 | OpenCode V2 | `skill` 工具 | `subagent` + 项目级 agent | `question` / `permissions` |
-| Pi strict | `/skill:name` | Pi Runtime Extension | Extension workflow / gate 工具 |
+| Pi strict | `/skill:name` | `Agent({ subagent_type })` + `.pi/agents/` 定义 | Extension workflow / gate 工具 |
 | Pi degraded | `/skill:name` | 无（本地执行，显式声明不构成委派） | 无 |
 
-**Pi 严格编排运行时**：默认安装 npm 包 `@tintinweb/pi-subagents`（latest，项目级）。
-`iagent init` 默认尝试安装；安装失败、版本不兼容或能力检测失败时**不阻断**，继续生成
-标记为 `degraded` 的产物并写入 `.iagent/pi-runtime.json` 诊断。恢复 strict 可重试安装后
-重新执行 `iagent init` / `update`（Pi 内需 `/reload`）。
+**Pi 严格编排运行时**：默认安装 npm 包 `@tintinweb/pi-subagents`（latest，项目级），并在
+`.pi/agents/` 生成 `iagent-orchestrator.md` 与 `iagent-<workflowId>.md`（`name` 即
+`subagent_type`）。strict 需同时满足：Pi 版本兼容、运行时包已安装、所需 agent 定义可解析。
+`iagent init` 默认尝试安装；任一条不满足时**不阻断**，继续生成标记为 `degraded` 的产物并写入
+`.iagent/pi-runtime.json` 诊断（`nativeEntries` 列出缺失/不可解析项）。恢复 strict 可重试安装后
+重新执行 `iagent update`（Pi 内需 `/reload`）。
+
+**升级刷新语义**：`iagent init` 不覆盖已存在的技能与指令产物，升级后请执行
+`iagent update`（或 `iagent init --force`）刷新。`.pi/agents/iagent-*.md` 为纯生成物，
+每轮直接重建并清理不再属于生效集的 orphan，不设手改保护；用户自建 agent 不受影响。
 
 ### 工具选择配置
 
@@ -209,6 +215,7 @@ your-project/
 │       └── iagent/<指令 id>.md              # 斜杠指令（frontmatter + 正文）
 ├── .pi/                                     # Pi 工具
 │   ├── skills/
+│   ├── agents/                              # 原生 agent 定义（orchestrator + 阶段）
 │   └── prompts/iagent-<指令 id>.md          # Pi prompt 模板（扁平前缀）
 ├── .opencode/                               # OpenCode 工具（可选/opt-in）
 │   ├── skills/

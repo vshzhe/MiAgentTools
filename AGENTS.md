@@ -225,8 +225,13 @@ node bin/iagent.js <cmd> # 直接运行 CLI
   `opencode.jsonc` 的 V2 `permissions`（动作 `skill` / `subagent`，**非** V1 的 `permission` / `task`）。
   指令产物含 V2 `agent` / `subagent` 元数据。默认 **MUST NOT** 修改用户根目录配置；
   `.opencode/settings.json` MUST NOT 生成（Claude 权限载体不适用于 OpenCode）
-- **Pi 编排运行时**（`src/core/pi-runtime.ts`）：默认 provider 为 npm 包 `@tintinweb/pi-subagents`（latest）。
+- **Pi 编排运行时**（`src/core/pi-runtime.ts` / `src/core/pi-native.ts`）：默认 provider 为 npm 包 `@tintinweb/pi-subagents`（latest）。
   `init` 默认尝试项目级安装，失败不阻断并落 `degraded` + `.iagent/pi-runtime.json` 诊断；`update` 仅检测不安装。
+  `init` / `update` 还会生成 `.pi/agents/iagent-orchestrator.md` 与 `.pi/agents/iagent-<workflowId>.md`
+  （`tools` 只写上游内置名；嵌套派发由 `allowed_subagents` 授予）。Pi strict 需同时满足
+  「版本兼容 + 运行时已安装 + 所需 agent 定义可解析」；`nativeEntries` 诊断区分缺包 / 版本不兼容 / 缺定义 / 定义不可解析。
+  `.pi/agents/iagent-*.md` 为纯生成物（每轮重建、清理 orphan，不设指纹保护），用户自建 agent 不受影响。
+  `init` 不覆盖既有技能/指令，升级后用 `update` 刷新。
   命令执行器 MUST 由 CLI 显式注入（`defaultPiCommandRunner`），缺省为空执行器（测试与库调用不产生真实进程/网络副作用）；
   运行时包名可替换为未来 iagent 自有 npm 包，不改变共享协议
 - OpenCode 为**可选（opt-in）工具**：`AI_TOOLS` 条目带 `optIn: true`，未配置 `tools` 的默认回退集不含它，
