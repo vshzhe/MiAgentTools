@@ -111,6 +111,8 @@ export const AI_TOOLS: AIToolOption[] = [
         // Pi 从 .pi/prompts/ 加载 prompt 模板（扁平、前缀命名），不是 .pi/commands/ 子目录
         commandsDir: '.pi/prompts',
         commandsLayout: 'prefixed-file',
+        // Pi 不读取 Claude 风格的 permissions.allow；能力控制走 .pi/settings.json 的 defaultTools
+        sessionPermissions: false,
     },
     {
         value: 'codex',

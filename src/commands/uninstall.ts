@@ -17,10 +17,11 @@ import {
     AI_TOOLS,
     TOOL_SKILLS_SUBDIR,
 } from '../core/config.js';
-import { isManagedSkillDirName } from '../core/skill-id.js';
+import { isManagedSkillDirName, SKILL_ID_PREFIX } from '../core/skill-id.js';
 import { IAGENT_DIR_NAME } from '../core/project-config.js';
 import { listManagedCommands, removeManagedCommands } from '../core/command-artifacts.js';
 import { removeOpenCodeProjectArtifacts } from '../core/opencode-v2.js';
+import { PI_AGENTS_DIR, removePiNativeAgents } from '../core/pi-native.js';
 import { listSubdirectories, pathExists } from '../utils/file-system.js';
 
 /** uninstall 命令选项 */
@@ -116,6 +117,20 @@ export function runUninstall(projectRoot: string, options: UninstallOptions = {}
         }
         if (pathExists(path.join(projectRoot, '.opencode', 'opencode.jsonc'))) {
             removedCommands.push('.opencode/opencode.jsonc（将移除 iagent 权限规则）');
+        }
+    }
+
+    // 2.2 Pi 原生 agent 定义（纯生成物；只删 iagent- 前缀，保留用户自建 agent）
+    if (!options.dryRun) {
+        removedCommands.push(...removePiNativeAgents(projectRoot));
+    } else {
+        const piAgentsDir = path.join(projectRoot, PI_AGENTS_DIR);
+        if (pathExists(piAgentsDir)) {
+            for (const name of fs.readdirSync(piAgentsDir)) {
+                if (name.startsWith(SKILL_ID_PREFIX) && name.endsWith('.md')) {
+                    removedCommands.push(`${PI_AGENTS_DIR}/${name}`);
+                }
+            }
         }
     }
 

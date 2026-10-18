@@ -51,11 +51,18 @@ import {
 } from '../core/host-orchestration/index.js';
 import {
     ensurePiRuntime,
+    detectPiRuntime,
     renderPiRuntimeMetadata,
     PI_RUNTIME_METADATA_FILE,
     type PiCommandRunner,
     type PiRuntimeStatus,
 } from '../core/pi-runtime.js';
+import {
+    PI_ORCHESTRATOR_AGENT_ID,
+    piAgentId,
+    writePiNativeAgents,
+    type PiNativeWriteResult,
+} from '../core/pi-native.js';
 import { deriveCommandId } from '../core/templates/index.js';
 
 /** 目标工具设置文件的相对路径（会话级权限载体） */
@@ -110,6 +117,8 @@ export interface InitResult {
     openCodeProject: OpenCodeProjectArtifactsResult | null;
     /** Pi 编排运行时状态（未纳入 pi 时为 null） */
     piRuntime: PiRuntimeStatus | null;
+    /** Pi 原生 agent 定义写入结果（未纳入 pi 时为 null） */
+    piNative: PiNativeWriteResult | null;
 }
 
 /** 读取当前包版本（供 metadata.generatedBy） */
@@ -163,10 +172,29 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
     // 已知指令 id：正文引用按工具布局改写时使用（单一源，派生自注册表）
     const knownCommandIds = getKnownCommandIds();
 
-    // Pi 运行时能力检测与安装（仅 Pi 在生效集内时）；失败不阻断，落 degraded
+    // Pi 原生编排：检测/安装 runtime → 写入 agent 定义 → 以定义已落盘重算 strict → 落诊断元数据
+    // 顺序固定为「先落盘定义、后判 strict」，否则首次 init 永远先拿到 degraded（D6）。
     let piStatus: PiRuntimeStatus | null = null;
+    let piNative: PiNativeWriteResult | null = null;
     if (tools.some((t) => t.value === 'pi')) {
-        piStatus = ensurePiRuntime({ projectRoot, runner: options.piRuntimeRunner });
+        const stages = getSkillTemplates(undefined, resolved.workflows).map((entry) => ({
+            workflowId: entry.commandId,
+            description: entry.template.description,
+        }));
+        // 1) 运行时检测（缺失时安装并复检；此处不要求入口，避免入口缺失被误判为需要重装）
+        const ensured = ensurePiRuntime({ projectRoot, runner: options.piRuntimeRunner });
+        // 2) 原生 agent 定义（纯生成物，先落盘）
+        piNative = writePiNativeAgents(projectRoot, stages);
+        // 3) 以落盘后的定义重算 strict/degraded；合并安装尝试的诊断（安装失败时保留手动命令）
+        const detected = detectPiRuntime({
+            projectRoot,
+            runner: options.piRuntimeRunner,
+            requiredAgents: [PI_ORCHESTRATOR_AGENT_ID, ...stages.map((stage) => piAgentId(stage.workflowId))],
+        });
+        piStatus = {
+            ...detected,
+            reasons: [...new Set([...ensured.reasons, ...detected.reasons])],
+        };
         try {
             ensureDir(path.join(projectRoot, '.iagent'));
             writeFile(path.join(projectRoot, PI_RUNTIME_METADATA_FILE), renderPiRuntimeMetadata(piStatus), {
@@ -319,5 +347,6 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
         skillIdMigration,
         openCodeProject,
         piRuntime: piStatus,
+        piNative,
     };
 }

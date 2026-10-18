@@ -18,6 +18,14 @@ import {
 } from '../src/core/pi-runtime.js';
 import { runInit } from '../src/commands/init.js';
 import { ensureProjectConfig, writeWorkflowsToConfig } from '../src/core/project-config.js';
+import { PI_ORCHESTRATOR_AGENT_ID, piAgentId, writePiNativeAgents } from '../src/core/pi-native.js';
+
+/** 建含 orchestrator + 阶段定义的临时项目 */
+function rootWithAgents(stages: Array<{ workflowId: string; description: string }>): string {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-pirt-agents-'));
+    writePiNativeAgents(root, stages);
+    return root;
+}
 
 /** 构造模拟执行器 */
 function makeRunner(handlers: {
@@ -67,10 +75,64 @@ describe('运行时检测', () => {
         expect(status.reasons.join()).toContain('低于运行时要求');
     });
 
-    it('运行时已安装且版本兼容 → strict', () => {
-        const status = detectPiRuntime({ runner: makeRunner({ piVersion: '1.2.0', installed: true }) });
-        expect(status.mode).toBe('strict');
-        expect(status.installed).toBe(true);
+    it('运行时已安装且版本兼容 + 原生入口齐备 → strict', () => {
+        const root = rootWithAgents([{ workflowId: 'spec-explore', description: '探索' }]);
+        try {
+            const status = detectPiRuntime({
+                runner: makeRunner({ piVersion: '1.2.0', installed: true }),
+                projectRoot: root,
+                requiredAgents: [PI_ORCHESTRATOR_AGENT_ID, piAgentId('spec-explore')],
+            });
+            expect(status.mode).toBe('strict');
+            expect(status.installed).toBe(true);
+            expect(status.nativeEntries.missing).toEqual([]);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('运行时已装但入口缺失 → degraded 并给出 entry-missing', () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-pirt-missing-'));
+        try {
+            const status = detectPiRuntime({
+                runner: makeRunner({ piVersion: '1.2.0', installed: true }),
+                projectRoot: root,
+                requiredAgents: [PI_ORCHESTRATOR_AGENT_ID],
+            });
+            expect(status.mode).toBe('degraded');
+            expect(status.installed).toBe(true);
+            expect(status.nativeEntries.missing).toEqual([PI_ORCHESTRATOR_AGENT_ID]);
+            expect(status.nativeEntries.issues.map((issue) => issue.code)).toContain('entry-missing');
+            expect(status.reasons.join(' ')).toContain('缺少原生委派入口');
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('入口存在但 frontmatter 不可解析 → degraded 并给出 entry-invalid', () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-pirt-invalid-'));
+        try {
+            fs.mkdirSync(path.join(root, '.pi', 'agents'), { recursive: true });
+            fs.writeFileSync(path.join(root, '.pi', 'agents', `${PI_ORCHESTRATOR_AGENT_ID}.md`), 'broken', 'utf8');
+            const status = detectPiRuntime({
+                runner: makeRunner({ piVersion: '1.2.0', installed: true }),
+                projectRoot: root,
+                requiredAgents: [PI_ORCHESTRATOR_AGENT_ID],
+            });
+            expect(status.mode).toBe('degraded');
+            expect(status.nativeEntries.invalid).toEqual([PI_ORCHESTRATOR_AGENT_ID]);
+            expect(status.nativeEntries.issues.map((issue) => issue.code)).toContain('entry-invalid');
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('版本不兼容时诊断码为 runtime-incompatible', () => {
+        const status = detectPiRuntime({
+            runner: makeRunner({ piVersion: '1.0.0' }),
+            requiredAgents: [PI_ORCHESTRATOR_AGENT_ID],
+        });
+        expect(status.nativeEntries.issues.map((issue) => issue.code)).toContain('runtime-incompatible');
     });
 
     it('未安装 → 默认安装并不阻塞（degraded 时记录包名）', () => {
@@ -158,6 +220,8 @@ describe('可诊断元数据', () => {
         expect(meta.package).toBe(PI_RUNTIME_PACKAGE);
         expect(meta.orchestration).toBe('degraded');
         expect(Array.isArray(meta.reasons)).toBe(true);
+        expect(meta.nativeEntries).toBeDefined();
+        expect(Array.isArray(meta.nativeEntries.required)).toBe(true);
     });
 });
 

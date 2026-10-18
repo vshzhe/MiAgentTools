@@ -5,11 +5,13 @@
  * 复用 uninstall 的产物识别模式（iagent- / legacy iagent_ 技能目录 + iagent 命名空间指令文件）。
  */
 
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { AI_TOOLS, TOOL_SKILLS_SUBDIR } from './config.js';
-import { isManagedSkillDirName, skillIdToWorkflowId } from './skill-id.js';
+import { isManagedSkillDirName, skillIdToWorkflowId, SKILL_ID_PREFIX } from './skill-id.js';
 import { listManagedCommands } from './command-artifacts.js';
 import { listSubdirectories } from '../utils/file-system.js';
+import { PI_AGENTS_DIR, PI_ORCHESTRATOR_AGENT_ID } from './pi-native.js';
 
 /** reconcile 扫描结果 */
 export interface ReconcileOrphans {
@@ -17,11 +19,13 @@ export interface ReconcileOrphans {
     skills: string[];
     /** 已装但不在生效集的指令路径（项目相对，如 .claude/commands/iagent/feature.md） */
     commands: string[];
+    /** 已装但不在生效集的 Pi agent 定义（项目相对，如 .pi/agents/iagent-feature.md） */
+    agents: string[];
 }
 
 /** orphan 提示总数 */
 export function reconcileOrphanCount(orphans: ReconcileOrphans): number {
-    return orphans.skills.length + orphans.commands.length;
+    return orphans.skills.length + orphans.commands.length + orphans.agents.length;
 }
 
 /**
@@ -37,6 +41,7 @@ export function scanReconcileOrphans(
     const set = new Set(effectiveWorkflows);
     const skills: string[] = [];
     const commands: string[] = [];
+    const agents: string[] = [];
 
     for (const tool of AI_TOOLS) {
         // 技能目录：canonical `iagent-` 与 legacy `iagent_` 两种前缀，派生 workflowId 与生效集比对
@@ -59,5 +64,24 @@ export function scanReconcileOrphans(
         }
     }
 
-    return { skills, commands };
+    // Pi agent 定义：纯生成物，按 canonical `iagent-<workflowId>.md` 识别；
+    // orchestrator 不属任何 workflow，始终视为受管而非 orphan
+    const agentsDir = path.join(projectRoot, PI_AGENTS_DIR);
+    if (fs.existsSync(agentsDir)) {
+        for (const name of fs.readdirSync(agentsDir)) {
+            if (!name.startsWith(SKILL_ID_PREFIX) || !name.endsWith('.md')) {
+                continue;
+            }
+            const agentId = name.slice(0, -'.md'.length);
+            if (agentId === PI_ORCHESTRATOR_AGENT_ID) {
+                continue;
+            }
+            const wfId = agentId.slice(SKILL_ID_PREFIX.length);
+            if (!set.has(wfId)) {
+                agents.push(path.relative(projectRoot, path.join(agentsDir, name)).replaceAll('\\', '/'));
+            }
+        }
+    }
+
+    return { skills, commands, agents };
 }

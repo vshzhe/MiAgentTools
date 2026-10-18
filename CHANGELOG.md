@@ -7,6 +7,35 @@
 
 ## [Unreleased]
 
+## [7.1.0] - 2026-10-18
+
+### Added
+
+- Pi 原生编排产物 `src/core/pi-native.ts`：`init` / `update` 生成
+  `.pi/agents/iagent-orchestrator.md` 与 `.pi/agents/iagent-<workflowId>.md`，使
+  `@tintinweb/pi-subagents` 的 `Agent` 能按 `subagent_type` 解析阶段委派；`tools` 只写
+  上游内置名，嵌套派发由 `allowed_subagents` 授予，`prompt_mode: append`。
+- Pi strict 判定收紧为「版本兼容 + 运行时已安装 + 所需 agent 定义可解析」；
+  `.iagent/pi-runtime.json` 新增 `nativeEntries`（`required` / `resolvable` / `missing` /
+  `invalid` / `issues`），诊断码区分 `runtime-missing` / `runtime-incompatible` /
+  `entry-missing` / `entry-invalid`。
+- `.pi/agents/` 纳入 uninstall 与 reconcile：只处理 `iagent-` 前缀，清理生效集缩小后的
+  orphan，用户自建 agent 不受影响。
+
+### Changed
+
+- Pi 的 `sessionPermissions` 设为 `false`，不再向 `.pi/settings.json` 写入 Claude 风格的
+  `permissions.allow`（Pi 不读取该段）。
+- Pi strict 的阶段委派改为可执行形态 `Agent({ subagent_type, prompt })`，类型名与生成的
+  agent 定义一致。
+- `init` 跳过既有产物时输出刷新提示（指向 `iagent update`）；README / AGENTS 补充升级刷新
+  语义与 `.pi/agents/` 说明。
+
+### Fixed
+
+- 修正 `iagent-workflow` 指令 description 中“提案内联生成”的过期表述。
+- Pi degraded 诊断保留安装尝试的手动命令，修复 `init` 复检后丢失 `pi install` 提示的问题。
+
 ## [7.0.1] - 2026-10-18
 
 ### Changed
@@ -1162,7 +1191,8 @@
 [2.0.0]: https://github.com/mi-agent-tools/compare/v1.18.1...v2.0.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/mi-agent-tools/compare/v7.0.1...HEAD
+[Unreleased]: https://github.com/mi-agent-tools/compare/v7.1.0...HEAD
+[7.1.0]: https://github.com/mi-agent-tools/compare/v7.0.1...v7.1.0
 [7.0.1]: https://github.com/mi-agent-tools/compare/v7.0.0...v7.0.1
 [7.0.0]: https://github.com/mi-agent-tools/compare/v6.4.0...v7.0.0
 [6.4.0]: https://github.com/mi-agent-tools/compare/v6.3.0...v6.4.0

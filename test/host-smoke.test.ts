@@ -101,13 +101,26 @@ describe('跨宿主冒烟：Pi strict', () => {
         const wf = readSkill(root, '.pi/skills/iagent-workflow');
         expect(wf).toContain('strict 编排');
         expect(wf).toContain('Runtime Extension');
+        expect(wf).toContain('Agent({');
+        expect(wf).toContain('subagent_type');
+        expect(wf).toContain('iagent-spec-explore');
         expect(wf).not.toContain('Skill 工具委派');
         expect(wf).not.toMatch(/^\s*allowed-tools:/m);
         expect(wf).not.toContain('iagent_spec_');
 
+        // 原生 agent 定义与阶段类型一致
+        expect(fs.existsSync(path.join(root, '.pi', 'agents', 'iagent-orchestrator.md'))).toBe(true);
+        expect(fs.existsSync(path.join(root, '.pi', 'agents', 'iagent-spec-explore.md'))).toBe(true);
+        const orchestrator = fs.readFileSync(
+            path.join(root, '.pi', 'agents', 'iagent-orchestrator.md'),
+            'utf8'
+        );
+        expect(orchestrator).toMatch(/^allowed_subagents: .*iagent-spec-explore/m);
+
         const meta = JSON.parse(fs.readFileSync(path.join(root, '.iagent', 'pi-runtime.json'), 'utf8'));
         expect(meta.orchestration).toBe('strict');
         expect(meta.package).toBe('@tintinweb/pi-subagents');
+        expect(meta.nativeEntries.missing).toEqual([]);
     });
 });
 
@@ -123,6 +136,7 @@ describe('跨宿主冒烟：Pi degraded', () => {
         const wf = readSkill(root, '.pi/skills/iagent-workflow');
         expect(wf).toContain('degraded 单 agent 模式');
         expect(wf).toContain('不构成委派');
+        expect(wf).not.toContain('Agent({');
         expect(wf).not.toContain('Skill 工具委派');
         expect(wf).not.toMatch(/^\s*allowed-tools:/m);
         expect(wf).not.toContain('iagent_spec_');
@@ -130,6 +144,9 @@ describe('跨宿主冒烟：Pi degraded', () => {
         const meta = JSON.parse(fs.readFileSync(path.join(root, '.iagent', 'pi-runtime.json'), 'utf8'));
         expect(meta.orchestration).toBe('degraded');
         expect(meta.reasons.join(' ')).toContain('pi install');
+        expect(meta.nativeEntries.required.length).toBeGreaterThan(0);
+        // degraded 仍写入定义，供安装运行时后直接恢复 strict
+        expect(fs.existsSync(path.join(root, '.pi', 'agents', 'iagent-orchestrator.md'))).toBe(true);
     });
 
     it('技能与指令产物仍完整生成（degraded 不阻断）', () => {

@@ -573,7 +573,7 @@ All artifacts ready! Proceeding to the Phase 4 implementation bridge...
 export function getWorkflowCommandTemplate(): CommandTemplate {
     return {
         name: 'iAgent: 引导工作流',
-        description: '一站式引导工作流：结构化探索（grill 追问 L1-L5）→ 提案内联生成 → 自动验证门 → 深度复查收束 + 需求文档生成 → 委派实现（spec_apply）→ 委派归档（spec_archive）',
+        description: '一站式引导工作流：结构化探索（grill 追问 L1-L5）→ 提案委派生成 → 自动验证门 → 深度复查收束 + 需求文档生成 → 委派实现（spec_apply）→ 委派归档（spec_archive）',
         category: 'iAgent / 实现',
         tags: ['iagent', 'impl', 'workflow', 'exploration', 'verification', 'orchestrator'],
         content: deriveCommandContent(getWorkflowSkillTemplate().instructions),

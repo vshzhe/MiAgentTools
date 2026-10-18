@@ -58,7 +58,8 @@ export function renderDelegate(
     }
     // pi
     if (mode === 'strict') {
-        return `经 Pi Runtime Extension 委派 \`${id}\`${opts}`;
+        const prompt = `执行 ${id} 阶段${opts}`;
+        return `调用 \`Agent({ subagent_type: "${id}", prompt: ${JSON.stringify(prompt)} })\``;
     }
     return `（degraded）由当前 agent 本地执行 \`${id}\`${opts}，**不构成委派**`;
 }

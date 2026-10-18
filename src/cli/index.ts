@@ -93,6 +93,15 @@ export function buildProgram(): Command {
                     console.log(`    ! ${reason}`);
                 }
             }
+            if (result.piNative) {
+                console.log(`  Pi agent 定义：${result.piNative.written.length} 个`);
+                for (const removed of result.piNative.removed) {
+                    console.log(`    - 清理 orphan：${removed}`);
+                }
+                for (const warning of result.piNative.warnings) {
+                    console.log(`    ! ${warning}`);
+                }
+            }
             if (result.openCodeProject?.warnings.length) {
                 for (const warning of result.openCodeProject.warnings) {
                     console.log(`  ! ${warning}`);
@@ -107,7 +116,7 @@ export function buildProgram(): Command {
                 console.log(`    + ${command}`);
             }
             if (result.skipped.length > 0) {
-                console.log(`  跳过（已存在，--force 覆盖）：${result.skipped.length} 个`);
+                console.log(`  跳过（已存在；升级请运行 iagent update，或 --force 覆盖）：${result.skipped.length} 个`);
             }
             console.log(
                 result.configState === 'created'
@@ -136,6 +145,9 @@ export function buildProgram(): Command {
                 }
                 for (const cmd of result.reconcileOrphans.commands) {
                     console.log(`    - ${cmd}`);
+                }
+                for (const agent of result.reconcileOrphans.agents) {
+                    console.log(`    - ${agent}`);
                 }
                 console.log('    如需移除：iagent uninstall 或手动删除');
             }
@@ -201,6 +213,15 @@ export function buildProgram(): Command {
                     console.log(`    ! ${reason}`);
                 }
             }
+            if (result.piNative) {
+                console.log(`  Pi agent 定义：${result.piNative.written.length} 个`);
+                for (const removed of result.piNative.removed) {
+                    console.log(`    - 清理 orphan：${removed}`);
+                }
+                for (const warning of result.piNative.warnings) {
+                    console.log(`    ! ${warning}`);
+                }
+            }
             if (result.openCodeProject?.warnings.length) {
                 for (const warning of result.openCodeProject.warnings) {
                     console.log(`  ! ${warning}`);
@@ -240,6 +261,9 @@ export function buildProgram(): Command {
                 }
                 for (const cmd of result.reconcileOrphans.commands) {
                     console.log(`    - ${cmd}`);
+                }
+                for (const agent of result.reconcileOrphans.agents) {
+                    console.log(`    - ${agent}`);
                 }
                 console.log('    如需移除：iagent uninstall 或手动删除');
             }

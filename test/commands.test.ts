@@ -415,8 +415,8 @@ describe('指令白名单继承与会话级权限载体（端到端）', () => {
         const before = fs.readFileSync(settingsPath(), 'utf8');
         const result = runInit(tempRoot, { force: true });
 
-        // 每个工具独立合并权限：claude + pi + codex = 3
-        expect(result.permissionSettings.length).toBe(3);
+        // 每个工具独立合并权限：claude + codex = 2（Pi 不写 Claude 权限载体）
+        expect(result.permissionSettings.length).toBe(2);
         // claude 工具 settings.json 内容不变
         expect(result.permissionSettings[0].state).toBe('unchanged');
         expect(result.permissionSettings[0].added).toBe(0);

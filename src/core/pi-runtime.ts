@@ -14,6 +14,7 @@
 import { spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { scanPiAgentDefinitions, type PiAgentDefinitionScan } from './pi-native.js';
 
 /** 默认运行时包名 */
 export const PI_RUNTIME_PACKAGE = '@tintinweb/pi-subagents';
@@ -51,6 +52,37 @@ export const defaultPiCommandRunner: PiCommandRunner = (cmd, args, options) => {
 /** 未注入执行器时的安全默认：视为 Pi 不可用（degraded），不产生任何进程与网络副作用 */
 const DISABLED_RUNNER: PiCommandRunner = () => ({ status: null });
 
+/** 原生委派入口缺失/不可解析的诊断码 */
+export type PiNativeEntryCode =
+    | 'runtime-missing'
+    | 'runtime-incompatible'
+    | 'entry-missing'
+    | 'entry-invalid';
+
+/** 单条原生入口诊断 */
+export interface PiNativeEntryIssue {
+    code: PiNativeEntryCode;
+    /** 相关 agent 名称（entry-* 时提供） */
+    agent?: string;
+    message: string;
+}
+
+/** 原生委派入口状态 */
+export interface PiNativeEntriesStatus {
+    /** 目录（项目相对，posix） */
+    dir: string;
+    /** 期望的 `subagent_type` */
+    required: string[];
+    /** 可解析 */
+    resolvable: string[];
+    /** 文件缺失 */
+    missing: string[];
+    /** frontmatter 不可解析或 name 不匹配 */
+    invalid: string[];
+    /** 结构化诊断 */
+    issues: PiNativeEntryIssue[];
+}
+
 /** Pi 运行时状态 */
 export interface PiRuntimeStatus {
     /** 运行时包名 */
@@ -67,6 +99,8 @@ export interface PiRuntimeStatus {
     piVersion: string | null;
     /** Pi 版本是否满足运行时要求 */
     compatible: boolean;
+    /** 原生委派入口状态 */
+    nativeEntries: PiNativeEntriesStatus;
     /** 编排模式 */
     mode: 'strict' | 'degraded';
     /** 非阻断原因/告警 */
@@ -123,6 +157,8 @@ export interface PiRuntimeOptions {
     provider?: PiRuntimeProviderConfig;
     /** 跳过安装尝试（只检测） */
     skipInstall?: boolean;
+    /** 期望的原生委派入口（agent ID / `subagent_type`）；缺省不要求 */
+    requiredAgents?: readonly string[];
 }
 
 /** 读取 Pi CLI 版本（不可用返回 null） */
@@ -135,12 +171,41 @@ function readPiVersion(runner: PiCommandRunner): string | null {
     return v ? `${v[0]}.${v[1]}.${v[2]}` : null;
 }
 
+/** 扫描原生委派入口并生成结构化问题 */
+function buildNativeEntries(
+    projectRoot: string | undefined,
+    requiredAgents: readonly string[] | undefined
+): PiNativeEntriesStatus {
+    const scan: PiAgentDefinitionScan = scanPiAgentDefinitions(projectRoot ?? '', requiredAgents ?? []);
+    const issues: PiNativeEntryIssue[] = [];
+    for (const agent of scan.missing) {
+        issues.push({ code: 'entry-missing', agent, message: `缺少 agent 定义：.pi/agents/${agent}.md` });
+    }
+    for (const agent of scan.invalid) {
+        issues.push({
+            code: 'entry-invalid',
+            agent,
+            message: `agent 定义不可解析或 name 不匹配：.pi/agents/${agent}.md`,
+        });
+    }
+    return {
+        dir: scan.dir,
+        required: scan.required,
+        resolvable: scan.resolvable,
+        missing: scan.missing,
+        invalid: scan.invalid,
+        issues,
+    };
+}
+
 /** 构造 degraded 状态 */
 function degraded(
     provider: PiRuntimeProviderConfig,
     piVersion: string | null,
     compatible: boolean,
-    reasons: string[]
+    reasons: string[],
+    nativeEntries: PiNativeEntriesStatus,
+    extraIssues: PiNativeEntryIssue[] = []
 ): PiRuntimeStatus {
     return {
         package: provider.package,
@@ -150,6 +215,10 @@ function degraded(
         conflicts: [],
         piVersion,
         compatible,
+        nativeEntries: {
+            ...nativeEntries,
+            issues: [...nativeEntries.issues, ...extraIssues],
+        },
         mode: 'degraded',
         reasons,
     };
@@ -209,15 +278,33 @@ function resolveInstalledPackageVersion(
 export function detectPiRuntime(options: PiRuntimeOptions = {}): PiRuntimeStatus {
     const runner = options.runner ?? DISABLED_RUNNER;
     const provider = options.provider ?? DEFAULT_PI_RUNTIME_PROVIDER;
+    const nativeEntries = buildNativeEntries(options.projectRoot, options.requiredAgents);
     const piVersion = readPiVersion(runner);
     if (piVersion === null) {
-        return degraded(provider, null, false, ['Pi CLI 不可用或无法解析版本，无法启用严格编排']);
+        return degraded(
+            provider,
+            null,
+            false,
+            ['Pi CLI 不可用或无法解析版本，无法启用严格编排'],
+            nativeEntries,
+            [{ code: 'runtime-missing', message: '未检测到可用的 Pi CLI' }]
+        );
     }
     const compatible = versionAtLeast(piVersion, provider.minPiVersion);
     if (!compatible) {
-        return degraded(provider, piVersion, false, [
-            `Pi 版本 ${piVersion} 低于运行时要求 ${provider.minPiVersion}`,
-        ]);
+        return degraded(
+            provider,
+            piVersion,
+            false,
+            [`Pi 版本 ${piVersion} 低于运行时要求 ${provider.minPiVersion}`],
+            nativeEntries,
+            [
+                {
+                    code: 'runtime-incompatible',
+                    message: `Pi 版本 ${piVersion} 低于 ${provider.minPiVersion}`,
+                },
+            ]
+        );
     }
     const projectEntry = projectPackageEntry(options.projectRoot, provider.package);
     const listResult = runner('pi', ['list'], { cwd: options.projectRoot });
@@ -225,15 +312,41 @@ export function detectPiRuntime(options: PiRuntimeOptions = {}): PiRuntimeStatus
     const installed = projectEntry !== null || (listResult.status === 0 && listOutput.includes(provider.package));
     const conflicts = CONFLICTING_PACKAGE_HINTS.filter((name) => name !== provider.package && listOutput.includes(name));
     if (!installed) {
-        return degraded(provider, piVersion, true, [
-            `未检测到 Pi 运行时 ${provider.package}`,
-        ]);
+        return degraded(
+            provider,
+            piVersion,
+            true,
+            [`未检测到 Pi 运行时 ${provider.package}`],
+            nativeEntries,
+            [
+                {
+                    code: 'runtime-missing',
+                    message: `未安装 ${provider.package}`,
+                },
+            ]
+        );
+    }
+    const entryReasons: string[] = [];
+    if (nativeEntries.missing.length > 0) {
+        entryReasons.push(`缺少原生委派入口：${nativeEntries.missing.join(', ')}`);
+    }
+    if (nativeEntries.invalid.length > 0) {
+        entryReasons.push(`原生委派入口不可解析：${nativeEntries.invalid.join(', ')}`);
     }
     if (conflicts.length > 0) {
         return {
-            ...degraded(provider, piVersion, true, [`检测到同类 Pi 编排包冲突：${conflicts.join(', ')}`]),
+            ...degraded(provider, piVersion, true, [
+                `检测到同类 Pi 编排包冲突：${conflicts.join(', ')}`,
+                ...entryReasons,
+            ], nativeEntries),
             installed: true,
             conflicts,
+        };
+    }
+    if (entryReasons.length > 0) {
+        return {
+            ...degraded(provider, piVersion, true, entryReasons, nativeEntries),
+            installed: true,
         };
     }
     const resolved = projectEntry
@@ -247,6 +360,7 @@ export function detectPiRuntime(options: PiRuntimeOptions = {}): PiRuntimeStatus
         conflicts: [],
         piVersion,
         compatible: true,
+        nativeEntries,
         mode: 'strict',
         reasons: [],
     };
@@ -289,6 +403,10 @@ export function ensurePiRuntime(options: PiRuntimeOptions = {}): PiRuntimeStatus
     if (first.piVersion === null || !first.compatible) {
         return first;
     }
+    // 已安装但入口缺失/冲突时，安装不会改变结果（入口由写入阶段补齐）
+    if (first.installed) {
+        return first;
+    }
     if (options.skipInstall) {
         return first;
     }
@@ -318,6 +436,7 @@ export function renderPiRuntimeMetadata(status: PiRuntimeStatus): string {
             conflicts: status.conflicts,
             piVersion: status.piVersion,
             compatible: status.compatible,
+            nativeEntries: status.nativeEntries,
             orchestration: status.mode,
             reasons: status.reasons,
         },

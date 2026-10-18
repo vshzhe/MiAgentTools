@@ -33,7 +33,7 @@ describe('iagent uninstall', () => {
 
         const preview = previewUninstall(tempRoot);
         expect(preview.removedSkills.length).toBe(63); // (20 内置 + 1 生成) × 3 工具
-        expect(preview.removedCommands.length).toBe(40); // 20 内置 × 2 适配器
+        expect(preview.removedCommands.length).toBe(61); // 20 内置 × 2 适配器 + Pi 21 个 agent（orchestrator + 20 阶段）
         // 未删除：文件仍在
         expect(fs.existsSync(path.join(tempRoot, '.claude', 'skills', 'iagent-project-init', 'SKILL.md'))).toBe(true);
     });

@@ -58,6 +58,12 @@ import {
     type PiCommandRunner,
     type PiRuntimeStatus,
 } from '../core/pi-runtime.js';
+import {
+    PI_ORCHESTRATOR_AGENT_ID,
+    piAgentId,
+    writePiNativeAgents,
+    type PiNativeWriteResult,
+} from '../core/pi-native.js';
 import { deriveCommandId } from '../core/templates/index.js';
 
 /** 目标工具设置文件的相对路径（会话级权限载体） */
@@ -109,6 +115,8 @@ export interface UpdateResult {
     openCodeProject: OpenCodeProjectArtifactsResult | null;
     /** Pi 编排运行时状态（未纳入 pi 时为 null） */
     piRuntime: PiRuntimeStatus | null;
+    /** Pi 原生 agent 定义写入结果（未纳入 pi 时为 null） */
+    piNative: PiNativeWriteResult | null;
 }
 
 /** 读取当前包版本 */
@@ -170,10 +178,20 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
     // 已知指令 id：正文引用按工具布局改写时使用（单一源，派生自注册表）
     const knownCommandIds = getKnownCommandIds();
 
-    // Pi 运行时能力检测（update 仅检测不安装；init 负责首次安装）
+    // Pi 原生编排（update 仅检测不安装）：写入 agent 定义 → 以定义已落盘重算 strict → 落诊断元数据
     let piStatus: PiRuntimeStatus | null = null;
+    let piNative: PiNativeWriteResult | null = null;
     if (tools.some((t) => t.value === 'pi')) {
-        piStatus = detectPiRuntime({ projectRoot, runner: options.piRuntimeRunner });
+        const stages = getSkillTemplates(undefined, resolved.workflows).map((entry) => ({
+            workflowId: entry.commandId,
+            description: entry.template.description,
+        }));
+        piNative = writePiNativeAgents(projectRoot, stages);
+        piStatus = detectPiRuntime({
+            projectRoot,
+            runner: options.piRuntimeRunner,
+            requiredAgents: [PI_ORCHESTRATOR_AGENT_ID, ...stages.map((stage) => piAgentId(stage.workflowId))],
+        });
         try {
             ensureDir(path.join(projectRoot, '.iagent'));
             writeFile(path.join(projectRoot, PI_RUNTIME_METADATA_FILE), renderPiRuntimeMetadata(piStatus), {
@@ -343,6 +361,7 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
         skillIdMigration,
         openCodeProject,
         piRuntime: piStatus,
+        piNative,
     };
 }
 

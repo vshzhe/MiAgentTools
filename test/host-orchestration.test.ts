@@ -86,6 +86,9 @@ describe('宿主能力协商', () => {
         const n = negotiateCapabilities('pi', 'degraded', ['skill-load', 'argument-passing']);
         expect(n.mode).toBe('degraded');
         expect(n.notes.join('\n')).toContain('MUST NOT 被标记为委派完成');
+        // 入口不可解析导致的 degraded：委派能力缺失，阶段不得推进
+        expect(n.missing).toContain('delegate');
+        expect(phaseCapabilitiesSatisfied(n, ['delegate']).runnable).toBe(false);
     });
 });
 
@@ -216,7 +219,9 @@ describe('宿主编排段渲染', () => {
         expect(opencode).not.toContain('Skill 工具');
 
         const piStrict = renderDelegate('pi', 'strict', { workflowId: 'spec-explore' });
-        expect(piStrict).toContain('Runtime Extension');
+        expect(piStrict).toContain('Agent({');
+        expect(piStrict).toContain('subagent_type');
+        expect(piStrict).toContain('iagent-spec-explore');
 
         const piDegraded = renderDelegate('pi', 'degraded', { workflowId: 'spec-explore' });
         expect(piDegraded).toContain('degraded');
@@ -243,6 +248,15 @@ describe('宿主编排段渲染', () => {
         // 委派集合存在
         expect(ORCHESTRATION_DELEGATIONS.workflow).toContain('spec-apply');
         expect(renderDelegationList('claude', 'strict', [])).toBe('');
+    });
+
+    it('编排指令描述与委派语义一致（无“内联生成”矛盾）', () => {
+        const templates = getSkillTemplates();
+        for (const name of ['iagent_workflow', 'iagent_auto_workflow']) {
+            const entry = templates.find((item) => item.template.name === name);
+            expect(entry).toBeDefined();
+            expect(entry!.template.description).not.toContain('内联生成');
+        }
     });
 
     it('仅编排类技能被注入适配段且幂等', () => {
