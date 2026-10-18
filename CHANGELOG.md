@@ -7,6 +7,20 @@
 
 ## [Unreleased]
 
+## [7.0.1] - 2026-10-18
+
+### Changed
+
+- 新增 `.npmignore` 并收紧 `package.json` 的 `files` 负向清单：发布包剔除 `dist/**/*.js.map` 与
+  `*.d.ts.map`（source map 指向未随包发布的 `src/*.ts`），包体由 283 个文件 / 441 kB 降至
+  190 个文件 / 377 kB；`.npmignore` 同时排除源码、测试、CI、文档与本机产物目录
+  （`.iagent/`、`.claude/`、`.pi/`、`.opencode/`、`.codegraph/`、`openspec/` 等）。
+  注：npm 的 `files` 白名单优先级高于根 `.npmignore`，故产物侧剔除必须写在 `files` 的 `!` 条目中。
+- 整理 `.gitignore`：按「依赖/构建产物、iagent 本机产物、运行与发布临时产物、日志、环境变量、编辑器与系统文件」
+  分区分组，新增 `*.tgz`（npm pack 产物）、`coverage/` 与 `.nyc_output/`、`*.orig` / `*.rej`（补丁与合并残留）、
+  `.env` / `.env.*`（保留 `!.env.example`）、`.idea/` / `*.iml` / `._*` / `.Spotlight-V100/` / `.Trashes/` /
+  `ehthumbs.db` / `desktop.ini` 等预防性条目；已跟踪文件无一被新规则误伤（`git ls-files -i -c` 为空）。
+
 ## [7.0.0] - 2026-10-18
 
 ### BREAKING
@@ -1148,7 +1162,8 @@
 [2.0.0]: https://github.com/mi-agent-tools/compare/v1.18.1...v2.0.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/mi-agent-tools/compare/v7.0.0...HEAD
+[Unreleased]: https://github.com/mi-agent-tools/compare/v7.0.1...HEAD
+[7.0.1]: https://github.com/mi-agent-tools/compare/v7.0.0...v7.0.1
 [7.0.0]: https://github.com/mi-agent-tools/compare/v6.4.0...v7.0.0
 [6.4.0]: https://github.com/mi-agent-tools/compare/v6.3.0...v6.4.0
 [6.3.0]: https://github.com/mi-agent-tools/compare/v6.2.0...v6.3.0

@@ -1,12 +1,14 @@
+# ── 依赖与构建产物（均不入库）────────────────────────────────────
 node_modules/
 dist/
-*.log
-.DS_Store
-Thumbs.db
+*.tsbuildinfo
+.eslintcache
+coverage/
+.nyc_output/
 
-# iagent 本机产物与 codegraph 索引（不入库）
-# .iagent/ = 本项目配置（config.yaml + rules/），.claude/ .pi/ .codex/ .opencode/ = dogfood 产物
-# （iagent init / update 生成的各 AI 工具目录）。
+# ── iagent 本机产物与索引（均不入库）─────────────────────────────
+# .iagent/ = 本项目配置（config.yaml + rules/ + scan-baseline.json + pi-runtime.json），
+# .claude/ .pi/ .codex/ .opencode/ = dogfood 产物（iagent init / update 生成）。
 # 均为本机状态而非仓库分发内容；模板的提交源是 skills/ 静态快照，
 # 本机刷新用 `pnpm generate:skills`（快照）与 `iagent update`（dogfood 产物）。
 .iagent/
@@ -20,10 +22,30 @@ Thumbs.db
 openspec/
 .openspec-tmp/
 
+# ── 运行 / 发布临时产物 ─────────────────────────────────────────
+# npm pack / pnpm pack 打出的包（发布前自检用 --dry-run 不落盘）
+*.tgz
 # gentest-java 运行临时工作区（本机生成，不入库）
 iagent_java_unit_test-workspace/
+# 补丁与合并残留
+*.orig
+*.rej
 
-# 通用产物与工具/编辑器本机文件（预防性条目，当前仓库中均不存在）
-coverage/
-*.tsbuildinfo
-.eslintcache
+# ── 日志 ────────────────────────────────────────────────────────
+*.log
+
+# ── 本机环境变量（.env.example 若引入则应入库）───────────────────
+.env
+.env.*
+!.env.example
+
+# ── 编辑器与系统文件（预防性条目，当前仓库中均不存在）────────────
+.DS_Store
+._*
+.Spotlight-V100/
+.Trashes/
+Thumbs.db
+ehthumbs.db
+desktop.ini
+.idea/
+*.iml

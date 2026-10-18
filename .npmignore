@@ -1,0 +1,59 @@
+# .npmignore —— 发布到 npm 的包内容负向清单
+#
+# 本包是 CLI（`bin/iagent.js` → `dist/`），运行时只需要：
+#   - dist/       编译产物（技能模板已编译进 JS，非外部资源）
+#   - bin/        CLI 入口
+#   - package.json / README.md / LICENSE（npm 强制包含，无需在此声明）
+#
+# 正向白名单见 package.json 的 "files" 字段；本文件负责剔除白名单内
+# 不应分发的文件（npm 规则：files 字段限定的范围仍可被 .npmignore 过滤）。
+#
+# 发布前自检：`npm pack --dry-run --ignore-scripts`
+
+# ── 源码与构建工具链（发布物只发编译产物）──────────────────────────
+src/
+test/
+scripts/
+build.js
+tsconfig.json
+vitest.config.ts
+eslint.config.js
+pnpm-lock.yaml
+.devcontainer/
+.vscode/
+.editorconfig
+
+# ── CI / 仓库元信息与开发文档 ────────────────────────────────────
+.github/
+docs/
+skills/
+AGENTS.md
+CHANGELOG.md
+
+# ── iagent 本机产物与索引（勿随包分发）──────────────────────────
+.iagent/
+.claude/
+.codex/
+.opencode/
+.codegraph/
+openspec/
+.openspec-tmp/
+.pi/
+
+# ── 测试/覆盖率/临时工作区与编辑器、系统杂项 ─────────────────────
+coverage/
+iagent_java_unit_test-workspace/
+*.log
+*.tsbuildinfo
+.eslintcache
+.DS_Store
+Thumbs.db
+
+# ── 编译产物中的非运行必需文件 ───────────────────────────────────
+# source map 指向未随包发布的 src/*.ts，对使用者无价值（.d.ts 保留，供类型引用）
+dist/**/*.js.map
+dist/**/*.d.ts.map
+dist/**/*.test.js
+dist/**/*.test.d.ts
+dist/**/__tests__/
+dist/**/__mocks__/
