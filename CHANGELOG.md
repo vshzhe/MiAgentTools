@@ -7,6 +7,25 @@
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-25
+
+npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为内部开发期版本号，
+历史记录见下方小节，不随后续发布递增）。
+
+### Added
+
+- 全部 20 个内置技能：`iagent_workflow` / `iagent_auto_workflow` / `iagent_debug` /
+  `iagent_project_init` / `iagent_test` / `iagent_commit` / `iagent_svn_commit` / `iagent_review` /
+  `iagent_feature_doc` / `iagent_requirement_doc` / `iagent_migration` / `iagent_migration_check` /
+  `iagent_proposal_review` 与 7 个 `iagent_spec_*` 规格驱动技能，每条技能同时生成配套斜杠指令
+- 多宿主产物生成：Claude Code（`.claude/`）、Pi（`.pi/`，含原生 agent 定义与 strict/degraded 编排）、
+  Codex（`.codex/`，skills-only）、OpenCode V2（`.opencode/`，opt-in）
+- CLI 11 个命令：`init` / `list` / `show` / `validate` / `update` / `generate` / `uninstall` /
+  `completion` / `spec` / `config` / `--version`，含 shell 补全与 `.iagent/` 项目级配置（`config.yaml` + `rules/`）
+- 宿主原生编排协议：共享阶段/回执/门/能力模型 + 宿主适配器，能力缺失时按 strict 阻断、degraded 显式降级
+- Markdown-first 规格工作流：`proposal.md` / `design.md` / `specs/<capability>/spec.md` / `tasks.md`
+  为唯一可编辑真源，SQLite 索引与渲染为派生能力
+
 ## [8.1.1] - 2026-10-25
 
 ### Changed
@@ -1297,7 +1316,8 @@
 [2.0.0]: https://github.com/mi-agent-tools/compare/v1.18.1...v2.0.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/mi-agent-tools/compare/v8.1.1...HEAD
+[Unreleased]: https://github.com/mi-agent-tools/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/mi-agent-tools/releases/tag/v1.0.0
 [8.1.1]: https://github.com/mi-agent-tools/compare/v8.1.0...v8.1.1
 [8.1.0]: https://github.com/mi-agent-tools/compare/v8.0.0...v8.1.0
 [8.0.0]: https://github.com/mi-agent-tools/compare/v7.1.0...v8.0.0
