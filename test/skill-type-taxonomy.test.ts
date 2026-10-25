@@ -7,7 +7,13 @@
 import { describe, it, expect } from 'vitest';
 import { SKILL_TYPES, isSkillType } from '../src/core/config.js';
 import { getSkillTemplates } from '../src/core/templates/index.js';
-import { defaultRuleFileContent } from '../src/core/project-config.js';
+import {
+    LEGACY_RULE_FILE_NAMES,
+    RULE_FILE_NAMES,
+    defaultRuleFileContent,
+    ruleFileNameFor,
+    ruleFileTypeFor,
+} from '../src/core/project-config.js';
 
 describe('技能类型体系（预留标记 + 审查归位）', () => {
     it('类型总数仍为 9（不增删类型）', () => {
@@ -40,5 +46,29 @@ describe('技能类型体系（预留标记 + 审查归位）', () => {
 
     it('review 默认规则非空（归位后注入可达）', () => {
         expect(defaultRuleFileContent('review').trim().length).toBeGreaterThan(0);
+    });
+
+    it('类型→语义名映射与类型体系一致：映射内三类型 + 映射外回退', () => {
+        // 映射单一源：impl / test / spec 三个管理型类型
+        expect(Object.keys(RULE_FILE_NAMES).sort()).toEqual(['impl', 'spec', 'test']);
+        for (const type of Object.keys(RULE_FILE_NAMES) as (keyof typeof RULE_FILE_NAMES)[]) {
+            expect(isSkillType(type), `映射键 ${type} 必须是合法类型 id`).toBe(true);
+            // 派生与反查互逆
+            expect(ruleFileTypeFor(ruleFileNameFor(type))).toBe(type);
+        }
+        expect(ruleFileNameFor('impl')).toBe('coding-rules.md');
+        expect(ruleFileNameFor('test')).toBe('testing-rules.md');
+        expect(ruleFileNameFor('spec')).toBe('spec.md');
+        // 映射外类型回退直拼（文件名只由映射决定，不另立清单）
+        for (const t of SKILL_TYPES) {
+            const expected = RULE_FILE_NAMES[t.id] ?? `${t.id}.md`;
+            expect(ruleFileNameFor(t.id), `类型 ${t.id} 的规则文件名`).toBe(expected);
+            expect(defaultRuleFileContent(t.id).trim().length).toBeGreaterThan(0);
+        }
+        // 旧名清单只含本变更改名产生的两枚，且不被反查识别
+        expect([...LEGACY_RULE_FILE_NAMES]).toEqual(['impl.md', 'test.md']);
+        for (const legacyName of LEGACY_RULE_FILE_NAMES) {
+            expect(ruleFileTypeFor(legacyName)).toBeNull();
+        }
     });
 });

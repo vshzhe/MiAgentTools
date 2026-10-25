@@ -28,6 +28,7 @@ import {
     findListSectionEnd,
     readListSection,
     replaceConfigSectionInRaw,
+    ruleFileNameFor,
 } from './project-config.js';
 import { SCAN_BASELINE_FILE } from './project-scan.js';
 import {
@@ -373,6 +374,13 @@ export interface LegacyMigrationReport {
     migrated: boolean;
     /** 搬运项明细（配置段与规则文件等） */
     moved: string[];
+    /**
+     * 本轮写入的规则文件项目相对 posix 路径（机读字段）。
+     *
+     * 供 init/update 的规则重建/修复步骤作为 `preservePaths` 传入，
+     * 使本轮迁移产物跳过常量对齐（只登记不重写）——避免用户既有规则内容被同轮改写。
+     */
+    movedRules: string[];
     /** 删除项明细（旧技能与指令、旧版品牌产物） */
     removed: string[];
     /** 跳过项明细（已迁移、越界拒绝、标记块不成对、目标已存在等，含原因） */
@@ -385,7 +393,7 @@ export interface LegacyMigrationReport {
 
 /** 空报告（无旧物时返回，调用方据 migrated:false 静默跳过输出） */
 function emptyReport(): LegacyMigrationReport {
-    return { migrated: false, moved: [], removed: [], skipped: [], warnings: [], hints: [] };
+    return { migrated: false, moved: [], movedRules: [], removed: [], skipped: [], warnings: [], hints: [] };
 }
 
 // ── 迁移入口 ──────────────────────────────────────────────────────
@@ -487,7 +495,9 @@ function renderListSection(out: string[], head: string, items: readonly string[]
  * rules 段按类型改名映射改写、workflows 段按旧→新 workflow id 映射改写；
  * context 多行块、注释行、未知段与自定义字段（如 auto_package.runtime_dir）
  * 逐字保留 —— 走逐行段替换，MUST NOT 重新序列化 YAML。
- * 规则文件按同一类型映射改名随目录搬移，扫描基线随目录搬移。
+ * 规则文件按同一类型映射改名、**落点经类型→语义名映射直达**（`tr_impl.md` →
+ * `coding-rules.md`）随目录搬移，内容逐字保留（不改写正文、不注入人工域标记）；
+ * 本轮写入的规则文件路径登记到 `movedRules` 供修复步骤跳过同轮常量对齐。扫描基线随目录搬移。
  *
  * 新配置目录的 config.yaml 已存在时 MUST NOT 覆盖其内容（与 ensureProjectConfig 的
  * 「已存在则保留」语义一致），旧配置目录同时保留供用户手工比对合并。
@@ -559,7 +569,8 @@ function migrateLegacyConfig(
             const renamed = LEGACY_TYPE_RENAME[path.basename(entry.name, ext)];
             pendingRules.push({
                 legacyName: entry.name,
-                name: ext === '.md' && renamed !== undefined ? `${renamed}.md` : entry.name,
+                // 落点经类型→语义名映射直达（tr_impl.md → coding-rules.md），正文逐字保留
+                name: ext === '.md' && renamed !== undefined ? ruleFileNameFor(renamed) : entry.name,
                 content: fs.readFileSync(path.join(legacyRulesDir, entry.name), 'utf8'),
             });
         }
@@ -594,6 +605,7 @@ function migrateLegacyConfig(
             }
             fs.writeFileSync(targetPath, rule.content, 'utf8');
             report.moved.push(`${legacyConfigDir}/${rulesSubdir}/${rule.legacyName} → ${targetRel}`);
+            report.movedRules.push(targetRel);
         }
     }
 

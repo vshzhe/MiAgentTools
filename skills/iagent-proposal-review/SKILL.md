@@ -8,10 +8,10 @@ metadata:
   author: mi-agent-tools
   type: review
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:172ae0e7ebc981b98ad084bede055cfc960e5d988b3332f520828d9923a65589"
+  generatedFingerprint: "sha256:51542ff44a4ef12aa22e24db4c4653bdd3bbe12905b7f703eff3b30b4a5b3305"
 ---
 
-**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
+**适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
 
 检查变更提案完整性与实现合规性——深度代码库探索、8 维度完整性检查、合规性验证、量化评分与遗漏场景补充。在 /iagent:spec-propose 创建提案后，或经过 /iagent:spec-explore 探索分析后，使用此 skill 验证提案是否完整覆盖需求场景、是否符合项目规范。确保每个变更提案都经过完整性验证和合规性检查后再进入实现阶段。
 

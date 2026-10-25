@@ -8,10 +8,10 @@ metadata:
   author: mi-agent-tools
   type: docs
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:86b2abd9e7436108dccc58db38a877e836ac7916fc8cea5a0f046425c85a6676"
+  generatedFingerprint: "sha256:991f4ff65b68ebb634352be47bb9e85b1c2d895375540937084ed941a38687ea"
 ---
 
-**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
+**适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
 
 扫描源项目功能模块，生成完整的功能需求实现文档，覆盖前端实现、后端实现、字段级 API 契约、数据库调用链与跨模块交互。
 

@@ -33,7 +33,7 @@ import {
     AI_TOOLS,
     TOOL_SKILLS_SUBDIR,
 } from '../core/config.js';
-import { readProjectConfig, resolveActiveTools, writeToolsToConfig } from '../core/project-config.js';
+import { readProjectConfig, repairRuleFiles, resolveActiveTools, writeToolsToConfig, type RuleRepairReport } from '../core/project-config.js';
 import { resolveWorkflows } from '../core/profiles.js';
 import { scanReconcileOrphans, type ReconcileOrphans } from '../core/reconcile.js';
 import {
@@ -111,6 +111,8 @@ export interface UpdateResult {
     misplacedCommands: MisplacedCleanupResult;
     /** legacy 下划线技能目录 → canonical kebab-case 的迁移报告 */
     skillIdMigration: SkillIdMigrationReport;
+    /** 规则文件重建/修复明细（旧名删除 / 新建 / 对齐 / 迁移保留 / 告警） */
+    ruleRepair: RuleRepairReport;
     /** OpenCode V2 项目级编排产物（未纳入 opencode 时为 null） */
     openCodeProject: OpenCodeProjectArtifactsResult | null;
     /** Pi 编排运行时状态（未纳入 pi 时为 null） */
@@ -157,6 +159,11 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
 
     // 0.2 legacy 下划线技能目录 → canonical kebab-case 迁移（须先于产物生成）
     const skillIdMigration = runSkillIdMigration(projectRoot);
+
+    // 0.3 规则文件重建/修复（须先于读 config：修复结果立即可被 readProjectConfig 读到，
+    //     missingRuleFiles 不因缺失误报；也须后于 0 legacy 迁移 —— 迁移产物优先落盘）。
+    //     本轮迁移产出的规则文件按 preservePaths 只登记不对齐；未 init 项目为空操作（不建目录）。
+    const ruleRepair = repairRuleFiles(projectRoot, { preservePaths: legacyMigration.movedRules });
 
     // 读项目配置，解析生效 workflow 集（未配置用默认集 + 依赖注入补全）
     const projectConfig = readProjectConfig(projectRoot);
@@ -359,6 +366,7 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
         legacyMigration,
         misplacedCommands,
         skillIdMigration,
+        ruleRepair,
         openCodeProject,
         piRuntime: piStatus,
         piNative,

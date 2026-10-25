@@ -8,10 +8,10 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:7fc80262ce7bf70e355751dfcd2c9c25f91bfbe255632da7e7cbec4843017ec2"
+  generatedFingerprint: "sha256:1ef62c93dbb89b64b6b918d2ec592110353b472fdcd9a0f36c4d53dafa3a9229"
 ---
 
-**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
+**适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
 
 一站式自动功能迁移，四阶段推进：生成源需求文档并蒸馏确认核心功能 → 探索目标项目（含目标编码规范加载）+ 生成变更提案 → 实现确认门 → 复查子代理做迁移检查并进入修复循环。流程结构与规格驱动工作流（`/iagent:spec-explore` → `/iagent:spec-propose` → `/iagent:spec-apply`）及一站式引导工作流 `/iagent:workflow`（探索 → 提案 → 验证）一致；探索与提案生成自动进行（一致性直通）。流程中有两个性质不同的中途确认点：Phase 1 的**蒸馏确认**（需求澄清门 —— 确认迁移什么 WHAT）与 Phase 3 的**实现门**（流程门 —— 确认如何实现 HOW）；Phase 2→3 的一致性直通不受影响。
 
@@ -65,7 +65,7 @@ metadata:
 1. 呈现统一实现计划：变更名、任务分组 / 并发批次、受影响文件与迁移范围。
 2. 只问一个问题（AskUserQuestion）：是否需要调整（调整计划 / 制品）？
    - **不调整（继续）** → 立即按 apply 协议实现：批次调度循环，每个派发单元一个子代理，并发上限取自 `openspec/config.yaml`（`apply.concurrency`，默认 3）；任务 checkbox 由协调器集中更新。进入实现阶段时，先判断共享上下文包（`context-pack.md`，见 apply 协议）是否可用：
-     - **包可用** → 目标项目规范要点（`exploration.md` → `## 目标项目规范要点`）MUST 写入上下文包的 `## 规范要点` 段，与 `openspec/rules/ai-coding.md` 要点合并作为附加来源；目标项目要点仍是**约束性**要求，确保迁移代码符合 TARGET 项目约定。
+     - **包可用** → 目标项目规范要点（`exploration.md` → `## 目标项目规范要点`）MUST 写入上下文包的 `## 规范要点` 段，与 `.iagent/rules/coding-rules.md` 要点合并作为附加来源；目标项目要点仍是**约束性**要求，确保迁移代码符合 TARGET 项目约定。
      - **包不可用** → 降级为逐子代理内联注入（既有行为：每条调度指令内联规范要点）+ WARN；迁移实现 MUST NOT 被阻断。
      - **无目标项目规范要点**（目标项目既无规范文件，Phase 2 也未蒸馏出内容）→ 在包的 `## 规范要点` 段记录 `no target-project spec essentials` + WARN，并继续推进 —— 不阻断流程。
      - 每条子代理调度指令 MUST NOT 全文内联规范要点 —— 改为引用包的 `## 规范要点` 段。

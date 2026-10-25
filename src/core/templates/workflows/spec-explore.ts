@@ -1194,7 +1194,7 @@ export function getSpecExploreSkillTemplate(): SkillTemplate {
         description: '进入探索模式。当用户想要在变更前或变更中思考问题、调研代码库、明确需求时使用；触发词"探索 / explore / 调研 / 思考 / 明确需求"；NOT for 一站式引导全流程（改用 iagent_workflow）或缺陷根因排查（改用 iagent_debug）。',
         allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(git:*), ${CODEGRAPH_MCP}`,
         type: 'spec',
-        instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
+        instructions: `**适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
 
 进入探索模式。深度思考。自由可视化。让对话自然流淌。
 

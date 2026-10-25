@@ -8,10 +8,10 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:506c575d044e9de55c5ee0e2166eaddafb49036d17f796ede1116675060e672d"
+  generatedFingerprint: "sha256:4181512677b2c38faec7177f4571dea8803045c2934749f1d057ce861bd3ab76"
 ---
 
-**实现前先阅读 openspec/rules/ai-coding.md 的 AI 编码护栏。** 禁止猜测数据库字段、API 参数或业务规则 —— 标 **[待确认]** 并询问用户。
+**实现前先阅读 .iagent/rules/coding-rules.md 的 AI 编码护栏。** 禁止猜测数据库字段、API 参数或业务规则 —— 标 **[待确认]** 并询问用户。
 
 按 openspec/changes/ 下的变更制品（proposal/specs/design/tasks）实现任务。
 
@@ -235,7 +235,7 @@ metadata:
    - **变更范围内的失败** → 进入失败处理分支（§9.5）
 
    **9.5 范围内失败处理**
-   - 自动修复并重跑，最多 3 次（与 §8.7 相同的重试预算）。区分：测试代码有误 → 修测试；生产代码有缺陷 → 修实现（按 `openspec/rules/ai-coding.md`）
+   - 自动修复并重跑，最多 3 次（与 §8.7 相同的重试预算）。区分：测试代码有误 → 修测试；生产代码有缺陷 → 修实现（按 `.iagent/rules/coding-rules.md`）
    - 3 次后仍有失败：暂停并向用户报告。MUST NOT 把对应任务标为 `[x]`，MUST NOT 进入归档
    - 若必须收窄或简化测试的预期行为才能通过 → 适用范围蔓延护栏：标 **[待确认]**，说明差异并询问用户
 

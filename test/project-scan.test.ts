@@ -374,6 +374,89 @@ describe('2.6 iagent init 端到端', () => {
     });
 });
 
+describe('2.9 测试探针（signals.tests）', () => {
+    it('test/ 目录记为 test-dir（任意层级按目录名命中）', () => {
+        const root = makeProject('probe-dir');
+        write(root, 'test/unit/a.ts', 'export {};\n');
+        write(root, 'src/test/java/DemoHelper.java', 'class DemoHelper {}\n');
+        write(root, 'package.json', '{"name":"app"}');
+
+        const report = scanProject(root, { writeBaseline: false });
+        const dirs = report.signals.tests.filter((item) => item.kind === 'test-dir');
+        expect(dirs.map((item) => norm(item.name)).sort()).toEqual(['src/test', 'test']);
+        // count 固定 1：只反映「观察到该目录」这一事实
+        expect(dirs.every((item) => item.count === 1)).toBe(true);
+        // 渲染行存在且标注免读内容
+        expect(renderScanReport(report)).toContain('测试探针：');
+    });
+
+    it('测试文件名模式命中即计数（*Test.java / *.test.* / *.spec.*）', () => {
+        const root = makeProject('probe-files');
+        write(root, 'src/main/java/DemoTest.java', 'class DemoTest {}\n');
+        write(root, 'src/main/java/OtherTests.java', 'class OtherTests {}\n');
+        write(root, 'web/src/a.test.ts', 'export {};\n');
+        write(root, 'web/src/b.test.ts', 'export {};\n');
+        write(root, 'web/src/c.spec.ts', 'export {};\n');
+        write(root, 'package.json', '{"name":"app"}');
+
+        const report = scanProject(root, { writeBaseline: false });
+        const byName = new Map(
+            report.signals.tests.filter((item) => item.kind === 'test-files').map((item) => [item.name, item.count])
+        );
+        expect(byName.get('*Test.java')).toBe(1);
+        expect(byName.get('*Tests.java')).toBe(1);
+        expect(byName.get('*.test.*')).toBe(2);
+        expect(byName.get('*.spec.*')).toBe(1);
+        // 只有文件名匹配，不读内容：任何模式记录都不含文件内容或框架名
+        expect(JSON.stringify(report.signals.tests)).not.toContain('class');
+    });
+
+    it('无测试代码时 signals.tests 为空（空报告形态同步该维度）', () => {
+        const root = makeProject('probe-none');
+        write(root, 'README.md', '# 无测试项目\n');
+        write(root, 'package.json', '{"name":"app"}');
+
+        const report = scanProject(root, { writeBaseline: false });
+
+        expect(report.signals.tests).toEqual([]);
+        expect(createEmptyScanReport().signals.tests).toEqual([]);
+        expect(renderScanReport(report)).toContain('测试探针：未探测到');
+    });
+
+    it('测试文件计数触达上限时 limits 标注「上限所致」', () => {
+        const root = makeProject('probe-limits');
+        write(root, 'a.test.ts', 'export {};\n');
+        write(root, 'b.test.ts', 'export {};\n');
+        write(root, 'c.test.ts', 'export {};\n');
+
+        const capped = scanProject(root, { maxFiles: 2, writeBaseline: false });
+
+        expect(capped.limits.hit).toBe(true);
+        expect(capped.limits.detail).toContain('上限所致');
+        expect(capped.limits.detail).toContain('MAX_SCAN_FILES=2');
+        const counts = capped.signals.tests
+            .filter((item) => item.kind === 'test-files')
+            .reduce((sum, item) => sum + item.count, 0);
+        // 计数不超过上限允许遍历的文件数（探针不强扫）
+        expect(counts).toBeLessThanOrEqual(2);
+    });
+
+    it('jar 候选不因存在而生成测试/框架结论', () => {
+        const root = makeProject('probe-jar');
+        write(root, 'lib/spring-2.0.5.jar', 'jar-bytes');
+        write(root, 'lib/junit-4.13.jar', 'jar-bytes');
+
+        const report = scanProject(root, { writeBaseline: false });
+
+        // jar 只进 candidates（候选语义），不进入任何 signals 维度
+        expect(report.candidates.map((item) => item.kind)).toEqual(['jar', 'jar']);
+        expect(report.candidates.every((item) => item.note.includes('候选'))).toBe(true);
+        expect(report.signals.tests).toEqual([]);
+        expect(report.signals.build).toEqual([]);
+        expect(JSON.stringify(report.signals)).not.toContain('junit');
+    });
+});
+
 describe('2.8 非 Maven/Ant 族项目（Node/TypeScript）', () => {
     it('识别 package.json 为构建设施，且不因缺 pom.xml/build.xml 报缺失', () => {
         const root = makeProject('node-ts');

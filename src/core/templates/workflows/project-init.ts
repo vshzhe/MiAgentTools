@@ -15,6 +15,7 @@
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { CODEGRAPH_MCP, skillDelegation } from '../tool-whitelist.js';
 import { deriveCommandContent } from '../derive-command.js';
+import { MANUAL_DOMAIN_MARKS } from '../../project-config.js';
 
 /** references/doc-architecture.md：技术框架文档骨架 */
 const DOC_ARCHITECTURE = `## 技术框架文档骨架（docs/project/architecture/技术框架.md）
@@ -153,7 +154,7 @@ export function getProjectInitSkillTemplate(): SkillTemplate {
             ', ' +
             skillDelegation(['feature_doc']),
         type: 'init',
-        instructions: `初始化项目 —— 读扫描基线 → 五类语义扫描 → 逐份确认 → 落盘 → 回写 context。
+        instructions: `初始化项目 —— 读扫描基线 → 五类语义扫描 → 逐份确认 → 落盘 → 回写 context → 蒸馏规则。
 
 **核心原则**：初始化是"结构决定"，不是"随手生成"。所有目录与配置在创建前必须向用户说明用途并获得确认。
 
@@ -165,7 +166,7 @@ export function getProjectInitSkillTemplate(): SkillTemplate {
 
 ### 1. 读取扫描基线
 
-先读 \`.iagent/scan-baseline.json\` —— 由 \`iagent init\` 的确定性预扫描产出，内含机械探测得到的 \`signals\`（构建文件 / 骨架 / 配置键名 / 路由 / 文档）与 \`candidates\`。
+先读 \`.iagent/scan-baseline.json\` —— 由 \`iagent init\` 的确定性预扫描产出，内含机械探测得到的 \`signals\`（构建文件 / 骨架 / 配置键名 / 路由 / 文档 / 测试探针（tests））与 \`candidates\`。
 
 - **存在且可解析**：直接复用其中的 \`signals\` 与 \`candidates\`，免去重复机械探测；仅对基线未覆盖的维度补扫
 - **缺失或无法解析**：记 WARN（写明缺失原因），自行用 Glob / Grep / Read 机械探测，MUST NOT 因此终止
@@ -220,7 +221,7 @@ export function getProjectInitSkillTemplate(): SkillTemplate {
 
 用户选「确认重新生成」时执行**增量对齐**，MUST NOT 整体重写：
 
-- \`<!-- 人工域:开始 -->\` 与 \`<!-- 人工域:结束 -->\` 区间内的内容 **逐字保留**
+- \`${MANUAL_DOMAIN_MARKS.start}\` 与 \`${MANUAL_DOMAIN_MARKS.end}\` 区间内的内容 **逐字保留**
 - 区间**外**的内容按本次扫描结果重新派生
 - 文档不含任何标记 → 退化为整体重派生，MUST NOT 报错
 
@@ -264,6 +265,21 @@ export function getProjectInitSkillTemplate(): SkillTemplate {
 - 写入 MUST 沿用**逐行保留 + 段替换**：只替换 \`context\` 段，其余行原样保留
 - MUST NOT 重新序列化整个 YAML —— 注释与未知段（如 \`auto_package\`）MUST 保留
 - 写入**失败记 WARN 并继续**，MUST NOT 中断流程
+
+### 10. 实现与测试规则蒸馏
+
+第 9 步 \`context\` 回写**完成之后**执行（固定触发顺序：五类文档 → \`AGENTS.md\` → \`context\` → rules）。
+
+- **输入**：第 1 步基线的 \`signals\`（**含 \`signals.tests\` 测试探针**）/ \`candidates\`、五类 \`docs/project/\` 文档、\`AGENTS.md\`、\`.iagent/config.yaml\`
+- **证据不足按零猜测补扫**：用 Glob / Grep / Read 补扫实现与测试代码；MUST NOT 编造框架名、版本或不存在的约定。依赖 / jar 的存在只作候选线索，MUST NOT 写出「项目使用该框架」类规则
+- **产出去向**：实现类约定写入 \`.iagent/rules/coding-rules.md\`、测试类约定写入 \`.iagent/rules/testing-rules.md\` 的**人工域标记区间内**。文件名以语义名书写；命名与读取以 project-config 的**类型→语义名映射为真源**，改映射时同步本正文
+- **常量域不可触碰**：常量域（头注释 + 蒸馏基线规则行）由 \`iagent init\` / \`iagent update\` 确定性维护，本步骤 MUST NOT 改写常量块
+- **目标文件缺失**：按 init 同源模板常量补建（含人工域标记骨架）后再写入，并记 WARN 说明为运行中补建
+- **文件存在但无人工域区间**：在常量块之后**追加**一对空人工域骨架区间（标记对 + \`#\` 指引行）并记 WARN，再把蒸馏行写入该区间 —— 不改写常量块，也 MUST NOT 要求用户先跑 \`iagent update\`
+- **区间内既有内容**：整合而非覆盖 —— 用户先前手写的规则行逐字保留，新增条目在其后追加或与其合并同义项
+- **测试规则**：有测试代码时蒸馏框架、命名与目录约定（如 \`*Test.java\` / \`test/\`）；无任何测试代码或测试目录时保留占位兜底行「（待补充）测试框架与既有用例保持一致」，并在汇报中注明「未发现测试代码，规则为占位」
+- **非阻断**：扫描或写入失败一律记 WARN 继续，MUST NOT 中断流程、MUST NOT 使流程以失败收场
+- **不新增委派与工具授权**：本步骤只用 Read / Glob / Grep / Write
 
 ## 参考文件（references/）
 

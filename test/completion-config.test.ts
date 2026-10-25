@@ -19,6 +19,7 @@ import {
     defaultRuleFileContent,
     listRuleFiles,
     CONFIG_FILE_NAME,
+    MANUAL_DOMAIN_MARKS,
     RULES_DIR_NAME,
     ensureProjectConfig,
     writeWorkflowsToConfig,
@@ -122,7 +123,7 @@ describe('项目配置（.iagent/ 目录结构）', () => {
         expect(parsed.rules).toEqual(['commit']);
     });
 
-    it('init 创建 .iagent/config.yaml + rules/ 结构', () => {
+    it('init 创建 .iagent/config.yaml + rules/ 结构（语义名文件）', () => {
         const result = runInit(tempRoot);
         expect(result.configState).toBe('created');
 
@@ -130,14 +131,22 @@ describe('项目配置（.iagent/ 目录结构）', () => {
         const rulesDir = path.join(tempRoot, RULES_DIR_NAME);
         expect(fs.existsSync(configPath)).toBe(true);
         expect(fs.existsSync(rulesDir)).toBe(true);
-        // 默认规则文件
-        expect(fs.existsSync(path.join(rulesDir, 'impl.md'))).toBe(true);
-        expect(fs.existsSync(path.join(rulesDir, 'test.md'))).toBe(true);
+        // 默认规则文件为语义名（impl → coding-rules.md、test → testing-rules.md）
+        expect(fs.existsSync(path.join(rulesDir, 'coding-rules.md'))).toBe(true);
+        expect(fs.existsSync(path.join(rulesDir, 'testing-rules.md'))).toBe(true);
+        expect(fs.existsSync(path.join(rulesDir, 'spec.md'))).toBe(true);
+        expect(fs.existsSync(path.join(rulesDir, 'impl.md'))).toBe(false);
+        expect(fs.existsSync(path.join(rulesDir, 'test.md'))).toBe(false);
         expect(result.ruleFilesCreated.length).toBe(3);
+        expect([...result.ruleRepair.created].sort()).toEqual([
+            '.iagent/rules/coding-rules.md',
+            '.iagent/rules/spec.md',
+            '.iagent/rules/testing-rules.md',
+        ]);
     });
 
-    it('重复 init 保留用户修改的 config 与规则文件', () => {
-        // 用户修改 context 与规则
+    it('重复 init：config.yaml 保留 + 映射外 commit.md 保留 + 管理型文件修复明细', () => {
+        // 用户修改 context 与规则（只引用映射外的 commit 类型）
         const configPath = path.join(tempRoot, CONFIG_FILE_NAME);
         fs.writeFileSync(
             configPath,
@@ -146,14 +155,32 @@ describe('项目配置（.iagent/ 目录结构）', () => {
         );
         const commitRule = path.join(tempRoot, RULES_DIR_NAME, 'commit.md');
         fs.writeFileSync(commitRule, '提交信息用中文\n遵守 Conventional Commits\n', 'utf8');
+        // 制造管理型文件的两种待修复形态：缺失（test）与常量域漂移（impl）
+        const testingRule = path.join(tempRoot, RULES_DIR_NAME, 'testing-rules.md');
+        fs.rmSync(testingRule, { force: true });
+        fs.appendFileSync(
+            path.join(tempRoot, RULES_DIR_NAME, 'coding-rules.md'),
+            '旧版常量残留行\n',
+            'utf8'
+        );
 
         const result2 = runInit(tempRoot, { force: true });
         expect(result2.configState).toBe('exists');
         expect(result2.ruleFilesCreated).toHaveLength(0);
+        // 管理型文件按最新常量重建/对齐，映射外文件不在管理范围
+        expect(result2.ruleRepair.created).toEqual(['.iagent/rules/testing-rules.md']);
+        expect(result2.ruleRepair.aligned).toEqual(['.iagent/rules/coding-rules.md']);
+        expect(result2.ruleRepair.removedOldName).toEqual([]);
+        expect(fs.readFileSync(testingRule, 'utf8')).toBe(defaultRuleFileContent('test'));
+        expect(fs.readFileSync(path.join(tempRoot, RULES_DIR_NAME, 'coding-rules.md'), 'utf8')).not.toContain(
+            '旧版常量残留行'
+        );
 
         const resolved = readProjectConfig(tempRoot);
         expect(resolved?.context).toBe('我的项目背景');
         expect(resolved?.rules.commit).toEqual(['提交信息用中文', '遵守 Conventional Commits']);
+        // 映射外文件既不对齐也不改写
+        expect(fs.readFileSync(commitRule, 'utf8')).toBe('提交信息用中文\n遵守 Conventional Commits\n');
     });
 
     it('config 引用但文件缺失的类型记入 missingRuleFiles', () => {
@@ -170,11 +197,14 @@ describe('项目配置（.iagent/ 目录结构）', () => {
         void resolved;
     });
 
-    it('listRuleFiles 列出合法类型规则文件', () => {
-        const files = listRuleFiles(tempRoot);
-        expect(files.some((f) => f.includes('impl.md'))).toBe(true);
-        expect(files.some((f) => f.includes('test.md'))).toBe(true);
-        expect(files.some((f) => f.includes('commit.md'))).toBe(true);
+    it('listRuleFiles 列出合法类型规则文件（语义名 + 映射外回退名）', () => {
+        const files = listRuleFiles(tempRoot).map((f) => f.replaceAll('\\', '/'));
+        expect(files).toContain('.iagent/rules/coding-rules.md');
+        expect(files).toContain('.iagent/rules/testing-rules.md');
+        expect(files).toContain('.iagent/rules/commit.md');
+        // 映射内类型的旧名不被识别为合法规则文件
+        expect(files).not.toContain('.iagent/rules/impl.md');
+        expect(files).not.toContain('.iagent/rules/test.md');
     });
 
     it('generate 将 context 与该类型 rules 注入骨架正文', () => {
@@ -213,10 +243,73 @@ describe('项目配置（.iagent/ 目录结构）', () => {
         }
     });
 
-    it('默认规则文件内容包含该类型引导', () => {
+    it('默认规则文件内容：蒸馏要点 + 成对人工域标记（D-5 / D-Q1 基准）', () => {
         const impl = defaultRuleFileContent('impl');
-        expect(impl).toContain('分层架构');
-        expect(impl).toContain('#');
+        // impl 域蒸馏要点：零猜测 / UI 四状态
+        for (const phrase of ['[待确认]', 'Loading', 'Empty', 'Error', 'Data']) {
+            expect(impl, `coding-rules 缺蒸馏要点：${phrase}`).toContain(phrase);
+        }
+        const spec = defaultRuleFileContent('spec');
+        // spec 域蒸馏要点：Markdown-first 制品协议
+        for (const phrase of ['openspec/changes/', 'proposal → specs/design → tasks', 'spec validate', 'change.json']) {
+            expect(spec, `spec 缺蒸馏要点：${phrase}`).toContain(phrase);
+        }
+        for (const type of ['impl', 'test', 'spec'] as const) {
+            const content = defaultRuleFileContent(type);
+            expect(content.split(MANUAL_DOMAIN_MARKS.start).length - 1, `${type} 开始标记数`).toBe(1);
+            expect(content.split(MANUAL_DOMAIN_MARKS.end).length - 1, `${type} 结束标记数`).toBe(1);
+            expect(content).toContain('# ');
+        }
+        // test 域 CLI 侧为占位兜底（项目特异性约定由 project-init 技能蒸馏进人工域）
+        expect(defaultRuleFileContent('test')).toContain('（待补充）');
+    });
+
+    it('无 config.yaml 且存在旧名 impl.md：旧名整体删除并告警丢失风险', () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-oldname-'));
+        try {
+            const rulesDir = path.join(root, RULES_DIR_NAME);
+            fs.mkdirSync(rulesDir, { recursive: true });
+            fs.writeFileSync(path.join(rulesDir, 'impl.md'), '# 7.x 遗留手写规则\n禁止跨层调用\n', 'utf8');
+
+            const result = ensureProjectConfig(root);
+
+            expect(result.state).toBe('created');
+            expect(result.ruleRepair.removedOldName).toEqual(['.iagent/rules/impl.md']);
+            expect(result.ruleRepair.warnings.some((w) => w.includes('整体删除'))).toBe(true);
+            expect(result.ruleRepair.warnings.some((w) => w.includes('丢失风险'))).toBe(true);
+            expect(fs.existsSync(path.join(rulesDir, 'impl.md'))).toBe(false);
+            expect(result.ruleRepair.created).toContain('.iagent/rules/coding-rules.md');
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('无 config.yaml 且 coding-rules.md 已存在：字节不变 + WARN 登记', () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-exists-name-'));
+        try {
+            const rulesDir = path.join(root, RULES_DIR_NAME);
+            fs.mkdirSync(rulesDir, { recursive: true });
+            const userContent = '# 我手写的规则\n自定义约束\n';
+            const existing = path.join(rulesDir, 'coding-rules.md');
+            fs.writeFileSync(existing, userContent, 'utf8');
+
+            const result = ensureProjectConfig(root);
+
+            expect(result.state).toBe('created');
+            // created 分支不进入常量对齐：既有语义名文件字节不变
+            expect(fs.readFileSync(existing, 'utf8')).toBe(userContent);
+            expect(result.ruleRepair.created).not.toContain('.iagent/rules/coding-rules.md');
+            expect(result.ruleRepair.aligned).not.toContain('.iagent/rules/coding-rules.md');
+            expect(result.ruleRepair.warnings.some((w) => w.includes('未做常量对齐'))).toBe(true);
+            expect(result.ruleRepair.warnings.some((w) => w.includes('iagent update'))).toBe(true);
+            // 其余两份照常新建
+            expect([...result.ruleRepair.created].sort()).toEqual([
+                '.iagent/rules/spec.md',
+                '.iagent/rules/testing-rules.md',
+            ]);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
     });
 });
 

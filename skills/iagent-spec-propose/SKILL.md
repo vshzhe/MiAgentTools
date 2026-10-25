@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:3fab47e9a27e7ae0062633087ecfcbbced34c41cd8c719be58cf88954570e8f5"
+  generatedFingerprint: "sha256:411cef290936a85397e8a4be83c5b68fe2bb67b0aebb3afef7e8f0396f8bc748"
 ---
 
 提出新变更 —— 一步创建变更并生成全部制品。
@@ -23,7 +23,7 @@ metadata:
 
 ---
 
-**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
+**适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
 
 ---
 
@@ -153,7 +153,7 @@ metadata:
    ```
    这会在 CLI 依据 `.openspec.yaml` 解析出的 planning home 中创建脚手架化变更。
 
-   **按 `openspec/rules/artifact-generation.md` 协议执行制品生成。**
+   **按项目侧制品协议 `.iagent/rules/spec.md` 执行制品生成。** 该文件缺失时以本章内联要点为准并记 WARN，MUST NOT 阻断生成。
 
 3. **获取制品构建顺序**
    ```bash
@@ -286,7 +286,7 @@ metadata:
 
 ## Markdown 制品生成（强制 —— Markdown-first）
 
-严格引用 `openspec/rules/artifact-generation.md` 的 G1-G7 协议：
+严格遵循**项目规范** `.iagent/rules/spec.md` 的制品协议要点（G1-G7）：
 
 - proposal / specs / design 直接写入 OpenSpec Markdown，tasks 直接写入 tasks.md。
 - 使用 `iagent spec status --change "<name>" --json` 和 `iagent spec instructions <artifact-id> --change "<name>" --json` 获取状态、路径和模板摘要。

@@ -15,7 +15,7 @@ const BATCH_SCHEDULING_FULL = `6. **实现任务（批调度循环，直至完�
    - 上下文包恰有六个章节，顺序如下：
      - \`## 变更摘要\` — 从 proposal.md 蒸馏出的变更要点（why/whatChanges）：本变更做什么、为什么
      - \`## 契约\` — 从 specs + design 蒸馏出的接口签名 / 数据结构 / 表字段
-     - \`## 规范要点\` — 编排器一次性蒸馏出的 \`openspec/rules/ai-coding.md\` 关键护栏（绝不由各子代理分别蒸馏）
+     - \`## 规范要点\` — 编排器一次性蒸馏出的 \`.iagent/rules/coding-rules.md\` 关键护栏（绝不由各子代理分别蒸馏）
      - \`## 文件归属表\` — 派发单元 → 该单元允许修改的文件
      - \`## Codebase 摘要\` — 编排器的预扫描结论（分层 / 依赖事实，否则子代理需重新推导）
      - \`## 已产出（跨单元可见）\` — 产出登记表：已产出文件 + 公开签名，每批结束后追加
@@ -71,7 +71,7 @@ const BATCH_SCHEDULING_FULL = `6. **实现任务（批调度循环，直至完�
    **共享资源协议 —— fail-safe 降级：**
 
    - 临时工作区不可写时：先降级到系统临时目录（\`iagent-apply-<change-name>/\`，既有的降级位置）；若仍失败，按下方降级
-   - 上下文包无法产出，或项目没有 \`openspec/rules/ai-coding.md\` 时：降级为既有内联注入行为并记录 WARN —— MUST NOT 阻塞实现。降级只会让指令更长，绝不会丢弃护栏
+   - 上下文包无法产出，或项目没有 \`.iagent/rules/coding-rules.md\` 时：降级为既有内联注入行为并记录 WARN —— MUST NOT 阻塞实现。降级只会让指令更长，绝不会丢弃护栏
    - \`auto-mode=true\` 只跳过 Step 5.5 设计确认门 —— 共享资源协议 MUST NOT 因 auto-mode 而豁免，仍然适用
 
    **环境降级（无子代理能力）：**
@@ -129,7 +129,7 @@ export function getSpecApplyChangeSkillTemplate(): SkillTemplate {
         description: '实现变更。当 openspec/changes/ 下已有变更制品（proposal/specs/design/tasks），需要基于规格驱动实现任务清单时使用；触发词"实现变更 / apply / 执行任务 / 按规格实现"；NOT for 无变更制品时直接描述需求（改用 iagent_workflow 引导生成制品后再实现）。',
         allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(ant:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), ${SUBAGENT_DISPATCH}`,
         type: 'spec',
-        instructions: `**实现前先阅读 openspec/rules/ai-coding.md 的 AI 编码护栏。** 禁止猜测数据库字段、API 参数或业务规则 —— 标 **[待确认]** 并询问用户。
+        instructions: `**实现前先阅读 .iagent/rules/coding-rules.md 的 AI 编码护栏。** 禁止猜测数据库字段、API 参数或业务规则 —— 标 **[待确认]** 并询问用户。
 
 按 openspec/changes/ 下的变更制品（proposal/specs/design/tasks）实现任务。
 
@@ -353,7 +353,7 @@ export function getSpecApplyChangeSkillTemplate(): SkillTemplate {
    - **变更范围内的失败** → 进入失败处理分支（§9.5）
 
    **9.5 范围内失败处理**
-   - 自动修复并重跑，最多 3 次（与 §8.7 相同的重试预算）。区分：测试代码有误 → 修测试；生产代码有缺陷 → 修实现（按 \`openspec/rules/ai-coding.md\`）
+   - 自动修复并重跑，最多 3 次（与 §8.7 相同的重试预算）。区分：测试代码有误 → 修测试；生产代码有缺陷 → 修实现（按 \`.iagent/rules/coding-rules.md\`）
    - 3 次后仍有失败：暂停并向用户报告。MUST NOT 把对应任务标为 \`[x]\`，MUST NOT 进入归档
    - 若必须收窄或简化测试的预期行为才能通过 → 适用范围蔓延护栏：标 **[待确认]**，说明差异并询问用户
 

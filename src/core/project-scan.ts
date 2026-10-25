@@ -153,6 +153,35 @@ const DOC_PROBE_DIRS = ['docs'];
 /** 可携带结构化技术栈声明的文档（context 段） */
 const STRUCTURED_DOC_PATHS = [CONFIG_FILE_NAME.replaceAll('\\', '/'), 'openspec/config.yaml'];
 
+/**
+ * 测试目录探针（按目录**名**匹配，任意层级；`src/test/java` 经 `test` 命中）。
+ *
+ * 只记录「存在某测试目录」这一事实，MUST NOT 据此断言测试框架。
+ */
+const TEST_DIR_NAMES = new Set(['test', 'tests', '__tests__', 'e2e', 'spec']);
+
+/**
+ * 测试文件名模式 → 命中计数（只做文件名匹配，MUST NOT 读取文件内容）。
+ *
+ * 模式名即 `signals.tests[].name` 的取值，是「观察到的事实」而非框架结论。
+ */
+const TEST_FILE_PATTERNS: readonly { pattern: string; regex: RegExp }[] = [
+    { pattern: '*.test.*', regex: /\.test\.[^./\\]+$/i },
+    { pattern: '*.spec.*', regex: /\.spec\.[^./\\]+$/i },
+    { pattern: '*Test.java', regex: /Test\.java$/ },
+    { pattern: '*Tests.java', regex: /Tests\.java$/ },
+    { pattern: '*_test.go', regex: /_test\.go$/i },
+];
+
+/** 测试文件探针：命中即累加对应模式计数 */
+function probeTestFile(name: string, sink: ScanSink): void {
+    for (const { pattern, regex } of TEST_FILE_PATTERNS) {
+        if (regex.test(name)) {
+            sink.testFileCounts.set(pattern, (sink.testFileCounts.get(pattern) ?? 0) + 1);
+        }
+    }
+}
+
 /** properties 键名（只捕获键名，取值不进入捕获组，从正则层面杜绝取值外泄） */
 const PROPERTY_KEY_RE = /^\s*([A-Za-z0-9_.\-[\]]+)\s*[=:]/;
 
@@ -194,6 +223,15 @@ export interface ProjectScanReport {
         config: { file: string; keys: string[] }[];
         routes: { file: string }[];
         docs: { path: string; structured?: string }[];
+        /**
+         * 测试探针（只记目录名 / 文件名模式与计数，MUST NOT 读取测试代码内容）。
+         *
+         * - `test-dir`：`name` 为目录相对路径，`count` 固定 1；
+         * - `test-files`：`name` 为文件名模式（如 `*Test.java`），`count` 为命中计数。
+         *
+         * 无测试代码时为空数组（无内容即 NULL 语义），MUST NOT 输出「项目使用某测试框架」结论。
+         */
+        tests: { kind: 'test-dir' | 'test-files'; name: string; count: number }[];
     };
     /** 依赖候选（未验证源码使用，MUST NOT 进 signals） */
     candidates: { kind: string; name: string; note: string }[];
@@ -236,6 +274,8 @@ interface ScanSink {
     limits: { maxDepth: number; maxFiles: number };
     configVariants: Map<string, ConfigVariant>;
     jarNames: Set<string>;
+    /** 测试文件名模式 → 命中计数（模式名如 `*Test.java`） */
+    testFileCounts: Map<string, number>;
     depthLimited: boolean;
     filesLimited: boolean;
 }
@@ -462,6 +502,10 @@ function classifyFile(
     sink: ScanSink
 ): void {
     const lowerName = name.toLowerCase();
+    if (!inDependency) {
+        // 测试文件名模式探针（只匹配文件名，不读内容）
+        probeTestFile(name, sink);
+    }
     if (lowerName.endsWith('.jar')) {
         const jarName = jarNameFrom(name);
         if (jarName !== '') {
@@ -517,6 +561,10 @@ function walkDir(absDir: string, relDir: string, depth: number, inDependency: bo
             const dirName = entry.name.toLowerCase();
             if (EXCLUDED_DIR_NAMES.has(dirName)) {
                 continue;
+            }
+            // 测试目录探针：只记目录存在这一事实（不读内容、不推断框架）
+            if (TEST_DIR_NAMES.has(dirName)) {
+                sink.report.signals.tests.push({ kind: 'test-dir', name: relPath, count: 1 });
             }
             if (depth + 1 > sink.limits.maxDepth) {
                 sink.depthLimited = true;
@@ -654,6 +702,17 @@ function flushCandidates(sink: ScanSink): void {
     }
 }
 
+/** 归并测试文件名模式计数（按模式名排序，仅保留命中项） */
+function flushTestFileCounts(sink: ScanSink): void {
+    for (const pattern of [...sink.testFileCounts.keys()].sort()) {
+        sink.report.signals.tests.push({
+            kind: 'test-files',
+            name: pattern,
+            count: sink.testFileCounts.get(pattern) ?? 0,
+        });
+    }
+}
+
 /** 上限说明文本（区分「上限所致」，便于与真实失败区分） */
 function limitDetail(sink: ScanSink): string {
     const parts: string[] = [];
@@ -673,7 +732,7 @@ export function createEmptyScanReport(): ProjectScanReport {
         scannedAt: new Date().toISOString(),
         scope: { dirs: 0, files: 0 },
         limits: { hit: false, detail: '未触达扫描上限' },
-        signals: { build: [], skeleton: [], config: [], routes: [], docs: [] },
+        signals: { build: [], skeleton: [], config: [], routes: [], docs: [], tests: [] },
         candidates: [],
         failures: [],
     };
@@ -693,6 +752,7 @@ export function scanProject(projectRoot: string, options: ScanOptions = {}): Pro
         limits: { maxDepth: options.maxDepth ?? MAX_SCAN_DEPTH, maxFiles: options.maxFiles ?? MAX_SCAN_FILES },
         configVariants: new Map<string, ConfigVariant>(),
         jarNames: new Set<string>(),
+        testFileCounts: new Map<string, number>(),
         depthLimited: false,
         filesLimited: false,
     };
@@ -702,6 +762,7 @@ export function scanProject(projectRoot: string, options: ScanOptions = {}): Pro
     probeDocs(projectRoot, sink);
     flushConfigVariants(sink);
     flushCandidates(sink);
+    flushTestFileCounts(sink);
     report.limits = {
         hit: sink.depthLimited || sink.filesLimited,
         detail: limitDetail(sink),
@@ -772,6 +833,18 @@ export function renderScanReport(report: ProjectScanReport): string {
     }
     lines.push(`    · 路由声明：${listOrNone(report.signals.routes.map((item) => item.file))}`);
     lines.push(`    · 既有文档：${listOrNone(report.signals.docs.map((item) => item.path))}`);
+    if (report.signals.tests.length === 0) {
+        lines.push('    · 测试探针：未探测到');
+    } else {
+        lines.push(`    · 测试探针：${report.signals.tests.length} 项（仅目录名与文件名计数，不读内容）`);
+        for (const test of report.signals.tests) {
+            lines.push(
+                test.kind === 'test-dir'
+                    ? `      - 目录 ${test.name}/`
+                    : `      - 文件 ${test.name}：${test.count} 个`
+            );
+        }
+    }
     for (const doc of report.signals.docs) {
         if (doc.structured !== undefined) {
             lines.push(`      - ${doc.path}：${doc.structured}`);

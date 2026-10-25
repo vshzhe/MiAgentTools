@@ -170,7 +170,7 @@ export function getSpecVerifyProposalSkillTemplate(): SkillTemplate {
         description: '提案验证门。在变更提案生成后、实现开始前，对制品做量化评分（D1-D5 核心维度 + D6-D10 条件维度，统一 90% 阈值），检测技术栈并按需执行技术特定检查，通过后可做内联只读深度复查。用于确保提案质量后再进入实现。触发词"提案验证 / verify proposal / 评分门 / D1-D10"；NOT for 实现完成后的实现验证（改用 iagent_spec_verify）。',
         allowedTools: 'Read, Glob, Grep, Bash(iagent:*)',
         type: 'spec',
-        instructions: `**验证前先阅读 openspec/rules/ai-coding.md 中的验证标准。**
+        instructions: `**验证前先阅读 .iagent/rules/coding-rules.md 中的验证标准。**
 
 实现前，对照探索结果验证制品。
 

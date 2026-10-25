@@ -8,10 +8,10 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:460f61d8a57021d855c1bac78c651604c8c70a1ef13e9a4eeee95ba0cfba9b5b"
+  generatedFingerprint: "sha256:fe845c0f10f200f6e21fd4b0122d9683ae66197afe60a1d69abe04395b025ab0"
 ---
 
-**验证前先阅读 openspec/rules/ai-coding.md 中的验证标准。**
+**验证前先阅读 .iagent/rules/coding-rules.md 中的验证标准。**
 
 实现前，对照探索结果验证制品。
 

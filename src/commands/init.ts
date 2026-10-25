@@ -22,7 +22,7 @@ import {
     AI_TOOLS,
     TOOL_SKILLS_SUBDIR,
 } from '../core/config.js';
-import { ensureProjectConfig, readProjectConfig, resolveActiveTools, writeToolsToConfig } from '../core/project-config.js';
+import { ensureProjectConfig, readProjectConfig, resolveActiveTools, writeToolsToConfig, type RuleRepairReport } from '../core/project-config.js';
 import { resolveWorkflows } from '../core/profiles.js';
 import { scanReconcileOrphans, type ReconcileOrphans } from '../core/reconcile.js';
 import {
@@ -91,10 +91,12 @@ export interface InitResult {
     skillsInstalled: string[];
     commandsInstalled: string[];
     skipped: string[];
-    /** 配置文件状态：created（新建模板）| exists（已存在，跳过） */
+    /** 配置文件状态：created（新建模板）| exists（config.yaml 已存在，保留原文；规则文件转入重建/修复） */
     configState: 'created' | 'exists';
-    /** 本次创建的规则文件（项目相对路径，如 .iagent/rules/impl.md） */
+    /** 本次创建的规则文件（项目相对路径，如 .iagent/rules/coding-rules.md） */
     ruleFilesCreated: string[];
+    /** 规则文件重建/修复明细（旧名删除 / 新建 / 对齐 / 迁移保留 / 告警） */
+    ruleRepair: RuleRepairReport;
     /** 生效 workflow 集来源：default（未配置用默认集）| user（用户显式配置） */
     workflowsSource: 'default' | 'user';
     /** 依赖注入自动补全的 workflow id（供输出提示） */
@@ -298,8 +300,10 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
         openCodeProject = writeOpenCodeProjectArtifacts(projectRoot, stages);
     }
 
-    // 4. 项目级配置（.iagent/config.yaml + .iagent/rules/，已存在则跳过）
-    const config = ensureProjectConfig(projectRoot);
+    // 4. 项目级配置（.iagent/config.yaml + .iagent/rules/）：config.yaml 已存在则保留，
+    //    规则文件转入重建/修复语义（缺失重建 / 旧名清理 / 人工域外对齐）。
+    //    本轮 legacy 迁移产出的规则文件按 preservePaths 只登记不重写（下一轮起恢复对齐）。
+    const config = ensureProjectConfig(projectRoot, { preservePaths: legacyMigration.movedRules });
     // 4.1 持久化本次生效工具集（选择可见可复现；后续不带 --tools 的命令据此保持稳定）
     writeToolsToConfig(projectRoot, tools.map((t) => t.value));
 
@@ -336,6 +340,7 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
         skipped,
         configState: config.state,
         ruleFilesCreated: config.ruleFiles,
+        ruleRepair: config.ruleRepair,
         workflowsSource,
         injectedDeps: resolved.injected,
         reconcileOrphans,

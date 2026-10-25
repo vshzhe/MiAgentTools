@@ -8,10 +8,10 @@ metadata:
   author: mi-agent-tools
   type: review
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:c78a5d57e2ab934a27b5bbfed3185131bf9e19e673024f153381b984977d095e"
+  generatedFingerprint: "sha256:6b8b835bbb618ff12396eada7a64265e24fa6c26eab725c36147905b8d567a91"
 ---
 
-**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
+**适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
 
 检查源项目迁移到目标项目后的功能一致性。识别后端（Controller / Service / DAO）、前端页面、SQL 语句与数据库 schema 中丢失的功能、不一致的实现与框架差异问题。每条对比结果 MUST 写入含真实数据的文档 —— 禁止创建空目录或仅含模板的文档。
 

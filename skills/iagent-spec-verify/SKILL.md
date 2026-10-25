@@ -8,10 +8,10 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:4443af913d5de10b737c2465153d793ba87c6aa60dacae60fe45565e6339948d"
+  generatedFingerprint: "sha256:a14c88cc920f65aba651c5932dc0c4acb8d72e7ae89ded0ea0b8456d34b43a89"
 ---
 
-**验证前先阅读 openspec/rules/ai-coding.md 中的验证标准。** 重点检查未定义数据字段、架构分层违规、前端 UI 状态覆盖。
+**验证前先阅读 .iagent/rules/coding-rules.md 中的验证标准。** 重点检查未定义数据字段、架构分层违规、前端 UI 状态覆盖。
 
 验证实现是否与变更制品（specs / tasks / design）一致。
 

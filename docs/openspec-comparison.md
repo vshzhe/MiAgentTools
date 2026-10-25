@@ -58,10 +58,14 @@
   HIGH / MEDIUM / LOW，LOW 必须向用户确认并标 ⚠
 - **OpenSpec**：无此结构化分析机制
 
-### 2.3 AI 编码护栏前置（ai-coding.md）
+### 2.3 AI 编码护栏前置（coding-rules.md）
 
-- **iAgent**：进入探索模式先读 `openspec/rules/ai-coding.md`，全程受 **[待确认] 零猜测** 约束
-  （未定义数据库字段/API 参数/业务逻辑禁止猜测）
+- **iAgent**：源仓护栏文件 `openspec/rules/ai-coding.md` 仍是本仓开发约束的真源，其要点由
+  `iagent init` **蒸馏**成目标项目侧的 `.iagent/rules/coding-rules.md`；技能正文在目标项目运行时
+  读该项目侧文件（缺失时内联要点 + WARN，不阻断），全程受 **[待确认] 零猜测** 约束
+  （未定义数据库字段 / API 参数 / 业务逻辑禁止猜测）
+  源仓文件与本工具模板常量的关系：蒸馏常量定义在 `src/core/project-config.ts` 的
+  `defaultRuleFileContent`，模板正文只引用项目侧路径，MUST NOT 假设目标项目存在 `openspec/rules/`
 - **OpenSpec**：无独立编码护栏规则文件（依赖 config.yaml 的 context/rules）
 
 ### 2.4 探索记忆体系（与 propose/archive 联动）

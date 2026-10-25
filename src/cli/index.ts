@@ -15,6 +15,8 @@
  */
 
 import { Argument, Command, Option } from 'commander';
+import * as fs from 'node:fs';
+import path from 'node:path';
 import { createRequire } from 'node:module';
 import { runInit } from '../commands/init.js';
 import { defaultPiCommandRunner } from '../core/pi-runtime.js';
@@ -35,6 +37,7 @@ import { renderPermissionReport } from '../core/permissions.js';
 import { runConfigInteractive, runConfigShow, runConfigSet } from '../commands/config.js';
 import { renderLegacyMigrationReport } from '../core/legacy-migration.js';
 import { type MisplacedCleanupResult } from '../core/command-artifacts.js';
+import { type RuleRepairReport } from '../core/project-config.js';
 
 /** 渲染旧位置 Pi 指令清理报告（无动作返回空串） */
 function renderMisplacedCleanup(result: MisplacedCleanupResult): string {
@@ -45,6 +48,45 @@ function renderMisplacedCleanup(result: MisplacedCleanupResult): string {
         return '';
     }
     return `  已清理旧位置 Pi 指令：${result.removed.length} 个（.pi/commands/iagent/）`;
+}
+
+/**
+ * 渲染规则文件重建/修复明细（无动作返回空串，由调用方决定是否跳过）。
+ *
+ * 四类明细按实际数量渲染（为 0 的类别省略）；四类全零且无告警时输出「规则文件已是最新」，
+ * 四类全零但有告警时输出「规则文件：无变更」并逐行展示告警（保告警不吞）。
+ * 存在 `preserved` 时追加提示行：`preservePaths` 只豁免一轮对齐，不构成永久保留，
+ * 长期保留须把内容移入人工域标记区间（提示文案见 design D-2，原样输出）。
+ */
+function renderRuleRepair(result: RuleRepairReport): string {
+    const categories: { label: string; items: string[]; mark: string }[] = [
+        { label: `新建 ${result.created.length}`, items: result.created, mark: '+' },
+        { label: `对齐 ${result.aligned.length}`, items: result.aligned, mark: '↑' },
+        { label: `保留迁移内容 ${result.preserved.length}`, items: result.preserved, mark: '·' },
+        { label: `删除旧名 ${result.removedOldName.length}`, items: result.removedOldName, mark: '-' },
+    ];
+    const active = categories.filter((category) => category.items.length > 0);
+    const lines: string[] = [];
+    if (active.length === 0 && result.warnings.length === 0) {
+        lines.push('  规则文件已是最新');
+        return lines.join('\n');
+    }
+    lines.push(`  规则文件：${active.map((category) => category.label).join(' / ') || '无变更'}`);
+    for (const category of active) {
+        for (const item of category.items) {
+            lines.push(`    ${category.mark} ${item}`);
+        }
+    }
+    for (const warning of result.warnings) {
+        lines.push(`    ! ${warning}`);
+    }
+    if (result.preserved.length > 0) {
+        lines.push(
+            '    i 迁移规则已原样保留；如需长期保留请将其移入人工域标记区间，' +
+                '否则下次 init/update 的常量对齐会重写该文件'
+        );
+    }
+    return lines.join('\n');
 }
 
 const require = createRequire(import.meta.url);
@@ -121,11 +163,9 @@ export function buildProgram(): Command {
             console.log(
                 result.configState === 'created'
                     ? '  配置：.iagent/ 已创建（config.yaml + rules/，可编辑定制项目约束）'
-                    : '  配置：.iagent/ 已存在，保留'
+                    : '  配置：config.yaml 保留，规则文件已按最新常量修复'
             );
-            for (const ruleFile of result.ruleFilesCreated) {
-                console.log(`    + ${ruleFile}`);
-            }
+            console.log(renderRuleRepair(result.ruleRepair));
             console.log(
                 `  workflow 来源：${result.workflowsSource === 'default' ? '默认集' : '用户配置'}`
             );
@@ -206,6 +246,10 @@ export function buildProgram(): Command {
             const misplacedReport = renderMisplacedCleanup(result.misplacedCommands);
             if (misplacedReport !== '') {
                 console.log(misplacedReport);
+            }
+            // 规则文件重建/修复明细（未 init 的项目无 rules/ 目录，不输出噪声）
+            if (fs.existsSync(path.join(process.cwd(), '.iagent', 'rules'))) {
+                console.log(renderRuleRepair(result.ruleRepair));
             }
             if (result.piRuntime) {
                 console.log(`  Pi 编排：${result.piRuntime.mode}（${result.piRuntime.package}${result.piRuntime.resolved ? `@${result.piRuntime.resolved}` : ''}）`);

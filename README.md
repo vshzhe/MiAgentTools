@@ -31,7 +31,7 @@ pnpm link --global
 验证安装：
 
 ```bash
-iagent --version    # 输出 7.1.0
+iagent --version    # 输出 8.0.0
 iagent --help       # 查看全部命令
 ```
 
@@ -63,7 +63,8 @@ pnpm exec iagent init
 一次 `iagent init`（或 `iagent update`）**，入口内置的一次性迁移会自动完成升级：
 
 - **搬运配置**：`.venus/` → `.iagent/`，`context` 与自写规则行、注释、未知段逐字保留；
-  `rules:` 列表与 `rules/*.md` 文件名按类型映射改名，`workflows:` 列表按旧→新指令 id 改名
+  `rules:` 列表按类型映射改名，规则文件落点直达语义名（`tr_impl.md` → `coding-rules.md`、
+  `tr_test.md` → `testing-rules.md`），`workflows:` 列表按旧→新指令 id 改名
 - **删除旧产物**：各工具目录下 `venus_*` 技能与 `commands/venus/` 指令**一律删除**
   （不区分是否手工修改过，丢失风险以报告告警对冲）；同时清理旧补全脚本与 rc/profile 旧标记块、
   仓内旧 sidecar 目录与旧索引库。非 `venus_` 前缀的产物完全不触碰
@@ -283,17 +284,22 @@ iagent completion uninstall
 
 ## 项目级配置（.iagent/ 目录）
 
-`iagent init` 会在项目根创建 `.iagent/` 配置目录（已存在则保留，不覆盖你的修改）：
+`iagent init` 会在项目根创建 `.iagent/` 配置目录：
+
+- `config.yaml`：已存在则**逐字保留**，不重生成、不覆盖你的修改
+- `rules/`：常量域按最新模板常量**重建/修复**（缺失补建、旧版常量对齐），人工域区间内逐字保留
 
 ```text
 .iagent/
 ├── config.yaml          # 项目背景 + 规则引用
 └── rules/
-    ├── impl.md       # 实现类规则（每行一条，# 为注释）
-    └── test.md       # 测试类规则
+    ├── coding-rules.md      # impl 域规则（每行一条，# 为注释）
+    ├── testing-rules.md     # test 域规则
+    ├── spec.md              # spec 域规则
+    └── commit.md            # 映射外类型仍在 rules/ 建 <type>.md（示例：commit）
 ```
 
-**config.yaml 通过 `rules` 列表显式引用规则文件**：
+**config.yaml 通过 `rules` 列表显式引用规则文件**（列表项是**类型 id**，文件名由类型→语义名映射派生）：
 
 ```yaml
 context: |                       # 项目背景 —— generate 骨架时注入正文头部
@@ -302,7 +308,7 @@ context: |                       # 项目背景 —— generate 骨架时注入�
 
 rules:                           # 引用 rules/ 下的文件，顺序即注入顺序
   - impl                     # 删除某行即停用对应规则
-  - test                     # 新增类型：在 rules/ 建 <type>.md 并在此登记
+  - test                     # 新增类型：映射外类型在 rules/ 建 <type>.md 并在此登记
 
 tools:                           # 目标 AI 工具（iagent init/update 据此过滤生成）
   - claude                       # 删除该段或留空则回退默认工具集（claude, pi, codex）
@@ -311,13 +317,23 @@ tools:                           # 目标 AI 工具（iagent init/update 据此�
   # - opencode                   # 可选（opt-in）工具：加入才生成 OpenCode 适配产物
 ```
 
-规则文件格式（`.iagent/rules/impl.md`）：
+规则文件格式（`.iagent/rules/coding-rules.md`）：
 
 ```markdown
-# impl 类型项目规则（每行一条，# 开头为注释）
-遵循项目分层架构，禁止跨层调用
-实现类需补充 JavaDoc/方法注释
+# coding-rules.md 项目规则（impl 域，每行一条，# 开头为注释）
+零猜测：未明确的字段、参数与业务规则一律标 [待确认] 并询问用户，禁止猜测或推迟为 todo
+严格分层，禁止跨层调用；异常统一走 ErrorCode
+
+<!-- 人工域:开始 -->
+# 人工域：可自由增删规则行，自动更新逐字保留
+本项目 DAO 层禁止直接拼接 SQL，统一走 Mapper
+<!-- 人工域:结束 -->
 ```
+
+规则文件分两段：**常量域**（头注释 + 蒸馏基线规则行，由 `iagent init` / `iagent update`
+确定性维护）与**人工域**（`<!-- 人工域:开始 -->` 与 `<!-- 人工域:结束 -->` 之间，自动更新
+逐字保留）。手写规则请置于人工域区间内；旧名 `impl.md` / `test.md` 会被 init/update 整体删除
+（含丢失风险告警，升级步骤见[旧装机升级指引](docs/upgrade-guide.md)）。
 
 `iagent generate` 生成的骨架会自动带上 `context`（引用块）与该类型被引用的 `rules`（约束列表）；
 未在 config.yaml 引用的规则文件不生效。引用了但文件缺失的类型会记入 `missingRuleFiles`。

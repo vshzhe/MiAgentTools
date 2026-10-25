@@ -7,6 +7,58 @@
 
 ## [Unreleased]
 
+## [8.0.0] - 2026-10-25
+
+### BREAKING
+
+- `.iagent/rules/` 规则文件名改为**类型→语义名映射**：`impl` → `coding-rules.md`、
+  `test` → `testing-rules.md`、`spec` → `spec.md`（映射外类型仍回退 `<type>.md`，如
+  `commit.md`）。读取链、列表函数、旧装机迁移落点与重建/修复路径统一经同一派生函数取名，
+  MUST NOT 再直拼文件名
+- 旧名规则文件 `.iagent/rules/impl.md` / `test.md` 由 `iagent init` / `iagent update`
+  **整体删除**（不做兼容读取、不合并内容），删除时逐文件输出丢失风险 WARN。升级前请把旧名
+  文件里的手写规则迁入新名文件的人工域标记区间
+- `iagent init` 不再对已存在的规则文件「一律跳过」：`config.yaml` 已存在时规则文件转入
+  **重建/修复**语义（缺失重建、旧版常量对齐、旧名清理）；created 分支也不进入常量对齐，
+  既有语义名文件字节不变但记 WARN 提示改用 `iagent update` 修复
+
+### Added
+
+- `src/core/project-config.ts` 新增规则文件契约层：`RULE_FILE_NAMES` / `ruleFileNameFor` /
+  `ruleFileTypeFor` / `LEGACY_RULE_FILE_NAMES` / `MANUAL_DOMAIN_MARKS` 单一源常量，
+  `removeLegacyRuleFiles` 旧名删除单步，以及幂等的
+  `repairRuleFiles(projectRoot, { preservePaths })`（`RuleRepairReport`：
+  removedOldName / created / aligned / preserved / warnings）
+- 规则文件**人工域**：`<!-- 人工域:开始 -->` / `<!-- 人工域:结束 -->` 区间内容由自动更新
+  逐字保留；常量域（头注释 + 蒸馏规则行）由 init/update 确定性维护；读取链过滤标记行本身，
+  区间内规则行照常注入
+- `defaultRuleFileContent` 重写为蒸馏基线：`coding-rules.md` 蒸馏零猜测 / 设计先行 + 确认门 /
+  数据与分层 / UI 四状态 / 生成交付要点；`spec.md` 蒸馏 Markdown-first 制品协议要点
+  （真源 / 依赖序 / 写后校验循环 / JSON 弃用 / 评分门）；`testing-rules.md` 为占位兜底并保留
+  人工域骨架
+- `iagent update` 新增 0.3 规则重建/修复步骤（legacy 迁移之后、读 config 之前）；`InitResult`
+  与 `UpdateResult` 新增 `ruleRepair`，CLI 按「新建 / 对齐 / 保留迁移内容 / 删除旧名」渲染
+  明细（四类全零时输出「规则文件已是最新」）
+- 旧装机迁移报告新增机读字段 `movedRules`：搬运落点直达语义名（`tr_impl.md` →
+  `coding-rules.md`、`tr_test.md` → `testing-rules.md`），内容逐字保留；本轮迁移产物按
+  `preservePaths` 跳过常量对齐、只登记 `preserved`，并提示移入人工域
+- 项目预扫描新增第六维信号 `signals.tests`：测试目录探针（`test/` / `tests/` /
+  `__tests__/` / `e2e/` / `spec/`）与测试文件名模式计数（`*.test.*` / `*.spec.*` /
+  `*Test.java` / `*Tests.java` / `*_test.go`），只记事实、不读内容、不推断框架
+- `iagent_project_init` 技能新增第 10 步「实现与测试规则蒸馏」：以基线 signals / candidates、
+  五类文档、`AGENTS.md` 与 `config.yaml` 为输入，把项目特异性约定写入两个语义名规则文件的
+  人工域区间（目标文件缺失则补建、无人工域区间则追加骨架，失败 WARN 非阻断）
+
+### Changed
+
+- 15 个技能模板共 25 处 `openspec/rules/ai-coding.md` / `openspec/rules/artifact-generation.md`
+  引用改为项目侧 `.iagent/rules/coding-rules.md` / `.iagent/rules/spec.md`：目标项目无需
+  `openspec/` 目录即得护栏基线，文件缺失时沿用内联要点降级 + WARN
+- `listRuleFiles` 改为双形态识别（语义名 + 映射外类型回退名）；`readProjectConfig` 与写入
+  路径统一走映射，`missingRuleFiles` 不因语义名生效而误报
+- `ensureProjectConfig(projectRoot, { preservePaths })` 返回体扩展 `ruleRepair`，两分支均
+  透传本轮迁移产物的跳过集合
+
 ## [7.1.0] - 2026-10-18
 
 ### Added
@@ -1191,7 +1243,8 @@
 [2.0.0]: https://github.com/mi-agent-tools/compare/v1.18.1...v2.0.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/mi-agent-tools/compare/v7.1.0...HEAD
+[Unreleased]: https://github.com/mi-agent-tools/compare/v8.0.0...HEAD
+[8.0.0]: https://github.com/mi-agent-tools/compare/v7.1.0...v8.0.0
 [7.1.0]: https://github.com/mi-agent-tools/compare/v7.0.1...v7.1.0
 [7.0.1]: https://github.com/mi-agent-tools/compare/v7.0.0...v7.0.1
 [7.0.0]: https://github.com/mi-agent-tools/compare/v6.4.0...v7.0.0

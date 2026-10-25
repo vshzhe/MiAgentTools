@@ -306,6 +306,13 @@ describe('iagent init 旧装机迁移（CLI 端到端）', () => {
             expect(fs.existsSync(path.join(root, '.venus'))).toBe(false);
             expect(fs.existsSync(path.join(root, '.claude', 'skills', 'venus_tr_impl_feature'))).toBe(false);
             expect(fs.existsSync(path.join(root, '.iagent', 'config.yaml'))).toBe(true);
+            // 迁移产物落点为语义名，且内容逐字保留（首轮按 preserved 跳过常量对齐）
+            expect(fs.readFileSync(path.join(root, '.iagent', 'rules', 'coding-rules.md'), 'utf8')).toBe(
+                '# 旧规则\n禁止跨层调用\n'
+            );
+            expect(fs.readFileSync(path.join(root, '.iagent', 'rules', 'testing-rules.md'), 'utf8')).toContain(
+                '（待补充）'
+            );
         } finally {
             fs.rmSync(root, { recursive: true, force: true });
             fs.rmSync(home, { recursive: true, force: true });
@@ -320,6 +327,182 @@ describe('iagent init 旧装机迁移（CLI 端到端）', () => {
             expect(output).not.toContain('旧装机迁移');
             expect(fs.existsSync(path.join(root, '.venus', 'config.yaml'))).toBe(true);
             expect(fs.existsSync(path.join(root, '.claude', 'skills', 'venus_tr_impl_feature'))).toBe(true);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+            fs.rmSync(home, { recursive: true, force: true });
+        }
+    });
+});
+
+describe('规则文件重建/修复流程（init / update）', () => {
+    const binPath = fileURLToPath(new URL('../bin/iagent.js', import.meta.url));
+
+    /** 独立项目根 + 独立主目录（迁移读写主目录，MUST NOT 触碰真实主目录） */
+    function makeRoots(name: string): { root: string; home: string } {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), `iagent-fix-${name}-`));
+        const home = fs.mkdtempSync(path.join(os.tmpdir(), `iagent-fix-${name}-home-`));
+        return { root, home };
+    }
+
+    function writeAt(filePath: string, content: string): void {
+        fs.mkdirSync(path.dirname(filePath), { recursive: true });
+        fs.writeFileSync(filePath, content, 'utf8');
+    }
+
+    /** 规则文件绝对路径（语义名） */
+    function ruleAt(root: string, fileName: string): string {
+        return path.join(root, '.iagent', 'rules', fileName);
+    }
+
+    /** 以指定项目目录为 cwd 执行 CLI（主目录经 USERPROFILE/HOME 注入临时目录） */
+    function execCli(cwd: string, args: string[], home: string): string {
+        return execFileSync(process.execPath, [binPath, ...args], {
+            cwd,
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'pipe'],
+            env: { ...process.env, USERPROFILE: home, HOME: home },
+        });
+    }
+
+    /** 旧装机夹具：旧配置目录（rules 含 tr_impl）+ 一份旧规则文件 */
+    function makeLegacyRules(root: string): void {
+        writeAt(
+            path.join(root, '.venus', 'config.yaml'),
+            ['context: |', '  旧装机背景', '', 'rules:', '  - tr_impl', ''].join('\n')
+        );
+        writeAt(path.join(root, '.venus', 'rules', 'tr_impl.md'), '# 旧 impl 规则\n禁止跨层调用\n');
+    }
+
+    const CLI_ARGS = ['init', '--tools', 'claude', '--no-scan', '--no-deps'];
+
+    it('update 0.3 先于读 config：本轮迁移产物内容逐字保真，不被常量对齐重写', () => {
+        const { root, home } = makeRoots('update-order');
+        try {
+            makeLegacyRules(root);
+            const result = runUpdate(root, { homeDir: home, tools: 'claude' });
+
+            // 迁移报告登记本轮写入的规则文件（机读字段，posix 项目相对路径）
+            expect(result.legacyMigration.movedRules).toEqual(['.iagent/rules/coding-rules.md']);
+            // 修复步骤按 preservePaths 只登记不对齐
+            expect(result.ruleRepair.preserved).toEqual(['.iagent/rules/coding-rules.md']);
+            expect(result.ruleRepair.aligned).toEqual([]);
+            // 同轮内容保真：迁移正文未被常量块重写
+            expect(fs.readFileSync(ruleAt(root, 'coding-rules.md'), 'utf8')).toBe('# 旧 impl 规则\n禁止跨层调用\n');
+            // 步骤先序：读 config 时规则修复/迁移已完成，内容与缺失均无偏差
+            expect(readProjectConfig(root)?.rules.impl).toEqual(['禁止跨层调用']);
+            expect(readProjectConfig(root)?.missingRuleFiles).toEqual([]);
+            // 缺失的管理型文件同轮重建
+            expect([...result.ruleRepair.created].sort()).toEqual([
+                '.iagent/rules/spec.md',
+                '.iagent/rules/testing-rules.md',
+            ]);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+            fs.rmSync(home, { recursive: true, force: true });
+        }
+    });
+
+    it('未 init 项目 update：规则修复为空操作，不创建 .iagent/rules 与 config.yaml', () => {
+        const { root } = makeRoots('update-noop');
+        try {
+            const result = runUpdate(root);
+
+            expect(result.ruleRepair).toEqual({
+                removedOldName: [],
+                created: [],
+                aligned: [],
+                preserved: [],
+                warnings: [],
+            });
+            // 规则修复步骤不凭空造配置：rules 目录与 config.yaml 均不出现
+            // （`.iagent/pi-runtime.json` 为 Pi 运行时诊断的既有行为，与规则修复无关）
+            expect(fs.existsSync(path.join(root, '.iagent', 'rules'))).toBe(false);
+            expect(fs.existsSync(path.join(root, '.iagent', 'config.yaml'))).toBe(false);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('init 报告 ruleRepair 明细：迁移产物登记 preserved、缺失文件重建', () => {
+        const { root, home } = makeRoots('init-report');
+        try {
+            makeLegacyRules(root);
+            const result = runInit(root, { homeDir: home, tools: 'claude', scan: false });
+
+            // 迁移先落盘 → ensureProjectConfig 走 exists 分支
+            expect(result.configState).toBe('exists');
+            expect(result.ruleRepair.preserved).toEqual(['.iagent/rules/coding-rules.md']);
+            expect([...result.ruleRepair.created].sort()).toEqual([
+                '.iagent/rules/spec.md',
+                '.iagent/rules/testing-rules.md',
+            ]);
+            expect(result.ruleRepair.aligned).toEqual([]);
+            expect(fs.readFileSync(ruleAt(root, 'coding-rules.md'), 'utf8')).toBe('# 旧 impl 规则\n禁止跨层调用\n');
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+            fs.rmSync(home, { recursive: true, force: true });
+        }
+    });
+
+    it('旧名规则文件删除并输出丢失风险告警（init 报告明细）', () => {
+        const { root, home } = makeRoots('oldname');
+        try {
+            ensureProjectConfig(root);
+            writeAt(ruleAt(root, 'impl.md'), '# 7.x 手写\n禁止跨层调用\n');
+
+            const result = runInit(root, { homeDir: home, tools: 'claude', scan: false });
+
+            expect(result.ruleRepair.removedOldName).toEqual(['.iagent/rules/impl.md']);
+            expect(result.ruleRepair.warnings.some((w) => w.includes('整体删除'))).toBe(true);
+            expect(result.ruleRepair.warnings.some((w) => w.includes('丢失风险'))).toBe(true);
+            expect(result.ruleRepair.warnings.some((w) => w.includes('coding-rules.md'))).toBe(true);
+            expect(fs.existsSync(ruleAt(root, 'impl.md'))).toBe(false);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+            fs.rmSync(home, { recursive: true, force: true });
+        }
+    });
+
+    it('preserved 首轮提示文案由 CLI 输出承载（迁移报告不含该提示）', () => {
+        const { root, home } = makeRoots('preserved-tip');
+        try {
+            makeLegacyRules(root);
+            const output = execCli(root, CLI_ARGS, home);
+
+            expect(output).toContain('保留迁移内容 1');
+            expect(output).toContain('.iagent/rules/coding-rules.md');
+            expect(output).toContain(
+                '迁移规则已原样保留；如需长期保留请将其移入人工域标记区间，否则下次 init/update 的常量对齐会重写该文件'
+            );
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+            fs.rmSync(home, { recursive: true, force: true });
+        }
+    });
+
+    it('CLI 三类分支文案：created / exists 有变更 / exists 无变更', () => {
+        const { root, home } = makeRoots('cli-branches');
+        try {
+            // created 分支
+            const created = execCli(root, CLI_ARGS, home);
+            expect(created).toContain('配置：.iagent/ 已创建');
+            expect(created).toContain('新建 3');
+
+            // exists 无变更分支：规则文件已是最新
+            const stable = execCli(root, CLI_ARGS, home);
+            expect(stable).toContain('配置：config.yaml 保留，规则文件已按最新常量修复');
+            expect(stable).toContain('规则文件已是最新');
+
+            // exists 有变更分支：旧名删除 + 缺失重建
+            writeAt(ruleAt(root, 'impl.md'), '旧名内容\n');
+            fs.rmSync(ruleAt(root, 'testing-rules.md'), { force: true });
+            const changed = execCli(root, CLI_ARGS, home);
+            expect(changed).toContain('配置：config.yaml 保留，规则文件已按最新常量修复');
+            expect(changed).toContain('规则文件：新建 1 / 删除旧名 1');
+            expect(changed).toContain('删除旧名 1');
+            expect(changed).toContain('整体删除');
+            expect(fs.existsSync(ruleAt(root, 'impl.md'))).toBe(false);
+            expect(fs.existsSync(ruleAt(root, 'testing-rules.md'))).toBe(true);
         } finally {
             fs.rmSync(root, { recursive: true, force: true });
             fs.rmSync(home, { recursive: true, force: true });

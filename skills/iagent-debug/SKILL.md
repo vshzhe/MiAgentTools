@@ -8,11 +8,11 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:3aa6638c6011ba8ff50be5884b7d6061d1d700fc99d177b977491bb91e5ac74a"
+  generatedFingerprint: "sha256:677d6209334852a8268b9a765a6842b82866a201f5a2e3812bce490953f082ae"
 ---
 
 
-**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
+**适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
 
 从复现到提案同步的一站式调试工作流。
 
@@ -233,7 +233,7 @@ _Avoid_: <synonyms>`
 
 ### 4.1 修复实现
 
-- 遵循 `openspec/rules/ai-coding.md`（零猜测原则、最小改动、分层）
+- 遵循 `.iagent/rules/coding-rules.md`（零猜测原则、最小改动、分层）
 - 保持改动外科手术般精准：每一行改动都必须能追溯到根因
 - 修复涉及数据库/schema 变更时，单独输出 DDL 并在应用前请求显式确认（依护栏）
 - 实现中暴露设计问题时，暂停并建议更新变更制品，而非静默偏离

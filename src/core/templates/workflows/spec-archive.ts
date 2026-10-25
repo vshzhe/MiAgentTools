@@ -11,7 +11,7 @@ export function getSpecArchiveChangeSkillTemplate(): SkillTemplate {
         description: '归档变更。当用户要归档已实现完成的变更、结束变更工作流时使用；触发词"归档 / archive / 结束变更"；NOT for 一次归档多个变更（改用 iagent_spec_bulk_archive）。',
         allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(ls:*), ${CODEGRAPH_MCP}, ${skillDelegation(['requirement_doc'])}`,
         type: 'spec',
-        instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
+        instructions: `**适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
 
 在变更工作流中归档一个已完成的变更。
 

@@ -8,7 +8,7 @@ export function getRequirementDocSkillTemplate(): SkillTemplate {
     return {
         name: 'iagent_requirement_doc',
         description: '把变更制品（proposal.md / design.md / specs/**/*.md + tasks.md）转换为标准八章节需求文档（requirement document）供人工评审。当用户要生成需求文档 / 需求单 / 转换提案为需求文档时使用；触发词"需求文档 / requirement document / 需求单 / 提案转文档"；NOT for 扫描源项目生成迁移需求文档——那用 iagent_feature_doc。',
-        instructions: `**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
+        instructions: `**适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
 
 把 OpenSpec 变更提案转换为标准需求文档，供人工评审。
 

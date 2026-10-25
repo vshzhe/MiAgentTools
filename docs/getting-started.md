@@ -31,8 +31,9 @@ your-project/
 └── .iagent/
     ├── config.yaml                    # 项目背景 + 规则引用 + workflow 选择
     └── rules/
-        ├── impl.md                    # 实现类规则（每行一条）
-        └── test.md                    # 测试类规则
+        ├── coding-rules.md            # 实现类规则（impl 域，每行一条）
+        ├── testing-rules.md           # 测试类规则（test 域）
+        └── spec.md                    # 规格驱动规则（spec 域）
 ```
 
 `.iagent/` 建议提交到 git —— 团队成员 init 后即共享同一套项目约束。
@@ -63,13 +64,24 @@ tools:                      # 目标 AI 工具（留空 = 全部）
   - pi
 ```
 
-编辑规则文件（如 `.iagent/rules/impl.md`）：
+编辑规则文件（如 `.iagent/rules/coding-rules.md`）：
 
 ```markdown
-# 每行一条规则，# 开头为注释
+# coding-rules.md 项目规则（impl 域，每行一条，# 开头为注释）
+零猜测：未明确的字段、参数与业务规则一律标 [待确认] 并询问用户，禁止猜测或推迟为 todo
+严格分层，禁止跨层调用；异常统一走 ErrorCode
+
+<!-- 人工域:开始 -->
+# 人工域：可自由增删规则行，自动更新逐字保留
 遵循项目分层架构，禁止跨层调用
 实现类需补充 JavaDoc/方法注释
+<!-- 人工域:结束 -->
 ```
+
+- **常量域**（头注释 + 蒸馏基线规则行）由 `iagent init` / `iagent update` 维护，手改会在下次对齐时被覆盖
+- **人工域**（`<!-- 人工域:开始 -->` 与 `<!-- 人工域:结束 -->` 之间）是手写规则的正确位置：
+  `iagent update` 的常量对齐与 `project-init` 的规则蒸馏都**逐字保留**该区间
+- 映射外类型（如 `commit`）仍在 `rules/` 下建 `<type>.md`；旧名 `impl.md` / `test.md` 会被整体删除
 
 之后 `iagent generate` 生成的骨架自动带上这些约束 —— 填正文时项目约定就在眼前。
 

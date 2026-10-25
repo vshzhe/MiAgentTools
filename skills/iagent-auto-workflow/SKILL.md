@@ -8,11 +8,11 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:2b2f51ed25ed019f547cc1a0700db02cba64eb75ddd291e8ee2f3ff503e2f76a"
+  generatedFingerprint: "sha256:eaae046efcda39fa3fa7a300bcfa85ae902f1bda1d849229a4ec1abb537aea50"
 ---
 
 
-**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
+**适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
 
 一站式全自动工作流：从探索到归档。
 
@@ -203,7 +203,7 @@ Phase 4 继承 `iagent_spec_apply` 的**测试执行门**并**自动**通过 —
 - **MUST 迁移前校验文件** —— Phase 2 检查点为强制
 - **MUST 迁移失败时保留源文件** —— 绝不丢失用户数据
 - **MUST NOT 提供方式选择** —— Phase 2 直接进入内联 propose 式生成
-- **Phase 2 MUST 遵循 Markdown-first 协议** —— 内联生成 MUST 遵循 `openspec/rules/artifact-generation.md`：写入 Markdown 真源（proposal.md / specs/**/*.md / design.md / tasks.md）→ `iagent spec validate --change "<name>"` → 校验失败则修正 Markdown 并重跑；校验不可用则产出 WARN
+- **Phase 2 MUST 遵循 Markdown-first 协议** —— 内联生成 MUST 遵循项目侧制品协议 `.iagent/rules/spec.md`（缺失时以本步内联要点为准并记 WARN，MUST NOT 阻断）：写入 Markdown 真源（proposal.md / specs/**/*.md / design.md / tasks.md）→ `iagent spec validate --change "<name>"` → 校验失败则修正 Markdown 并重跑；校验不可用则产出 WARN
 - **先探索代码库** —— 提问前先看代码库能否回答该问题
 - **给出推荐** —— 每个问题都附 AI 的推荐
 - **实时更新文件** —— 每轮交互后即时写入探索文件

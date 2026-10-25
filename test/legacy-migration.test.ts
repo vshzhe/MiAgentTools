@@ -231,9 +231,10 @@ describe('2.1 遗留产物检测与映射表', () => {
 // ── 2.2 配置搬运保真 ──────────────────────────────────────────────
 
 describe('2.2 配置搬运保真（逐行段替换，不重新序列化 YAML）', () => {
+    let migratedRules: string[] = [];
     beforeEach(() => {
         makeLegacyConfigDir();
-        runLegacyMigration(projectRoot, { homeDir });
+        migratedRules = runLegacyMigration(projectRoot, { homeDir }).movedRules;
     });
 
     it('context 多行块逐字保留', () => {
@@ -271,18 +272,44 @@ describe('2.2 配置搬运保真（逐行段替换，不重新序列化 YAML）'
         );
     });
 
-    it('rules 列表与 rules/ 文件名成对改名，无缺失规则文件', () => {
+    it('rules 列表与 rules/ 文件名成对改名：落点直达语义名，无缺失规则文件', () => {
         expect(readProjectConfig(projectRoot)?.rules).toEqual({
             impl: ['禁止跨层调用'],
             test: ['测试框架与既有用例一致'],
             spec: ['提案须过评分门'],
         });
         expect(readProjectConfig(projectRoot)?.missingRuleFiles).toEqual([]);
-        expect(fs.existsSync(path.join(projectRoot, '.iagent', 'rules', 'impl.md'))).toBe(true);
-        expect(fs.existsSync(path.join(projectRoot, '.iagent', 'rules', 'test.md'))).toBe(true);
+        // 落点经类型→语义名映射直达（tr_impl → coding-rules.md、tr_test → testing-rules.md）
+        expect(fs.existsSync(path.join(projectRoot, '.iagent', 'rules', 'coding-rules.md'))).toBe(true);
+        expect(fs.existsSync(path.join(projectRoot, '.iagent', 'rules', 'testing-rules.md'))).toBe(true);
+        // spec 显式声明不改名：语义名与回退名一致
         expect(fs.existsSync(path.join(projectRoot, '.iagent', 'rules', 'spec.md'))).toBe(true);
-        // 旧类型名的规则文件未被搬成同名文件
+        // 旧类型名与 7.x 旧名形态均未落盘
         expect(fs.existsSync(path.join(projectRoot, '.iagent', 'rules', 'tr_impl.md'))).toBe(false);
+        expect(fs.existsSync(path.join(projectRoot, '.iagent', 'rules', 'tr_test.md'))).toBe(false);
+        expect(fs.existsSync(path.join(projectRoot, '.iagent', 'rules', 'impl.md'))).toBe(false);
+        expect(fs.existsSync(path.join(projectRoot, '.iagent', 'rules', 'test.md'))).toBe(false);
+    });
+
+    it('搬运内容逐字保留且登记 movedRules（项目相对 posix 路径）', () => {
+        // 内容保真：不改写正文、不注入人工域标记
+        expect(fs.readFileSync(path.join(projectRoot, '.iagent', 'rules', 'coding-rules.md'), 'utf8')).toBe(
+            '# 旧 impl 规则\n禁止跨层调用\n'
+        );
+        expect(fs.readFileSync(path.join(projectRoot, '.iagent', 'rules', 'testing-rules.md'), 'utf8')).toBe(
+            '# 旧 test 规则\n测试框架与既有用例一致\n'
+        );
+        // 机读字段：本轮写入的三个规则文件，全为 posix 项目相对路径
+        expect([...migratedRules].sort()).toEqual([
+            '.iagent/rules/coding-rules.md',
+            '.iagent/rules/spec.md',
+            '.iagent/rules/testing-rules.md',
+        ]);
+        for (const rulePath of migratedRules) {
+            expect(rulePath.startsWith('.iagent/rules/')).toBe(true);
+            expect(rulePath).not.toContain('\\');
+        }
+        // .venus 侧原始文件名断言见 2.5「新配置目录已存在」用例（跳过搬运场景）
     });
 
     it('workflows 列表按映射表改名且不丢项', () => {
@@ -368,17 +395,38 @@ describe('2.3 端到端迁移（iagent init）', () => {
 // ── 2.4 幂等与续做 ────────────────────────────────────────────────
 
 describe('2.4 幂等与部分迁移续做', () => {
-    it('连续执行两次 init：第二次无任何文件变化且不输出迁移段落', () => {
+    it('连续执行 init：首轮保留迁移内容、次轮恢复对齐、第三轮起无任何文件变化', () => {
         makeLegacyConfigDir();
         makeLegacyProducts();
 
-        runInit(projectRoot, { homeDir, scan: false, force: true });
-        const afterFirst = snapshot(projectRoot);
+        const first = runInit(projectRoot, { homeDir, scan: false, force: true });
+        // 首轮：迁移产物按 preservePaths 只登记不对齐（内容逐字保留）
+        expect(first.ruleRepair.preserved).toHaveLength(3);
+        expect(fs.readFileSync(path.join(projectRoot, '.iagent', 'rules', 'coding-rules.md'), 'utf8')).toBe(
+            '# 旧 impl 规则\n禁止跨层调用\n'
+        );
 
         const second = runInit(projectRoot, { homeDir, scan: false });
         expect(second.legacyMigration.migrated).toBe(false);
         expect(renderLegacyMigrationReport(second.legacyMigration)).toBe('');
-        expect(snapshot(projectRoot)).toEqual(afterFirst);
+        // preservePaths 只豁免一轮：第二轮起恢复常量对齐
+        expect(second.ruleRepair.preserved).toEqual([]);
+        expect([...second.ruleRepair.aligned].sort()).toEqual([
+            '.iagent/rules/coding-rules.md',
+            '.iagent/rules/spec.md',
+            '.iagent/rules/testing-rules.md',
+        ]);
+        const afterSecond = snapshot(projectRoot);
+
+        const third = runInit(projectRoot, { homeDir, scan: false });
+        expect(third.ruleRepair).toEqual({
+            removedOldName: [],
+            created: [],
+            aligned: [],
+            preserved: [],
+            warnings: [],
+        });
+        expect(snapshot(projectRoot)).toEqual(afterSecond);
     });
 
     it('配置已搬运但旧技能仍存在：第二次只补齐清理，不重复搬运配置', () => {
@@ -435,6 +483,13 @@ describe('2.5 边界容错与跳过开关', () => {
         expect(result.reconcileOrphans.skills.length).toBeLessThanOrEqual(result.skillsInstalled.length);
     });
 
+    it('无旧配置目录时 movedRules 为空数组（无旧物即无本轮搬运产出）', () => {
+        const report = runLegacyMigration(projectRoot, { homeDir });
+        expect(report.migrated).toBe(false);
+        expect(report.moved).toEqual([]);
+        expect(report.movedRules).toEqual([]);
+    });
+
     it('仅部分旧物存在：只处理存在的那部分', () => {
         writeAt(path.join(projectRoot, '.claude', 'commands', 'venus', 'tr-tools-pwd.md'), 'old');
         const result = runLegacyMigration(projectRoot, { homeDir });
@@ -467,6 +522,8 @@ describe('2.5 边界容错与跳过开关', () => {
 
         expect(result.legacyMigration.migrated).toBe(false);
         expect(renderLegacyMigrationReport(result.legacyMigration)).toBe('');
+        // 未执行迁移：movedRules 为空数组（不构成 preservePaths 输入）
+        expect(result.legacyMigration.movedRules).toEqual([]);
         // 旧物原样保留
         expect(fs.existsSync(path.join(projectRoot, LEGACY_CONFIG_DIR_NAME, 'config.yaml'))).toBe(true);
         expect(

@@ -8,10 +8,10 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:e47a9cbe55e39ba859c916586bdf6974f9075a7b8451c7ed558212b87cb69552"
+  generatedFingerprint: "sha256:48c2207c036559c3df6a3e6d71146cedde591f16e907e0592f6be311d206a390"
 ---
 
-**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
+**适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
 
 在单次操作中归档多个已完成变更。
 

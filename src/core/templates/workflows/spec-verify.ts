@@ -10,7 +10,7 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
         description: '验证变更。当用户要在实现完成后、归档前验证实现与变更制品（specs/tasks/design）是否一致时使用；触发词"验证变更 / verify / 实现验证 / 一致性检查"；NOT for 实现前的提案质量评分门（改用 iagent_spec_verify_proposal）。',
         allowedTools: 'Bash(iagent:*), Read, Glob, Grep',
         type: 'spec',
-        instructions: `**验证前先阅读 openspec/rules/ai-coding.md 中的验证标准。** 重点检查未定义数据字段、架构分层违规、前端 UI 状态覆盖。
+        instructions: `**验证前先阅读 .iagent/rules/coding-rules.md 中的验证标准。** 重点检查未定义数据字段、架构分层违规、前端 UI 状态覆盖。
 
 验证实现是否与变更制品（specs / tasks / design）一致。
 

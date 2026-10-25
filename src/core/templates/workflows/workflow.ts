@@ -135,7 +135,7 @@ export function getWorkflowSkillTemplate(): SkillTemplate {
         name: 'iagent_workflow',
         description: '一站式引导工作流：从探索到归档。创建持久化探索文件，追问澄清直至明确（grill-with-docs、L1-L5 逐级门），委派制品生成（iagent_spec_propose），自动验证，再委派实现（iagent_spec_apply）与归档（iagent_spec_archive），阶段间以确认桥衔接。当用户需要带追问（grill-with-docs）问答与自动质量验证的引导式端到端管道时使用；触发词"一站式引导工作流 / guided workflow / workflow from exploration / 引导式全流程"；NOT for 全自动无门管道（改用 iagent_auto_workflow）、单一阶段探索（改用 iagent_spec_explore）或调试（改用 iagent_debug）。',
         instructions: `
-**适用 openspec/rules/ai-coding.md 全域护栏。** 未定义项标 **[待确认]**，禁止猜测。
+**适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
 
 一站式引导工作流（探索 → 归档），内置验证与确认桥。
 
@@ -290,7 +290,7 @@ Phase 2.0 影响面分析完成（或跳过）后：
 
 ### 2.3 提案生成（委派 iagent_spec_propose）
 
-Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部制品生成（proposal.md / specs/**/*.md / design.md / tasks.md）SHALL 委派阶段 \`iagent_spec_propose\`（传 \`mode=delegated\` + \`exploration-file=<Phase 1 探索文件路径>\`）完成，MUST NOT 内联生成提案制品。制品生成遵循 Markdown-first 共享协议（openspec/rules/artifact-generation.md）。规则注入、schema 验证与 CLI 降级由 \`spec_propose\` 承担。
+Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部制品生成（proposal.md / specs/**/*.md / design.md / tasks.md）SHALL 委派阶段 \`iagent_spec_propose\`（传 \`mode=delegated\` + \`exploration-file=<Phase 1 探索文件路径>\`）完成，MUST NOT 内联生成提案制品。制品生成遵循**项目规范** \`.iagent/rules/spec.md\` 的制品协议要点（Markdown-first 共享协议；该文件缺失时以 spec_propose 的内联要点为准并记 WARN，MUST NOT 阻断）。规则注入、schema 验证与 CLI 降级由 \`spec_propose\` 承担。
 
 **退出守卫**：被委派的 \`iagent_spec_propose\` 完成后 MUST NOT 自行进入实现或推进阶段；阶段推进主权归 \`iagent_workflow\`。其结构化回执（change-name / 制品清单 / apply-ready）用于进入 Phase 3 与后续确认桥。
 
@@ -327,7 +327,7 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 **委派 \`iagent_spec_apply\` 技能**执行实现：
 - 传入 change-name + \`auto-mode=true\`（跳过 apply 内部的设计确认门——确认已由 Phase 3.7 实现桥承载，避免重复确认）
 - apply 内部完成：分层代码生成（Entity/DTO → Mapper/DAO → Service → Controller）、tasks.md 勾选更新、编译检查
-- 后端架构规则由 apply 按 \`openspec/rules/ai-coding.md\` 自行处理，workflow 不干预
+- 后端架构规则由 apply 按 \`.iagent/rules/coding-rules.md\` 自行处理，workflow 不干预
 
 ### 4.1 条件测试子阶段（tasks.md 含 \`[测试]\` 任务时；计划已在 3.7「实现 + 测试桥」一次确认）
 
