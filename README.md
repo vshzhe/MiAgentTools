@@ -6,7 +6,33 @@ AI Agent 技能生成与管理 CLI —— 按技能类型分类生成 `iagent_` 
 
 ## 安装
 
-### 方式一：本地全局安装（推荐，任意目录可用 `iagent` 命令）
+### 方式一：npm 全局安装（推荐，任意目录可用 `iagent` 命令）
+
+```bash
+npm install -g mi-agent-tools
+```
+
+验证安装：
+
+```bash
+iagent --version    # 输出 1.0.0
+iagent --help       # 查看全部命令
+```
+
+免全局安装、临时试用（版本号亦可省略，默认取 `latest`）：
+
+```bash
+npx mi-agent-tools@1.0.0 --version
+npx mi-agent-tools init
+```
+
+卸载：
+
+```bash
+npm uninstall -g mi-agent-tools
+```
+
+### 方式二：源码本地全局安装（参与开发时用）
 
 ```bash
 cd <MiAgentTools 仓库路径>
@@ -28,31 +54,29 @@ pnpm link --global
 > 再执行一次 `pnpm link --global` 即可。已实测：链接后在任意目录（含 Git Bash / cmd / PowerShell）
 > `iagent` 直接可用。
 
-验证安装：
-
-```bash
-iagent --version    # 输出 1.0.0
-iagent --help       # 查看全部命令
-```
-
 卸载全局链接：
 
 ```bash
 pnpm uninstall --global mi-agent-tools
 ```
 
-### 方式二：项目内直接运行（不装全局命令）
+### 方式三：项目内直接运行源码（不装全局命令）
 
 ```bash
 cd <MiAgentTools 仓库路径>
 node bin/iagent.js <command>     # 效果与 iagent <command> 完全一致
 ```
 
-### 方式三：目标项目本地依赖（固定版本）
+### 方式四：目标项目本地依赖（固定版本）
 
 在目标项目中：
 
 ```bash
+# 从 npm 安装固定版本
+npm install --save-dev mi-agent-tools@1.0.0
+npx iagent init
+
+# 或从本地仓库路径安装（开发联调用）
 pnpm add file:<MiAgentTools 仓库路径>
 pnpm exec iagent init
 ```
