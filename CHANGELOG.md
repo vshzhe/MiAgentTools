@@ -7,11 +7,14 @@
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-25
+
 ### Changed
 
+- 包元信息：`package.json` 补 `repository` / `homepage` / `bugs` 指向 GitHub 仓库，
+  npm 包页面显示源码仓库与 issue 入口
 - 文档：README 安装章节以 npm 全局安装（`npm install -g mi-agent-tools`）为首选方式，新增 `npx` 免安装
   试用与"从 npm 安装固定版本"的项目内依赖用法；原源码 `pnpm link --global` 顺延为方式二
-  （本改动对应已发布版本 `1.0.0` 的安装说明，不单独递增版本号）
 
 ## [1.0.0] - 2026-10-25
 
@@ -1322,7 +1325,8 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.0.0]: https://github.com/mi-agent-tools/compare/v1.18.1...v2.0.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/mi-agent-tools/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/mi-agent-tools/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/mi-agent-tools/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/mi-agent-tools/releases/tag/v1.0.0
 [8.1.1]: https://github.com/mi-agent-tools/compare/v8.1.0...v8.1.1
 [8.1.0]: https://github.com/mi-agent-tools/compare/v8.0.0...v8.1.0

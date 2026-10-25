@@ -1,6 +1,6 @@
 {
   "name": "mi-agent-tools",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "AI Agent 技能生成与管理 CLI —— 按技能类型（init/impl/test/commit/review/release/tools/docs/spec）生成 iagent_ 前缀的 SKILL 与指令",
   "keywords": [
     "iagent",
@@ -11,6 +11,14 @@
     "ai"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vshzhe/MiAgentTools.git"
+  },
+  "homepage": "https://github.com/vshzhe/MiAgentTools#readme",
+  "bugs": {
+    "url": "https://github.com/vshzhe/MiAgentTools/issues"
+  },
   "type": "module",
   "packageManager": "pnpm@10.34.5",
   "bin": {
