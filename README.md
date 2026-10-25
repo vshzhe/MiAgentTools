@@ -31,7 +31,7 @@ pnpm link --global
 验证安装：
 
 ```bash
-iagent --version    # 输出 8.1.0
+iagent --version    # 输出 8.1.1
 iagent --help       # 查看全部命令
 ```
 
@@ -56,26 +56,6 @@ node bin/iagent.js <command>     # 效果与 iagent <command> 完全一致
 pnpm add file:<MiAgentTools 仓库路径>
 pnpm exec iagent init
 ```
-
-## 从旧版升级（venus → iagent）
-
-2.0.0 是破坏性改名（技能前缀、指令命名空间、配置目录、CLI 名全变）。**既有装机只需照常执行
-一次 `iagent init`（或 `iagent update`）**，入口内置的一次性迁移会自动完成升级：
-
-- **搬运配置**：`.venus/` → `.iagent/`，`context` 与自写规则行、注释、未知段逐字保留；
-  `rules:` 列表按类型映射改名，规则文件落点直达语义名（`tr_impl.md` → `coding-rules.md`、
-  `tr_test.md` → `testing-rules.md`），`workflows:` 列表按旧→新指令 id 改名
-- **删除旧产物**：各工具目录下 `venus_*` 技能与 `commands/venus/` 指令**一律删除**
-  （不区分是否手工修改过，丢失风险以报告告警对冲）；同时清理旧补全脚本与 rc/profile 旧标记块、
-  仓内旧 sidecar 目录与旧索引库。非 `venus_` 前缀的产物完全不触碰
-- **输出报告**：搬运项 / 删除项 / 跳过项三段计数与明细 + 告警；无旧物时静默跳过，
-  重复执行无副作用
-
-**要保留手工修改过的旧技能正文，请在升级前自行留档**（迁移不做备份）。
-`iagent init --no-migrate` 可跳过迁移、只安装新口径产物，供先看影响面的场景。
-
-完整的自动行为、告警含义、边界场景与升级前动作见
-[旧装机升级指引](docs/upgrade-guide.md)。
 
 ## 快速开始
 
@@ -245,13 +225,13 @@ your-project/
 `uninstall` 默认保留 `.iagent/` 配置（用户维护的 rules 不丢）；先干跑展示影响面，
 `--yes` 才执行，`--purge-config` 连配置一起删。
 
-更多：[快速上手指南](docs/getting-started.md) · [旧装机升级指引](docs/upgrade-guide.md) · [AI 代理导航（AGENTS.md）](AGENTS.md) · [变更日志](CHANGELOG.md)
+更多：[快速上手指南](docs/getting-started.md) · [AI 代理导航（AGENTS.md）](AGENTS.md) · [变更日志](CHANGELOG.md)
 
 `validate` 校验项：`iagent_` 前缀、frontmatter `name` = 目录名、`description` / `allowed-tools` / `metadata.type` 必填、`type` 为 9 类之一；存在 CRITICAL 时退出码 1（可接入 CI）。
 
 `update` 保护策略：内容与内置一致 → 跳过（幂等）；产物未被改动（`generatedFingerprint`
 内容指纹自洽）→ 自动升级；检测到用户手改 → 跳过并列出（`--force` 才覆盖）。
-无指纹字段的存量产物回退到 `generatedBy` 版本号判定，行为与旧版一致。
+无指纹字段的存量产物回退到 `generatedBy` 版本号判定。
 
 ## 依赖自检（codegraph / openspec）
 
@@ -332,8 +312,7 @@ tools:                           # 目标 AI 工具（iagent init/update 据此�
 
 规则文件分两段：**常量域**（头注释 + 蒸馏基线规则行，由 `iagent init` / `iagent update`
 确定性维护）与**人工域**（`<!-- 人工域:开始 -->` 与 `<!-- 人工域:结束 -->` 之间，自动更新
-逐字保留）。手写规则请置于人工域区间内；旧名 `impl.md` / `test.md` 会被 init/update 整体删除
-（含丢失风险告警，升级步骤见[旧装机升级指引](docs/upgrade-guide.md)）。
+逐字保留）。手写规则请一律置于人工域区间内。
 
 `iagent generate` 生成的骨架会自动带上 `context`（引用块）与该类型被引用的 `rules`（约束列表）；
 未在 config.yaml 引用的规则文件不生效。引用了但文件缺失的类型会记入 `missingRuleFiles`。
@@ -399,7 +378,7 @@ pnpm dev            # 监听模式编译
 
 工程保障：
 
-- **CI**（GitHub Actions）：Ubuntu + Windows 双平台跑 build → lint → test → 快照 parity 检查
+- **本地校验链**：提交前依次执行 `pnpm build` → `pnpm lint` → `pnpm test`（Windows / Linux 双平台已验证）
 - **快照防漂移**：`test/skills-parity.test.ts` 保证 `skills/` 提交内容与模板一致
 - 项目自身已 dogfood：`.claude/` 目录下的技能即由 `iagent init` 生成（**本机产物，不入库** ——
   `.iagent/` / `.claude/` / `openspec/` / `.codegraph/` 均由 `.gitignore` 整体排除；

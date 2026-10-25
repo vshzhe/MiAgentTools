@@ -7,6 +7,15 @@
 
 ## [Unreleased]
 
+## [8.1.1] - 2026-10-25
+
+### Changed
+
+- 仓库卫生：`.github/workflows/` 解除 Git 跟踪并加入 `.gitignore` —— 工作流仅保留在本机，
+  不随仓库分发或推送（`git rm -r --cached .github/workflows`）
+- 文档：README 移除旧 `.venus` 品牌升级章节及其全部指引链接，按新项目使用说明改写；
+  "工程保障"段由 GitHub Actions CI 描述改为本地校验链（`build` → `lint` → `test`）
+
 ## [8.1.0] - 2026-10-25
 
 ### Added
@@ -1288,7 +1297,8 @@
 [2.0.0]: https://github.com/mi-agent-tools/compare/v1.18.1...v2.0.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/mi-agent-tools/compare/v8.1.0...HEAD
+[Unreleased]: https://github.com/mi-agent-tools/compare/v8.1.1...HEAD
+[8.1.1]: https://github.com/mi-agent-tools/compare/v8.1.0...v8.1.1
 [8.1.0]: https://github.com/mi-agent-tools/compare/v8.0.0...v8.1.0
 [8.0.0]: https://github.com/mi-agent-tools/compare/v7.1.0...v8.0.0
 [7.1.0]: https://github.com/mi-agent-tools/compare/v7.0.1...v7.1.0
