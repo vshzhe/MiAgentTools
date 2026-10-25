@@ -6,6 +6,11 @@ dist/
 coverage/
 .nyc_output/
 
+# ── CI 工作流（仅本机保留，不入库、不推送）───────────────────────
+# .github/workflows/ 下的工作流文件保留在本机供本地调试，推送时排除；
+# 已入库的文件须用 `git rm -r --cached .github/workflows` 解除跟踪。
+.github/workflows/
+
 # ── iagent 本机产物与索引（均不入库）─────────────────────────────
 # .iagent/ = 本项目配置（config.yaml + rules/ + scan-baseline.json + pi-runtime.json），
 # .claude/ .pi/ .codex/ .opencode/ = dogfood 产物（iagent init / update 生成）。
