@@ -16,6 +16,10 @@
 
 import { describe, it, expect } from 'vitest';
 import { getSkillTemplates, getCommandTemplates } from '../src/core/templates/index.js';
+import {
+    CONDITIONAL_DELEGATIONS,
+    ORCHESTRATION_DELEGATIONS,
+} from '../src/core/host-orchestration/index.js';
 
 describe('allowed-tools 白名单覆盖', () => {
     const skills = getSkillTemplates();
@@ -375,5 +379,65 @@ describe('调用类白名单条目（MCP / Skill 委派 / 子代理派发）', (
             expect(entries.join(', '), `${commandId} 分隔符非规范「逗号 + 空格」`).toBe(raw);
             expect(new Set(entries).size, `${commandId} 存在重复条目`).toBe(entries.length);
         }
+    });
+});
+
+describe('debug 授权与宿主委派表一致（4.5）', () => {
+    const debug = getSkillTemplates().find(({ template }) => template.name === 'iagent_debug')!;
+
+    /** 白名单条目（逗号分隔 + trim） */
+    function parseEntries(allowedTools: string): string[] {
+        return allowedTools
+            .split(',')
+            .map((entry) => entry.trim())
+            .filter((entry) => entry.length > 0);
+    }
+
+    /** 白名单裸名 → canonical workflowId（下划线转连字符） */
+    function delegatedTargets(): string[] {
+        return parseEntries(debug.template.allowedTools)
+            .filter((entry) => entry.startsWith('Skill('))
+            .map((entry) => entry.slice('Skill('.length, -1).replaceAll('_', '-'));
+    }
+
+    it('白名单与宿主委派表一一对应（无漏项、无幽灵项）', () => {
+        expect(delegatedTargets().sort()).toEqual([...ORCHESTRATION_DELEGATIONS.debug].sort());
+        expect(ORCHESTRATION_DELEGATIONS.debug).toEqual([
+            'spec-verify-proposal',
+            'proposal-review',
+            'requirement-doc',
+            'test',
+        ]);
+    });
+
+    it('每个委派目标在正文确有调用动作（授权面由真实委派支撑）', () => {
+        for (const target of ORCHESTRATION_DELEGATIONS.debug) {
+            const templateName = `iagent_${target.replaceAll('-', '_')}`;
+            expect(
+                debug.template.instructions,
+                `debug 正文未提及被委派技能 ${templateName}`
+            ).toContain(templateName);
+        }
+    });
+
+    it('条件委派集合仅含声明降级路径的目标；必需委派不得归入条件委派', () => {
+        expect(CONDITIONAL_DELEGATIONS.debug).toContain('test');
+        expect(CONDITIONAL_DELEGATIONS.debug).toContain('proposal-review');
+        // spec-verify-proposal / requirement-doc 由 DEPS 随装且正文无降级路径 → 无条件必需委派
+        expect(CONDITIONAL_DELEGATIONS.debug).not.toContain('spec-verify-proposal');
+        expect(CONDITIONAL_DELEGATIONS.debug).not.toContain('requirement-doc');
+        // 分类与 DEPS 口径一致：DEPS 覆盖的目标必为无条件必需委派
+        for (const dep of ['spec-verify-proposal', 'requirement-doc']) {
+            expect(CONDITIONAL_DELEGATIONS.debug, `DEPS 覆盖的 ${dep} 不应是条件委派`).not.toContain(dep);
+        }
+        expect(debug.template.instructions).toContain('strict 模式无法委派 `iagent_test` 时 SHALL 按能力协商**阻断并报告**');
+        expect(debug.template.instructions).toContain('显式协商 degraded 时才允许本地编写');
+    });
+
+    it('授权面最小：无 Agent/Task 派发（debug 不做子代理派发）与通配', () => {
+        const entries = parseEntries(debug.template.allowedTools);
+        expect(entries).not.toContain('Agent');
+        expect(entries).not.toContain('Task');
+        expect(debug.template.allowedTools).not.toContain('Skill(*)');
     });
 });

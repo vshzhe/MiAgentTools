@@ -7,6 +7,51 @@
 
 ## [Unreleased]
 
+## [8.1.0] - 2026-10-25
+
+### Added
+
+- 需求文档业务桥：`iagent_workflow`（Phase 3.5）、`iagent_auto_workflow`（Phase 3）与
+  `iagent_debug`（Phase 7.3 verify-close）在提案验证 PASS **且**深度复查收束后，各展示**一次**
+  "生成 / 跳过"桥；确认生成后直接非交互委派 `iagent_requirement_doc`（不再追问是否调用该技能），
+  跳过后继续原流程。独立 `iagent_spec_verify_proposal` 仍只做只读验证
+- 需求文档四值状态模型 `absent` / `skipped-by-user` / `generation-failed` / `generated`：
+  持久写入变更 `exploration.md` 的 `## 需求文档状态` 段（字段 `requirementDocStatus`），
+  经 verify → apply → archive 的 handoff 传递；`VERIFY_PHASE` / `APPLY_PHASE` / `ARCHIVE_PHASE` 与
+  debug `verify-close` 回执携带同一状态。`protocol.ts` 新增
+  `RequirementDocStatus` / `normalizeRequirementDocStatus` / `PERSISTED_REQUIREMENT_DOC_STATUSES` /
+  `REQUIREMENT_DOC_STATUS_IO_ATTEMPTS`（语义为"失败 → 重试同一操作一次 → 停止"）
+- 条件确认门：`GateSpec.condition`（首个取值 `multiple-fix-options`）与
+  `PhaseTransitionInput.gateConditions`；`evaluatePhaseTransition` 在 `condition` 未声明时保持既有静态门行为，
+  `gateConditions[condition] === false` 视为门不适用（跳过门确认要求），`true`/缺失视为适用（fail-safe）
+- debug 宿主协议拆为 `investigate` → `fix` → `verify-close` 三阶段（仍为单一 `iagent_debug` 技能）；
+  `investigate` handoff 增补 `defectChain` / `changeName`，`fix` 门绑定条件 `multiple-fix-options`
+- Pi 编排阶段 agent 生成 `allowed_subagents`（= 该 workflow 的委派清单 ∩ 已安装阶段），
+  声明但未安装的目标记入 `nestingGaps` 并 WARN；`CONDITIONAL_DELEGATIONS` 单点声明"正文已声明
+  fallback / degraded 路径"的条件委派，无条件必需委派缺口按能力阻断
+
+### Changed
+
+- debug 流程：高置信根因与缺陷链路**合并为一次诊断确认包**（多候选仍先选根因再确认链路，
+  拒绝 = 终止修复并输出诊断报告）；变更归属收束明确 `changeName`；新增可行修复方案数量判定 ——
+  多方案必须等待确认、唯一且证据充分时说明依据后直通（数据库/schema 独立确认保留）
+- debug 回归测试编写统一**委派 `iagent_test`**（测试规则唯一来源），debug 只提供缺陷链路/复现上下文并
+  验收"修复前 FAIL、修复后 PASS + 异常/根因节点覆盖"；Phase 1 内联临时测试不构成回归测试；
+  strict 缺委派能力阻断，仅显式 degraded 允许本地编写
+- debug 白名单补 `Skill(requirement_doc)` 与 `Skill(test)` 精确条目（共享 `skillDelegation`）；
+  `DEPS.debug` 补 `requirement-doc`（无条件委派随装，消除死引用）；
+  `ORCHESTRATION_DELEGATIONS.debug` 补齐 `proposal-review` / `requirement-doc` / `test`
+- `iagent_spec_archive` 4.8 与 `iagent_spec_bulk_archive` a.6 改为**文件存在优先 + 状态裁决缺失分支**：
+  已存在（任何状态）就地增量对齐并保护人工域；缺失时 `skipped-by-user` 不生成、
+  `generation-failed` 与 `generated` 仅 WARN 不重试/不重建、仅 `absent` 走历史兼容生成；
+  状态或文件存在性读取失败重试一次仍失败时不视为 `absent`、不生成、不阻断归档
+- `iagent_spec_propose` 独立调用在验证 PASS 后**停止**：不再自动生成需求文档、不提供文档桥，
+  白名单移除 `Skill(requirement_doc)`；`iagent_requirement_doc` 的 Caller note 改为
+  "三父流程文档桥生成分支 + 归档 `absent` 兼容分支"
+- `iagent_auto_workflow` 的 description 与 Phase 3 / Phase 4 说明披露唯一的需求文档桥，
+  不再声称该阶段"无需任何用户确认"
+
+
 ## [8.0.0] - 2026-10-25
 
 ### BREAKING
@@ -1243,7 +1288,8 @@
 [2.0.0]: https://github.com/mi-agent-tools/compare/v1.18.1...v2.0.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/mi-agent-tools/compare/v8.0.0...HEAD
+[Unreleased]: https://github.com/mi-agent-tools/compare/v8.1.0...HEAD
+[8.1.0]: https://github.com/mi-agent-tools/compare/v8.0.0...v8.1.0
 [8.0.0]: https://github.com/mi-agent-tools/compare/v7.1.0...v8.0.0
 [7.1.0]: https://github.com/mi-agent-tools/compare/v7.0.1...v7.1.0
 [7.0.1]: https://github.com/mi-agent-tools/compare/v7.0.0...v7.0.1

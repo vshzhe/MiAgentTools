@@ -30,12 +30,71 @@ export interface ReceiptSpec {
     fields: readonly string[];
 }
 
+/**
+ * 门条件的稳定标识。
+ *
+ * `multiple-fix-options`：debug 修复方案确认门 —— 存在多个可行修复方案时门适用，
+ * 唯一且证据充分的方案时门不适用（直通）。
+ */
+export type GateConditionId = 'multiple-fix-options';
+
+/** 全部门条件标识（展示与校验用） */
+export const GATE_CONDITION_IDS: readonly GateConditionId[] = ['multiple-fix-options'];
+
 /** 确认门契约 */
 export interface GateSpec {
     /** 门标识 */
     id: string;
     /** 门未通过时是否阻塞后续阶段（默认 true） */
     blocking?: boolean;
+    /**
+     * 条件门标识（可选）。
+     *
+     * 未声明时保持既有静态门行为（`blocking ?? true` + 门确认）；
+     * 声明时以 `PhaseTransitionInput.gateConditions[condition]` 裁决适用性：
+     * `false` → 门不适用并跳过门确认要求；`true` 或未提供 → 门适用（fail-safe）。
+     */
+    condition?: GateConditionId;
+}
+
+/**
+ * 需求文档状态（持久于变更 `exploration.md` 的 `## 需求文档状态` 段，字段
+ * `requirementDocStatus`）。
+ *
+ * - `absent`：该段缺失或取值非法（**不落盘**，历史变更的兼容分支）
+ * - `skipped-by-user` / `generation-failed` / `generated`：可持久化的显式决定
+ */
+export type RequirementDocStatus = 'absent' | 'skipped-by-user' | 'generation-failed' | 'generated';
+
+/** 持久化字段名（`exploration.md` 的 `## 需求文档状态` 段） */
+export const REQUIREMENT_DOC_STATUS_FIELD = 'requirementDocStatus';
+
+/** 可落盘的显式状态（`absent` 不落盘：段缺失即代表该值） */
+export const PERSISTED_REQUIREMENT_DOC_STATUSES: readonly Exclude<
+    RequirementDocStatus,
+    'absent'
+>[] = ['skipped-by-user', 'generation-failed', 'generated'];
+
+/**
+ * 状态读取/写入的尝试次数（含首次）。
+ *
+ * 语义为「失败 → 自动重试同一操作一次 → 仍失败即停止」，MUST NOT 第二次或无限重试。
+ */
+export const REQUIREMENT_DOC_STATUS_IO_ATTEMPTS = 2;
+
+/**
+ * 把 `exploration.md` 读到的原始取值归一化为状态。
+ *
+ * 段缺失（`undefined` / 空串）或取值非法 → `absent`（MUST NOT 猜测为 skip 或 generated）。
+ */
+export function normalizeRequirementDocStatus(raw: string | null | undefined): RequirementDocStatus {
+    if (typeof raw !== 'string') {
+        return 'absent';
+    }
+    const value = raw.trim();
+    return (PERSISTED_REQUIREMENT_DOC_STATUSES as readonly string[]).includes(value)
+        ? (value as RequirementDocStatus)
+        : 'absent';
 }
 
 /** 阶段输入契约 */
@@ -106,6 +165,12 @@ export interface Receipt {
     artifact?: string;
     nextAllowed?: string;
     failure?: string;
+    /**
+     * 需求文档状态（debug `verify-close` 与父流程的文档桥回执携带）。
+     *
+     * 仅作 handoff 镜像；跨会话依据仍是变更 `exploration.md` 的持久记录。
+     */
+    requirementDocStatus?: RequirementDocStatus;
 }
 
 /** 回执校验结果 */

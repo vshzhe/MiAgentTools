@@ -157,23 +157,54 @@ export function getSpecArchiveChangeSkillTemplate(): SkillTemplate {
    - 变更的 exploration.md 仍随变更一起移入归档目录（提取是复制，不是移动）
    - 不得因同步失败而阻塞归档 —— 记录日志并继续
 
-4.8 **归档前需求文档检查点（强制检查点）**
+4.8 **归档前需求文档检查点（强制检查点，状态感知）**
 
-   **⚠️ 强制：确保需求文档在归档移动之前就已存在并对齐**
+   **⚠️ 强制：确保需求文档在归档移动之前已存在并对齐，且尊重父流程已持久化的文档决定**
 
-   在探索记忆同步（4.7）之后、移动变更目录（5）**之前**执行。理由：需求文档现在在提案验证阶段生成（各工作流管线的 Phase 3 / Stage 2）。本检查点确保归档的文档与**最终**制品对齐 —— 新流程变更在验证阶段就已拿到文档，只需对齐；历史变更（在"验证阶段生成"规则之前创建的）仍在此处生成文档，以保持后向兼容。
+   在探索记忆同步（4.7）之后、移动变更目录（5）**之前**执行。检查点同时读取**两件事**：
 
-   **决策范围**：仅 \`openspec/changes/<change-name>/需求文档.md\`（用 \`path.join()\` 构建）。
+   - 变更目录内 \`需求文档.md\` 是否存在（\`openspec/changes/<change-name>/需求文档.md\`，用 \`path.join()\` 构建）
+   - 该变更 \`exploration.md\` 的 \`## 需求文档状态\` 段（字段 \`requirementDocStatus\`）
 
-   1. **若变更目录不可读**（IO 错误）：记录 WARN，视为文档不存在 —— 进入分支 2
-   2. **分支 A —— 文档不存在**：以**非交互模式**委派 \`iagent_requirement_doc\` 技能并传入变更名 —— 不向用户提问，基本信息用占位符；文档写入 \`openspec/changes/<change-name>/需求文档.md\`
-   3. **分支 B —— 文档已存在**（例如先独立运行生成、之后有人手工补充）：对该文件执行 **in-place（就地）增量对齐更新**。\`## 基本信息\`（需求编号 / 需求名称 / 交付时间，含占位符状态）与 \`## 八、评审记录\` 属**人工域**，MUST NOT 覆盖 —— 逐字保留；\`一~七\` 章节 SHALL 从**当前** Markdown 源（\`proposal.md\` / \`design.md\` / \`specs/**/*.md\` / \`tasks.md\`）重新推导。本分支**不得调用 \`iagent_requirement_doc\`** —— 该技能自身规则是"目标文件已存在时静默覆盖"，会抹掉人工撰写的评审内容。对齐 MUST NOT 删除章节（仅可丢弃制品中已移除的内容）；若文档结构已损坏，重建缺失章节并记录 WARN
-   4. **失败处理（非阻塞）**：若生成或对齐失败，记录 WARN（含目标路径与原因），然后继续归档 —— 绝不因本检查点阻塞归档
+   **优先级（强制）：文档文件存在 > 持久状态** —— 文件存在时无论状态为何都走"已存在"分支（就地增量对齐）；状态只裁决"文件缺失"分支。
+
+   **状态取值（四值模型）**：
+
+   | 取值 | 含义 | 文档缺失时的处理 |
+   |------|------|------------------|
+   | \`absent\` | 该段缺失或取值非法（**不落盘**） | 历史兼容：以非交互模式委派 \`iagent_requirement_doc\` |
+   | \`skipped-by-user\` | 用户在父流程文档桥明确选择跳过 | 报告跳过并继续归档，MUST NOT 生成 |
+   | \`generation-failed\` | 父流程文档桥委派生成失败 | 输出 WARN 并继续，MUST NOT 静默重试 |
+   | \`generated\` | 父流程文档桥生成成功（终态） | 输出 WARN（"曾生成但文件缺失"）并继续，MUST NOT 重建 |
+
+   **执行步骤（顺序固定）**：
+
+   1. **读取状态与文件存在性**（一次读取）：读 \`exploration.md\` 的 \`## 需求文档状态\` 段 + 检查 \`需求文档.md\` 是否存在
+
+   2. **I/O 失败语义（强制）**：读取失败 → 自动重试同一读取**一次** → 仍失败即停止（MUST NOT 第二次或无限重试）：
+      - MUST NOT 把状态视为 \`absent\` —— MUST NOT 进入历史兼容生成分支
+      - MUST NOT 生成需求文档
+      - 文档已存在时仍按"文档已存在"分支对齐；文档缺失时输出含目标路径与原因的 WARN 与恢复指引
+      - 读取失败 MUST NOT 阻断归档
+
+   3. **分支 A —— 文档已存在（任何状态，含 \`skipped-by-user\`）**：对该文件执行 **in-place（就地）增量对齐更新**。\`## 基本信息\`（需求编号 / 需求名称 / 交付时间，含占位符状态）与 \`## 八、评审记录\` 属**人工域**，MUST NOT 覆盖 —— 逐字保留；\`一~七\` 章节 SHALL 从**当前** Markdown 源（\`proposal.md\` / \`design.md\` / \`specs/**/*.md\` / \`tasks.md\`）重新推导。本分支**不得调用 \`iagent_requirement_doc\`** —— 该技能自身规则是"目标文件已存在时静默覆盖"，会抹掉人工撰写的评审内容。对齐 MUST NOT 删除章节（仅可丢弃制品中已移除的内容）；若文档结构已损坏，重建缺失章节并记录 WARN
+
+   4. **分支 B —— 文档缺失且 \`skipped-by-user\`**：报告"用户已选择跳过需求文档生成"并继续归档；MUST NOT 调用 \`iagent_requirement_doc\`、MUST NOT 生成
+
+   5. **分支 C —— 文档缺失且 \`generation-failed\`**：输出含原因的 WARN（用户曾确认生成但首次委派失败），继续归档；MUST NOT 静默重试生成（用户可手工重跑需求文档技能）
+
+   6. **分支 D —— 文档缺失且 \`generated\`**：输出 WARN（"曾生成但文件缺失"），继续归档；MUST NOT 重新生成
+
+   7. **分支 E —— 文档缺失且 \`absent\`（历史兼容）**：以**非交互模式**委派 \`iagent_requirement_doc\` 技能并传入变更名 —— 不向用户提问，基本信息用占位符；文档写入 \`openspec/changes/<change-name>/需求文档.md\`
+
+   8. **失败处理（非阻塞）**：若生成、对齐或检查失败，记录 WARN（含目标路径与原因），然后继续归档 —— 绝不因本检查点阻塞归档，也绝不静默宣称成功
 
    **强制检查点**：
    - 系统 MUST 在移动变更目录前完成需求文档检查点
+   - 显式状态（\`skipped-by-user\` / \`generation-failed\` / \`generated\`）与文档存在性共同裁决分支，MUST NOT 一律走旧生成行为
    - 生成的文档留在变更目录内并随其移动；随后既有 Step 6 会把它迁移到 \`openspec/devdocs/\`
    - 不得因生成或对齐失败而阻塞归档 —— 记录日志并继续
+
 
 5. **执行归档**
 
@@ -288,7 +319,7 @@ export function getSpecArchiveChangeSkillTemplate(): SkillTemplate {
    - 归档索引更新状态
    - CodeGraph 同步状态（已同步 / 跳过 —— 未初始化或出错）
    - 探索记忆同步状态（已同步 / 跳过 —— 无探索文件或无 delta spec / 失败 —— 已记录告警）
-   - 需求文档状态（就地已对齐 / 后向兼容已生成 / 失败 —— 已记录带原因的告警）
+   - 需求文档状态（就地已对齐 / 用户已跳过未生成 / 生成失败 WARN 未重试 / 曾生成但文件缺失 WARN 未重建 / 历史兼容已生成 / 状态读取失败 WARN 未生成 —— 均附原因）
    - 关于任何告警的说明（未完成的制品/任务）
 
 **Output（成功）**
@@ -302,7 +333,7 @@ export function getSpecArchiveChangeSkillTemplate(): SkillTemplate {
 **Specs:** ✓ Synced to main specs (or "No delta specs" or "Sync failed — warning logged" or "主规格未同步（skip_specs 声明）")
 **Archive Index:** ✓ Updated ARCHIVE-INDEX.md
 **Exploration Memory:** ✓ Synced to specs/<capability>/explorations.md (or "Skipped — no exploration file" or "Skipped — no delta specs" or "Failed — warning logged")
-**Requirement Document:** ✓ Generated → openspec/devdocs/YYYY-MM-DD-<name>-需求文档.md (or "✓ Aligned in place (人工域 preserved)" or "Failed — warning logged: <reason>")
+**Requirement Document:** ✓ Generated → openspec/devdocs/YYYY-MM-DD-<name>-需求文档.md (or "✓ Aligned in place (人工域 preserved)" / "Skipped — user chose to skip" / "WARN: generation previously failed — not retried" / "WARN: previously generated but file missing — not rebuilt" / "WARN: status unreadable — not generated" / "Failed — warning logged: <reason>")
 **CodeGraph:** ✓ Synced (or "Not initialized — skipped" or "Sync skipped due to error")
 
 All artifacts complete. All tasks complete.
@@ -351,7 +382,7 @@ Target archive directory already exists.
 - 保留 \`attachments/\` 子目录 —— 它随变更目录自动移动
 - 为 ARCHIVE-INDEX.md 提取摘要时，扫描 \`tasks.md\` 的补充类型标签，并把 \`[含xxx]\` 标注追加到摘要
 - 归档移动前，为每个涉及的能力把探索记忆同步到 specs/<capability>/explorations.md；exploration.md 或 delta spec 缺失时跳过（并记日志）；绝不因同步失败阻塞归档
-从**最终**制品确保预归档检查点（4.8）的需求文档：已存在 → 就地增量对齐并保留人工域；不存在 → 以非交互方式委派 iagent_requirement_doc（对历史变更后向兼容）（\`## 基本信息\` / \`## 八、评审记录\`），且该分支绝不调用该技能；绝不因生成或对齐失败阻塞归档
+- 预归档检查点（4.8）按“文件存在优先 + 状态裁决缺失分支”分流：已存在 → 就地增量对齐并逐字保留人工域（\`## 基本信息\` / \`## 八、评审记录\`），该分支绝不调用生成技能；缺失时 \`skipped-by-user\` 不生成、\`generation-failed\` 与 \`generated\` 仅 WARN 不重试、仅 \`absent\` 走历史兼容生成；状态或文件存在性读取失败重试一次仍失败时不视为 \`absent\`、不生成（文档存在仍对齐）；绝不因生成或对齐失败阻塞归档
 - 当变更声明 \`skip_specs\`（状态报告 specs 为 skipped）时，归档摘要 MUST 注明 "主规格未同步（skip_specs 声明）"，避免用户误以为规格同步被遗漏
 - 清晰展示发生了什么
 - 若存在 delta spec，执行同步评估、展示合并摘要，并直接执行内联 AI 合并（ADDED/MODIFIED/REMOVED/RENAMED → 主规格，遵循 v1.1.20 specs-apply 语义）

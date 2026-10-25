@@ -14,6 +14,11 @@ import * as path from 'node:path';
 import { COMMAND_NAMESPACE } from './config.js';
 import { escapeYamlValue } from './command-generation/yaml.js';
 import { SKILL_ID_PREFIX } from './skill-id.js';
+import {
+    CONDITIONAL_DELEGATIONS,
+    ORCHESTRATING_WORKFLOW_IDS,
+    ORCHESTRATION_DELEGATIONS,
+} from './host-orchestration/render.js';
 
 /** 项目级 Pi agent 目录（项目相对，posix 展示） */
 export const PI_AGENTS_DIR = '.pi/agents';
@@ -45,6 +50,96 @@ export interface PiNativeWriteResult {
     removed: string[];
     /** 非阻断告警 */
     warnings: string[];
+    /** 嵌套委派缺口诊断（编排阶段的委派目标未安装） */
+    nestingGaps: PiNestingGap[];
+}
+
+/**
+ * 嵌套委派缺口诊断。
+ *
+ * `required` 为**无条件必需委派**（strict 下该阶段按能力阻断）；
+ * `conditional` 为正文已声明 fallback / degraded 路径的条件委派（按该路径执行 + WARN）。
+ */
+export interface PiNestingGap {
+    /** 编排阶段（canonical workflowId） */
+    workflowId: string;
+    /** 该 workflow 声明的全部委派目标 */
+    declared: string[];
+    /** 声明但未安装的目标（canonical workflowId） */
+    missing: string[];
+    /** 缺口中的无条件必需委派 */
+    required: string[];
+    /** 缺口中的条件委派 */
+    conditional: string[];
+}
+
+/** 嵌套委派解析结果 */
+export interface PiNestingResolution {
+    /** 可授予的 `allowed_subagents`（`iagent-<id>`，按委派声明顺序） */
+    allowed: string[];
+    /** 缺口诊断（无缺口时 undefined） */
+    gap?: PiNestingGap;
+}
+
+/**
+ * 解析某阶段 agent 的嵌套委派授予。
+ *
+ * 仅编排类阶段生成 `allowed_subagents`：取值 = 该 workflow 的委派清单 ∩ 已安装阶段。
+ * 声明但未安装的目标记入缺口诊断（不授予 → 不伪装严格可用）。
+ *
+ * @param workflowId - 阶段（canonical workflowId）
+ * @param installedWorkflowIds - 本次安装的阶段集合
+ */
+export function resolvePiNestingDelegations(
+    workflowId: string,
+    installedWorkflowIds: readonly string[]
+): PiNestingResolution {
+    if (!ORCHESTRATING_WORKFLOW_IDS.includes(workflowId)) {
+        return { allowed: [] };
+    }
+    const declared = ORCHESTRATION_DELEGATIONS[workflowId] ?? [];
+    const conditional = new Set(CONDITIONAL_DELEGATIONS[workflowId] ?? []);
+    const installed = new Set(installedWorkflowIds);
+    const allowed: string[] = [];
+    const missing: string[] = [];
+    for (const target of declared) {
+        if (installed.has(target)) {
+            allowed.push(piAgentId(target));
+        } else {
+            missing.push(target);
+        }
+    }
+    if (missing.length === 0) {
+        return { allowed };
+    }
+    return {
+        allowed,
+        gap: {
+            workflowId,
+            declared: [...declared],
+            missing,
+            required: missing.filter((target) => !conditional.has(target)),
+            conditional: missing.filter((target) => conditional.has(target)),
+        },
+    };
+}
+
+/** 缺口告警文本（required 优先，二者可并存） */
+function nestingGapWarnings(gap: PiNestingGap): string[] {
+    const warnings: string[] = [];
+    if (gap.required.length > 0) {
+        warnings.push(
+            `Pi 嵌套委派缺口（${gap.workflowId}）：无条件必需委派未安装 ${gap.required.join(', ')} —— ` +
+                'strict 下该阶段按能力阻断，MUST NOT 以本地执行替代'
+        );
+    }
+    if (gap.conditional.length > 0) {
+        warnings.push(
+            `Pi 嵌套委派缺口（${gap.workflowId}）：条件委派未安装 ${gap.conditional.join(', ')} —— ` +
+                '按正文既有 fallback / degraded 路径执行并记 WARN（test 仅在显式协商 degraded 时允许本地编写）'
+        );
+    }
+    return warnings;
 }
 
 /** 可解析性扫描结果 */
@@ -88,14 +183,23 @@ export function renderPiOrchestratorAgent(stages: readonly PiNativeStage[]): str
 }
 
 /** 渲染阶段 agent 定义 */
-export function renderPiStageAgent(workflowId: string, description: string): string {
+export function renderPiStageAgent(
+    workflowId: string,
+    description: string,
+    allowedSubagents?: readonly string[]
+): string {
     const agentId = piAgentId(workflowId);
+    const orchestrating = ORCHESTRATING_WORKFLOW_IDS.includes(workflowId);
     const lines: string[] = [];
     lines.push('---');
     lines.push(`name: ${agentId}`);
     lines.push(`description: ${escapeYamlValue(description)}`);
     lines.push(`tools: ${PI_AGENT_TOOLS.join(', ')}`);
     lines.push('prompt_mode: append');
+    if (allowedSubagents && allowedSubagents.length > 0) {
+        // 上游契约：逗号分隔的 subagent_type 列表；嵌套 Agent 工具据此注入
+        lines.push(`allowed_subagents: ${allowedSubagents.join(', ')}`);
+    }
     lines.push('---');
     lines.push('');
     lines.push(`你是 iagent 阶段 worker，负责 workflowId 为 \`${workflowId}\` 的阶段。`);
@@ -103,6 +207,16 @@ export function renderPiStageAgent(workflowId: string, description: string): str
     lines.push('- 只执行被分配的阶段，MUST NOT 自行推进父 workflow 阶段；');
     lines.push('- 完成后返回协议规定的回执：`phase` / `status` / 产物位置 / 下一步允许动作 / 失败原因（如有）；');
     lines.push('- 缺少必要输入时返回 `status: blocked` 并说明缺失项，MUST NOT 猜测。');
+    if (orchestrating) {
+        lines.push(
+            '- 本阶段为编排阶段：嵌套委派仅可指向 `allowed_subagents` 列出的阶段 agent；未列出的目标 MUST NOT 被声称可用。'
+        );
+        if (!allowedSubagents || allowedSubagents.length === 0) {
+            lines.push(
+                '- 当前没有任何已安装的委派目标：MUST NOT 声称嵌套委派在 strict 下可用，MUST NOT 把本地执行表述为委派完成。'
+            );
+        }
+    }
     lines.push('');
     return lines.join('\n');
 }
@@ -137,8 +251,10 @@ export function writePiNativeAgents(
         written: [],
         removed: [],
         warnings: [],
+        nestingGaps: [],
     };
 
+    const installed = stages.map((stage) => stage.workflowId);
     const desired = new Map<string, string>();
     desired.set(PI_ORCHESTRATOR_AGENT_ID, renderPiOrchestratorAgent(stages));
     const seen = new Set<string>();
@@ -148,7 +264,15 @@ export function writePiNativeAgents(
             continue;
         }
         seen.add(agentId);
-        desired.set(agentId, renderPiStageAgent(stage.workflowId, stage.description));
+        const nesting = resolvePiNestingDelegations(stage.workflowId, installed);
+        if (nesting.gap) {
+            result.nestingGaps.push(nesting.gap);
+            result.warnings.push(...nestingGapWarnings(nesting.gap));
+        }
+        desired.set(
+            agentId,
+            renderPiStageAgent(stage.workflowId, stage.description, nesting.allowed)
+        );
     }
 
     try {

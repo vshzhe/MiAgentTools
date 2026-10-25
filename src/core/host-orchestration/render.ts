@@ -25,7 +25,10 @@ export const ORCHESTRATION_DELEGATIONS: Readonly<Record<string, readonly string[
         'spec-propose',
         'spec-verify-proposal',
         'proposal-review',
+        'requirement-doc',
         'spec-apply',
+        'spec-verify',
+        'test',
         'spec-archive',
     ],
     'auto-workflow': [
@@ -33,11 +36,48 @@ export const ORCHESTRATION_DELEGATIONS: Readonly<Record<string, readonly string[
         'spec-propose',
         'spec-verify-proposal',
         'proposal-review',
+        'requirement-doc',
         'spec-apply',
+        'spec-verify',
+        'test',
         'spec-archive',
     ],
-    debug: ['spec-verify-proposal'],
+    debug: ['spec-verify-proposal', 'proposal-review', 'requirement-doc', 'test'],
     migration: ['feature-doc', 'migration-check'],
+};
+
+/**
+ * 条件委派的委派目标（模板正文已声明 fallback / degraded 路径）。
+ *
+ * 未列出的委派目标一律视为**无条件必需委派**：宿主缺少该目标时按能力阻断，
+ * MUST NOT 以本地执行替代。
+ *
+ * 列出的目标在其宿主缺口中按正文既有降级路径执行并记 WARN（例如
+ * `debug → proposal-review` 的内联只读复查、`debug → test` 的显式 degraded 本地编写），
+ * 两类情形均 MUST NOT 伪装为 strict 委派完成。
+ *
+ * `debug` 的 `spec-verify-proposal` / `requirement-doc` **不在此列**：它们由 `DEPS.debug`
+ * 随装且正文未声明可替代路径 —— 属无条件必需委派，缺口按能力阻断（见 `DEPS` 响应）。
+ */
+export const CONDITIONAL_DELEGATIONS: Readonly<Record<string, readonly string[]>> = {
+    workflow: [
+        'spec-verify-proposal',
+        'proposal-review',
+        'requirement-doc',
+        'spec-verify',
+        'test',
+    ],
+    'auto-workflow': [
+        'spec-verify-proposal',
+        'proposal-review',
+        'requirement-doc',
+        'spec-verify',
+        'test',
+    ],
+    // debug：仅 proposal-review（内联只读复查）与 test（仅显式 degraded 本地编写）声明了降级路径；
+    // spec-verify-proposal / requirement-doc 由 DEPS 随装，属无条件必需委派（缺口按能力阻断）。
+    debug: ['proposal-review', 'test'],
+    migration: [],
 };
 
 /**
@@ -61,6 +101,9 @@ export function renderHostOrchestrationSection(
         lines.push(`- 确认门：${negotiation.native.gate}`);
         lines.push('- 回执契约：阶段 MUST 返回 `phase` / `status` / 产物位置 / 下一步允许动作 / 失败原因');
         lines.push('- 回执缺失或不通过校验时 MUST NOT 自动推进下一阶段');
+        lines.push(
+            '- 入口意图或已确认业务门指定的唯一 `nextAllowed` 技能 SHALL 直接委派，不追加"是否调用该技能"的业务确认；宿主工具权限、strict/degraded 能力协商与回执校验仍然独立生效'
+        );
     } else {
         lines.push('本次产物为 **degraded 单 agent 模式**（宿主严格编排能力不可用）。');
         lines.push('');
@@ -88,7 +131,9 @@ export function renderHostOrchestrationSection(
             lines.push('');
             for (const phase of protocol.phases) {
                 const caps = phase.requiredCapabilities.join(', ');
-                const gate = phase.gate ? `；门：${phase.gate.id}` : '';
+                const gate = phase.gate
+                    ? `；门：${phase.gate.id}${phase.gate.condition ? `（条件 ${phase.gate.condition}）` : ''}`
+                    : '';
                 const retry = phase.retry
                     ? `；重试：≤${phase.retry.maxAttempts} 次（${phase.retry.on.join(' / ')}）`
                     : '';

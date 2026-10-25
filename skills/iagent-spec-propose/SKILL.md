@@ -1,14 +1,14 @@
 ---
 name: iagent-spec-propose
 description: "创建变更提案。当用户要快速描述想构建的内容并一步生成包含设计、规格和任务的完整提案时使用；触发词\"提案 / propose / 创建变更 / 生成规格\"；NOT for 直接实现变更（改用 iagent_spec_apply）或一站式引导全流程（改用 iagent_workflow）。"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Skill(spec_verify_proposal), Skill(requirement_doc), Agent, Task
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Skill(spec_verify_proposal), Agent, Task
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）与 CodeGraph MCP（可选）。
 metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:411cef290936a85397e8a4be83c5b68fe2bb67b0aebb3afef7e8f0396f8bc748"
+  generatedFingerprint: "sha256:0caec316e0a8b4ef0c6dd9f5d4f24a7dae2eb017a4ade5b5ec7129cda4175ec3"
 ---
 
 提出新变更 —— 一步创建变更并生成全部制品。
@@ -217,7 +217,7 @@ metadata:
    全部 `applyRequires` 制品完成后，自动进入 Phase 3 验证（不得在验证前以 "准备就绪，可进入实现" 结束工作流）：
    - 调用 `iagent_spec_verify_proposal` **skill** 执行 D1-D5 评分。（`iagent_spec_verify_proposal` 是技能名，而非合法的 `iagent spec instructions` 制品 ID —— 不得把它当作 CLI 指令运行。）
    - **验证复查子代理**：派发一个独立的只读复查子代理（Task 工具，subagent_type: "general-purpose"）执行 D1-D5 评分 —— 该子代理读取变更制品但不修改。子代理派发失败时：降级（回退）到主工作流内联评分并记录 WARN 日志（绝不静默跳过验证）。
-   - **PASS (≥90%)**：验证通过后可对提案做一次内联深度复查（由主工作流在通过后直接执行一次只读复查，不依赖专门技能名）。深度复查收束后，以非交互模式调用 `iagent_requirement_doc` 生成需求文档于 `openspec/changes/<change-name>/需求文档.md`。生成失败不阻塞（WARN + 继续）。
+   - **PASS (≥90%)**：验证通过后可对提案做一次内联深度复查（由主工作流在通过后直接执行一次只读复查，不依赖专门技能名）。深度复查收束后**停止** —— 输出验证与复查结论即完成规划边界：MUST NOT 生成需求文档、MUST NOT 呈现“生成 / 跳过”桥（文档桥只属于 workflow / auto-workflow / debug 三父流程；用户 MAY 之后手工调用 `iagent_requirement_doc`）。
    - **FAIL (<90%)**：自动生成修复、应用、重跑；若仍 FAIL，提供 [手动编辑] / [返回探索 (/iagent:spec-explore)] / [查看差异]（无跳过直接实现的通道）。
    - 技能不可用时降级（回退）：AI 内联 D1-D5 评分 + WARN 日志；绝不静默跳过。
    - 验证使用 90% 通过阈值。
@@ -226,11 +226,11 @@ metadata:
 
 > **delegated 模式分支**：若 `mode=delegated`，输出**结构化回执**（change-name、生成制品清单、apply-ready 状态、探索文件迁移结果），MUST NOT 输出"等待用户确认"停点——阶段推进主权归编排器。下述 interactive 输出仅适用于默认模式。
 
-全部制品完成且 Phase 3 验证通过后：
+全部制品完成且 Phase 3 验证通过后（规划边界：到此停止，等待用户发起新请求）：
 - 变更名与位置
 - 已创建制品的清单与简要说明
 - 验证结果："Phase 3 验证通过（≥90%）。内联深度复查已完成。"
-- 需求文档：生成于 `openspec/changes/<change-name>/需求文档.md`（非交互调用 iagent_requirement_doc；生成失败 WARN 非阻断）
+- 需求文档：本技能独立调用**不生成**、不提供生成 / 跳过桥（需要时请手工调用 iagent_requirement_doc）
 - **降级说明（如适用）**：流程基准缺失或未获用户确认时标注 "流程基准不可用：已降级为仅凭 exploration.md 生成（未确认的流程图未被当作既定前提）"
 - 就绪状态："全部制品已创建并验证！准备就绪，可进入实现。"
 - 提示语："告知我即可开始执行任务。"
@@ -281,6 +281,7 @@ metadata:
 - 若上下文严重不清晰，标记为 **[待确认]** 并询问用户。绝不猜测！
 - **实质性歧义划分**：影响范围/行为契约/向后兼容性/验收标准的歧义 MUST 表面化并向用户提问（标记 [待确认]）；细节性歧义可做合理假设并记录到规划制品
 - 全部制品创建后，展示设计蓝图摘要并等待用户确认，之后才建议实现。（**delegated 模式例外**：抑制该停点，改输出结构化回执并交回主权）
+- **规划边界：验证后停止** —— 独立调用在验证 PASS 后停止，MUST NOT 生成需求文档、MUST NOT 呈现生成 / 跳过桥；文档桥只属于父流程（workflow / auto-workflow / debug）
 - 若同名变更已存在，询问用户是要继续它还是新建一个
 - 每次写入后确认制品文件存在，再继续下一个
 

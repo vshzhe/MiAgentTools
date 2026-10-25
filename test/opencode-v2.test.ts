@@ -112,7 +112,7 @@ describe('OpenCode V2 项目产物写入（init 端到端）', () => {
     beforeAll(() => {
         root = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-ocv2-'));
         ensureProjectConfig(root);
-        writeWorkflowsToConfig(root, ['workflow', 'spec-explore']);
+        writeWorkflowsToConfig(root, ['workflow', 'spec-explore', 'debug']);
         runInit(root, { tools: 'opencode' });
     });
 
@@ -154,5 +154,54 @@ describe('OpenCode V2 项目产物写入（init 端到端）', () => {
         const frontmatter = skill.split('---')[1] ?? '';
         expect(frontmatter).not.toMatch(/^\s*allowed-tools:/m);
         expect(skill).not.toContain('iagent_spec_');
+    });
+
+    it('debug 阶段产物与项目权限同步（skill 资源显式允许）', () => {
+        // debug worker agent 存在且限定到自身 skill
+        const worker = path.join(root, OPENCODE_AGENTS_DIR, `${openCodeAgentId('debug')}.md`);
+        expect(fs.existsSync(worker)).toBe(true);
+        const workerContent = fs.readFileSync(worker, 'utf8');
+        expect(workerContent).toContain('mode: subagent');
+        expect(workerContent).toContain('resource: "iagent-debug"');
+
+        // 项目权限按资源显式允许 iagent-debug 及其依赖阶段
+        const parsed = JSON.parse(fs.readFileSync(path.join(root, OPENCODE_CONFIG_FILE), 'utf8'));
+        const permissions = parsed.permissions as Array<{
+            action: string;
+            resource: string;
+        }>;
+        expect(permissions).toContainEqual({
+            action: 'skill',
+            resource: 'iagent-debug',
+            effect: 'allow',
+        });
+        expect(permissions).toContainEqual({
+            action: 'skill',
+            resource: 'iagent-requirement-doc',
+            effect: 'allow',
+        });
+        expect(permissions).toContainEqual({
+            action: 'subagent',
+            resource: 'iagent-debug',
+            effect: 'allow',
+        });
+        // 无 V1 口径、无通配 skill 资源
+        expect(parsed.permission).toBeUndefined();
+        expect(
+            permissions.some(
+                (rule) => rule.action === 'skill' && rule.resource.includes('*')
+            ),
+            '项目权限不得使用 skill 通配资源'
+        ).toBe(false);
+    });
+
+    it('debug 技能的编排段在 OpenCode 产物中按宿主机制改写', () => {
+        const skill = fs.readFileSync(
+            path.join(root, '.opencode', 'skills', 'iagent-debug', 'SKILL.md'),
+            'utf8'
+        );
+        expect(skill).toContain('阶段委派（宿主原生）');
+        expect(skill).toContain('门：fix-option-confirmation（条件 multiple-fix-options）');
+        expect(skill).not.toContain('Skill 工具委派');
     });
 });

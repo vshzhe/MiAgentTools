@@ -149,3 +149,52 @@ describe('模板派生一致性（project-init 迁移后的代表性回归）', 
         expect(initSkill?.template.instructions ?? '').not.toContain('<!-- CMD:SKIP -->');
     });
 });
+
+describe('模板派生一致性（文档桥 / debug 决策护栏）', () => {
+    const commandById = new Map(
+        getCommandTemplates().map(({ template, id }) => [id, template])
+    );
+
+    it('debug 指令版保留诊断拒绝出口与 iagent_test 委派护栏', () => {
+        const derived = commandById.get('debug')?.content ?? '';
+        for (const statement of [
+            '| 拒绝 | **终止修复**并输出诊断报告',
+            'MUST NOT 自动按推断继续、MUST NOT 标记可归档',
+            '强制回归测试（委派 `iagent_test`）',
+            'Phase 1 内联临时测试的边界',
+            'MUST NOT 仅以 Phase 1 临时测试充当唯一回归测试',
+            '没有跳过直接实现的路径',
+        ]) {
+            expect(derived, `debug 指令版缺失护栏：${statement}`).toContain(statement);
+        }
+    });
+
+    it('workflow 指令版保留文档状态 handoff 与 FAIL 不出桥护栏', () => {
+        const derived = commandById.get('workflow')?.content ?? '';
+        expect(derived).toContain('FAIL 不出文档桥');
+        expect(derived).toContain('文档状态跨阶段传递');
+        expect(derived).toContain('skipped-by-user');
+        expect(derived).toContain('requirementDocStatus');
+    });
+
+    it('auto-workflow 指令版保留唯一文档桥与测试门护栏', () => {
+        const derived = commandById.get('auto-workflow')?.content ?? '';
+        expect(derived).toContain('该桥是本阶段唯一的流程级阻塞门');
+        expect(derived).toContain('测试门失败时不得静默通过');
+        expect(derived).toContain('FAIL 不出文档桥');
+    });
+
+    it('spec-propose 指令版在验证 PASS 后停止且无生成动作', () => {
+        const derived = commandById.get('spec-propose')?.content ?? '';
+        expect(derived).toContain('独立调用在验证 PASS 后停止');
+        expect(derived).not.toMatch(/收束 —— 需求文档桥/);
+    });
+
+    it('派生内容不残留旧口径（debug 生成禁令 / 验证阶段默认生成）', () => {
+        const all = getCommandTemplates()
+            .map(({ template }) => template.content)
+            .join('\n');
+        expect(all).not.toContain('需求文档不在范围内（强制禁止）');
+        expect(all).not.toContain('Phase 7 MUST NOT 生成需求文档');
+    });
+});

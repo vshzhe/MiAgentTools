@@ -31,7 +31,7 @@ describe('Claude 产物契约（init 端到端）', () => {
     beforeAll(() => {
         root = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-claude-adapter-'));
         ensureProjectConfig(root);
-        writeWorkflowsToConfig(root, ['workflow', 'spec-apply']);
+        writeWorkflowsToConfig(root, ['workflow', 'spec-apply', 'debug']);
         runInit(root, { tools: 'claude' });
     });
 
@@ -58,5 +58,34 @@ describe('Claude 产物契约（init 端到端）', () => {
         expect(fs.existsSync(settings)).toBe(true);
         const parsed = JSON.parse(fs.readFileSync(settings, 'utf8'));
         expect(Array.isArray(parsed.permissions?.allow)).toBe(true);
+    });
+
+    it('debug 技能含条件修复门标注与文档/测试委派精确授权', () => {
+        const debug = fs.readFileSync(
+            path.join(root, '.claude', 'skills', 'iagent-debug', 'SKILL.md'),
+            'utf8'
+        );
+        // 三阶段协议与条件门在 Claude 产物中可见
+        expect(debug).toContain('- `investigate`：能力');
+        expect(debug).toContain('- `fix`：能力');
+        expect(debug).toContain('门：fix-option-confirmation（条件 multiple-fix-options）');
+        expect(debug).toContain('- `verify-close`：能力');
+        // nextAllowed 直接委派契约
+        expect(debug).toContain('唯一 `nextAllowed` 技能 SHALL 直接委派');
+        // 文档与测试委派获得精确白名单条目（裸名，无通配）
+        expect(debug).toMatch(/^allowed-tools: .*/m);
+        expect(debug).toContain('Skill(requirement_doc)');
+        expect(debug).toContain('Skill(test)');
+        expect(debug).not.toContain('Skill(*)');
+    });
+
+    it('Claude 权限载体聚合 debug 的文档/测试委派条目', () => {
+        const settings = path.join(root, '.claude', 'settings.json');
+        const parsed = JSON.parse(fs.readFileSync(settings, 'utf8')) as {
+            permissions?: { allow?: string[] };
+        };
+        const allow = parsed.permissions?.allow ?? [];
+        expect(allow).toContain('Skill(requirement_doc)');
+        expect(allow).toContain('Skill(test)');
     });
 });

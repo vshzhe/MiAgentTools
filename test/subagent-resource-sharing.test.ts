@@ -128,7 +128,7 @@ describe('A6 · debug 流程级探查摘要共享（skill + command 两处）', 
         'investigation-digest.md',
         'debug-<keyword>/',
         '先读摘要',
-        '仅增量查询',
+        '增量查询',
         '清理调试工作区',
     ];
     // 排查细则下沉 references/investigation-protocol.md —— 指令版以指针引用（与 A5 command 版一致）

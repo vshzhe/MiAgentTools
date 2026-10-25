@@ -68,7 +68,7 @@ iagent spec status --change "<name>" --json
 > "检测到技术栈：[TypeScript]。是否运行技术栈专项校验？"
 > [是] [否 - 仅基础校验]
 
-### 3.5 验证通过 → 自动触发深度复查 → 自动生成需求文档
+### 3.5 验证通过 → 自动触发深度复查 → 需求文档桥（生成 / 跳过）
 
 当所有维度 PASS（≥90%）时：
 
@@ -82,15 +82,39 @@ iagent spec status --change "<name>" --json
 
 若用户想跳过深度复查，可主动中断；否则自动运行。
 
-5. **收束——生成需求文档** — 深度复查收束后，以非交互模式委派 `iagent_requirement_doc`，在 `openspec/changes/<change-name>/需求文档.md` 生成需求文档。该文档在实现开始前由**当前**制品（proposal/specs/design/tasks）生成——用户可在 apply 阶段评审它。生成失败不阻断（WARN 日志 + 继续）。MUST NOT 向用户询问文档基本信息。生成后进入 Phase 3.7 实现桥（不得停在 apply-ready）。
-   - 理由：在验证阶段生成文档，可使用户在实现开始前拿到可评审的文档；归档阶段对既有文档就地增量对齐
+5. **收束 —— 需求文档桥（⚠️ 单次业务桥，强制）** — 验证 PASS **且**深度复查收束后，父编排器展示**一次**"生成 / 跳过"需求文档业务桥：
+   - **仅在此时展示**：验证 FAIL、重验循环中或深度复查未收束时 MUST NOT 展示该桥，也 MUST NOT 调用需求文档技能
+   - **生成** → 直接以非交互模式委派 `iagent_requirement_doc`（传 change-name；不询问文档基本信息、不追加"是否调用该技能"确认），文档写入 `openspec/changes/<change-name>/需求文档.md`
+     - 委派成功 → 状态写 `generated`
+     - 委派失败 → 状态写 `generation-failed`，输出 WARN（含原因）并继续原流程（不重试、不阻断）
+   - **跳过** → 不生成文档，状态写 `skipped-by-user`
+   - 桥完成后进入 Phase 3.7 实现桥（不得停在 apply-ready）；生成的文档可在实现桥前供用户评审
+   - **状态持久化（3.5.1）失败时**：不委派生成、不进入 Phase 3.7，输出 WARN + 恢复指引（不得报告阶段完成）
 
-> "深度复查完成。"
-> "需求文档：已生成于 openspec/changes/<name>/需求文档.md。"
+### 3.5.1 需求文档状态持久化（跨阶段 handoff）
+
+状态是跨会话的唯一依据（archive 可能由用户稍后单独调用），**必须**在桥收束时写入变更探索文件：
+
+- **载体**：`openspec/changes/<change-name>/exploration.md` 的 `## 需求文档状态` 段（用 `path.join()` 构造）
+- **字段**：`requirementDocStatus`，取值仅以下三态之一（不落盘 `absent`）：
+
+  | 取值 | 含义 |
+  |------|------|
+  | `skipped-by-user` | 用户在文档桥明确选择跳过 |
+  | `generation-failed` | 用户选择生成，但委派首次失败（archive 不静默重试） |
+  | `generated` | 成功生成（终态；归档时文件缺失 → WARN 不重建） |
+
+- 该段缺失或取值非法即视为 `absent`（历史变更兼容分支），MUST NOT 猜测为跳过或已生成
+- **I/O 语义（强制）**：写入失败 → 自动重试同一写入**一次** → 仍失败即停止（MUST NOT 第二次或无限重试）：
+  - MUST NOT 报告状态已持久化或阶段已完成
+  - MUST NOT 委派 `iagent_requirement_doc`
+  - MUST NOT 进入依赖该状态的下一阶段（Phase 3.7 实现桥及后续）
+  - SHALL 输出含目标路径与原因的 WARN 与恢复指引（用户可修复后重跑本阶段）
+- **传递**：桥结果同时写入阶段回执；进入 apply 与 archive 时携带同一状态（archive 亦从探索文件读取，二者不一致时以探索文件的持久记录为准）
 
 ### 3.6 验证失败 → 自动修复并重跑
 
-**FAIL 时不生成需求文档。** 仅在修复后经重新验证通过时才生成（此时走 3.5 第 5 步）。
+**FAIL 时不展示需求文档桥、不生成需求文档。** 仅在修复后经重新验证通过且深度复查收束时才展示该桥（即走 3.5 第 5 步）。
 
 任一维度 FAIL（<90%）时，系统 MUST 自动修复：
 

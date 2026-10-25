@@ -172,3 +172,57 @@ describe('探索内容分层、门预算与门合并', () => {
         expect(exploreRefContent('references/exploration-guidance.md')).toContain('openspec-explore');
     });
 });
+
+describe('需求文档时机跨模板一致（4.1 / 4.3）', () => {
+    /** 全部技能正文 + references 的合并语料 */
+    const corpus = skills
+        .map(({ template }) => {
+            const refs = (template.references ?? []).map((ref) => ref.content).join('\n');
+            return `${template.name}\n${template.instructions}\n${refs}`;
+        })
+        .join('\n');
+
+    it('requirement-doc 的调用方说明枚举三父流程并排除 propose / verifier', () => {
+        const body = skillBody('iagent_requirement_doc');
+        expect(body).toContain('iagent_workflow');
+        expect(body).toContain('iagent_auto_workflow');
+        expect(body).toContain('iagent_debug');
+        expect(body).toContain('`iagent_spec_propose` 独立调用在验证 PASS 后停止');
+        expect(body).toContain('`iagent_spec_verify_proposal` 保持纯验证职责');
+        expect(body).toContain('MUST NOT 写改变更 `exploration.md` 的需求文档状态');
+    });
+
+    it('无残留「debug 不生成需求文档」旧口径', () => {
+        for (const stale of [
+            '需求文档不在范围内（强制禁止）',
+            '需求文档不属于本工作流',
+            'Phase 7 MUST NOT 生成需求文档',
+            'debug 技能 MUST NOT 生成',
+        ]) {
+            expect(corpus, `模板仍残留旧口径「${stale}」`).not.toContain(stale);
+        }
+    });
+
+    it('无残留「验证通过后默认自动生成」旧口径', () => {
+        expect(corpus).not.toMatch(/验证通过后[^\n]*自动生成需求文档/);
+        expect(corpus).not.toMatch(/无需用户确认[^\n]*需求文档/);
+    });
+
+    it('migration 不声明归档阶段一律生成需求文档', () => {
+        const body = skillBody('iagent_migration');
+        expect(body).not.toMatch(/归档[^\n]*需求文档[^\n]*生成/);
+        expect(body).not.toMatch(/需求文档[^\n]*归档[^\n]*一律生成/);
+    });
+
+    it('三父流程的桥状态集合一致（四值模型同一口径）', () => {
+        const statuses = ['skipped-by-user', 'generation-failed', 'generated', 'absent'];
+        for (const name of ['iagent_workflow', 'iagent_auto_workflow', 'iagent_debug']) {
+            const body = `${skillBody(name)}\n${(skills.find((s) => s.template.name === name)?.template.references ?? [])
+                .map((ref) => ref.content)
+                .join('\n')}`;
+            for (const status of statuses) {
+                expect(body, `${name} 缺少状态 ${status}`).toContain(status);
+            }
+        }
+    });
+});

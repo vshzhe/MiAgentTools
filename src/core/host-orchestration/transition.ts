@@ -19,6 +19,13 @@ export interface PhaseTransitionInput {
     gateConfirmed: boolean;
     /** 当前宿主能力协商结果 */
     negotiation: CapabilityNegotiation;
+    /**
+     * 条件门取值（门 `condition` → 是否适用）。
+     *
+     * 仅对声明了 `condition` 的门生效；`false` = 门不适用（跳过门确认要求），
+     * `true` 或键缺失 = 门适用（fail-safe）。
+     */
+    gateConditions?: Record<string, boolean>;
 }
 
 /** 阶段推进判定结果 */
@@ -42,6 +49,12 @@ export const TRANSITION_BLOCKERS = {
  * 判定某阶段是否可推进到下一阶段。
  *
  * 依次检查：宿主能力 → 确认门 → 回执。任一不满足即阻塞。
+ *
+ * 条件门语义（`GateSpec.condition`）：
+ *   - 未声明 `condition` → 保持既有静态门行为（`blocking ?? true` + `gateConfirmed`）；
+ *   - `gateConditions[condition] === false` → 该门不适用，跳过门确认要求
+ *     （即使 `gateConfirmed` 为 false 也不以 `gate-unconfirmed` 阻塞）；
+ *   - `=== true` 或该键未提供 → 门适用，仍按 `gateConfirmed` 要求确认（fail-safe）。
  */
 export function evaluatePhaseTransition(input: PhaseTransitionInput): PhaseTransitionResult {
     const blockedBy: string[] = [];
@@ -52,8 +65,12 @@ export function evaluatePhaseTransition(input: PhaseTransitionInput): PhaseTrans
         blockedBy.push(TRANSITION_BLOCKERS.capabilities);
     }
 
-    // 2. 确认门（未确认不得推进）
-    if (input.phase.gate && (input.phase.gate.blocking ?? true) && !input.gateConfirmed) {
+    // 2. 确认门（未确认不得推进；条件为 false 时该门不适用）
+    const gate = input.phase.gate;
+    const gateApplicable =
+        gate !== undefined &&
+        (gate.condition === undefined || input.gateConditions?.[gate.condition] !== false);
+    if (gate && gateApplicable && (gate.blocking ?? true) && !input.gateConfirmed) {
         blockedBy.push(TRANSITION_BLOCKERS.gate);
     }
 

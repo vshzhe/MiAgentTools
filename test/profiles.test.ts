@@ -137,11 +137,34 @@ describe('resolveWorkflows', () => {
         ]);
     });
 
-    it('debug 仅注入提案评分技能（需求文档不在 debug 范围内）', () => {
+    it('debug 注入提案评分与需求文档技能（文档桥生成分支无条件委派）', () => {
         const result = resolveWorkflows(['debug']);
         expect(result.workflows).toContain('debug');
         expect(result.workflows).toContain('spec-verify-proposal');
-        expect(result.workflows).not.toContain('requirement-doc');
-        expect(result.injected).toEqual(['spec-verify-proposal']);
+        // 旧断言「需求文档不在 debug 范围内」反转为：桥生成分支无条件委派该技能，
+        // 未随装即形成指向未安装技能的死引用，故必须由 DEPS 注入。
+        expect(result.workflows).toContain('requirement-doc');
+        expect(result.injected).toEqual(['spec-verify-proposal', 'requirement-doc']);
+    });
+
+    it('debug 注入结果稳定：生效集为 debug + spec-verify-proposal + requirement-doc', () => {
+        const result = resolveWorkflows(['debug']);
+        expect(result.workflows).toEqual([
+            'debug',
+            'spec-verify-proposal',
+            'requirement-doc',
+        ]);
+        // test 属条件委派（正文已声明 degraded 本地编写路径），不触发注入
+        expect(result.workflows).not.toContain('test');
+    });
+
+    it('DEPS.debug 明确覆盖 requirement-doc（无条件委派随装）', () => {
+        expect(DEPS.debug).toEqual(['spec-verify-proposal', 'requirement-doc']);
+    });
+
+    it('已含 debug 依赖项时不重复注入', () => {
+        const result = resolveWorkflows(['debug', 'spec-verify-proposal', 'requirement-doc']);
+        expect(result.injected).toEqual([]);
+        expect(result.workflows).toEqual(['debug', 'spec-verify-proposal', 'requirement-doc']);
     });
 });

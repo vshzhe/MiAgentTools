@@ -78,7 +78,7 @@ iagent spec status --change "<name>" --json
 > "检测到技术栈：[TypeScript]。是否运行技术栈专项校验？"
 > [是] [否 - 仅基础校验]
 
-### 3.5 验证通过 → 自动触发深度复查 → 自动生成需求文档
+### 3.5 验证通过 → 自动触发深度复查 → 需求文档桥（生成 / 跳过）
 
 当所有维度 PASS（≥90%）时：
 
@@ -92,15 +92,39 @@ iagent spec status --change "<name>" --json
 
 若用户想跳过深度复查，可主动中断；否则自动运行。
 
-5. **收束——生成需求文档** — 深度复查收束后，以非交互模式委派 \`iagent_requirement_doc\`，在 \`openspec/changes/<change-name>/需求文档.md\` 生成需求文档。该文档在实现开始前由**当前**制品（proposal/specs/design/tasks）生成——用户可在 apply 阶段评审它。生成失败不阻断（WARN 日志 + 继续）。MUST NOT 向用户询问文档基本信息。生成后进入 Phase 3.7 实现桥（不得停在 apply-ready）。
-   - 理由：在验证阶段生成文档，可使用户在实现开始前拿到可评审的文档；归档阶段对既有文档就地增量对齐
+5. **收束 —— 需求文档桥（⚠️ 单次业务桥，强制）** — 验证 PASS **且**深度复查收束后，父编排器展示**一次**"生成 / 跳过"需求文档业务桥：
+   - **仅在此时展示**：验证 FAIL、重验循环中或深度复查未收束时 MUST NOT 展示该桥，也 MUST NOT 调用需求文档技能
+   - **生成** → 直接以非交互模式委派 \`iagent_requirement_doc\`（传 change-name；不询问文档基本信息、不追加"是否调用该技能"确认），文档写入 \`openspec/changes/<change-name>/需求文档.md\`
+     - 委派成功 → 状态写 \`generated\`
+     - 委派失败 → 状态写 \`generation-failed\`，输出 WARN（含原因）并继续原流程（不重试、不阻断）
+   - **跳过** → 不生成文档，状态写 \`skipped-by-user\`
+   - 桥完成后进入 Phase 3.7 实现桥（不得停在 apply-ready）；生成的文档可在实现桥前供用户评审
+   - **状态持久化（3.5.1）失败时**：不委派生成、不进入 Phase 3.7，输出 WARN + 恢复指引（不得报告阶段完成）
 
-> "深度复查完成。"
-> "需求文档：已生成于 openspec/changes/<name>/需求文档.md。"
+### 3.5.1 需求文档状态持久化（跨阶段 handoff）
+
+状态是跨会话的唯一依据（archive 可能由用户稍后单独调用），**必须**在桥收束时写入变更探索文件：
+
+- **载体**：\`openspec/changes/<change-name>/exploration.md\` 的 \`## 需求文档状态\` 段（用 \`path.join()\` 构造）
+- **字段**：\`requirementDocStatus\`，取值仅以下三态之一（不落盘 \`absent\`）：
+
+  | 取值 | 含义 |
+  |------|------|
+  | \`skipped-by-user\` | 用户在文档桥明确选择跳过 |
+  | \`generation-failed\` | 用户选择生成，但委派首次失败（archive 不静默重试） |
+  | \`generated\` | 成功生成（终态；归档时文件缺失 → WARN 不重建） |
+
+- 该段缺失或取值非法即视为 \`absent\`（历史变更兼容分支），MUST NOT 猜测为跳过或已生成
+- **I/O 语义（强制）**：写入失败 → 自动重试同一写入**一次** → 仍失败即停止（MUST NOT 第二次或无限重试）：
+  - MUST NOT 报告状态已持久化或阶段已完成
+  - MUST NOT 委派 \`iagent_requirement_doc\`
+  - MUST NOT 进入依赖该状态的下一阶段（Phase 3.7 实现桥及后续）
+  - SHALL 输出含目标路径与原因的 WARN 与恢复指引（用户可修复后重跑本阶段）
+- **传递**：桥结果同时写入阶段回执；进入 apply 与 archive 时携带同一状态（archive 亦从探索文件读取，二者不一致时以探索文件的持久记录为准）
 
 ### 3.6 验证失败 → 自动修复并重跑
 
-**FAIL 时不生成需求文档。** 仅在修复后经重新验证通过时才生成（此时走 3.5 第 5 步）。
+**FAIL 时不展示需求文档桥、不生成需求文档。** 仅在修复后经重新验证通过且深度复查收束时才展示该桥（即走 3.5 第 5 步）。
 
 任一维度 FAIL（<90%）时，系统 MUST 自动修复：
 
@@ -144,9 +168,9 @@ export function getWorkflowSkillTemplate(): SkillTemplate {
 本工作流将引导你完成：
 1. **探索阶段** - 持久化探索文件 + grill-with-docs 追问
 2. **提案阶段** - 创建变更并生成全部制品
-3. **验证阶段** - 自动质量校验（D1-D10）+ 深度复查 + 需求文档
+3. **验证阶段** - 自动质量校验（D1-D10）+ 深度复查 + 需求文档桥（生成 / 跳过）
 4. **实现阶段** - 确认桥 → 委派 iagent_spec_apply（条件测试子阶段）
-5. **归档阶段** - 确认桥 → 委派 iagent_spec_archive
+5. **归档阶段** - 确认桥 → 委派 iagent_spec_archive（携带需求文档状态）
 
 阶段之间直接推进（无委派断层），验证通过后委派阶段实现与归档，阶段间以确认桥保证完整性。区别于 iagent_auto_workflow（全自动无门）。
 
@@ -296,7 +320,7 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 
 ## Phase 3: 验证
 
-**委派的 iagent_spec_propose 完成后 Phase 3 自动执行。Phase 3 运行验证超集（iagent_spec_verify_proposal + iagent_proposal_review + 非交互模式 iagent_requirement_doc）；被委派的 spec_propose 已抑制自身的 Phase 3 以避免重复评分。**
+**委派的 iagent_spec_propose 完成后 Phase 3 自动执行。Phase 3 运行验证超集（iagent_spec_verify_proposal + iagent_proposal_review + 需求文档"生成 / 跳过"桥）；被委派的 spec_propose 已抑制自身的 Phase 3 以避免重复评分，且其独立调用不生成需求文档（文档桥只属于本父流程）。**
 
 **TodoWrite 跟踪**：把 Phase 3 事项加入 TodoWrite：
 \`\`\`
@@ -319,7 +343,7 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 - 就绪检查：proposal.md / design.md / specs/**/*.md / tasks.md 齐全；验证 PASS（≥90%）；深度复查完成；apply instruction 状态 = ready（\`iagent spec instructions apply --change "<name>" --json\`；CLI 不可用读 tasks.md 推断）
 - workspace-planning 变更不支持 apply/archive：在此停止，仅保留探索+提案+深度复查结果
 - 出口：确认（进入 Phase 4，含条件测试生成）／修改（回 Phase 2 调整制品或回 Phase 1 补决策）／拒绝（记录未确认状态并停止，不进入实现）
-- 需求文档已在 Phase 3.5 生成，不在此重复，也不作为本桥阻塞项
+- 需求文档桥已在 Phase 3.5 收束（\`generated\` / \`skipped-by-user\` / \`generation-failed\` 已持久化），本桥不重复询问文档，且不因文档失败而阻塞；状态写入失败时已在 Phase 3.5 停止，不得进入本桥
 
 ---
 ## Phase 4: 实现（委派 iagent_spec_apply）
@@ -359,7 +383,8 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 
 ### 5.2 委派 \`iagent_spec_archive\`
 
-- 传入 change-name（跳过选择提示）
+- 传入 change-name（跳过选择提示）与 \`requirementDocStatus\`（Phase 3.5 桥的持久状态：\`generated\` / \`skipped-by-user\` / \`generation-failed\` / \`absent\`）
+- archive 以"文件存在优先、状态裁决缺失分支"分流：已存在文档就地增量对齐并保护人工域；\`absent\` 才走历史兼容生成（archive 亦从变更 \`exploration.md\` 读取同一状态，跨会话可恢复）
 - archive 内部完成：delta spec 合并主规格、CONTEXT.md 同步、探索记忆同步到 \`specs/<cap>/explorations.md\`、需求文档就地增量对齐（步骤 4.8，保人工域）、目录迁移 \`archive/\`、ARCHIVE-INDEX.md 更新、需求文档迁移 \`devdocs/\`
 - sync 检查点非阻断（失败 WARN 不阻断）
 
@@ -441,14 +466,14 @@ Re-run Overall Score: 92% (≥90%, PASS) → auto-triggering iagent_proposal_rev
 
 [deep review results displayed]
 
-Requirement document: generated at openspec/changes/<name>/需求文档.md.
+需求文档桥：生成 → 已生成 openspec/changes/<name>/需求文档.md（状态 generated）；跳过 → 状态 skipped-by-user
 
 ## Verification Complete ✓
 
 All artifacts ready! Proceeding to the Phase 4 implementation bridge...
 \`\`\`
 
-### 示例 2：直接通过（验证后生成需求文档）
+### 示例 2：直接通过（验证后经需求文档桥）
 
 \`\`\`
 ## Exploration Phase
@@ -503,7 +528,7 @@ Overall Score: 95% (≥90%, PASS) → auto-triggering iagent_proposal_review dee
 [deep review results displayed]
 
 Deep review complete.
-Requirement document: generated at openspec/changes/<name>/需求文档.md.
+需求文档桥：生成 → 已生成 openspec/changes/<name>/需求文档.md（状态 generated）；跳过 → 状态 skipped-by-user
 
 ## Verification Complete ✓
 
@@ -553,7 +578,9 @@ All artifacts ready! Proceeding to the Phase 4 implementation bridge...
 - **记录检查点状态** - 告知用户文件创建、校验与迁移状态
 - **注入能力记忆** - Phase 1 在 specs/<capability>/explorations.md 存在时读取它
 - **用 CodeGraph 扫描其他项目** - 探索上下文含其他项目路径时，派发子代理用 CodeGraph 的 projectPath 参数扫描；失败时降级为 Glob/Grep
-- **深度复查后收束** - 全量通过（D1-D5 + 深度复查）后生成需求文档（非交互模式 \`iagent_requirement_doc\`；失败为非阻断 WARN），随后进入 Phase 3.7 实现桥
+- **深度复查后收束** - 全量通过（D1-D5 + 深度复查）后展示**一次**需求文档"生成 / 跳过"桥：生成 → 直接非交互委派 \`iagent_requirement_doc\`（失败记 \`generation-failed\` + WARN 并继续）、跳过 → 记 \`skipped-by-user\`；状态写入变更 \`exploration.md\` 的 \`## 需求文档状态\` 段（写入失败重试一次仍失败即停止，不进入 Phase 3.7），随后进入 Phase 3.7 实现桥
+- **FAIL 不出文档桥** - 验证失败或重验循环中 MUST NOT 生成需求文档、MUST NOT 展示生成/跳过桥
+- **文档状态跨阶段传递** - 桥结果（\`generated\` / \`skipped-by-user\` / \`generation-failed\` / \`absent\`）持久化于变更探索文件并经 apply 传至 archive；archive 以文件存在优先、状态裁决缺失分支，不因新会话退回兼容生成
 - **对委派执行退出守卫** - 委派的阶段子技能（spec_apply / spec_archive / test）完成后 MUST NOT 自行进入 plan 模式 / 设计模式或推进阶段；workflow 是唯一有权判定阶段完成并推进下一阶段（桥梁）的角色
 - **向 apply 传 auto-mode** - Phase 4 向 spec_apply 传 auto-mode=true，由 Phase 3.7 实现桥承载确认，避免 apply 内部设计确认门重复
 - **向 archive 传 change-name** - Phase 5 向 spec_archive 传 change-name 跳过选择
@@ -573,7 +600,7 @@ All artifacts ready! Proceeding to the Phase 4 implementation bridge...
 export function getWorkflowCommandTemplate(): CommandTemplate {
     return {
         name: 'iAgent: 引导工作流',
-        description: '一站式引导工作流：结构化探索（grill 追问 L1-L5）→ 提案委派生成 → 自动验证门 → 深度复查收束 + 需求文档生成 → 委派实现（spec_apply）→ 委派归档（spec_archive）',
+        description: '一站式引导工作流：结构化探索（grill 追问 L1-L5）→ 提案委派生成 → 自动验证门 → 深度复查收束 + 需求文档生成/跳过桥 → 委派实现（spec_apply）→ 委派归档（spec_archive）',
         category: 'iAgent / 实现',
         tags: ['iagent', 'impl', 'workflow', 'exploration', 'verification', 'orchestrator'],
         content: deriveCommandContent(getWorkflowSkillTemplate().instructions),

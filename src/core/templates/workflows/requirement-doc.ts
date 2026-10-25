@@ -42,7 +42,7 @@ export function getRequirementDocSkillTemplate(): SkillTemplate {
 - MUST NOT 提问。
 - 使用 Markdown 格式，基本信息用占位符。
 - 用户稍后可独立重跑本技能以补全细节。
-- **调用方说明（自动调用方为验证阶段 + 归档）**：自动调用本技能的工作流是验证阶段（\`iagent_auto_workflow\` Phase 3 / \`iagent_workflow\` Phase 3.5）与归档阶段（\`iagent_spec_archive\` 归档前检查点步骤 4.8，及其在 \`iagent_spec_bulk_archive\` 中的并行步骤）。\`iagent_debug\` MUST NOT 调用本技能。**任何阶段都可手工调用** —— 下述独立模式保持不变。
+- **调用方说明（自动调用方 = 三父流程文档桥"生成"分支 + 归档 \`absent\` 兼容生成分支）**：自动调用本技能的是 \`iagent_workflow\` Phase 3.5 / \`iagent_auto_workflow\` Phase 3 / \`iagent_debug\` verify-close 三处需求文档桥的"生成"分支，以及归档对 \`absent\` 缺失文档的兼容生成（\`iagent_spec_archive\` 步骤 4.8，及其在 \`iagent_spec_bulk_archive\` 中的 a.6）。\`iagent_spec_verify_proposal\` 保持纯验证职责、不调用本技能；\`iagent_spec_propose\` 独立调用在验证 PASS 后停止，MUST NOT 自动调用本技能（不提供文档桥）。归档对 \`skipped-by-user\` / \`generation-failed\` / \`generated\` 的缺失分支 MUST NOT 调用本技能，已有文档由归档就地增量对齐（保护人工域）。本技能 MUST NOT 写改变更 \`exploration.md\` 的需求文档状态 —— 该状态由父流程或归档维护。**任何阶段都可手工调用** —— 下述独立模式保持不变。
 
 ## Step 3: 读取变更制品
 

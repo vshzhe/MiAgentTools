@@ -191,13 +191,19 @@ export function getSpecBulkArchiveSkillTemplate(): SkillTemplate {
         "跳过 CONTEXT.md 同步：未找到变更制品"
       - **失败处理（非阻塞）**：不得因检查失败而阻塞归档 —— 记录日志并继续
 
-   a.6 **归档前需求文档生成（强制检查点，位于目录移动之前）**：
-      - **决策范围**：仅 \`openspec/changes/<change-name>/需求文档.md\`（用 \`path.join()\`）
-      - **若变更目录不可读**（IO 错误）：记录 WARN，视为文档不存在 —— 进入"不存在"分支
-      - **不存在** → 以**非交互模式**委派 \`iagent_requirement_doc\` 技能并传入本变更名（不提问，基本信息用占位符）；输出到 \`openspec/changes/<change-name>/需求文档.md\`
-      - **已存在** → 执行 **in-place（就地）增量对齐更新**：\`## 基本信息\` 与 \`## 八、评审记录\` 属**人工域**，MUST NOT 覆盖（逐字保留，含占位符状态）；\`一~七\` 章节 SHALL 从**当前** Markdown 源（\`proposal.md\` / \`design.md\` / \`specs/**/*.md\` / \`tasks.md\`）重新推导。本分支**不得调用 \`iagent_requirement_doc\`** —— 该技能自身规则是"目标文件已存在时静默覆盖"，会抹掉人工撰写的评审内容。对齐 MUST NOT 删除章节（仅可丢弃制品中已移除的内容）；若文档结构已损坏，重建缺失章节并记录 WARN
+   a.6 **归档前需求文档检查点（强制检查点，状态感知，位于目录移动之前）**：
+      - **判定范围**：仅 \`openspec/changes/<change-name>/需求文档.md\`（用 \`path.join()\`），并同时读取该变更 \`exploration.md\` 的 \`## 需求文档状态\` 段（字段 \`requirementDocStatus\`）
+      - **优先级（强制）**：文档文件存在 > 持久状态 —— 文件存在时无论状态为何都走"已存在"分支；状态只裁决"文件缺失"分支
+      - **状态取值**：\`absent\`（段缺失或取值非法，不落盘）/ \`skipped-by-user\` / \`generation-failed\` / \`generated\`
+      - **读取与 I/O 失败语义**：读取状态与文件存在性失败 → 自动重试同一读取**一次** → 仍失败即停止（MUST NOT 第二次或无限重试）：MUST NOT 视为 \`absent\`、MUST NOT 生成（文档存在时仍按已存在分支对齐）；输出含路径与原因的 WARN 与恢复指引；读取失败 MUST NOT 中止该变更单元或整批
+      - **已存在（任何状态，含 \`skipped-by-user\`）** → 执行 **in-place（就地）增量对齐更新**：\`## 基本信息\` 与 \`## 八、评审记录\` 属**人工域**，MUST NOT 覆盖（逐字保留，含占位符状态）；\`一~七\` 章节 SHALL 从**当前** Markdown 源（\`proposal.md\` / \`design.md\` / \`specs/**/*.md\` / \`tasks.md\`）重新推导。本分支**不得调用 \`iagent_requirement_doc\`** —— 该技能自身规则是"目标文件已存在时静默覆盖"，会抹掉人工撰写的评审内容。对齐 MUST NOT 删除章节（仅可丢弃制品中已移除的内容）；若文档结构已损坏，重建缺失章节并记录 WARN
+      - **缺失且 \`skipped-by-user\`** → 记录"用户已选择跳过需求文档生成"并继续本变更的后续步骤，MUST NOT 委派生成
+      - **缺失且 \`generation-failed\`** → 输出含原因的 WARN 并继续，MUST NOT 静默重试
+      - **缺失且 \`generated\`** → 输出 WARN（"曾生成但文件缺失"）并继续，MUST NOT 重新生成
+      - **缺失且 \`absent\`** → 以**非交互模式**委派 \`iagent_requirement_doc\` 技能并传入本变更名（不提问，基本信息用占位符）；输出到 \`openspec/changes/<change-name>/需求文档.md\`（历史兼容分支）
       - **失败处理（非阻塞）**：若生成或对齐失败，记录 WARN（含目标路径与原因）并**继续**本变更的剩余步骤 —— 此处失败 MUST NOT 中止该变更单元，MUST NOT 中止整批
       - 生成的文档留在变更目录内，在步骤 b 随其一起移动，并由步骤 c 迁移到 \`openspec/devdocs/\`
+
 
    b. **执行归档**：
       运行 iagent CLI 归档命令 —— 它一步完成状态检查与目录移动：
@@ -445,7 +451,7 @@ No active changes found. Create a new change to get started.
 - 记录并报告全部结果（成功/跳过/失败）
 - 按变更同步探索记忆（步骤 b.5）；某个变更失败只记录告警，绝不中止整批
 - 按变更同步 CONTEXT.md（步骤 a.5）；制品缺失时跳过并记日志，绝不阻塞整批
-- 按变更（步骤 a.6，先于目录移动）从**最终**制品生成需求文档：不存在 → 以非交互方式委派 iagent_requirement_doc；已存在 → 就地对齐并保留人工域（## 基本信息 / ## 八、评审记录），该分支绝不调用该技能；失败只记录告警，绝不中止该变更单元或整批
+- 按变更（步骤 a.6，先于目录移动）执行状态感知检查点：文件存在优先 → 就地增量对齐并逐字保留人工域（## 基本信息 / ## 八、评审记录），该分支绝不调用生成技能；缺失时 skipped-by-user 不生成、generation-failed 与 generated 仅 WARN 不重试、仅 absent 走历史兼容生成；状态或文件存在性读取失败重试一次仍失败时不视为 absent、不生成（文档存在仍对齐）；失败只记录告警，绝不中止该变更单元或整批
 - 移入归档时保留 .openspec.yaml（CLI 已保证）
 - 归档目录目标名使用当前日期：YYYY-MM-DD-<name>
 - 若归档目标已存在，则该变更失败，但继续处理其他变更

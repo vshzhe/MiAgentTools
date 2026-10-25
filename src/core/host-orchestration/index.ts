@@ -5,9 +5,15 @@
 export {
     CAPABILITY_ORDER,
     DEFAULT_RECEIPT_FIELDS,
+    GATE_CONDITION_IDS,
+    PERSISTED_REQUIREMENT_DOC_STATUSES,
+    REQUIREMENT_DOC_STATUS_FIELD,
+    REQUIREMENT_DOC_STATUS_IO_ATTEMPTS,
+    normalizeRequirementDocStatus,
     protocolDeclaresCapabilities,
     validateReceipt,
     type CapabilityId,
+    type GateConditionId,
     type GateSpec,
     type PhaseInput,
     type PhaseSpec,
@@ -15,6 +21,7 @@ export {
     type ReceiptSpec,
     type ReceiptStatus,
     type ReceiptValidation,
+    type RequirementDocStatus,
     type RetryPolicy,
     type WorkflowProtocol,
 } from './protocol.js';
@@ -38,6 +45,7 @@ export {
 } from './hosts.js';
 
 export {
+    CONDITIONAL_DELEGATIONS,
     ORCHESTRATING_WORKFLOW_IDS,
     ORCHESTRATION_DELEGATIONS,
     adaptSkillContentForHost,

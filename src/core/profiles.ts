@@ -41,8 +41,9 @@ export const DEFAULT_WORKFLOWS: readonly string[] = [
  *  - auto-workflow ⇒ spec-explore + spec-propose + spec-verify-proposal + proposal-review + spec-apply + spec-archive
  *    （Phase 1-3 与引导工作流同构；Phase 4/5 经 Skill 工具委派 spec-apply / spec-archive；
  *     spec-verify / requirement-doc 由 spec-archive 传递注入；auto-workflow 不委派 workflow 技能，故不再注入 workflow）
- *  - debug ⇒ spec-verify-proposal
- *    （P7 验证调用；需求文档不在 debug 范围内，故不再注入该技能）
+ *  - debug ⇒ spec-verify-proposal + requirement-doc
+ *    （P7 验证调用；文档桥的"生成"分支**无条件委派** requirement-doc —— 被委派技能必须可得，
+ *     否则形成指向未安装技能的死引用。`test` 属条件委派且正文已声明缺省降级路径，不触发注入）
  *  - spec-apply 不注入（apply 时假设 propose 阶段已过评分门，避免冗余） */
 export const DEPS: Record<string, readonly string[]> = {
     'spec-propose': ['spec-verify-proposal'],
@@ -51,7 +52,7 @@ export const DEPS: Record<string, readonly string[]> = {
     'migration': ['feature-doc', 'migration-check'],
     'workflow': ['spec-explore', 'spec-propose', 'spec-verify-proposal', 'proposal-review', 'spec-apply', 'spec-archive'],
     'auto-workflow': ['spec-explore', 'spec-propose', 'spec-verify-proposal', 'proposal-review', 'spec-apply', 'spec-archive'],
-    'debug': ['spec-verify-proposal'],
+    'debug': ['spec-verify-proposal', 'requirement-doc'],
 };
 
 /** resolveWorkflows 结果 */

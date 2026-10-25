@@ -12,6 +12,9 @@ import {
     FAULT_CHAIN_FLOW_COLUMNS,
 } from '../src/core/templates/flowchart-gate.js';
 
+/** 全量技能模板（模块级共用，供跨 describe 的契约断言使用） */
+const allSkills = getSkillTemplates();
+
 describe('模板注册表', () => {
     const skills = getSkillTemplates();
     const commands = getCommandTemplates();
@@ -271,5 +274,114 @@ describe('对话级确认门未被白名单改动侵蚀', () => {
                 instructions.replaceAll('流程最终确认门（强制停止）', '流程确认门')
             )
         ).toThrow();
+    });
+});
+
+/** 技能正文 + references（正文下沉的协议细则同样是模板契约） */
+function skillCorpus(name: string): string {
+    const entry = allSkills.find((s) => s.template.name === name);
+    expect(entry, `技能 ${name} 未注册`).toBeDefined();
+    const refs = (entry?.template.references ?? []).map((ref) => ref.content).join('\n');
+    return `${entry?.template.instructions ?? ''}\n${refs}`;
+}
+
+describe('文档桥单一确认面（4.1）', () => {
+    it('三父流程均声明「单次业务桥」且不追加调用确认', () => {
+        for (const name of ['iagent_workflow', 'iagent_auto_workflow', 'iagent_debug']) {
+            const body = skillCorpus(name);
+            expect(body, `${name} 未声明单次业务桥`).toMatch(/单次业务桥/);
+            expect(body, `${name} 桥未声明直接委派（不追加确认）`).toMatch(
+                /不追加[^\n]*调用确认|不再出现[^\n]*询问|不追加"是否调用该技能"确认/
+            );
+        }
+    });
+
+    it('debug 的文档桥是唯一文档确认面（不重复询问是否调用技能）', () => {
+        const body = allSkills.find((s) => s.template.name === 'iagent_debug')?.template.instructions ?? '';
+        expect(body).toContain('debug 唯一的文档确认面');
+        expect(body).toContain('不是"是否调用该技能"的二次确认');
+    });
+
+    it('验证 FAIL 或复查未收束时三父流程均禁止展示桥', () => {
+        for (const name of ['iagent_workflow', 'iagent_auto_workflow', 'iagent_debug']) {
+            const body = skillCorpus(name);
+            const failGuard = body
+                .split('\n')
+                .filter((line) => line.includes('FAIL') && line.includes('MUST NOT 展示'));
+            expect(failGuard.length, `${name} 缺少 FAIL 不出桥护栏`).toBeGreaterThan(0);
+        }
+    });
+});
+
+describe('debug 决策与回归测试职责（4.3）', () => {
+    const debug = skillCorpus('iagent_debug');
+    const debugMain = allSkills.find((s) => s.template.name === 'iagent_debug')?.template.instructions ?? '';
+
+    it('输入校验与复现闸门：不可复现不得修改代码', () => {
+        expect(debugMain).toContain('在修改任何代码之前必须复现该 bug');
+        expect(debugMain).toContain('无法建立复现时');
+        expect(debugMain).toContain('MUST NOT 在假设下修复一个不可复现的 bug');
+        expect(debugMain).toContain('复现确认之前不应用任何修复');
+    });
+
+    it('非缺陷分支：输出诊断报告且不新建变更、不修改代码', () => {
+        expect(debugMain).toContain('3.5 非缺陷退出（诊断报告收尾）');
+        expect(debugMain).toContain('MUST NOT 新建变更，MUST NOT 修改代码');
+    });
+
+    it('CodeGraph 不可用时显式降级并标注信号降级', () => {
+        expect(debug).toContain('CodeGraph 不可用 —— 使用 Glob/Grep 降级');
+        expect(debug).toContain('MUST NOT 因 CodeGraph 不可用而跳过分级');
+        expect(debug).toContain('信号降级');
+        expect(debug).toContain('MUST NOT 作为跳过 CodeGraph 的捷径');
+    });
+
+    it('诊断确认包合并根因与链路并只确认一次，拒绝即终止修复', () => {
+        expect(debugMain).toContain('根因与缺陷链路诊断确认包');
+        expect(debugMain).toContain('**同一个**确认包中一次呈现，等待**一次**确认');
+        expect(debugMain).toContain('| 拒绝 | **终止修复**并输出诊断报告');
+        expect(debugMain).toContain('MUST NOT 自动按推断继续、MUST NOT 标记可归档');
+    });
+
+    it('多候选根因先选根因再确认链路，未完成前不改代码', () => {
+        expect(debugMain).toContain('先 STOP，呈现候选清单');
+        expect(debugMain).toContain('选定后再呈现据此生成的缺陷链路确认包');
+        expect(debugMain).toContain('未完成前 MUST NOT 修改任何代码');
+    });
+
+    it('多方案阻塞、唯一证据方案直通，DB/schema 确认保留', () => {
+        expect(debugMain).toContain('4.0 可行修复方案数量判定');
+        expect(debugMain).toContain('修复方案确认门（强制停止）');
+        expect(debugMain).toContain('说明唯一性依据后**直通实现**');
+        expect(debugMain).toContain('唯一性证据不足');
+        expect(debugMain).toContain('MUST 按多方案处理');
+        expect(debugMain).toContain('唯一方案直通规则 MUST NOT 绕过该确认');
+    });
+
+    it('回归测试委派 iagent_test 并由 debug 验收 fail-before / pass-after 与节点覆盖', () => {
+        expect(debugMain).toContain('强制回归测试（委派 `iagent_test`）');
+        expect(debugMain).toContain('**唯一来源**');
+        expect(debugMain).toContain('修复前 FAIL、修复后 PASS');
+        expect(debugMain).toContain('异常节点 + 根因节点');
+        expect(debugMain).toContain('MUST NOT 报告测试验收通过');
+    });
+
+    it('strict 缺委派能力阻断而非自写，仅显式 degraded 允许本地', () => {
+        expect(debugMain).toContain('strict 模式无法委派 `iagent_test` 时 SHALL 按能力协商**阻断并报告**');
+        expect(debugMain).toContain('MUST NOT 以"自写 + WARN"绕过');
+        expect(debugMain).toContain('显式协商 degraded 时才允许本地编写');
+    });
+
+    it('Phase 1 临时测试不构成回归测试（职责边界无冲突）', () => {
+        expect(debugMain).toContain('不构成回归测试');
+        expect(debugMain).toContain('MUST NOT 仅以 Phase 1 临时测试充当唯一回归测试');
+        // 旧的内联框架检测/生成规则已移除（唯一来源归 iagent_test）
+        expect(debugMain).toContain('debug MUST NOT 再维护与之冲突的内联框架检测或测试生成规则');
+    });
+
+    it('N36 重验仍 FAIL 时无跳过路径', () => {
+        expect(debugMain).toContain('重跑仍失败时');
+        expect(debugMain).toContain('没有跳过直接实现的路径');
+        expect(debugMain).toContain('[1] 手动编辑，[2] 返回探索，[3] 查看详细差异报告');
     });
 });
