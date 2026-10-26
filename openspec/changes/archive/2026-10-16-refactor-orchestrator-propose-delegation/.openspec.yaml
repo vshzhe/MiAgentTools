@@ -1,0 +1,3 @@
+schema: spec-driven
+created: 2026-10-16
+goal: "编排器（workflow/auto-workflow）Phase 2 提案生成改为委派 iagent_spec_propose 的 delegated 模式，消除第二份提案生成真源，统一两个编排器的委派策略"

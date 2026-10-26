@@ -1,0 +1,491 @@
+{
+  "$schema": "venus/change/v1",
+  "changeName": "iagent-legacy-migration",
+  "createdAt": "2026-10-12T15:11:18.649Z",
+  "updatedAt": "2026-10-12T15:11:18.649Z",
+  "phase": "proposal",
+  "proposal": {
+    "why": "伴生变更 iagent-rebrand 是破坏性重命名：技能名前缀、指令命名空间、配置目录、CLI 二进制名全部改变。既有装机在改名后处于无人处理的状态——`uninstall` 与 `reconcile` 都以 SKILL_PREFIX 过滤产物，新前缀上线后旧的 27 个 `venus_*` 技能目录既不在更新范围、也不在卸载范围，成为永久孤儿；同时 `.venus/config.yaml` 中用户自写的 context 与 rules 会静默失效，没有任何提示。用户会在完全无感的情况下既丢失自写的项目规则，又留下无法清理的旧产物。",
+    "whatChanges": [
+      "新增遗留装机迁移能力：`iagent init` 与 `iagent update` 入口内置一次性迁移，自动完成旧配置搬运与旧产物清理",
+      "配置内容搬运：检测 `.venus/` 存在时，读取其 `config.yaml` 的 context 多行块与 `rules/` 下规则文件内容，按类型改名映射（tr_impl→impl、tr_test→test、tr_docs→docs 等）写入 `.iagent/`；config 的 `rules:` 列表与规则文件名同步改写。用户自写的规则行与注释行 MUST 逐字保留",
+      "旧产物清理：删除各工具目录下旧前缀的技能与指令（`<tool>/skills/venus_*`、`<tool>/commands/venus/`）。按已定决策一律删除，含用户手工修改过的旧技能——以显式告警替代保留",
+      "迁移报告：输出迁移项（配置段与规则文件）、删除项（技能与指令计数及明细）、跳过项（已迁移或无旧物）三类的计数与明细；旧技能被删除时附带显式告警，提示其中可能包含的手工修改已丢失",
+      "幂等性：重复执行 MUST 无副作用。判定依据为「`.venus/` 不存在且无旧前缀产物」时静默跳过，不输出迁移段落",
+      "新增 `--no-migrate` 开关，供需要手工控制迁移时机的场景跳过该步骤",
+      "边界容错：`.venus/` 不存在、配置解析失败、仅部分旧产物存在时 MUST NOT 阻断 init/update 主流程；配置解析失败时保留原始文件并告警，不静默丢弃用户规则",
+      "既有新配置目录保护：当 `.iagent/` 已存在（用户已按新口径自建）时，MUST NOT 覆盖其 config.yaml，SHALL 保留既有内容并告警，行为与既有 ensureProjectConfig 的「已存在则保留」语义一致；旧配置目录同时保留不删",
+      "删除操作的边界安全：清理 SHALL 限制在目标工具目录的对应子目录内——删除前校验目标路径位于该子目录之下，MUST NOT 跟随符号链接，清理旧指令后 SHALL 移除遗留的空目录；对 commandsDir 为空字符串的工具（codex）MUST NOT 拼接指令路径，直接跳过指令侧清理",
+      "配置搬运范围界定：`.venus/config.yaml` 中除 context 与 rules 外的字段（含 auto_package.runtime_dir 等技能运行时依赖的自定义字段）SHALL 逐字保留，MUST NOT 因类型改名而丢弃任何未知段与自定义字段",
+      "旧版品牌产物清理（实施期新增范围）：伴生变更把品牌命名从 4 类磁盘产物上移除后，旧产物成为孤儿，本变更 SHALL 一并清理——旧 shell 补全脚本文件（用户主目录下的旧 bash 补全脚本与 PowerShell profile 脚本）、rc/profile 中的旧标记块、变更目录下的旧遗留 sidecar 目录、跨变更索引目录下的旧索引库。旧补全脚本的残留尤为关键：旧标记块不被新工具识别时仍会 source 旧脚本，导致补全项重复与冲突"
+    ],
+    "capabilities": {
+      "new": [
+        {
+          "name": "legacy-install-migration",
+          "description": "旧装机一次性迁移：检测旧版标识产物（旧配置目录、旧前缀技能与指令），搬运配置内容并做类型改名映射，清理旧产物，输出迁移报告；含幂等性与边界容错约束"
+        }
+      ],
+      "modified": []
+    },
+    "impact": {
+      "files": [
+        { "path": "src/core/legacy-migration.ts", "description": "新建：旧标识常量、遗留产物检测、类型改名映射表、配置搬运、旧产物清理、报告结构装配" },
+        { "path": "src/commands/init.ts", "description": "入口接入迁移步骤（在配置创建/技能生成之前执行），输出迁移报告段落；接入 --no-migrate 开关" },
+        { "path": "src/commands/update.ts", "description": "入口接入迁移步骤，输出迁移报告段落；接入 --no-migrate 开关" },
+        { "path": "src/cli/index.ts", "description": "init 与 update 命令注册 --no-migrate 选项与说明文案" },
+        { "path": "src/core/project-config.ts", "description": "复用既有 replaceConfigSection 的逐行段替换语义完成配置搬运，避免重新序列化 YAML 而丢失注释" },
+        { "path": "src/core/reconcile.ts", "description": "确认迁移清理先于 reconcile 执行，避免旧产物被 reconcile 误报为「不在当前 workflows 配置中」的孤立产物" },
+        { "path": "test/legacy-migration.test.ts", "description": "新建：检测、映射、配置搬运保真、幂等、边界容错的单元测试" },
+        { "path": "test/", "description": "既有 init/update 相关测试补充迁移报告断言；旧装机夹具的端到端测试" },
+        { "path": "docs/", "description": "补充旧装机升级指引（迁移会做什么、告警含义、--no-migrate 用法）" },
+        { "path": "AGENTS.md", "description": "修改守则与项目约定中记录迁移行为的边界（旧产物一律删除的取舍与告警语义）" }
+      ],
+      "breaking": false,
+      "compatibility": "本变更本身为新增能力，不改动任何既有对外契约。但它对旧装机具有破坏性副作用：迁移会删除旧前缀技能与指令（含用户手工修改过的内容，按已定决策一律删除），因此实际影响取决于调用时机。缓解措施为：迁移报告显式列出删除明细并对可能丢失的手工修改给出告警；提供 --no-migrate 开关供手工控制。配置内容搬运是保真的——用户自写的 context 与 rules 行逐字保留，仅按类型映射改名文件与列表项。本变更依赖 iagent-rebrand 先落地（引用的新 token 与类型映射表由该变更定义）。"
+    }
+  },
+  "design": {
+    "context": "迁移的必要性来自既有实现的过滤方式：src/commands/uninstall.ts 与 src/core/reconcile.ts 均以 `dirName.startsWith(SKILL_PREFIX)` 判定产物归属，指令侧以 `<tool.commandsDir>/<TOOL_COMMANDS_SUBDIR>/` 定位目录。iagent-rebrand 把这两个常量改为新值后，旧前缀产物对这两个命令完全不可见——既不会被清理，也不会被提示，是设计上的盲区而非实现缺陷。\n\n配置侧的迁移风险更高：.venus/config.yaml 的 context 是用户手写的项目背景多行块，rules/ 下是其自写的项目约束行，scan-baseline.json 是项目预扫描基线。这些内容不随技能重生成而恢复，静默失效即等于数据丢失。\n\n迁移需要处理的数据形态（以本机现状为例）：\n  .venus/config.yaml        context 多行块 + rules 列表（tr_impl/tr_test/spec）+ workflows 列表 + tools 列表\n  .venus/rules/tr_impl.md   用户自写规则行（含 # 注释行）\n  .venus/rules/tr_test.md   同上\n  .venus/scan-baseline.json 项目预扫描基线\n  <tool>/skills/venus_*     27 个旧技能目录\n  <tool>/commands/venus/    27 条旧指令文件\n\n类型改名映射（rules 列表项与规则文件名共用）：\n  tr_init→init  tr_impl→impl  tr_test→test  tr_commit→commit  tr_review→review\n  tr_release→release  tr_tools→tools  tr_docs→docs  spec→spec（不变）\n\n技能与指令的旧→新一对一映射由 agent-tool-identity 能力的「旧新标识映射表」需求提供，本变能不另立第二份映射。对清理而言只需匹配旧前缀即可，无需逐项映射（27 项全部删除）。",
+    "goals": [
+      "消除旧产物孤儿：旧配置目录、旧前缀技能与指令在迁移后不再残留",
+      "配置内容零丢失：用户自写的 context 与 rules 行逐字保留，不被 YAML 重新序列化破坏",
+      "用户可感知：迁移做了什么、删了什么、可能丢失什么，全部在输出中可见",
+      "可安全重入：重复执行 init/update 不产生副作用，也不重复输出迁移段落",
+      "边界不阻断：迁移的任何异常都不应使 init/update 失败"
+    ],
+    "nonGoals": [
+      "不提供旧产物的自动备份（按已定决策，旧技能一律删除；备份目录需用户手动清理且会在下次 init 造成重复备份）",
+      "不保留旧前缀产物的兼容读取（新旧不并存，避免指令名冲突与两套口径）",
+      "不迁移用户手工修改过的技能正文内容（该内容随旧技能一并删除，仅以告警提示）",
+      "不改变 uninstall 与 reconcile 对非旧前缀产物的既有行为",
+      "不做跨机器或跨仓库的批量迁移（不新增批量/远程迁移命令）"
+    ],
+    "decisions": [
+      {
+        "id": "D1",
+        "title": "迁移内置于 init/update 入口，而非独立命令",
+        "choice": "在 `iagent init` 与 `iagent update` 的入口处内置迁移步骤，先于配置创建与产物生成执行",
+        "alternatives": [
+          "新增独立命令 `iagent migrate --from venus`——被否决：用户的习惯是直接敲 init/update，独立命令会被跳过，恰好留下本变更要消除的孤儿产物与静默失效的配置",
+          "在 uninstall 中兼容旧前缀——被否决：只解决清理，不解决配置搬运，且要求用户先知道要跑 uninstall"
+        ],
+        "rationale": "迁移的唯一可靠触发点是用户必然会执行的入口。把它们放在 init/update 路径上，使用户无需知道迁移存在即可完成升级。",
+        "risks": ["入口带副作用（删除产物）可能出乎用户预期——以报告与告警显式披露，并提供 --no-migrate 开关"],
+        "relatedFiles": ["src/commands/init.ts", "src/commands/update.ts", "src/cli/index.ts"]
+      },
+      {
+        "id": "D2",
+        "title": "旧技能与指令一律删除（含手工修改过的）",
+        "choice": "匹配旧前缀的技能目录与指令目录整体删除，不区分是否被用户手工修改过",
+        "alternatives": [
+          "检测到指纹/版本不匹配（手工修改）时保留并提示——被否决：新旧技能并存会使技能清单与指令补全列表出现两套相似条目，且旧条目永不更新，长期污染用户环境；用户已明确选择一律删除",
+          "先备份到 .iagent-backup/ 再删除——被否决：备份目录需用户手动清理，且下次 init 需额外判定以避免重复备份，复杂度换来的收益不确定"
+        ],
+        "rationale": "重命名的心智是「新名取代旧名」，新旧并存造成的困惑大于保留的价值。丢失风险以显式告警而非保留物来对冲。",
+        "risks": [
+          "用户手工修改过的技能正文随删除丢失——由迁移报告中的显式告警披露；用户如需要应在升级前自行留存",
+          "误删非本工具的产物——以旧前缀精确匹配约束（仅删除以旧技能前缀开头的目录），并对非旧前缀产物完全不触碰"
+        ],
+        "relatedFiles": ["src/core/legacy-migration.ts"]
+      },
+      {
+        "id": "D3",
+        "title": "配置搬运采用逐行段替换，不重新序列化 YAML",
+        "choice": "复用 project-config.ts 中 replaceConfigSection 的语义：只替换命中的目标段（rules 列表），其余行含注释与未知段逐字保留",
+        "alternatives": [
+          "解析 YAML 后整体重新序列化写入——被否决：会丢失用户注释与未知段，且与既有实现（replaceConfigSection 的文件头注释已明确 MUST NOT 重新序列化）相冲突"
+        ],
+        "rationale": "context 是自由多行文本、rules 是列表、且用户可能在其中留有注释；逐行段替换是唯一能保证逐字保真的方式，且与既有配置回写路径行为一致。",
+        "risks": ["规则文件名改名与列表项改名需成对进行，只改一处会造成 missingRuleFiles 提示——由测试覆盖成对改写"],
+        "relatedFiles": ["src/core/project-config.ts", "src/core/legacy-migration.ts"]
+      },
+      {
+        "id": "D4",
+        "title": "幂等判定依据：无旧物即静默跳过",
+        "choice": "当 `.venus/` 不存在且未发现任何旧前缀产物时，静默跳过迁移且不输出迁移段落",
+        "alternatives": [
+          "总是输出「迁移已完成」——被否决：对全新项目与已升级项目是纯噪声，会使 init 输出膨胀"
+        ],
+        "rationale": "迁移是幂等的一次性动作；判定依据取「旧物是否存在」这一客观事实，无需额外的状态文件记录，也避免了状态文件自身成为新的需要维护的产物。",
+        "risks": ["用户手工重建了 .venus/ 目录时会被再次迁移——属预期行为（旧物确实存在）"],
+        "relatedFiles": ["src/core/legacy-migration.ts"]
+      },
+      {
+        "id": "D5",
+        "title": "配置解析失败时保留原物并告警，不阻断主流程",
+        "choice": "`.venus/config.yaml` 解析失败时，不删除原文件、不写入半成品 .iagent/，输出告警后继续 init/update 主流程",
+        "alternatives": [
+          "解析失败即中止 init/update——被否决：用户将无法升级，而解析失败可能只是格式个别偏差，代价与收益不成比例",
+          "解析失败仍写入能解析的部分——被否决：会产生内容残缺的 .iagent/config.yaml，比保留原物更危险"
+        ],
+        "rationale": "迁移是升级的辅助步骤，其失败不应阻塞主流程；保留原物可使用户手工修复后重跑迁移。",
+        "risks": ["用户可能在未察觉告警的情况下继续使用，导致 rules 未生效——告警文案需明确说明「未迁移」与后续动作"],
+        "relatedFiles": ["src/core/legacy-migration.ts"]
+      },
+      {
+        "id": "D6",
+        "title": "迁移先于 reconcile 执行",
+        "choice": "迁移步骤在 init/update 的产物扫描（reconcile）之前完成",
+        "alternatives": [
+          "迁移后置——被否决：旧产物会先被 reconcile 报为「不在当前 workflows 配置中」的孤立产物，产生误导性提示"
+        ],
+        "rationale": "先清理再扫描，使 reconcile 的输出只反映真实的新口径状态。",
+        "risks": ["迁移本身的异常需被捕获并降级，否则会中断后续的 reconcile——由 D5 的容错策略覆盖"],
+        "relatedFiles": ["src/core/reconcile.ts", "src/commands/init.ts"]
+      },
+      {
+        "id": "D7",
+        "title": "既有新配置目录不覆盖",
+        "choice": "`.iagent/config.yaml` 已存在时保留既有内容并告警，不搬运不覆盖；旧配置目录同时保留不删",
+        "alternatives": [
+          "无条件覆盖为新搬运内容——被否决：用户可能已按新口径自建并写入项目约束，覆盖即数据丢失，且与既有 ensureProjectConfig 的「已存在则保留」语义相矛盾",
+          "覆盖但先备份 .iagent/config.yaml——被否决：引入备份目录的清理负担，且用户已明确不采用备份方案"
+        ],
+        "rationale": "配置目录在本项目的既有语义是「已存在即视为用户资产，只补缺失的规则文件、不覆盖」。迁移作为辅助步骤必须沿用同一语义，否则会在升级路径上引入与 init 相互矛盾的行为。",
+        "risks": ["用户此前的旧配置内容未被搬运、需手工合并——由告警明确说明并提供旧目录保留，用户可自行比对"],
+        "relatedFiles": ["src/core/project-config.ts:237-259", "src/core/legacy-migration.ts"]
+      },
+      {
+        "id": "D8",
+        "title": "删除边界安全与空 commandsDir 跳过",
+        "choice": "删除前校验目标位于工具目录的对应子目录之下；不跟随符号链接；清理后移除空目录；commandsDir 为空字符串的工具跳过指令侧清理",
+        "alternatives": [
+          "直接 rmSync 目标路径不做校验——被否决：`path.join(root, '', 'venus')` 会得到项目根下的 venus/，一旦成立即删除与本工具无关的用户目录，属不可逆事故",
+          "跟随符号链接递归删除——被否决：链接目标可能位于工具目录之外，越界删除风险"
+        ],
+        "rationale": "迁移是自动执行的删除动作，触发时机不由用户主动选择，因此边界必须由代码强制而非依赖路径恰好正确。伴生变更已在 uninstall 与 reconcile 中固化同一守卫，本变更沿用以免出现两套行为。",
+        "risks": ["路径校验会增加实现复杂度——以「越界即拒绝并记入跳过项」的处理方式替代静默失败，使异常可见"],
+        "relatedFiles": ["src/commands/uninstall.ts:83", "src/core/reconcile.ts:55", "src/core/legacy-migration.ts"]
+      },
+      {
+        "id": "D9",
+        "title": "旧版品牌产物清理纳入迁移",
+        "choice": "迁移 SHALL 清理四类旧版品牌产物：旧补全脚本文件与 rc/profile 旧标记块、变更目录下旧遗留 sidecar 目录、旧跨变更索引目录。清理范围由伴生变更的「品牌命名的磁盘产物一同改名」需求界定，两侧使用同一份旧值常量",
+        "alternatives": [
+          "清理不实现，由用户手工处理——被否决：旧 rc 标记块继续 source 旧补全脚本会造成补全项重复与冲突，用户难以自行定位；且这些产物分散在用户主目录与仓内目录两处",
+          "由伴生变更自行清理——被否决：该变更按已定原则不承担迁移职责，且其任务清单已冻结；迁移是唯一统一入口"
+        ],
+        "rationale": "旧补全产物的残留有两个直接后果：rc 中的旧标记块因不被新标记常量识别而无法卸载，且仍会 source 旧脚本使补全列表出现重复项与冲突项。仓内旧 sidecar 与索引目录则会在新工具下成为不可见孤儿。四者同属「品牌改名的遗留物」，与技能产物清理同源，归入同一迁移入口最自然。",
+        "risks": [
+          "改动用户主目录中的 rc/profile 文件风险高于仓内清理——以标记块精确匹配（旧起止标记成对出现才移除）约束，且仅在文件存在旧标记块时触碰",
+          "删除旧索引库会使索引需重建——索引可由 reindex 重建，迁移报告中提示该后果"
+        ],
+        "relatedFiles": ["src/commands/completion.ts:27-30", "src/core/spec/sidecar-writer.ts:45", "src/core/spec/sqlite-index.ts:23"]
+      }
+    ],
+    "risks": [
+      {
+        "risk": "用户手工修改过的技能正文在迁移中被删除且未提前知情",
+        "mitigation": "迁移报告中显式列出被删除的技能与指令明细，并附告警说明其中可能包含的手工修改；在 CHANGELOG 与 docs 的升级指引中提前说明该行为"
+      },
+      {
+        "risk": "误删非本工具产物：以旧前缀匹配时若前缀过宽，可能命中用户自建的同名目录",
+        "mitigation": "仅删除以旧技能前缀开头的技能目录，以及旧命名空间子目录下的指令文件；非旧前缀产物完全不触碰；单元测试覆盖「同名但非旧前缀」的保留断言"
+      },
+      {
+        "risk": "配置搬运丢失用户规则：rules 列表改名与规则文件名改名若只完成一处，会造成规则静默失效",
+        "mitigation": "两者在同一迁移步骤内成对改写，并以测试断言迁移后 config 的 rules 列表与 rules/ 下文件名一一对应且无 missingRuleFiles"
+      },
+      {
+        "risk": "迁移异常阻断 init/update 主流程",
+        "mitigation": "迁移整体以容错包裹，任何异常降级为告警并继续主流程；边界场景（.venus 缺失、解析失败、部分存在）纳入测试矩阵"
+      },
+      {
+        "risk": "重复迁移造成副作用（如重复删除或重复写入）",
+        "mitigation": "以「旧物存在性」作为唯一判定依据；幂等场景（连续执行两次）纳入测试矩阵，断言第二次零副作用且无迁移输出"
+      },
+      {
+        "risk": "跨变更顺序依赖：本变更引用的新 token 与映射表由 iagent-rebrand 定义，若反序实现会引用到不存在的常量",
+        "mitigation": "在 tasks 与 proposal 中显式标注本变更依赖 iagent-rebrand 先落地；实现顺序不允许颠倒"
+      },
+      {
+        "risk": "越界删除（不可逆）：工具适配配置中 codex 的 commandsDir 为空字符串，path.join(项目根, '', 子目录) 会得到项目根下的同名目录；迁移遍历若照抄该拼接模式，会删除与本工具无关的用户目录",
+        "mitigation": "对 commandsDir 为空字符串的工具跳过指令侧清理；删除前校验目标位于该工具目录的对应子目录之下，越界即拒绝并记入跳过项；伴生变更已在 uninstall 与 reconcile 中固化同一守卫"
+      },
+      {
+        "risk": "覆盖用户已自建的新配置：用户可能已按新口径建立 .iagent/ 并写入项目约束，无条件搬运会覆盖其内容",
+        "mitigation": "新配置目录已存在时保留既有内容并告警，旧配置目录同时保留；与 ensureProjectConfig 的「已存在则保留」语义对齐"
+      },
+      {
+        "risk": "符号链接导致越界删除：旧前缀技能目录可能是指向工具目录之外的符号链接，递归删除会连带删除链接目标",
+        "mitigation": "删除时不跟随符号链接，仅移除链接本身；纳入安全边界测试矩阵"
+      }
+    ]
+  },
+  "specs": [
+    {
+      "name": "legacy-install-migration",
+      "path": "specs/legacy-install-migration/spec.md",
+      "operations": [
+        {
+          "type": "ADDED",
+          "requirement": "遗留产物检测",
+          "description": "系统 SHALL 在 init 与 update 入口检测三类旧版标识产物：旧配置目录、各工具目录下以旧技能前缀开头的技能目录、各工具指令目录下旧命名空间子目录内的指令文件。三者均不存在时 MUST 判定为无需迁移。",
+          "scenarios": [
+            {
+              "name": "检测到旧配置目录",
+              "given": "项目根下存在旧配置目录 .venus/",
+              "when": "执行 iagent init",
+              "then": "判定需要迁移，进入配置搬运与产物清理"
+            },
+            {
+              "name": "检测到旧技能产物",
+              "given": ".claude/skills/ 下存在以旧技能前缀开头的目录",
+              "when": "执行 iagent update",
+              "then": "判定需要迁移，进入产物清理"
+            },
+            {
+              "name": "全新项目无需迁移",
+              "given": "项目既无旧配置目录也无旧前缀产物",
+              "when": "执行 iagent init",
+              "then": "静默跳过迁移，输出中不出现迁移段落"
+            }
+          ]
+        },
+        {
+          "type": "ADDED",
+          "requirement": "配置内容搬运与类型改名",
+          "description": "系统 SHALL 将旧配置目录的 config.yaml 内容搬运到新配置目录，SHALL 保留 context 多行块与用户自写的全部行（含注释行与未知段）。rules 列表项与 rules/ 下的规则文件名 SHALL 按类型改名映射成对改写。搬运 MUST NOT 通过重新序列化 YAML 实现。",
+          "scenarios": [
+            {
+              "name": "context 逐字保留",
+              "given": "旧 config.yaml 的 context 多行块含用户自写内容",
+              "when": "执行迁移",
+              "then": "新 config.yaml 的 context 与原文逐字一致"
+            },
+            {
+              "name": "rules 列表与文件名成对改名",
+              "given": "旧 config.yaml 的 rules 列表为 [tr_impl, tr_test, spec] 且 rules/ 下有 tr_impl.md 与 tr_test.md",
+              "when": "执行迁移",
+              "then": "新 config 的 rules 列表为 [impl, test, spec]，新 rules/ 下为 impl.md 与 test.md，无缺失规则文件"
+            },
+            {
+              "name": "注释行保留",
+              "given": "旧 config.yaml 含 # 注释行",
+              "when": "执行迁移",
+              "then": "新 config.yaml 保留这些注释行"
+            },
+            {
+              "name": "扫描基线随目录搬移",
+              "given": "旧配置目录含扫描基线文件",
+              "when": "执行迁移",
+              "then": "扫描基线出现在新配置目录下"
+            },
+            {
+              "name": "未知段与自定义字段逐字保留",
+              "given": "旧 config.yaml 含 auto_package.runtime_dir 等技能运行时依赖的自定义字段与未知段",
+              "when": "执行迁移",
+              "then": "这些字段在新 config.yaml 中逐字保留，不因类型改名而丢弃"
+            }
+          ]
+        },
+        {
+          "type": "ADDED",
+          "requirement": "旧产物清理",
+          "description": "系统 SHALL 删除所有以旧技能前缀开头的技能目录与旧命名空间子目录下的指令文件，MUST NOT 区分其是否被手工修改。系统 MUST NOT 触碰任何非旧前缀产物。",
+          "scenarios": [
+            {
+              "name": "清理旧技能与指令",
+              "given": "各工具目录下存在旧前缀技能与旧命名空间指令",
+              "when": "执行迁移",
+              "then": "旧前缀技能目录与旧命名空间指令文件全部删除"
+            },
+            {
+              "name": "手工修改过的旧技能同样删除",
+              "given": "某旧前缀技能目录内容与生成内容不一致（用户手工修改过）",
+              "when": "执行迁移",
+              "then": "该目录仍被删除，且迁移报告中对该情况给出告警"
+            },
+            {
+              "name": "非旧前缀产物不受影响",
+              "given": "同一技能目录下存在其他工具生成的技能（既非旧前缀也非本工具命名）",
+              "when": "执行迁移",
+              "then": "该技能保留不动"
+            },
+            {
+              "name": "其他工具的旧产物一并清理",
+              "given": "除 claude 外，pi 等工具目录下也存在旧前缀技能与旧命名空间指令",
+              "when": "执行迁移",
+              "then": "各工具的旧产物均被清理，不只处理单一工具"
+            }
+          ]
+        },
+        {
+          "type": "ADDED",
+          "requirement": "迁移报告",
+          "description": "系统 SHALL 在发生迁移时输出报告，分别列出搬运项、删除项与跳过项的计数与明细；删除旧技能或指令时 SHALL 附显式告警，说明其中可能包含的手工修改已随删除丢失。未发生迁移时 MUST NOT 输出报告。",
+          "scenarios": [
+            {
+              "name": "报告列出三类结果",
+              "given": "迁移搬运了配置并删除了旧产物",
+              "when": "执行 iagent init",
+              "then": "输出包含搬运项、删除项与跳过项的计数与明细"
+            },
+            {
+              "name": "删除附带告警",
+              "given": "迁移删除了旧技能",
+              "when": "输出迁移报告",
+              "then": "报告中提示旧技能已被删除且其中可能的手工修改已丢失"
+            },
+            {
+              "name": "无迁移则无报告",
+              "given": "项目无任何旧版产物",
+              "when": "执行 iagent init",
+              "then": "输出中不出现迁移段落"
+            }
+          ]
+        },
+        {
+          "type": "ADDED",
+          "requirement": "迁移幂等性",
+          "description": "系统 SHALL 保证迁移可安全重复执行：迁移已完成的项目再次执行 init 或 update 时 MUST 无任何副作用，且 MUST NOT 再次输出迁移报告。",
+          "scenarios": [
+            {
+              "name": "二次执行无副作用",
+              "given": "项目已完成一次迁移",
+              "when": "再次执行 iagent init",
+              "then": "新配置目录内容与产物均不变，且不输出迁移段落"
+            },
+            {
+              "name": "部分迁移后可续做",
+              "given": "上次迁移因异常只完成了配置搬运，旧技能仍存在",
+              "when": "再次执行 iagent init",
+              "then": "补齐未完成的清理，配置搬运不重复执行"
+            }
+          ]
+        },
+        {
+          "type": "ADDED",
+          "requirement": "迁移边界容错与跳过开关",
+          "description": "迁移过程的任何异常 MUST NOT 阻断 init 与 update 主流程。旧配置目录缺失、仅部分旧产物存在、配置解析失败时 SHALL 降级处理：解析失败时 MUST 保留原始配置且 MUST NOT 写入内容残缺的新配置，并以告警说明未迁移。系统 SHALL 提供跳过迁移的开关。",
+          "scenarios": [
+            {
+              "name": "旧配置目录缺失",
+              "given": "项目有旧前缀技能但无旧配置目录",
+              "when": "执行 iagent init",
+              "then": "仅执行产物清理，不报错"
+            },
+            {
+              "name": "配置解析失败保留原物",
+              "given": "旧 config.yaml 格式异常无法解析",
+              "when": "执行 iagent init",
+              "then": "旧配置目录保留不删，不写入新配置，输出告警说明未迁移，主流程继续"
+            },
+            {
+              "name": "跳过开关生效",
+              "given": "项目存在旧版产物",
+              "when": "执行 iagent init --no-migrate",
+              "then": "不执行任何搬运与删除，也不输出迁移报告"
+            },
+            {
+              "name": "异常不阻断主流程",
+              "given": "迁移过程中发生未预期异常",
+              "when": "执行 iagent update",
+              "then": "异常降级为告警，update 的技能刷新与后续步骤照常完成"
+            }
+          ]
+        },
+        {
+          "type": "ADDED",
+          "requirement": "既有新配置目录不覆盖",
+          "description": "当新配置目录的 config.yaml 已存在（用户已按新口径自建）时，迁移 MUST NOT 覆盖其内容，SHALL 保留既有内容并输出告警说明旧配置未搬运；旧配置目录同时 SHALL 保留不删，供用户自行比对合并。",
+          "scenarios": [
+            {
+              "name": "新配置已存在时保留",
+              "given": "项目同时存在旧配置目录与用户自建的新配置目录",
+              "when": "执行 iagent init",
+              "then": "新配置目录的 config.yaml 内容不被覆盖"
+            },
+            {
+              "name": "保留时输出告警",
+              "given": "新配置已存在导致跳过搬运",
+              "when": "输出迁移报告",
+              "then": "报告说明旧配置未搬运、旧目录已保留，并提示用户手工合并"
+            },
+            {
+              "name": "旧配置目录不被删除",
+              "given": "因新配置已存在而跳过搬运",
+              "when": "迁移结束",
+              "then": "旧配置目录及其 rules/ 完整保留"
+            }
+          ]
+        },
+        {
+          "type": "ADDED",
+          "requirement": "删除操作的边界安全",
+          "description": "旧产物清理 SHALL 限制在目标工具目录的对应子目录内：删除前 SHALL 校验目标路径位于该子目录之下，越界目标 MUST 被拒绝并记入报告的跳过项；MUST NOT 跟随符号链接；清理旧指令后 SHALL 移除遗留的空目录；对 commandsDir 为空字符串的工具 MUST NOT 拼接指令路径，SHALL 跳过其指令侧清理。",
+          "scenarios": [
+            {
+              "name": "越界路径被拒绝",
+              "given": "某目标路径解析后位于该工具目录的 skills 子目录之外",
+              "when": "执行清理",
+              "then": "该目标被拒绝，记入报告的跳过项，不执行删除"
+            },
+            {
+              "name": "空 commandsDir 工具跳过指令侧清理",
+              "given": "某工具的 commandsDir 配置为空字符串",
+              "when": "遍历各工具执行旧指令清理",
+              "then": "跳过该工具的指令侧清理，不做路径拼接"
+            },
+            {
+              "name": "项目根下同名目录不受影响",
+              "given": "项目根下存在与本工具无关的同名目录",
+              "when": "执行迁移",
+              "then": "该目录不被扫描也不被删除"
+            },
+            {
+              "name": "符号链接不跟随",
+              "given": "旧前缀技能目录是指向工具目录之外的符号链接",
+              "when": "执行清理",
+              "then": "仅移除链接本身，链接目标的内容不被删除"
+            },
+            {
+              "name": "空目录清理",
+              "given": "旧命名空间目录内的指令文件已全部删除",
+              "when": "清理完成",
+              "then": "该空目录一并移除"
+            }
+          ]
+        },
+        {
+          "type": "ADDED",
+          "requirement": "旧版品牌产物清理",
+          "description": "迁移 SHALL 清理四类旧版品牌命名的遗留产物：用户主目录下的旧 bash 补全脚本与 PowerShell profile 补全脚本；rc/profile 文件中由旧起止标记成对包围的旧标记块；变更目录下的旧遗留 sidecar 目录；跨变更索引目录下的旧索引库。清理 MUST 以旧起止标记成对出现为前提，未成对时 MUST NOT 改动 rc/profile。索引库删除后 SHALL 在报告中提示可由 reindex 重建。",
+          "scenarios": [
+            {
+              "name": "旧补全脚本与标记块一并清理",
+              "given": "rc 文件中存在旧起止标记包围的标记块，且用户主目录下存在对应旧补全脚本文件",
+              "when": "执行 iagent init",
+              "then": "旧标记块从 rc 文件中移除，旧补全脚本文件被删除，二者均记入报告"
+            },
+            {
+              "name": "标记块不成对时不改动 rc",
+              "given": "rc 文件中只存在旧起始标记而无旧结束标记",
+              "when": "执行迁移",
+              "then": "rc 文件不被修改，该情况记入报告的跳过项并告警"
+            },
+            {
+              "name": "旧侧车目录清理",
+              "given": "变更目录下存在旧遗留 sidecar 目录",
+              "when": "执行迁移",
+              "then": "该目录被删除并记入报告"
+            },
+            {
+              "name": "旧索引库清理与重建提示",
+              "given": "跨变更索引目录下存在旧索引库文件",
+              "when": "执行迁移",
+              "then": "旧索引库被删除，报告提示可用 reindex 重建索引"
+            },
+            {
+              "name": "无旧产物时不触碰用户主目录",
+              "given": "rc 与 user home 中不存在任何旧版补全产物",
+              "when": "执行 iagent init",
+              "then": "用户主目录与 rc/profile 文件均不被读写"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

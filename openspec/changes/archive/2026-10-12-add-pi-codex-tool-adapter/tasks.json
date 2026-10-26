@@ -1,0 +1,81 @@
+{
+    "$schema": "venus/tasks/v1",
+    "tasks": [
+        {
+            "id": "1.1",
+            "label": "代码",
+            "description": "AI_TOOLS 配置表新增 Pi 和 Codex 工具条目。\n  - Pi：value='pi', name='Pi', skillsDir='.pi', commandsDir='.pi/commands'\n  - Codex：value='codex', name='Codex', skillsDir='.codex', commandsDir=''（空，skills-invocable 模式）\n  - 验证：`node -e \"require('./dist/core/config.js').AI_TOOLS.length === 3\"`",
+            "status": "done",
+            "dependencies": [],
+            "files": ["src/core/config.ts"],
+            "specRef": "multi-tool-adapter / AI_TOOLS 多工具配置",
+            "batchGroup": "1. 工具配置扩展"
+        },
+        {
+            "id": "2.1",
+            "label": "代码",
+            "description": "新建 Pi 指令适配器 src/core/command-generation/adapters/pi.ts。\n  - 实现 ToolCommandAdapter 接口：toolId='pi'，getFilePath 返回 .pi/commands/venus/<id>.md，formatFile 复用与 claudeAdapter 相同的 YAML frontmatter + Markdown 格式\n  - 参考 claudeAdapter 实现，仅 toolId 和目录路径不同\n  - 验证：TypeScript 编译通过，类型检查无错误",
+            "status": "done",
+            "dependencies": ["1.1"],
+            "files": ["src/core/command-generation/adapters/pi.ts"],
+            "specRef": "multi-tool-adapter / Pi 指令适配器",
+            "batchGroup": "2. Pi 适配器实现"
+        },
+        {
+            "id": "2.2",
+            "label": "代码",
+            "description": "CommandAdapterRegistry 静态块注册 piAdapter。\n  - import piAdapter\n  - 在 static 块中添加 CommandAdapterRegistry.register(piAdapter)\n  - 验证：`node -e \"const r = require('./dist/core/command-generation/index.js').CommandAdapterRegistry; console.log(r.has('pi'))\"` 输出 true",
+            "status": "done",
+            "dependencies": ["2.1"],
+            "files": ["src/core/command-generation/adapters/registry.ts"],
+            "specRef": "multi-tool-adapter / 适配器注册表扩展",
+            "batchGroup": "2. Pi 适配器实现"
+        },
+        {
+            "id": "2.3",
+            "label": "代码",
+            "description": "统一导出 piAdapter。\n  - 在 src/core/command-generation/index.ts 中添加 `export { piAdapter } from './adapters/pi.js'`\n  - 验证：TypeScript 编译通过",
+            "status": "done",
+            "dependencies": ["2.1"],
+            "files": ["src/core/command-generation/index.ts"],
+            "batchGroup": "2. Pi 适配器实现"
+        },
+        {
+            "id": "3.1",
+            "label": "代码",
+            "description": "解耦 update.ts 的技能生成与指令生成循环。\n  - 将当前 `if (!adapter) continue` 改为仅跳过指令生成，技能生成不受适配器门控\n  - 技能生成：独立循环遍历 AI_TOOLS，每个工具无论有无适配器均生成 SKILL.md\n  - 指令生成：仅当 CommandAdapterRegistry.get(tool.value) 存在时生成\n  - 权限合并：每个工具均独立执行（不受适配器影响）\n  - 验证：`pnpm build && node bin/venus.js update` 在 dogfood 项目中正常运行，codex 工具不报错",
+            "status": "done",
+            "dependencies": ["1.1", "2.1"],
+            "files": ["src/commands/update.ts"],
+            "specRef": "skills-only-tool / 无适配器工具的技能生成；command-generation / update 技能与指令生成解耦",
+            "batchGroup": "3. update.ts 解耦重构"
+        },
+        {
+            "id": "4.1",
+            "label": "测试",
+            "subLabel": "单元",
+            "priority": "P1",
+            "description": "验证 AI_TOOLS 配置表包含三个工具条目（claude、pi、codex）。已通过全量测试（391 tests passed）覆盖。",
+            "status": "done",
+            "dependencies": ["1.1"],
+            "nodeRef": "N2",
+            "specRef": "multi-tool-adapter / AI_TOOLS 多工具配置",
+            "files": ["test/commands.test.ts 等（已更新）"],
+            "batchGroup": "4. 测试验证"
+        },
+        {
+            "id": "4.2",
+            "label": "测试",
+            "subLabel": "单元",
+            "priority": "P1",
+            "description": "验证 piAdapter 的 getFilePath 和 formatFile 行为正确。已通过全量测试（391 tests passed）覆盖。",
+            "status": "done",
+            "dependencies": ["2.1", "2.2"],
+            "nodeRef": "N7",
+            "specRef": "multi-tool-adapter / Pi 指令适配器",
+            "files": ["test/commands.test.ts 等（已更新）"],
+            "batchGroup": "4. 测试验证"
+        }
+    ],
+    "progress": { "total": 7, "complete": 7, "remaining": 0 }
+}

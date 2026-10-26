@@ -1,0 +1,3 @@
+schema: spec-driven
+created: 2026-09-28
+goal: "优化 apply/auto-workflow/debug 等技能的多子代理派发资源共享协议，降低每个子代理的 token 消耗"

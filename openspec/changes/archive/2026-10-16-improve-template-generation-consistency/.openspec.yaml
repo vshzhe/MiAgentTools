@@ -1,0 +1,3 @@
+schema: spec-driven
+created: 2026-10-16
+goal: "参考 OpenSpec 的 command-references/optional-workflow 机制，为模板正文引用建立生成期单一源与死引用校验，收敛白名单共享常量，移除遗留的 metadata.version"

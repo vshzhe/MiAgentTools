@@ -1,0 +1,13 @@
+{
+  "$schema": "iagent/tasks/v1",
+  "tasks": [
+    { "id": "1.1", "label": "[代码]", "description": "移除 iagent_feature / iagent_pwd / iagent_skills / iagent_version / iagent_package / iagent_frontend 六个技能模板与注册项（27 → 20）", "status": "done", "dependencies": [], "files": ["src/core/templates/registry.ts", "src/core/templates/workflows/"] },
+    { "id": "1.2", "label": "[代码]", "description": "iagent_full_workflow 并入 iagent_workflow：新增 Phase 3.7 实现桥 / Phase 4 委派 apply + 条件 test / Phase 5 委派 archive", "status": "done", "dependencies": ["1.1"], "files": ["src/core/templates/workflows/workflow.ts"] },
+    { "id": "1.3", "label": "[代码]", "description": "移除 vendor/auto-package-svn/ 与 .iagent/config.yaml 的 auto_package 段；框架专项检查改为运行时按项目实际信息判定", "status": "done", "dependencies": ["1.1"], "files": ["src/core/templates/workflows/proposal-review.ts", "src/core/templates/workflows/feature-doc.ts", "src/core/templates/workflows/spec-verify-proposal.ts"] },
+    { "id": "1.4", "label": "[代码]", "description": "依赖注入规则同步（workflow 注入链；移除 full-workflow）；LEGACY_WORKFLOW_ID_MAP 收敛", "status": "done", "dependencies": ["1.2"], "files": ["src/core/profiles.ts", "src/core/legacy-migration.ts"] },
+    { "id": "2.1", "label": "[测试][单元][P0]", "subLabel": "[单元]", "priority": "P0", "description": "全量测试更新至 20 技能口径并回归通过（444 passed）", "status": "done", "dependencies": ["1.1", "1.2", "1.3", "1.4"], "files": ["test/"] },
+    { "id": "3.1", "label": "[文档]", "description": "同步主规格：release-package（能力移除）、workflow-suite-skills、migration-skills、skill-profile、template-generation、tool-call-whitelist", "status": "done", "dependencies": ["1.2", "1.3", "1.4"], "files": ["openspec/specs/"] },
+    { "id": "3.2", "label": "[使用说明]", "description": "同步 README / AGENTS.md / skills-manual / getting-started / CHANGELOG（4.0.0）", "status": "done", "dependencies": ["1.1"], "files": ["README.md", "AGENTS.md", "CHANGELOG.md", "docs/"] }
+  ],
+  "progress": { "total": 7, "complete": 7, "remaining": 0 }
+}

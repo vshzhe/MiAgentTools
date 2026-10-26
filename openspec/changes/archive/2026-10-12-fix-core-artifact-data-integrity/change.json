@@ -1,0 +1,223 @@
+{
+  "$schema": "venus/change/v1",
+  "changeName": "fix-core-artifact-data-integrity",
+  "createdAt": "2026-10-12T07:14:35.447Z",
+  "updatedAt": "2026-10-12T07:14:35.447Z",
+  "phase": "proposal",
+  "proposal": {
+    "why": "VenusAgentTools 存在三个核心缺陷：(1) .claude/commands 指令文件缺少指纹保护，用户手动修改被无条件覆盖；(2) spec-propose 模板中 render 指令矛盾，导致 AI agent 误调用 venus spec render 对 proposal/specs/design 生成多余的 .md 文件；(3) change.json 写入无原子保护（裸 fs.writeFileSync），进程崩溃/磁盘满时数据损坏，用户已遇到 change.json 不存在和 JSON 被破坏的错误。三个问题均源于核心生成/写入链路的设计缺口，需统一修复以保证产物一致性与数据安全。",
+    "whatChanges": [
+      "为 .claude/commands 指令文件增加 fingerprint 注入与 6 路决策树判定（对齐 SKILL.md 保护机制）",
+      "修复 spec-propose 模板第 3 节 Bash 命令，将 venus spec render <type> 限定为仅 tasks，删除 proposal/specs/design 枚举",
+      "改造 writeJsonFile 为原子写入五步法：序列化 try-catch → 写 .tmp → 验证 JSON.parse → 备份 .bak → rename 原子替换",
+      "readChangeJson 增加 .bak 备份回退恢复",
+      "initChangeJson 增加 TOCTOU 保护",
+      "更新 init.ts 指令写入附带指纹",
+      "适配 fingerprint.ts 正则兼容命令 frontmatter 格式（0 空格缩进）",
+      "更新 UpdateResult 接口新增 commandsSkippedModified 字段"
+    ],
+    "capabilities": {
+      "new": [],
+      "modified": [
+        {
+          "name": "command-generation",
+          "description": "指令生成链路：generateCommand 增加指纹输出，update.ts 指令循环对齐技能 6 路判定，init.ts 指令写入附带指纹"
+        },
+        {
+          "name": "spec-workflow-templates",
+          "description": "spec-propose 模板：修正 render 指令矛盾（限定仅 tasks），强化 proposal/specs/design MUST NOT 渲染 MD 约束"
+        },
+        {
+          "name": "spec-sidecar-writer",
+          "description": "change.json 写入链路：原子写入五步法 + .bak 回退 + TOCTOU 修复，保证 JSON 数据完整性"
+        }
+      ]
+    },
+    "impact": {
+      "files": [
+        {
+          "path": "src/commands/update.ts",
+          "description": "指令生成循环：从 2 路判定扩展为 6 路指纹决策树；新增 injectFingerprintIntoCommand 辅助函数；UpdateResult 新增 commandsSkippedModified 字段"
+        },
+        {
+          "path": "src/commands/init.ts",
+          "description": "指令写入时附带 generatedFingerprint 指纹"
+        },
+        {
+          "path": "src/commands/spec.ts",
+          "description": "render 命令非 tasks 类型输出非阻断提示"
+        },
+        {
+          "path": "src/core/command-generation/generator.ts",
+          "description": "generateCommand 改为两趟拼装支持指纹注入"
+        },
+        {
+          "path": "src/core/command-generation/adapters/claude.ts",
+          "description": "formatFile 增加 optional fingerprintPlaceholder 参数"
+        },
+        {
+          "path": "src/core/command-generation/types.ts",
+          "description": "GeneratedCommand 新增 fingerprintPlaceholder 字段；ToolCommandAdapter.formatFile 签名更新"
+        },
+        {
+          "path": "src/core/command-generation/fingerprint.ts",
+          "description": "FINGERPRINT_LINE_RE / FINGERPRINT_VALUE_RE 正则兼容 0 空格缩进格式"
+        },
+        {
+          "path": "src/core/spec/sidecar-writer.ts",
+          "description": "writeJsonFile 原子写入五步法；readChangeJson .bak 回退；initChangeJson TOCTOU 修复"
+        },
+        {
+          "path": "src/core/templates/workflows/spec-propose.ts",
+          "description": "第 3 节 Bash 命令限定仅 tasks 渲染；强化 MUST NOT 约束"
+        },
+        {
+          "path": "openspec/rules/artifact-generation.md",
+          "description": "同步强化 proposal/specs/design MUST NOT 渲染 MD"
+        }
+      ],
+      "breaking": false,
+      "compatibility": "无破坏性变更。指纹字段在 command frontmatter 中以可选方式追加，存量无指纹的指令文件通过版本号回退判定升级。原子写入的 .bak 文件写入成功后会清理，不残留。"
+    }
+  },
+  "specs": [
+    {
+      "name": "command-fingerprint-protection",
+      "path": "command-fingerprint-protection",
+      "operations": [
+        {
+          "type": "MODIFIED",
+          "description": "generateCommand 改为两趟拼装支持指纹注入：第一趟空占位生成全文，第二趟计算 SHA256 回填指纹行。ToolCommandAdapter.formatFile 签名增加 optional fingerprintPlaceholder 参数。"
+        },
+        {
+          "type": "MODIFIED",
+          "description": "update.ts 指令生成循环从 2 路判定扩展为 6 路：文件不存在→安装、内容相同→跳过、isUnmodified→升级、isLegacyVersionMismatched→升级、--force→覆盖、用户手改→跳过。"
+        },
+        {
+          "type": "MODIFIED",
+          "description": "UpdateResult 接口新增 commandsSkippedModified: string[] 字段。"
+        },
+        {
+          "type": "MODIFIED",
+          "description": "init.ts 指令写入时附带 generatedFingerprint 指纹，保持现有文件存在性判定不变。"
+        },
+        {
+          "type": "MODIFIED",
+          "description": "fingerprint.ts 的 FINGERPRINT_LINE_RE / FINGERPRINT_VALUE_RE 正则兼容 0 空格缩进（command frontmatter metadata 嵌套下 fingerprint 为 2 空格缩进，顶层键为 0 空格）。"
+        }
+      ]
+    },
+    {
+      "name": "spec-propose-render-fix",
+      "path": "spec-propose-render-fix",
+      "operations": [
+        {
+          "type": "MODIFIED",
+          "description": "spec-propose.ts 模板第 3 节 Bash 命令从 venus spec render <type>（枚举 proposal/specs/design/tasks 四种）改为仅 venus spec render tasks。"
+        },
+        {
+          "type": "MODIFIED",
+          "description": "强化失败处置段：明确 proposal/specs/design MUST NOT 手写 MD 降级路径（仅有 tasks 有 MD 降级路径）。"
+        },
+        {
+          "type": "MODIFIED",
+          "description": "artifact-generation.md Step G2.5 同步强化 proposal/specs/design MUST NOT 渲染 MD 的约束。"
+        }
+      ]
+    },
+    {
+      "name": "changejson-atomic-write",
+      "path": "changejson-atomic-write",
+      "operations": [
+        {
+          "type": "MODIFIED",
+          "description": "writeJsonFile 改造为原子写入五步法：(1) JSON.stringify 加 try-catch → 明确错误信息；(2) 写入 .tmp.<pid>.<timestamp> 临时文件；(3) 读取临时文件验证 JSON.parse 可解析；(4) 备份原有文件到 .bak（copyFileSync）；(5) fs.renameSync 原子重命名到目标文件，成功后删除 .bak。任一步失败→清理 .tmp，保留原有文件 + .bak。"
+        },
+        {
+          "type": "MODIFIED",
+          "description": "readChangeJson 增加 .bak 备份回退：主文件缺失或 JSON.parse 失败时，自动从 .bak 恢复（copyFileSync 回主文件路径）。"
+        },
+        {
+          "type": "MODIFIED",
+          "description": "initChangeJson 增加 TOCTOU 保护：writeJsonFile 写入失败时重新读取 change.json（处理并发竞争场景）。"
+        },
+        {
+          "type": "MODIFIED",
+          "description": "add new helper functions: tryBackup() / ensureDir() to support atomic write."
+        }
+      ]
+    }
+  ],
+  "design": {
+    "context": "VenusAgentTools 是 TypeScript CLI 工具（Node 20+, Commander.js），用于生成 AI Agent 技能与斜杠指令。修复涉及三层：command-generation（指令生成链路）、spec-sidecar-writer（JSON 写入链路）、spec-workflow-templates（工作流模板）。三者独立但共享核心判定逻辑（指纹、原子性）。",
+    "goals": [
+      "Commands 指纹保护：对齐 SKILL.md 的 6 路决策树，防止用户手改被静默覆盖",
+      "MD 冗余消除：模板层明确禁止 proposal/specs/design 的 MD 渲染",
+      "JSON 数据安全：原子写入 + .bak 回退 + TOCTOU 修复，确保 change.json 不损坏"
+    ],
+    "nonGoals": [
+      "不引入文件锁机制（单 Agent 上下文下 TOCTOU 概率极低，rename 原子性已足够）",
+      "不改动 Codex/Pi 适配器（Codex 无 CommandAdapterRegistry 注册，Pi 与 Claude 同构）",
+      "不修改 skills/ 快照生成流程（generate:skills 仅生成 SKILL.md，与 commands 无关）"
+    ],
+    "decisions": [
+      {
+        "id": "D1",
+        "title": "指令指纹注入策略",
+        "choice": "在 update.ts 中内联注入，修改 claudeAdapter.formatFile 增加 optional fingerprintPlaceholder 参数",
+        "reasoning": "最小接口改动——formatFile 增加可选参数不影响现有调用方；两趟拼装逻辑与 generateSkillContent 同构；指纹行放在 command frontmatter metadata 嵌套下（与 skill 格式一致），复用现有 FINGERPRINT_LINE_RE 正则。",
+        "alternatives": [
+          "在 update.ts 中用字符串后处理注入（不修改适配器接口）→ 被否定：需依赖 formatFile 输出格式细节，脆弱",
+          "重建独立的 command 指纹生成函数 → 被否定：重复代码，违反 DRY"
+        ]
+      },
+      {
+        "id": "D2",
+        "title": "原子写入实现层级",
+        "choice": "在 writeJsonFile 内部实现原子写入，不引入独立模块",
+        "reasoning": "项目现有代码风格不引入过度抽象（CLAUDE.md 规则 2：No abstractions for single-use code）。writeJsonFile 是唯一需要原子写入的路径（change.json / tasks.json / manifest.json 均经此函数），内联实现足够。如后续有更多写入路径需要原子性，再提取 atomic-write.ts。",
+        "alternatives": [
+          "提取 src/utils/atomic-write.ts 独立模块 → 被否定：违反最小改动原则，当前仅一个调用方",
+          "使用第三方库（如 write-file-atomic）→ 被否定：引入新依赖，不符合项目零额外依赖哲学"
+        ]
+      },
+      {
+        "id": "D3",
+        "title": "Commands 指纹格式",
+        "choice": "Command frontmatter 使用 metadata 嵌套结构（与 SKILL.md 一致），generatedFingerprint 为 2 空格缩进",
+        "reasoning": "与 SKILL.md 的 metadata.generatedFingerprint 格式一致，复用 fingerprint.ts 的 FINGERPRINT_LINE_RE 正则（已匹配 2 空格缩进）。同时扩展正则以兼容 0 空格缩进作为防御。",
+        "alternatives": [
+          "Command frontmatter 顶层键 generationFingerprint（0 空格缩进）→ 被否定：需新增正则，且与 skill 格式不一致"
+        ]
+      },
+      {
+        "id": "D4",
+        "title": "spec-propose 模板修改范围",
+        "choice": "仅修改 Step 4.a 第 3 节 Bash 命令 + 失败处置段，不修改正文",
+        "reasoning": "正文（步骤说明段）已正确写明 '仅 tasks'，矛盾仅在于 Bash 命令块的 type 枚举。最小改动：删除 Bash 命令中的 proposal/specs/design 三字。",
+        "alternatives": [
+          "全文搜索替换所有 venus spec render → 被否定：正文中的引用（如 '运行 venus spec render tasks'）是正确的",
+          "添加新 Gate 阻止 proposal/specs/design 渲染 → 被否定：过度设计，改动面过大"
+        ]
+      }
+    ],
+    "risks": [
+      {
+        "risk": "正则改动影响 SKILL.md 指纹解析",
+        "mitigation": "扩展正则时保留对原 2 空格缩进的兼容，增加 0 空格 case。test/skills-parity.test.ts 字节级比较确保不回归。"
+      },
+      {
+        "risk": "Windows 跨盘 rename 失败",
+        "mitigation": "writeJsonFile 的 rename 失败时追加 copyFileSync + unlinkSync 兜底路径。"
+      },
+      {
+        "risk": ".bak 文件残留",
+        "mitigation": "写入成功后 unlinkSync 清理 .bak；即使残留也只是一个额外文件（可加入 .gitignore）。"
+      },
+      {
+        "risk": "存量 commands 无指纹被误判为手改",
+        "mitigation": "与 SKILL.md 存量处理一致：无指纹回退到 isLegacyVersionMismatched 版本号判定，首次 update 覆盖后自动获得指纹。"
+      }
+    ]
+  }
+}

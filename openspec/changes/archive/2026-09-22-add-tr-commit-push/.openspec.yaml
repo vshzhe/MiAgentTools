@@ -1,0 +1,3 @@
+schema: spec-driven
+created: 2026-09-22
+goal: "迁移源 SKILL tr-commit-push 为 venus_tr_commit_push 技能并新增提案分类提交功能（功能代码/测试代码/文档分类分批提交+提案溯源标注）"

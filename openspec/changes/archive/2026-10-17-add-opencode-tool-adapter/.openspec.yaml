@@ -1,0 +1,3 @@
+schema: spec-driven
+created: 2026-10-17
+goal: "在现有工具适配三层架构上新增 OpenCode 目标工具（技能+斜杠指令），设为可配置 opt-in，并按 OpenCode 实际权限模型处理会话级载体"

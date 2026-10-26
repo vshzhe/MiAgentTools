@@ -1,0 +1,3 @@
+schema: spec-driven
+created: 2026-09-16
+goal: "迁移 auto-package-verifier 打包校验技能为 venus_release_package（tr_release 类型），脚本与 references 随 SKILL/init 生成，运行时备份到项目内 vendor 且路径可配置，新增阶段四升级信息归集（读产出 readme.txt 反查 OpenSpec 提案，归集 SQL 四源+配置三源，输出升级文档.md）"

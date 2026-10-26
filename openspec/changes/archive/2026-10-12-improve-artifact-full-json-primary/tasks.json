@@ -1,0 +1,269 @@
+{
+  "$schema": "venus/tasks/v1",
+  "tasks": [
+    {
+      "id": "1.1",
+      "label": "代码",
+      "description": "新增合并 ChangeSchema 到 sidecar-schema.ts\n- ChangeSchema 根字段: $schema(venus/change/v1) / changeName / createdAt / updatedAt / phase\n- ProposalSection: why / whatChanges / capabilities(new+modified) / impact(files+breaking+compatibility)\n- DesignSection: context / goals / nonGoals / decisions(复用 DecisionEntry) / risks\n- SpecsSection: specs[{ name, path, operations[{ type, requirement, description, scenarios, reason?, migration?, from?, to? }] }]\n- createEmptyChange(changeName) 工厂（三段缺省）\n- 旧 ManifestSchema / DecisionsSchema / CapabilitiesSchema 标 @deprecated（保留供降级读取）\n- TasksSchema / TaskEntry 保持不变",
+      "status": "done",
+      "dependencies": [],
+      "nodeRef": "N6",
+      "specRef": "specs/artifact-json-sidecar/spec.md",
+      "files": ["src/core/spec/sidecar-schema.ts"],
+      "batchGroup": "1. Schema 与写入器"
+    },
+    {
+      "id": "1.2",
+      "label": "代码",
+      "description": "新增 change.json 读写函数到 sidecar-writer.ts\n- readChangeJson(changeDir): ChangeSchema | null（文件缺失返回 null）\n- writeChangeJson(changeDir, data): ChangeSchema（validate → 写入 .venus/change.json → 返回）\n- initChangeJson(changeDir, changeName): ChangeSchema（骨架 + 幂等不覆盖）\n- validateSidecar('change') 扩展：根字段 + 三段结构校验，错误信息含具体路径（如 proposal.whatChanges 必须为数组）\n- 保留旧 4 类型校验（降级读取用）",
+      "status": "done",
+      "dependencies": ["1.1"],
+      "nodeRef": "N6",
+      "specRef": "specs/artifact-json-sidecar/spec.md",
+      "files": ["src/core/spec/sidecar-writer.ts"],
+      "batchGroup": "1. Schema 与写入器"
+    },
+    {
+      "id": "1.3",
+      "label": "代码",
+      "description": "新增段落级渲染函数到 sidecar-writer.ts\n- renderProposalMd(proposal, changeName): string（Why/What Changes/Capabilities/Impact 四段）\n- renderDesignMd(design, changeName): string（Context/Goals-NonGoals/Decisions/Risks 四段）\n- renderSpecsMd(specs, changeName): Array<{ path, content }>（按 specs[].path 多文件拆分；REMOVED 渲染 Reason/Migration；RENAMED 渲染 FROM:/TO:）\n- 纯函数、确定性（同输入同输出）\n- 遵循 renderTasksMd 既有模式",
+      "status": "done",
+      "dependencies": ["1.1"],
+      "nodeRef": "N8",
+      "specRef": "specs/artifact-json-sidecar/spec.md",
+      "files": ["src/core/spec/sidecar-writer.ts"],
+      "batchGroup": "1. Schema 与写入器"
+    },
+    {
+      "id": "1.4",
+      "label": "测试",
+      "subLabel": "单元",
+      "priority": "P0",
+      "description": "更新 sidecar-schema 单元测试\n- createEmptyChange 工厂（三段缺省 + 根字段）\n- ChangeSchema 段落类型校验枚举\n- 旧 3 schema 保留可校验（降级路径）",
+      "status": "done",
+      "dependencies": ["1.1"],
+      "nodeRef": "N6",
+      "specRef": "specs/artifact-json-sidecar/spec.md",
+      "files": ["test/sidecar-schema.test.ts"],
+      "batchGroup": "1. Schema 与写入器"
+    },
+    {
+      "id": "1.5",
+      "label": "测试",
+      "subLabel": "单元",
+      "priority": "P0",
+      "description": "更新 sidecar-writer 单元测试\n- writeChangeJson 校验失败抛异常（错误含字段路径）\n- initChangeJson 幂等（不覆盖已存在文件）\n- renderProposalMd / renderDesignMd 幂等 + 四段标题断言\n- renderSpecsMd 多文件拆分 + REMOVED/RENAMED 字段渲染\n- 段缺失时 render 报错引导",
+      "status": "done",
+      "dependencies": ["1.2", "1.3"],
+      "nodeRef": "N8",
+      "specRef": "specs/artifact-json-sidecar/spec.md",
+      "files": ["test/sidecar-writer.test.ts"],
+      "batchGroup": "1. Schema 与写入器"
+    },
+    {
+      "id": "2.1",
+      "label": "代码",
+      "description": "新增统一 `venus spec render <type>` 子命令到 spec.ts\n- type ∈ {proposal, specs, design, tasks}；--change <name> 必填\n- proposal/specs/design: 读 .venus/change.json → 提取对应段 → 校验 → 渲染 MD\n- specs: 多文件拆分写入 specs/<name>/spec.md\n- tasks: 读 tasks.json → renderTasksMd（替换现行 spec tasks render）\n- 读取时校验：校验失败报字段名+原因，退出码非零；段缺失报错引导\n- 移除 spec tasks render 子命令注册",
+      "status": "done",
+      "dependencies": ["1.2", "1.3"],
+      "nodeRef": "N8",
+      "specRef": "specs/spec-workflow-skills/spec.md",
+      "files": ["src/commands/spec.ts"],
+      "batchGroup": "2. CLI 命令"
+    },
+    {
+      "id": "2.2",
+      "label": "代码",
+      "description": "调整 sidecar 子命令组\n- `sidecar init` 改为生成 .venus/change.json 骨架（含根字段；幂等不覆盖）；--type 参数简化（change/all/tasks）\n- 移除 `sidecar manifest` 子命令（manifest 信息吸收进 change.json 根字段）\n- 更新命令组 description",
+      "status": "done",
+      "dependencies": ["1.2"],
+      "nodeRef": "N4",
+      "specRef": "specs/artifact-json-sidecar/spec.md",
+      "files": ["src/commands/spec.ts"],
+      "batchGroup": "2. CLI 命令"
+    },
+    {
+      "id": "2.3",
+      "label": "代码",
+      "description": "更新 reindex 读取链\n- 优先读 .venus/change.json：根字段 → changes 表；proposal 段 → capabilities 表 + summary（whatChanges 首条/why 截断 200）；design.decisions → decisions_fts；specs 段 → capabilities/requirements_fts\n- 降级：旧 3 文件（manifest/decisions/capabilities）→ WARN\n- 再降级：MD 解析（现有逻辑保留）\n- tasks.json / exploration.md 读取逻辑不变",
+      "status": "done",
+      "dependencies": ["1.2"],
+      "specRef": "specs/sqlite-cross-change-index/spec.md",
+      "files": ["src/commands/spec.ts"],
+      "batchGroup": "2. CLI 命令"
+    },
+    {
+      "id": "2.4",
+      "label": "代码",
+      "description": "更新 completion.ts 的 VENUS_COMMANDS 表\n- 新增 render 子命令（含四种 type）\n- 移除 tasks render 旧条目；sidecar 子命令组调整",
+      "status": "done",
+      "dependencies": ["2.1"],
+      "files": ["src/commands/completion.ts"],
+      "batchGroup": "2. CLI 命令"
+    },
+    {
+      "id": "3.1",
+      "label": "代码",
+      "description": "重写 openspec/rules/artifact-generation.md 的 G2 段为 JSON-first 协议（单一源）\n- 每个 artifact：写 change.json 对应段（或 tasks.json）→ venus spec render <type> → 校验失败修正 JSON → 渲染失败手写 MD 降级（WARN）\n- 含 change.json 段落结构/字段说明（或指向 jsonTemplate）\n- G1 补充 `venus spec sidecar init` 可选骨架\n- 供 spec-propose / tr-impl-workflow / tr-impl-auto-workflow 共享",
+      "status": "done",
+      "dependencies": ["2.1"],
+      "nodeRef": "N5",
+      "specRef": "specs/template-generation/spec.md",
+      "files": ["openspec/rules/artifact-generation.md"],
+      "batchGroup": "3. 协议与模板"
+    },
+    {
+      "id": "3.2",
+      "label": "代码",
+      "description": "重写 spec-propose.ts 的 JSON 生成段（合并文件流程）\n- 替换现行 JSON Sidecar Generation 段（4 文件设计）为：累积写 change.json 三段 → render 各类型 → 降级分支\n- 移除 `venus spec sidecar manifest` 与 `venus spec tasks render` 旧引用\n- 引用 openspec/rules/artifact-generation.md（不复制完整步骤）\n- allowedTools 更新：JSON Write/Edit + Bash(venus spec render:*)",
+      "status": "done",
+      "dependencies": ["2.1"],
+      "nodeRef": "N5",
+      "specRef": "specs/spec-workflow-skills/spec.md",
+      "files": ["src/core/templates/workflows/spec-propose.ts"],
+      "batchGroup": "3. 协议与模板"
+    },
+    {
+      "id": "3.3",
+      "label": "代码",
+      "description": "更新 spec-apply.ts 的上下文读取\n- 实现上下文优先读 .venus/change.json 的 specs/design/proposal 段；缺失降级 MD（WARN）\n- tasks.json 状态管线保持（读 status → 完成后更新 → venus spec render tasks）\n- 更新旧 `venus spec tasks render` 引用为 `venus spec render tasks`\n- allowedTools 相应更新",
+      "status": "done",
+      "dependencies": ["2.1"],
+      "specRef": "specs/spec-workflow-skills/spec.md",
+      "files": ["src/core/templates/workflows/spec-apply.ts"],
+      "batchGroup": "3. 协议与模板"
+    },
+    {
+      "id": "3.4",
+      "label": "代码",
+      "description": "更新 spec-verify.ts 的 JSON 优先读取\n- change.json 的 specs 段（需求/场景清单）+ tasks.json（任务状态）结构化对比\n- JSON 缺失降级 MD（WARN）",
+      "status": "done",
+      "dependencies": ["2.1"],
+      "specRef": "specs/spec-workflow-skills/spec.md",
+      "files": ["src/core/templates/workflows/spec-verify.ts"],
+      "batchGroup": "3. 协议与模板"
+    },
+    {
+      "id": "3.5",
+      "label": "代码",
+      "description": "更新 tr-docs-requirement-doc.ts 的章节来源（技能版+命令版同口径）\n- 读取顺序：.venus/change.json → .venus/tasks.json → MD 降级（WARN）\n- 映射更新：一←proposal.why；二拆解←proposal.whatChanges；二非本期←design.nonGoals；三←design.decisions（表直接遍历）；四←design.decisions+context；七←proposal.impact\n- 移除对旧 decisions.json 的专属依赖（改由 change.json design 段承担）",
+      "status": "done",
+      "dependencies": ["2.1"],
+      "specRef": "specs/spec-workflow-skills/spec.md",
+      "files": ["src/core/templates/workflows/tr-docs-requirement-doc.ts"],
+      "batchGroup": "3. 协议与模板"
+    },
+    {
+      "id": "3.6",
+      "label": "代码",
+      "description": "重写 spec-archive.ts 的主 spec 同步段\n- delta spec 同步改读 .venus/change.json 的 specs 段结构化 operations（ADDED/MODIFIED/REMOVED/RENAMED）→ 应用至主 spec\n- change.json 缺失降级解析 delta spec MD（WARN）\n- 预归档需求文档对齐（步骤 4.8）来源改 change.json + tasks.json",
+      "status": "done",
+      "dependencies": ["2.1"],
+      "specRef": "specs/spec-workflow-skills/spec.md",
+      "files": ["src/core/templates/workflows/spec-archive.ts"],
+      "batchGroup": "3. 协议与模板"
+    },
+    {
+      "id": "3.7",
+      "label": "代码",
+      "description": "更新 spec-bulk-archive.ts 的并行同步段（a 段）\n- 与 spec-archive 同口径：读 change.json specs 段结构化 operations\n- 缺失降级 delta spec MD（WARN）",
+      "status": "done",
+      "dependencies": ["2.1"],
+      "specRef": "specs/spec-workflow-skills/spec.md",
+      "files": ["src/core/templates/workflows/spec-bulk-archive.ts"],
+      "batchGroup": "3. 协议与模板"
+    },
+    {
+      "id": "3.8",
+      "label": "代码",
+      "description": "更新 tr-impl-debug.ts 的 Phase 6 同步提案为 JSON-first\n- 修复内容写入 change.json 的 proposal 段（What Changes 追加根因/修复）与 specs 段（行为变化）\n- tasks.json 勾选 + 新增回归测试任务\n- 运行 venus spec render <type> 重渲染 MD\n- 格式校验改为 JSON 校验 + 渲染成功（不再校验 MD 格式）\n- allowedTools 更新（JSON Edit + render）",
+      "status": "done",
+      "dependencies": ["2.1"],
+      "specRef": "specs/spec-workflow-skills/spec.md",
+      "files": ["src/core/templates/workflows/tr-impl-debug.ts"],
+      "batchGroup": "3. 协议与模板"
+    },
+    {
+      "id": "3.9",
+      "label": "代码",
+      "description": "更新 spec-verify-proposal.ts + tr-impl-review-proposal.ts 的读取与修复\n- 两者优先读 change.json（proposal/design/specs 段）做评分/复查证据；缺失降级 MD（WARN）\n- review-proposal 的缺漏修复改为更新 change.json 段落 + 重渲染（不再直接改 MD）",
+      "status": "done",
+      "dependencies": ["2.1"],
+      "specRef": "specs/spec-workflow-skills/spec.md",
+      "files": [
+        "src/core/templates/workflows/spec-verify-proposal.ts",
+        "src/core/templates/workflows/tr-impl-review-proposal.ts"
+      ],
+      "batchGroup": "3. 协议与模板"
+    },
+    {
+      "id": "3.10",
+      "label": "代码",
+      "description": "更新 tr-impl-auto-workflow.ts Phase 2 内联生成\n- 显式引用 openspec/rules/artifact-generation.md 的 JSON-first 步骤（消除绕过 JSON 的生成路径）\n- 核验 tr-impl-workflow.ts Phase 2.4 已通过协议引用继承（无需重复步骤文本）",
+      "status": "done",
+      "dependencies": ["2.1"],
+      "specRef": "specs/template-generation/spec.md",
+      "files": ["src/core/templates/workflows/tr-impl-auto-workflow.ts"],
+      "batchGroup": "3. 协议与模板"
+    },
+    {
+      "id": "4.1",
+      "label": "代码",
+      "description": "jsonTemplate 契约与 artifact instruction 文案\n- templates/index.ts：导出各 artifact 的 JSON schema 模板常量（proposal/specs/design 段 + tasks）\n- instructions.ts：输出新增 jsonTemplate 字段（纯新增，向后兼容）\n- schema.ts：artifact instruction 文案更新为 JSON-first 表述",
+      "status": "done",
+      "dependencies": ["1.1"],
+      "nodeRef": "N5",
+      "specRef": "specs/template-generation/spec.md",
+      "files": [
+        "src/core/spec/templates/index.ts",
+        "src/core/spec/instructions.ts",
+        "src/core/spec/schema.ts"
+      ],
+      "batchGroup": "4. instructions 契约与文档"
+    },
+    {
+      "id": "4.2",
+      "label": "代码",
+      "description": "同步 README.md / AGENTS.md 中的侧车与命令描述\n- 检查并更新：4 文件→合并 change.json 的描述、spec tasks render→spec render、sidecar manifest 移除\n- 仓库地图中相关文件职责描述核对",
+      "status": "done",
+      "dependencies": ["2.1"],
+      "specRef": "specs/template-generation/spec.md",
+      "files": ["README.md", "AGENTS.md"],
+      "batchGroup": "4. instructions 契约与文档"
+    },
+    {
+      "id": "5.1",
+      "label": "代码",
+      "description": "运行 pnpm build && pnpm generate:skills 刷新产物\n- 确认 skills/ 与 .claude/commands/venus/ 快照含 JSON-first 指令与新 allowedTools\n- 确认 template-derivation / skills-parity 结构完整",
+      "status": "done",
+      "dependencies": ["1.1", "1.2", "1.3", "2.1", "2.2", "2.3", "2.4", "3.1", "3.2", "3.3", "3.4", "3.5", "3.6", "3.7", "3.8", "3.9", "3.10", "4.1", "4.2"],
+      "files": ["skills/", ".claude/commands/venus/"],
+      "batchGroup": "5. 构建与交付"
+    },
+    {
+      "id": "5.2",
+      "label": "测试",
+      "subLabel": "功能",
+      "priority": "P0",
+      "description": "运行 pnpm test 全量通过 + 端到端冒烟\n- 全量测试（sidecar-schema / sidecar-writer / sqlite-index / allowed-tools / skills-parity / template-derivation / artifact-dataflow 等）\n- 端到端冒烟：以本变更目录手工构造 change.json 三段 → venus spec render 三种类型 → 校验 MD 产出 → reindex 读取验证\n- artifact-dataflow.test.ts 断言核验（探索移动/需求文档时机不受影响）",
+      "status": "done",
+      "dependencies": ["5.1"],
+      "files": [],
+      "batchGroup": "5. 构建与交付"
+    },
+    {
+      "id": "5.3",
+      "label": "代码",
+      "description": "版本与变更日志\n- package.json version minor 递增\n- CHANGELOG.md：归档 [Unreleased] → 新版本小节（Added: 合并 ChangeSchema / render 命令 / jsonTemplate；Changed: 10 模板 JSON-first 重写 / reindex 读取链）；保留空 [Unreleased]；同步底部链接",
+      "status": "done",
+      "dependencies": ["5.2"],
+      "files": ["package.json", "CHANGELOG.md"],
+      "batchGroup": "5. 构建与交付"
+    }
+  ],
+  "progress": {
+    "total": 24,
+    "complete": 24,
+    "remaining": 0
+  }
+}

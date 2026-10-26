@@ -1,0 +1,624 @@
+{
+  "$schema": "iagent/change/v1",
+  "changeName": "consolidate-skills-and-genericize-checks",
+  "createdAt": "2026-10-13T00:00:00.000Z",
+  "updatedAt": "2026-10-13T00:00:00.000Z",
+  "phase": "archive",
+  "proposal": {
+    "why": "4.0.0 技能集精简与去领域耦合：移除与其他路径重叠或纯 CLI/领域专用的技能（feature / pwd / skills / version / package / frontend），把引导式全流程 full-workflow 合并进 workflow，并把框架专项检查从硬编码 Venus4A 改为运行时按项目实际信息判定。主规格仍描述旧行为，需同步至新口径。",
+    "whatChanges": [
+      "移除 iagent_feature / iagent_pwd / iagent_skills / iagent_version / iagent_package / iagent_frontend 六个技能及其斜杠指令（27 → 20）",
+      "iagent_full_workflow 并入 iagent_workflow（引导式端到端：探索→提案→验证→实现→归档）",
+      "iagent_package 的运行时 vendor/auto-package-svn/ 与 .iagent/config.yaml 的 auto_package 段一并移除",
+      "proposal-review / spec-verify-proposal 的语言/框架专项检查改为运行时读 .iagent/config.yaml 的 context/rules 与既有源码/构建文件判定，不内置框架预设",
+      "feature-doc 移除内置框架档案预设，改为源项目结构自动探测 + 用户确认",
+      "同步主规格：release-package（能力移除）、workflow-suite-skills、migration-skills、skill-profile、template-generation、tool-call-whitelist"
+    ],
+    "capabilities": {
+      "new": [],
+      "modified": [
+        {
+          "name": "release-package",
+          "description": "整体移除打包校验与升级信息归集能力"
+        },
+        {
+          "name": "workflow-suite-skills",
+          "description": "workflow 扩展为端到端引导管线并吸收 full-workflow；共享模块与白名单口径按 4 技能/20 组更新"
+        },
+        {
+          "name": "migration-skills",
+          "description": "feature-doc 框架档案改为自动探测，移除内置预设"
+        },
+        {
+          "name": "skill-profile",
+          "description": "依赖注入规则按新技能集更新（workflow 注入链、移除 full-workflow 规则）"
+        },
+        {
+          "name": "template-generation",
+          "description": "需求文档自动调用方去 full-workflow"
+        },
+        {
+          "name": "tool-call-whitelist",
+          "description": "嵌套委派示例去 full-workflow"
+        }
+      ]
+    },
+    "impact": {
+      "files": [
+        {
+          "path": "src/core/templates/registry.ts",
+          "description": "移除 6 个技能注册项（27 → 20）"
+        },
+        {
+          "path": "src/core/profiles.ts",
+          "description": "DEPS 更新：workflow 注入 spec-verify-proposal/proposal-review/spec-apply/spec-archive；移除 full-workflow"
+        },
+        {
+          "path": "src/core/templates/workflows/workflow.ts",
+          "description": "新增 Phase 3.7 实现桥、Phase 4 委派 apply/条件 test、Phase 5 委派 archive"
+        },
+        {
+          "path": "src/core/templates/workflows/proposal-review.ts",
+          "description": "语言/框架专项检查改为运行时按项目实际信息判定"
+        },
+        {
+          "path": "src/core/templates/workflows/feature-doc.ts",
+          "description": "移除内置框架档案预设，改为自动探测"
+        },
+        {
+          "path": "openspec/specs/*",
+          "description": "6 个能力主规格同步"
+        }
+      ],
+      "breaking": true,
+      "compatibility": "破坏性：移除 6 个技能/指令与 package 运行时目录；旧 workflows 配置中的 full-workflow / tr-impl-genfull 经 LEGACY_WORKFLOW_ID_MAP 迁移到 workflow，已删技能的旧 id 原样保留后被忽略。"
+    }
+  },
+  "design": {
+    "context": "项目既有 27 个技能中，feature（与 workflow/spec-apply 重叠）、pwd（shell 原生）、skills（iagent list）、version（iagent --version）为冗余或 CLI 可替代；frontend（Venus4A JSP）与 package（Venus4A/SVN 打包）为产品领域专用。两套引导式工作流 workflow 与 full-workflow 流程重合。框架专项检查硬编码 Venus4A，阻碍通用化。",
+    "goals": [
+      "技能集收敛到 20 个通用技能，消除冗余与领域耦合",
+      "引导式全流程只保留一个入口（workflow），贯通到归档",
+      "框架相关检查改为运行时按项目初始化信息判定，不内置预设"
+    ],
+    "nonGoals": [
+      "不删除 release / tools 类型（保留供 iagent generate 扩展）",
+      "不改动 spec 命令组与 JSON-only 制品口径"
+    ],
+    "decisions": [],
+    "risks": [
+      {
+        "risk": "旧装机 workflows 配置引用已删技能",
+        "mitigation": "LEGACY_WORKFLOW_ID_MAP 覆盖全部现存 commandId（genfull+workflow→workflow），已删技能旧 id 被忽略"
+      },
+      {
+        "risk": "框架检查去硬编码后具体判据缺失",
+        "mitigation": "要求读 .iagent/config.yaml context/rules，缺失时从源码/构建文件探测并标 [待确认]"
+      }
+    ]
+  },
+  "specs": [
+    {
+      "name": "release-package",
+      "path": "specs/release-package/spec.md",
+      "operations": [
+        {
+          "type": "REMOVED",
+          "requirement": "打包前预检（阶段一）",
+          "reason": "4.0.0 移除 iagent_package 技能与打包运行时",
+          "migration": "无替代；如需打包校验能力请按需新建技能"
+        },
+        {
+          "type": "REMOVED",
+          "requirement": "打包执行监控（阶段二）",
+          "reason": "4.0.0 移除 iagent_package 技能与打包运行时",
+          "migration": "无替代"
+        },
+        {
+          "type": "REMOVED",
+          "requirement": "打包后一致性校验（阶段三）",
+          "reason": "4.0.0 移除 iagent_package 技能与打包运行时",
+          "migration": "无替代"
+        },
+        {
+          "type": "REMOVED",
+          "requirement": "升级信息归集（阶段四）",
+          "reason": "4.0.0 移除 iagent_package 技能与打包运行时",
+          "migration": "无替代"
+        },
+        {
+          "type": "REMOVED",
+          "requirement": "SQL 四源归集",
+          "reason": "4.0.0 移除 iagent_package 技能",
+          "migration": "无替代"
+        },
+        {
+          "type": "REMOVED",
+          "requirement": "配置参数三源归集",
+          "reason": "4.0.0 移除 iagent_package 技能",
+          "migration": "无替代"
+        },
+        {
+          "type": "REMOVED",
+          "requirement": "提案反查与失败降级",
+          "reason": "4.0.0 移除 iagent_package 技能",
+          "migration": "无替代"
+        },
+        {
+          "type": "REMOVED",
+          "requirement": "多版本按 change 名去重分组",
+          "reason": "4.0.0 移除 iagent_package 技能",
+          "migration": "无替代"
+        },
+        {
+          "type": "REMOVED",
+          "requirement": "校验脚本与参考文件随 SKILL 生成",
+          "reason": "4.0.0 移除 iagent_package 技能",
+          "migration": "无替代"
+        },
+        {
+          "type": "REMOVED",
+          "requirement": "打包运行时备份与路径可配置",
+          "reason": "4.0.0 移除 vendor/auto-package-svn/ 与 auto_package 配置段",
+          "migration": "无替代"
+        },
+        {
+          "type": "REMOVED",
+          "requirement": "参数传递与追问",
+          "reason": "4.0.0 移除 iagent_package 技能",
+          "migration": "无替代"
+        }
+      ]
+    },
+    {
+      "name": "workflow-suite-skills",
+      "path": "specs/workflow-suite-skills/spec.md",
+      "operations": [
+        {
+          "type": "MODIFIED",
+          "requirement": "workflow 自动验证门与深度复查联动",
+          "description": "技能 `iagent_workflow` SHALL 在全部 applyRequires 制品完成后自动进入验证（跳过 [立即验证]/[跳过验证] 选择）、先运行 `iagent spec status --change <name> --json` 解析状态再经 Skill 工具调用 `iagent_spec_verify_proposal` 技能评分（技能不可用时 fallback AI 内联评分并 WARN，绝不静默跳过）、按统一 90% 阈值处理：PASS 后自动调用 `iagent_proposal_review` 深度复查（技能不可用 fallback 内联只读复查 + WARN），复查收束后以非交互模式调用 `iagent_requirement_doc` 生成需求文档，随后进入 Phase 3.7 实现桥；FAIL 时逐失败维度自动生成修复建议并 Edit 应用后自动重跑验证，仍失败呈现三选项（手动编辑/返回探索/查看 diff），无跳过到实现的路径。",
+          "scenarios": [
+            {
+              "name": "验证通过后技能链联动",
+              "given": "全部制品完成",
+              "when": "验证评分 Overall ≥90%（全维度 PASS）",
+              "then": "系统自动调用 `iagent_proposal_review` 深度复查、收束后生成需求文档，并进入 Phase 3.7 实现桥（不再停在 apply-ready）"
+            },
+            {
+              "name": "验证失败自动修复循环",
+              "given": "存在失败维度",
+              "when": "任一维度评分 <90%",
+              "then": "系统自动生成该维度具体修复、Edit 应用、重跑验证并显示修复汇总；重跑仍失败时呈现 [1] 手动编辑 [2] 返回探索 [3] 查看详细 diff"
+            }
+          ]
+        },
+        {
+          "type": "ADDED",
+          "requirement": "workflow 端到端引导管线（实现与归档委派）",
+          "description": "技能 `iagent_workflow` SHALL 在验证收束后继续端到端引导管线：Phase 3.7 实现确认桥（呈现提案摘要 + 评分 + 复查结论 + 条件测试子阶段预告，等待用户确认）；Phase 4 经 Skill 工具委派 `iagent_spec_apply`（传 change-name + `auto-mode=true`，由实现桥承载确认以避免 apply 内部设计确认门重复），当 tasks.json 含 `[测试]` 任务时条件委派 `iagent_test`（其测试计划确认门为桥梁点）；Phase 5 归档确认桥（tasks.json 全 done + 编译通过 + 条件子阶段完成）后委派 `iagent_spec_archive`（传 change-name）。workspace-planning 变更不支持 apply/archive，MUST 在实现桥处停止。编译失败 3 次后暂停不归档；子代理失败 retry 一次。",
+          "scenarios": [
+            {
+              "name": "实现桥确认后委派 apply",
+              "given": "验证与深度复查收束完成",
+              "when": "用户在 Phase 3.7 实现桥确认进入实现",
+              "then": "系统经 Skill 工具委派 `iagent_spec_apply` 并传 auto-mode=true，不内联实现逻辑"
+            },
+            {
+              "name": "条件委派测试子阶段",
+              "given": "Phase 4 实现进行中",
+              "when": "tasks.json 含 `[测试]` 任务",
+              "then": "系统委派 `iagent_test`，其测试计划确认门作为桥梁点"
+            },
+            {
+              "name": "归档桥后委派 archive",
+              "given": "tasks.json 全 done 且编译通过",
+              "when": "用户在归档桥确认进入归档",
+              "then": "系统经 Skill 工具委派 `iagent_spec_archive` 并传 change-name"
+            },
+            {
+              "name": "workspace-planning 降级停止",
+              "given": "Phase 0 检测到 actionContext.mode 为 workspace-planning",
+              "when": "流程到达 Phase 3.7 实现桥",
+              "then": "系统提示不支持 apply/archive 并停止，不进入 Phase 4"
+            }
+          ]
+        },
+        {
+          "type": "REMOVED",
+          "requirement": "full-workflow 引导式全流程编排",
+          "reason": "引导式全流程能力已并入 iagent_workflow（端到端引导管线），避免两套重合的引导式编排技能",
+          "migration": "改用 iagent_workflow；旧配置 full-workflow 与 tr-impl-genfull 经 LEGACY_WORKFLOW_ID_MAP 迁移到 workflow"
+        },
+        {
+          "type": "MODIFIED",
+          "requirement": "提示词校验门共享模块",
+          "description": "模板层 SHALL 提供单一源模块 `src/core/templates/prompt-gate.ts` 承载提示词校验门文本，MUST NOT 在各技能模板中重复维护流程文本。该模块 SHALL 导出清晰度维度类型、需求六维常量 `REQUIREMENT_DIMENSIONS`、bug 五维常量 `BUG_DIMENSIONS`、参数化渲染函数 `buildPromptGateBlock(dimensions)` 与压缩渲染 `buildPromptGateCompact(dimensions)`。`iagent_spec_explore` / `iagent_workflow` / `iagent_auto_workflow` / `iagent_debug` 四技能正文 SHALL 由该单一源内联生成；三个手写指令正文（workflow / auto-workflow / debug）SHALL 复用压缩块，`spec-explore` 指令正文经 `deriveCommandContent` 自动派生，其门文本 MUST NOT 被 CMD:SKIP 标记包裹。`WORKFLOW_PAIRS` SHALL 为 20 组成对注册。",
+          "scenarios": [
+            {
+              "name": "门文本单一源内联",
+              "given": "prompt-gate.ts 为单一源",
+              "when": "运行 `pnpm build && pnpm generate:skills` 生成 skills/ 快照",
+              "then": "4 个技能的 SKILL.md 均含来自 prompt-gate.ts 的门文本（需求版或 bug 版按技能注入），且 skills-parity 逐字节一致性断言通过"
+            },
+            {
+              "name": "技能总数与注册结构",
+              "given": "4.0.0 技能集",
+              "when": "检查注册表",
+              "then": "`WORKFLOW_PAIRS` 为 20 组成对注册，templates/commands 测试的技能总数断言与之一致"
+            }
+          ]
+        },
+        {
+          "type": "MODIFIED",
+          "requirement": "功能流程图共享模块",
+          "description": "模板层 SHALL 提供单一源模块 `src/core/templates/flowchart-gate.ts` 承载「功能流程图」文本，MUST NOT 在各技能模板中重复维护。该模块 SHALL 导出节点字段类型、需求版列集常量 `REQUIREMENT_FLOW_COLUMNS`、缺陷链路版列集常量 `FAULT_CHAIN_FLOW_COLUMNS`、参数化渲染函数 `buildFlowchartBlock(columns)` 与压缩渲染 `buildFlowchartCompact(columns)`。`iagent_spec_explore` / `iagent_workflow` / `iagent_auto_workflow` / `iagent_debug` 四技能正文 SHALL 由该单一源内联生成；三个手写指令正文（workflow / auto-workflow / debug）SHALL 复用压缩块，`spec-explore` 指令正文经 `deriveCommandContent` 自动派生，其流程图文本 MUST NOT 被 CMD:SKIP 标记包裹。`WORKFLOW_PAIRS` SHALL 为 20 组成对注册。",
+          "scenarios": [
+            {
+              "name": "流程图文本单一源内联",
+              "given": "flowchart-gate.ts 为单一源",
+              "when": "运行 `pnpm build && pnpm generate:skills`",
+              "then": "4 个技能的 SKILL.md 均含来自 flowchart-gate.ts 的流程图文本（需求版或缺陷链路版），且 skills-parity 逐字节一致性断言通过"
+            },
+            {
+              "name": "节点字段按场景参数化",
+              "given": "需求版与缺陷链路版列集",
+              "when": "渲染两版流程图文本",
+              "then": "两版共享生成→确认→落盘流程文本，仅节点清单表列集不同"
+            }
+          ]
+        },
+        {
+          "type": "MODIFIED",
+          "requirement": "workflow 测试接入",
+          "description": "技能 `iagent_workflow` SHALL 在其内联提案生成阶段沿用与 spec-propose 一致的 `[测试]` 任务标签（含测试层级与优先级子标注）与测试规划判定（不可测 Scenario 仍产出 `[测试]` 任务记录已评估、判定无需测试的依据）。该技能在 Phase 4 委派 `iagent_spec_apply` 实现；当 tasks.json 含 `[测试]` 任务时 SHALL 条件委派 `iagent_test`（其测试计划确认门为桥梁点），测试执行关卡由 apply / test 自身承担。该技能 SHALL 在正文中显式声明该职责边界。skill 版与 command 版正文为双份手工维护，两版 MUST 同步测试标签与职责边界语义。",
+          "scenarios": [
+            {
+              "name": "内联提案产出 [测试] 任务",
+              "given": "内联提案生成中",
+              "when": "workflow 生成 tasks",
+              "then": "可测 Scenario 对应产出带层级与优先级子标注的 `[测试]` 任务，标签口径与 spec-propose 一致"
+            },
+            {
+              "name": "不可测 Scenario 仍留痕",
+              "given": "存在不可测的纯文档/配置变更 Scenario",
+              "when": "规划测试任务",
+              "then": "仍产出 `[测试]` 任务记录该判定与依据，MUST NOT 静默省略"
+            },
+            {
+              "name": "测试执行由 apply / test 承担",
+              "given": "Phase 4 委派实现",
+              "when": "审阅 workflow 正文的测试相关内容",
+              "then": "正文声明测试执行关卡由 `iagent_spec_apply` / 条件 `iagent_test` 承担，workflow 只负责规划 `[测试]` 任务"
+            },
+            {
+              "name": "skill 版与 command 版正文同步",
+              "given": "workflow 为双份手工维护正文",
+              "when": "修改测试标签语义或职责边界表述",
+              "then": "两处正文均同步，两版描述不冲突"
+            }
+          ]
+        },
+        {
+          "type": "MODIFIED",
+          "requirement": "编排技能的委派与派发白名单齐备性",
+          "description": "编排类技能（`iagent_workflow` / `iagent_auto_workflow` / `iagent_debug` / `iagent_migration`）的 `allowedTools` SHALL 覆盖其正文的实际调用面——经 Skill 工具委派的每一个子技能写入 `Skill(<技能名>)` 精确条目，派发的子代理写入 `Agent` 与 `Task` 双写条目，调用的 CodeGraph MCP 工具写入 `mcp__codegraph` 与具名工具双写条目。正文不再委派的子技能条目 SHALL 同步剔除（最小权限），授权面 MUST NOT 因存量条目而虚增。嵌套委派（编排技能 → 归档类技能 → 需求文档技能）SHALL 由会话级权限载体覆盖，编排技能自身 MUST NOT 因而写入非本轮实际委派的条目。",
+          "scenarios": [
+            {
+              "name": "auto-workflow 委派与派发条目齐备",
+              "given": "auto-workflow 正文",
+              "when": "检查 `iagent_auto_workflow` 的 allowedTools",
+              "then": "含 `iagent_spec_verify_proposal` / `iagent_proposal_review` / `iagent_requirement_doc` 条目与 `Agent`、`Task` 派发条目"
+            },
+            {
+              "name": "workflow 委派条目齐备",
+              "given": "workflow 正文含委派链",
+              "when": "检查 `iagent_workflow` 的 allowedTools",
+              "then": "含 `iagent_spec_verify_proposal` / `iagent_proposal_review` / `iagent_requirement_doc` / `iagent_spec_apply` / `iagent_test` / `iagent_spec_archive` 条目与 `Agent`、`Task` 派发条目"
+            },
+            {
+              "name": "debug 委派条目齐备且不含需求文档",
+              "given": "debug 正文",
+              "when": "检查 `iagent_debug` 的 allowedTools",
+              "then": "含 `iagent_spec_verify_proposal` 与 `iagent_test` 条目，MUST NOT 含 `iagent_requirement_doc`（debug 不生成需求文档）"
+            },
+            {
+              "name": "auto-migration 委派条目齐备",
+              "given": "migration 正文",
+              "when": "检查 `iagent_migration` 的 allowedTools",
+              "then": "含 `iagent_feature_doc` 与 `iagent_migration_check` 条目"
+            },
+            {
+              "name": "调用 CodeGraph 的编排技能含 MCP 条目",
+              "given": "正文引用 codegraph_* 工具",
+              "when": "检查该编排技能的 allowedTools",
+              "then": "含 `mcp__codegraph` 与具名 CodeGraph 工具双写条目"
+            }
+          ]
+        },
+        {
+          "type": "MODIFIED",
+          "requirement": "需求文档技能的手工调用保留与自动调用方变更",
+          "description": "技能 `iagent_requirement_doc` 及其配对指令 `/iagent:requirement-doc` SHALL 保留独立可调用性：standalone 模式（AskUserQuestion 收集基本信息、按归档状态路由输出路径）与八章节转换、伪代码注入、DDL 提取规则均不变，用户 MAY 在任何阶段手工调用。自动调用方为验证阶段（`iagent_workflow` Phase 3.5 / `iagent_auto_workflow` Phase 3）与归档阶段（`iagent_spec_archive` 步骤 4.8、`iagent_spec_bulk_archive` 步骤 a.6）；`iagent_debug` MUST NOT 自动调用本技能。技能自身的目标文件已存在时静默覆盖（幂等）规则保持不变——其防护职责由调用方承担：归档检查点在已存在分支 MUST NOT 调用本技能，改走就地增量对齐以保人工域。",
+          "scenarios": [
+            {
+              "name": "独立指令仍可手工调用",
+              "given": "用户在任意阶段",
+              "when": "手工执行 `/iagent:requirement-doc`",
+              "then": "技能按 standalone 模式运行，行为不受影响"
+            },
+            {
+              "name": "自动调用方为验证与归档",
+              "given": "检查编排技能正文",
+              "when": "检查 `iagent_workflow` / `iagent_auto_workflow` 与归档技能",
+              "then": "验证阶段（Phase 3.5 / Phase 3）与归档检查点（4.8 / a.6 不存在分支）为自动调用方；`iagent_debug` MUST NOT 自动调用"
+            },
+            {
+              "name": "静默覆盖规则由调用方规避",
+              "given": "归档检查点判定已存在需求文档",
+              "when": "执行归档检查点",
+              "then": "走就地增量对齐而不调用本技能，避免抹掉人工填写的评审记录"
+            }
+          ]
+        },
+        {
+          "type": "MODIFIED",
+          "requirement": "编排技能 MUST NOT 生成或依赖 proposal/design/specs MD",
+          "description": "`iagent_workflow` / `iagent_auto_workflow` / `iagent_debug` MUST NOT 生成、渲染或要求 proposal.md / design.md / specs/*.md 作为变更制品。其制品读写 MUST 以 `change.json`（proposal / design / specs 段）+ `tasks.json` 为准；仅在处理存量 / 已归档变更（无 `change.json`）时 MAY 只读降级解析既有 MD 并记 WARN。`tasks.md` 仅由 `iagent spec render tasks` 产出。",
+          "scenarios": [
+            {
+              "name": "debug Phase 6 不以 MD 为同步目标",
+              "given": "debug 同步提案",
+              "when": "`iagent_debug` Phase 6 同步提案",
+              "then": "只更新 change.json 的 proposal 段与 tasks.json，并运行 `iagent spec render tasks`；MUST NOT 运行 render proposal|design|specs"
+            },
+            {
+              "name": "workflow 实现桥就绪以 JSON 为准",
+              "given": "workflow 进入 Phase 3.7",
+              "when": "检查制品就绪",
+              "then": "就绪判定依据 change.json 的 proposal / design / specs 段 + tasks.json，MUST NOT 以 MD 文件齐全为条件"
+            },
+            {
+              "name": "auto-workflow 读取结构化来源",
+              "given": "auto-workflow 读取提案",
+              "when": "读取 Impact Analysis / design 内容",
+              "then": "读 change.json 对应段，MUST NOT 依赖 MD 段落标题"
+            },
+            {
+              "name": "workflow 内联生成不落 MD",
+              "given": "workflow Phase 2",
+              "when": "内联生成制品",
+              "then": "只写 change.json + tasks.json（tasks.md 由渲染命令产出），MUST NOT 手写 proposal/design/specs MD"
+            },
+            {
+              "name": "存量变更只读降级",
+              "given": "处理无 change.json 的存量 / 已归档变更",
+              "when": "编排技能读取制品",
+              "then": "MAY 只读降级解析既有 MD 并记 WARN，MUST NOT 回写或重渲染"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "migration-skills",
+      "path": "specs/migration-skills/spec.md",
+      "operations": [
+        {
+          "type": "MODIFIED",
+          "requirement": "feature-doc 技能模板",
+          "description": "系统 SHALL 提供 `iagent_feature_doc` 技能模板（指令 `feature-doc`，type `docs`），扫描源项目功能模块并生成功能需求实现文档。技能正文 SHALL 定义：4 种输出模式（新人上手 / 迁移重构 / 设计文档 / 全景扫描）、框架档案机制（**由源项目结构自动探测 + 用户确认**，MUST NOT 内置框架预设；无法确定时标 `[待确认：框架档案探测]`）、4 类功能入口识别（文件路径 / URL 路由 / 模块名称 / 全项目）、深度扫描 4 层（后端 / 前端 / 配置 / 数据库）、4 类流程图强制输出、6 条反幻觉规则、细节原则 A-G、输出路由（change 上下文 → `attachments/source-feature-doc/`；standalone → 用户目录或 `openspec/migration/`）、CodeGraph 优先与无索引自动降级、双执行模式（standalone 交互收参 / 非交互注入且已提供参数跳过、无效注入 fail fast）。",
+          "scenarios": [
+            {
+              "name": "框架档案自动探测",
+              "given": "源项目提供或不提供框架档案",
+              "when": "进入 Step 2 收集框架档案",
+              "then": "从 pom.xml / web.xml / package.json / struts.xml / 源码注解模式自动探测并请用户确认，MUST NOT 提供内置框架预设作为默认值"
+            },
+            {
+              "name": "非交互模式探测结论落档",
+              "given": "非交互模式且调用方未提供框架档案",
+              "when": "完成结构探测",
+              "then": "把探测结论写入输出报告；调用方提供的档案优先于探测"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "skill-profile",
+      "path": "specs/skill-profile/spec.md",
+      "operations": [
+        {
+          "type": "MODIFIED",
+          "requirement": "默认 workflow 集",
+          "description": "系统 SHALL 维护默认 workflow 集 `DEFAULT_WORKFLOWS`，包含 `project-init`、`test` 及 spec 全 6 个核心工作流（`spec-explore` / `spec-propose` / `spec-apply` / `spec-archive` / `spec-verify` / `spec-verify-proposal`）。当项目配置未声明 `workflows` 字段时，系统 MUST 使用该默认集作为生效集。",
+          "scenarios": [
+            {
+              "name": "未配置 workflows 字段",
+              "given": ".iagent/config.yaml 不含 workflows 字段或 .iagent/ 不存在",
+              "when": "解析生效集",
+              "then": "生效 workflow 集合为 `DEFAULT_WORKFLOWS`（8 项显式）"
+            }
+          ]
+        },
+        {
+          "type": "MODIFIED",
+          "requirement": "用户配置优先",
+          "description": "当 `.iagent/config.yaml` 声明了 `workflows` 字段时，系统 SHALL 使用用户声明的列表作为生效 workflow 集，完全覆盖默认集（非合并）。",
+          "scenarios": [
+            {
+              "name": "用户显式配置子集",
+              "given": "config.yaml 含 workflows: [review, spec-explore]",
+              "when": "解析生效集",
+              "then": "生效集合为该两项目，不含默认集其余项"
+            }
+          ]
+        },
+        {
+          "type": "MODIFIED",
+          "requirement": "依赖注入",
+          "description": "系统 SHALL 对生效 workflow 集执行依赖注入补全（不动点迭代，连带补全传递依赖）：若集合含 `spec-propose` 但不含 `spec-verify-proposal`，MUST 自动补入 `spec-verify-proposal`；若含 `spec-archive` 或 `spec-bulk-archive` 但不含 `spec-verify`，MUST 自动补入 `spec-verify`（两者均为归档类工作流，verify 职责为实现完成后、归档前验证）；若含 `spec-archive` 或 `spec-bulk-archive` 但不含 `requirement-doc`，MUST 自动补入 `requirement-doc`（归档的预归档需求文档生成检查点经 Skill 工具委派该技能）；若含 `migration` 但不含 `feature-doc` 或 `migration-check`，MUST 自动补入缺失的子技能；若含 `workflow` 但不含其阶段技能（`spec-verify-proposal` / `proposal-review` / `spec-apply` / `spec-archive`），MUST 自动补入缺失项（验证评分门与深度复查经 Skill 工具委派；实现与归档经 Skill 工具委派，`requirement-doc` 与 `spec-verify` 由 `spec-archive` 传递注入）；若含 `auto-workflow` 但不含 `workflow` 或 `requirement-doc`，MUST 自动补入缺失项；若含 `debug` 但不含 `spec-verify-proposal`，MUST 自动补入 `spec-verify-proposal`。`spec-apply` 不触发任何注入。补入项 MUST 在输出中提示用户。",
+          "scenarios": [
+            {
+              "name": "漏选归档前验证",
+              "given": "用户 workflows 含 spec-archive 但不含 spec-verify",
+              "when": "解析生效集",
+              "then": "自动补入 spec-verify 并提示"
+            },
+            {
+              "name": "漏选归档需求文档技能",
+              "given": "用户 workflows 含 spec-archive 但不含 requirement-doc",
+              "when": "解析生效集",
+              "then": "自动补入 requirement-doc 并提示"
+            },
+            {
+              "name": "workflow 阶段技能传递注入",
+              "given": "用户 workflows 仅含 workflow",
+              "when": "解析生效集",
+              "then": "补入 spec-verify-proposal / proposal-review / spec-apply / spec-archive，并因 spec-archive 的依赖继续传递注入 spec-verify 与 requirement-doc"
+            },
+            {
+              "name": "失效依赖不再注入",
+              "given": "用户 workflows 仅含 debug",
+              "when": "解析生效集",
+              "then": "仅补入 spec-verify-proposal，MUST NOT 补入 requirement-doc"
+            },
+            {
+              "name": "apply 不触发注入",
+              "given": "用户 workflows 仅含 spec-apply",
+              "when": "解析生效集",
+              "then": "不补入任何依赖项"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "template-generation",
+      "path": "specs/template-generation/spec.md",
+      "operations": [
+        {
+          "type": "MODIFIED",
+          "requirement": "需求文档生成时机",
+          "description": "系统 SHALL 在提案验证通过后（验证阶段收束）自动生成需求文档，而非等到归档阶段。",
+          "scenarios": [
+            {
+              "name": "全自动工作流验证通过后生成需求文档",
+              "given": "auto-workflow Phase 3 验证通过",
+              "when": "评分 ≥90% 且深度复查收束",
+              "then": "以非交互模式调用 iagent_requirement_doc 生成需求文档，生成成功后进入 Phase 4，失败记 WARN 并继续"
+            },
+            {
+              "name": "引导式工作流验证通过后生成需求文档",
+              "given": "workflow Phase 3 验证通过",
+              "when": "深度复查收束",
+              "then": "以非交互模式调用 iagent_requirement_doc 生成需求文档，随后进入 Phase 3.7 实现桥"
+            }
+          ]
+        },
+        {
+          "type": "MODIFIED",
+          "requirement": "需求文档技能自动调用方扩展",
+          "description": "`iagent_requirement_doc` 技能的 Caller note SHALL 将自动调用方声明为「验证阶段 + 归档阶段」。",
+          "scenarios": [
+            {
+              "name": "非交互模式调用方识别",
+              "given": "requirement-doc 以非交互模式被调用",
+              "when": "识别调用方",
+              "then": "技能 SHALL 接受来自验证阶段（workflow Phase 3.5 / auto-workflow Phase 3）或归档阶段的调用；行为不变（不询问用户、使用占位符基本信息）；独立手动调用不受影响"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "tool-call-whitelist",
+      "path": "specs/tool-call-whitelist/spec.md",
+      "operations": [
+        {
+          "type": "MODIFIED",
+          "requirement": "白名单组合规则",
+          "description": "白名单 MUST 覆盖正文实际会发起的调用——未覆盖即会在 Claude Code 中被权限拦截。清单 MUST 由正文逐条核准得出，MUST NOT 采信关键词检索命中（散文提及他技能名不构成委派）。",
+          "scenarios": [
+            {
+              "name": "白名单覆盖正文全部调用类别",
+              "given": "某技能正文既调用 CodeGraph MCP、又经 Skill 工具委派子技能",
+              "when": "检查其 allowedTools",
+              "then": "同时含 CodeGraph MCP 条目与对应子技能的 Skill(<裸技能名>) 条目"
+            },
+            {
+              "name": "散文提及不构成委派",
+              "given": "某技能正文仅以散文提到另一个技能名",
+              "when": "检查其 allowedTools",
+              "then": "该技能名 MUST NOT 被写入 allowedTools"
+            }
+          ]
+        },
+        {
+          "type": "MODIFIED",
+          "requirement": "技能间委派条目逐技能枚举",
+          "description": "经 Skill 工具委派子技能的技能 SHALL 为每一个实际委派的子技能写入 Skill(<裸技能名>) 精确条目，技能名取去掉 iagent_ 前缀的裸名（如 Skill(spec_apply)）；写成 Skill(iagent_spec_apply) 会产出永不放行的死条目，MUST NOT 带 plugin: 命名空间前缀。MUST NOT 使用 Skill(*) 通配。",
+          "scenarios": [
+            {
+              "name": "编排技能委派多子技能",
+              "given": "某编排技能正文经 Skill 工具委派多个子技能",
+              "when": "检查其 allowedTools",
+              "then": "含各裸名精确条目（如 Skill(spec_explore), Skill(spec_propose), Skill(spec_archive)）"
+            },
+            {
+              "name": "不使用通配条目",
+              "given": "任意技能的 allowedTools",
+              "when": "检查",
+              "then": "MUST NOT 出现 Skill(*) 通配条目"
+            }
+          ]
+        },
+        {
+          "type": "MODIFIED",
+          "requirement": "归档技能的需求文档委派条目",
+          "description": "归档技能（`iagent_spec_archive` / `iagent_spec_bulk_archive`）SHALL 在 `allowedTools` 中含 `Skill(requirement_doc)` 委派条目（其预归档检查点委派需求文档技能）。嵌套委派的权限归属：编排技能（如 `iagent_workflow`）经 Skill 工具委派归档技能、归档技能再委派需求文档技能时，内层委派的放行归属会话级权限载体——`permissions.allow` 由 `iagent_spec_archive` 自身的白名单聚合而来，故外层编排技能的 `allowedTools` MUST NOT 为其非本轮实际委派的技能写入条目。",
+          "scenarios": [
+            {
+              "name": "归档技能含需求文档委派条目",
+              "given": "检查归档技能 allowedTools",
+              "when": "检查 `iagent_spec_archive` / `iagent_spec_bulk_archive`",
+              "then": "含 `Skill(requirement_doc)` 条目且正文确提及被委派技能"
+            },
+            {
+              "name": "嵌套链路不虚增外层条目",
+              "given": "编排技能委派归档技能、归档技能再委派需求文档技能",
+              "when": "检查 `iagent_workflow` 的 allowedTools 在该嵌套链路后被检查",
+              "then": "MUST NOT 因该嵌套链路写入 `Skill(requirement_doc)`（除非 workflow 本轮实际委派它）；内层委派由会话级 permissions.allow 放行"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "spec-bulk-archive-skill",
+      "path": "specs/spec-bulk-archive-skill/spec.md",
+      "operations": [
+        {
+          "type": "MODIFIED",
+          "requirement": "归档单元执行序列",
+          "description": "归档派发单元 SHALL 串行执行 spec 同步 / CONTEXT.md 检查 / 预归档需求文档生成检查点（不存在分支经 Skill 工具非交互委派 iagent_requirement_doc；已存在分支就地增量对齐、不调用技能）/ 执行归档 / 探索记忆同步 / 需求文档迁移 / 结果跟踪。其 allowedTools MUST 含精确条目 Skill(requirement_doc)（裸技能名），MUST NOT 使用 Skill(*) 通配。",
+          "scenarios": [
+            {
+              "name": "归档委派条目使用裸技能名",
+              "given": "归档技能正文经 Skill 工具委派 iagent_requirement_doc",
+              "when": "检查其 allowedTools",
+              "then": "含 Skill(requirement_doc) 裸名精确条目，MUST NOT 使用 Skill(*) 通配"
+            },
+            {
+              "name": "完整单元序列",
+              "given": "归档单元处理变更 add-oauth（含 delta specs、exploration.md、无需求文档）",
+              "when": "执行归档单元",
+              "then": "依次执行 specs 内联合并 → CONTEXT.md 检查 → 生成需求文档 → iagent spec archive --yes → 探索记忆同步 → 需求文档迁移 → 记录 Success"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

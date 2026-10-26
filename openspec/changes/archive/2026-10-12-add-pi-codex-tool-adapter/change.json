@@ -1,0 +1,158 @@
+{
+    "$schema": "venus/change/v1",
+    "changeName": "add-pi-codex-tool-adapter",
+    "createdAt": "2026-10-12T00:00:00.000Z",
+    "updatedAt": "2026-10-12T00:00:00.000Z",
+    "phase": "proposal",
+    "proposal": {
+        "why": "VenusAgentTools 当前仅支持 Claude Code 作为目标 AI 编码工具。用户需要同时为 Pi (pi.dev) 和 Codex (OpenAI Codex CLI) 生成技能与指令，实现多工具覆盖。",
+        "whatChanges": [
+            "新增 Pi 工具适配：AI_TOOLS 添加 pi 条目，新建 piAdapter 适配器生成 .pi/commands/venus/ 指令",
+            "新增 Codex 工具适配：AI_TOOLS 添加 codex 条目，skills-invocable 模式不生成指令",
+            "重构 update.ts 适配器耦合：将技能生成与指令生成解耦，无适配器的工具仍可生成技能",
+            "注册 piAdapter 到 CommandAdapterRegistry，导出 piAdapter"
+        ],
+        "capabilities": {
+            "new": [
+                { "name": "multi-tool-adapter", "description": "多工具适配层：支持为 Pi 和 Codex 生成技能与指令，架构预留未来工具扩展" },
+                { "name": "skills-only-tool", "description": "skills-invocable 工具模式：不需要指令适配器的工具仅生成技能，跳过指令生成" }
+            ],
+            "modified": [
+                { "name": "command-generation", "description": "扩展 AI_TOOLS 配置表与适配器注册表，解耦 update.ts 的技能-指令耦合" }
+            ]
+        },
+        "impact": {
+            "files": [
+                { "path": "src/core/config.ts", "description": "AI_TOOLS 数组新增 pi、codex 条目" },
+                { "path": "src/core/command-generation/adapters/pi.ts", "description": "新建 Pi 命令适配器（格式同 claudeAdapter，输出目录 .pi/commands/venus/）" },
+                { "path": "src/core/command-generation/adapters/registry.ts", "description": "静态块注册 piAdapter" },
+                { "path": "src/core/command-generation/index.ts", "description": "导出 piAdapter" },
+                { "path": "src/commands/update.ts", "description": "解耦技能与指令生成：技能始终遍历 AI_TOOLS 生成；指令仅有适配器时生成" }
+            ],
+            "breaking": false,
+            "compatibility": "update.ts 内部重构（技能与指令生成解耦），对外 CLI 接口不变。现有 Claude Code 用户不受影响。新增工具在 AI_TOOLS 列表末尾，不影响既有行为。"
+        }
+    },
+    "specs": [
+        {
+            "name": "multi-tool-adapter",
+            "path": "specs/multi-tool-adapter/spec.md",
+            "operations": [
+                {
+                    "type": "ADDED",
+                    "requirement": "AI_TOOLS 多工具配置",
+                    "description": "系统 SHALL 支持在 AI_TOOLS 配置表中定义多个目标 AI 编码工具，每个工具包含 value、name、skillsDir、commandsDir 字段。",
+                    "scenarios": [
+                        { "name": "新增 Pi 工具条目", "given": "", "when": "在 AI_TOOLS 数组中添加 { value: 'pi', name: 'Pi', skillsDir: '.pi', commandsDir: '.pi/commands' }", "then": "venus update 遍历 AI_TOOLS 时能识别 Pi 工具并生成技能" },
+                        { "name": "新增 Codex 工具条目", "given": "", "when": "在 AI_TOOLS 数组中添加 { value: 'codex', name: 'Codex', skillsDir: '.codex', commandsDir: '' }", "then": "venus update 遍历 AI_TOOLS 时能识别 Codex 工具并生成技能" }
+                    ]
+                },
+                {
+                    "type": "ADDED",
+                    "requirement": "Pi 指令适配器",
+                    "description": "系统 SHALL 提供 piAdapter（ToolCommandAdapter 接口实现），将指令文件生成到 .pi/commands/venus/<id>.md，文件格式与 claudeAdapter 一致（YAML frontmatter + Markdown 正文）。",
+                    "scenarios": [
+                        { "name": "生成 Pi 指令文件", "given": "CommandAdapterRegistry 已注册 piAdapter", "when": "调用 generateCommand(content, piAdapter)", "then": "返回路径 .pi/commands/venus/<id>.md，文件内容为 YAML frontmatter + Markdown body" },
+                        { "name": "Pi 指令格式与 Claude 一致", "given": "piAdapter.formatFile 与 claudeAdapter.formatFile 返回内容", "when": "对比同一 CommandContent 的格式化结果", "then": "两者 YAML frontmatter 字段名和结构相同，仅 body 内容可能因模板差异而异" }
+                    ]
+                },
+                {
+                    "type": "ADDED",
+                    "requirement": "适配器注册表扩展",
+                    "description": "CommandAdapterRegistry SHALL 在静态初始化时注册 piAdapter，并支持按 toolId 查询已注册的适配器。",
+                    "scenarios": [
+                        { "name": "注册 piAdapter", "given": "", "when": "CommandAdapterRegistry 静态块执行 register(piAdapter)", "then": "CommandAdapterRegistry.get('pi') 返回 piAdapter，has('pi') 返回 true" },
+                        { "name": "Codex 无适配器", "given": "", "when": "CommandAdapterRegistry.get('codex')", "then": "返回 undefined，表示 Codex 为 skills-invocable 模式" }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "skills-only-tool",
+            "path": "specs/skills-only-tool/spec.md",
+            "operations": [
+                {
+                    "type": "ADDED",
+                    "requirement": "无适配器工具的技能生成",
+                    "description": "update 命令 SHALL 为 AI_TOOLS 中的所有工具生成技能，无论该工具是否注册了指令适配器。技能生成不依赖适配器存在。",
+                    "scenarios": [
+                        { "name": "Codex 技能生成", "given": "AI_TOOLS 含 codex 条目但 CommandAdapterRegistry 无 codex 适配器", "when": "执行 venus update", "then": "技能写入 .codex/skills/<skillName>/SKILL.md，无指令文件生成" },
+                        { "name": "Claude 行为不变", "given": "AI_TOOLS 含 claude 条目且注册了 claudeAdapter", "when": "执行 venus update", "then": "技能写入 .claude/skills/，指令写入 .claude/commands/venus/，行为与重构前一致" }
+                    ]
+                },
+                {
+                    "type": "ADDED",
+                    "requirement": "指令生成按适配器门控",
+                    "description": "update 命令 SHALL 仅为已注册适配器的工具生成指令文件；无适配器的工具跳过指令生成步骤，不报错。",
+                    "scenarios": [
+                        { "name": "Codex 跳过指令生成", "given": "CommandAdapterRegistry.get('codex') 返回 undefined", "when": "遍历到 codex 工具生成指令时", "then": "跳过指令生成循环，不报错，继续处理下一个工具" },
+                        { "name": "Pi 生成指令", "given": "CommandAdapterRegistry.get('pi') 返回 piAdapter", "when": "遍历到 pi 工具生成指令时", "then": "正常生成指令文件到 .pi/commands/venus/" }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "command-generation",
+            "path": "specs/command-generation/spec.md",
+            "operations": [
+                {
+                    "type": "MODIFIED",
+                    "requirement": "update 技能与指令生成解耦",
+                    "description": "update 命令的 SHALL 将技能生成循环与指令生成循环分离：技能始终遍历 AI_TOOLS 全部工具生成；指令仅遍历有适配器的工具生成。",
+                    "scenarios": [
+                        { "name": "技能独立于适配器", "given": "AI_TOOLS 含 claude、pi、codex 三个工具，其中 codex 无适配器", "when": "执行 venus update", "then": "三个工具的技能目录均写入 SKILL.md；claude 和 pi 额外写入指令文件；codex 无指令文件" },
+                        { "name": "权限载体按工具独立合并", "given": "AI_TOOLS 含多个工具", "when": "执行 venus update", "then": "每个工具的 settings.json 独立合并权限条目，无适配器的工具也不跳过权限合并" }
+                    ]
+                }
+            ]
+        }
+    ],
+    "design": {
+        "context": "VenusAgentTools 当前多工具适配采用「AIToolOption 配置 + ToolCommandAdapter 接口 + CommandAdapterRegistry 注册表」三层架构。update.ts 中技能生成与指令生成耦合在同一个 `if (!adapter) continue` 门控下，导致无适配器的工具连技能也无法生成。OpenSpec v1.12.0 已验证了 Codex 的 skills-invocable 模式（无指令适配器、仅生成技能），架构方向明确。",
+        "goals": [
+            "AI_TOOLS 配置表支持 pi、codex 两种新工具",
+            "新建 piAdapter 适配器，格式与 claudeAdapter 同构",
+            "解耦 update.ts 技能生成与指令生成，使无适配器工具也能生成技能",
+            "向后兼容：现有 Claude Code 用户不受影响"
+        ],
+        "nonGoals": [
+            "不实现共享技能目录（各工具独立 .pi/ / .codex/ / .claude/ 目录）",
+            "不修改 Skill 模板正文中的工具引用格式（如 $ 前缀适配 Codex）",
+            "不修改 venus generate 命令（generate 本身只生成技能，不生成指令）",
+            "不新增 CLI 参数（如 --tool 筛选）"
+        ],
+        "decisions": [
+            {
+                "id": "D1",
+                "title": "Pi 适配器与 Claude 适配器同构",
+                "choice": "piAdapter 复用 claudeAdapter 的 formatFile 逻辑，仅 toolId 和 getFilePath 返回的目录不同",
+                "alternatives": ["独立实现 piAdapter 的全部格式化逻辑——被否决：两者均遵循 Agent Skills Specification，格式完全相同，重复实现增加维护成本"],
+                "rationale": "Pi 和 Claude Code 均遵循相同的 Agent Skills Specification（YAML frontmatter + Markdown body），指令格式完全一致。唯一差异是输出目录（.pi/commands/venus/ vs .claude/commands/venus/）。",
+                "risks": ["未来 Pi 可能引入专有 frontmatter 字段——此时 piAdapter 可独立演化，不影响 claudeAdapter"],
+                "relatedFiles": ["src/core/command-generation/adapters/claude.ts:8", "src/core/command-generation/adapters/pi.ts:[新建]"]
+            },
+            {
+                "id": "D2",
+                "title": "Codex 为 skills-invocable 模式",
+                "choice": "Codex 不注册指令适配器，仅生成技能；参考 OpenSpec v1.12.0 的 make-codex-skills-only 模式",
+                "alternatives": ["为 Codex 也注册指令适配器——被否决：Codex 通过 $ 前缀调用技能，无传统斜杠指令机制"],
+                "rationale": "OpenSpec 已验证：Codex CLI 的技能调用使用 $skill-name 前缀，不需要独立的指令文件。为保持架构简洁，遵循已验证的模式。",
+                "risks": ["若未来 Codex 新增指令文件机制，需新增适配器并迁移——风险低，因为只需新增适配器即可，无需改已有代码"],
+                "relatedFiles": ["src/core/config.ts:73", "src/commands/update.ts:110"]
+            },
+            {
+                "id": "D3",
+                "title": "update.ts 技能与指令生成解耦",
+                "choice": "将技能生成循环独立于适配器检查之外：技能遍历 AI_TOOLS 全部工具生成，指令仅当 CommandAdapterRegistry.get(tool.value) 存在时生成",
+                "alternatives": ["为 Codex 创建空适配器（no-op adapter）以绕过当前的门控逻辑——被否决：引入无意义抽象，增加复杂度；为 command-surface 增加 skills-invocable 标记——被否决：过度设计，当前仅 Codex 一种情况"],
+                "rationale": "最简方案：只需调整 update.ts 的循环结构，将技能生成与适配器检查解耦。改动量最小，语义清晰，且自然支持未来更多 skills-invocable 工具。",
+                "risks": ["解耦后，工具遍历次数增加（技能循环 + 指令循环各遍历一次 AI_TOOLS）——性能影响可忽略（AI_TOOLS 数量 ≤10）"],
+                "relatedFiles": ["src/commands/update.ts:109-191"]
+            }
+        ],
+        "risks": [
+            { "risk": "Pi 实际指令格式可能与 Claude Code 存在差异（未经 Pi 官方文档直接验证）", "mitigation": "Pi 遵循 Agent Skills Specification 开放标准，SKILL.md 格式与 Claude Code 一致。指令文件的 YAML frontmatter 格式同样遵循该标准。若实际存在差异，piAdapter 可独立调整 formatFile 逻辑。" },
+            { "risk": "Codex .codex/skills/ 目录可能已过时（OpenSpec 已迁移到 .agents/skills/）", "mitigation": "VenusAgentTools 使用 .codex/skills/ 保持与 .claude/、.pi/ 的对称性。若 Codex 官方推荐 .agents/ 共享目录，后续可通过 `AIToolOption.skillsDir` 配置调整即可，无需代码变更。" }
+        ]
+    }
+}

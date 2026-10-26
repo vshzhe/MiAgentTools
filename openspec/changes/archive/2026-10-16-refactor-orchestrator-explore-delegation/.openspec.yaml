@@ -1,0 +1,3 @@
+schema: spec-driven
+created: 2026-10-16
+goal: "编排器 Phase 1 探索改为委派 iagent_spec_explore 的 delegated 模式（吸收强制 checkpoint 体系），消除探索阶段的多份内联真源"
