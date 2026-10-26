@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:1ef62c93dbb89b64b6b918d2ec592110353b472fdcd9a0f36c4d53dafa3a9229"
+  generatedFingerprint: "sha256:9e6c33789f701a47cd222162c693f2356d5b3f0d021827f5c0b660dfdd55d814"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
@@ -23,7 +23,28 @@ metadata:
 - 走到 ⛔ GATE 时，**本次响应到此结束** —— 输出门内容后立即停止
 - 不得执行、描述或预生成门之后的任何步骤
 - 用户的下一则消息即为确认信号 —— 仅在其响应后从门之后继续
+- **非门动作 MUST NOT 停止，也 MUST NOT 请求确认**：阶段宣告 / 技能委派（含「是否调用 <技能>」）/ 只读扫描 / CodeGraph 查询 / 状态查询 / 只读校验的「是否运行 <校验>？」询问，均不是确认门
+- **只有**门白名单（见「门白名单与 MUST NOT 确认清单」段）声明的 5 类门可以阻断推进；白名单外的动作 MUST NOT 被实现为停止点
 - **违规**：未经用户确认而执行门之后的步骤，是破坏工作流的严重错误
+
+## 门白名单与 MUST NOT 确认清单
+
+**必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
+- **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
+- **实现 + 测试桥**：implementation-bridge（不可豁免）
+- **归档桥**：archive-confirmation（不可豁免）
+- **破坏性改动确认（动作级，不可豁免：删除目录 / 覆盖既有制品 / 改写版本库跟踪 / 不可逆命令）**（不可豁免）
+
+**MUST NOT 请求确认（非门动作，MUST NOT 被实现为停止点）**：
+- 阶段宣告（如「进入 Phase N」「本阶段开始」）
+- 技能委派（含「是否调用 <技能>」类询问）—— 已授权的 nextAllowed 技能直接委派
+- 只读扫描（Glob / Grep / Read 与只读查询）
+- CodeGraph 查询与能力探测（含锁阶梯只读复用）
+- 状态查询（`iagent spec status` / `getChangeStatus` 等）
+- 只读校验的「是否运行 <校验>？」询问（如技术栈专项校验）—— 直接执行并在报告中说明校验项
+
+> 跨变更索引重建类动作已随索引能力退役（DEC-2），不构成任何门或动作。
 
 ---
 
@@ -52,7 +73,14 @@ metadata:
 ## Phase 2: 目标项目探索 + 变更提案生成（自动，无中途确认）
 
 1. 变更目录已存在（Phase 1 创建）。把探索材料（源需求文档摘要 + 目标项目探索发现）迁移进 `openspec/changes/<change-name>/exploration.md` —— 保留 Phase 1 写入的 `## 蒸馏核心功能清单` 段。
-2. 以 CodeGraph 优先的方式探索 TARGET 项目（可选含 SOURCE_PROJECT）（遵循 codegraph_status 优先规则）：先运行 `codegraph_status` 确认索引，再以 codegraph 工具作为主要调查路径；按只读直通原则，CodeGraph 查询、文件读取、配置解析无需确认直接执行；CodeGraph 不可用 → 自动降级为 Glob/Grep 并记录一行日志。
+2. 以 CodeGraph 优先的方式探索 TARGET 项目（可选含 SOURCE_PROJECT）：按下面的能力探测顺序判定可用性（任一通道成功即可用），再以 CodeGraph 工具作为主要调查路径；按只读直通原则，CodeGraph 查询、文件读取、配置解析无需确认直接执行；CodeGraph 不可用 → 自动降级为 Glob/Grep 并记录一行日志。
+
+   **CodeGraph 能力探测（本技能不执行 CLI：仅两通道，任一成功即视为可用）**：
+1. 先调用 MCP 具名工具（`codegraph_explore` / `codegraph_status` 等）——能返回结果即视为可用；
+2. 若 MCP 具名工具未暴露，改看 `codegraph_explore` 返回的**时效横幅**（含索引构建/滞后提示）——横幅存在即视为可用。
+- 本技能不执行 CLI：第三通道（CLI 状态查询）不适用，MUST NOT 据其判定索引不可用。
+- **工具名缺失 ≠ 索引不可用**：某一通道在当前宿主不存在，只说明该通道不可用，MUST NOT 据此断言索引未初始化。
+- MUST NOT 用「`.codegraph/` 目录是否存在」判定索引可用性（点号目录的 Glob 存在假阴性）；目录存在性不构成可用性判据。
 3. **加载目标项目编码规范（目标项目规范加载）**：读取 TARGET 项目的规范文件 —— CLAUDE.md、AGENTS.md 与 openspec 主规格（`openspec/specs/`）—— 把规范要点（命名/分层/目录约定、强制规则）蒸馏进 `exploration.md` 的 `## 目标项目规范要点` 段。这些要点是 design/tasks 派生（第 4 步）与 Phase 3 子代理调度指令的**约束性**要求。无规范文件时：记录 WARN，改由目标代码结构（命名/分层/目录模式）推断约定作为替代，推断结果标 **[待确认]**，并继续推进 —— 不阻断。
 4. 按 propose 协议生成标准 OpenSpec 变更制品：
    - `iagent spec status --change "<name>" --json` → `iagent spec instructions <artifact-id> --change "<name>" --json` → 写入制品文件；按依赖顺序循环（proposal → specs → design → tasks）。
@@ -64,11 +92,11 @@ metadata:
 
 1. 呈现统一实现计划：变更名、任务分组 / 并发批次、受影响文件与迁移范围。
 2. 只问一个问题（AskUserQuestion）：是否需要调整（调整计划 / 制品）？
-   - **不调整（继续）** → 立即按 apply 协议实现：批次调度循环，每个派发单元一个子代理，并发上限取自 `openspec/config.yaml`（`apply.concurrency`，默认 3）；任务 checkbox 由协调器集中更新。进入实现阶段时，先判断共享上下文包（`context-pack.md`，见 apply 协议）是否可用：
-     - **包可用** → 目标项目规范要点（`exploration.md` → `## 目标项目规范要点`）MUST 写入上下文包的 `## 规范要点` 段，与 `.iagent/rules/coding-rules.md` 要点合并作为附加来源；目标项目要点仍是**约束性**要求，确保迁移代码符合 TARGET 项目约定。
+   - **不调整（继续）** → 立即按 apply 协议实现：批次调度循环，每个派发单元一个子代理，并发上限取自 `openspec/config.yaml`（`apply.concurrency`，默认 3）；任务 checkbox 由协调器集中更新。进入实现阶段时，先判断 handoff 包（`.openspec-tmp/pipeline-<change-name>/handoff-pack.md`，见 apply 协议）是否可用：
+     - **包可用** → 目标项目规范要点（`exploration.md` → `## 目标项目规范要点`）MUST 写入 handoff 包的 `## 规范要点` 段，与 `.iagent/rules/coding-rules.md` 要点合并作为附加来源；目标项目要点仍是**约束性**要求，确保迁移代码符合 TARGET 项目约定。
      - **包不可用** → 降级为逐子代理内联注入（既有行为：每条调度指令内联规范要点）+ WARN；迁移实现 MUST NOT 被阻断。
      - **无目标项目规范要点**（目标项目既无规范文件，Phase 2 也未蒸馏出内容）→ 在包的 `## 规范要点` 段记录 `no target-project spec essentials` + WARN，并继续推进 —— 不阻断流程。
-     - 每条子代理调度指令 MUST NOT 全文内联规范要点 —— 改为引用包的 `## 规范要点` 段。
+     - 每条子代理调度指令 MUST NOT 全文内联规范要点 —— 改为引用 handoff 包的 `## 规范要点` 段。
    - **需要调整（调整）** → 呈现制品供编辑；用户修改后重新进入本门（再问一次）。
 3. 失败任务遵循 apply 重试规则（串行重试一次 → 暂停并报告）。实现失败即暂停流程；绝不静默跳过任务。
 

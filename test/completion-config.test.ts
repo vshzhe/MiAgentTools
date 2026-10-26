@@ -245,10 +245,12 @@ describe('项目配置（.iagent/ 目录结构）', () => {
 
     it('默认规则文件内容：蒸馏要点 + 成对人工域标记（D-5 / D-Q1 基准）', () => {
         const impl = defaultRuleFileContent('impl');
-        // impl 域蒸馏要点：零猜测 / UI 四状态
-        for (const phrase of ['[待确认]', 'Loading', 'Empty', 'Error', 'Data']) {
+        // impl 域蒸馏要点：零猜测 / UI 四状态 / 设计先行豁免口径（4.5）
+        for (const phrase of ['[待确认]', 'Loading', 'Empty', 'Error', 'Data', 'implementation-bridge']) {
             expect(impl, `coding-rules 缺蒸馏要点：${phrase}`).toContain(phrase);
         }
+        expect(impl).toContain('父编排已完成实现桥');
+        expect(impl).toContain('仅在无父流程授权时独立执行确认');
         const spec = defaultRuleFileContent('spec');
         // spec 域蒸馏要点：Markdown-first 制品协议
         for (const phrase of ['openspec/changes/', 'proposal → specs/design → tasks', 'spec validate', 'change.json']) {

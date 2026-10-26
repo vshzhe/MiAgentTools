@@ -3,7 +3,7 @@
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
-import { GATE_PROTOCOL_PREAMBLE } from '../prompt-gate.js';
+import { GATE_PROTOCOL_PREAMBLE, renderGateWhitelistSection } from '../prompt-gate.js';
 import { SUBAGENT_DISPATCH, skillDelegation } from '../tool-whitelist.js';
 
 export function getSpecProposeSkillTemplate(): SkillTemplate {
@@ -31,6 +31,8 @@ export function getSpecProposeSkillTemplate(): SkillTemplate {
 **Input**: 用户请求应包含变更名（kebab-case）或对想构建内容的描述。编排器可传 \`mode=delegated\`（委派执行模式）与 \`exploration-file=<path>\`：delegated 模式下**跳过 Step 0 的用户选择提示**（直接迁移 \`exploration-file\`）、**抑制结尾规划边界停点**、**抑制自身 Phase 3 验证**（由编排器的验证超集承担），并输出**结构化回执**。默认 \`mode=interactive\` 行为与既有完全一致（保留 Step 0 提示、自身 Phase 3、结尾停点）。\`iagent_spec_apply\` 既有的 \`auto-mode=true\` 为 \`mode=delegated\` 的等价别名。
 
 ${GATE_PROTOCOL_PREAMBLE}
+
+${renderGateWhitelistSection()}
 
 **Steps**
 
@@ -206,6 +208,13 @@ ${GATE_PROTOCOL_PREAMBLE}
    \`\`\`bash
    iagent spec status --change "<name>"
    \`\`\`
+
+5.5 **产出变更级 handoff 包（供 verify / apply / archive 只读复用）**
+
+   - 在全部 \`applyRequires\` 制品定稿后，于 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\`（用 \`path.join()\` 构造）产出**一次**六节 handoff 包：\`## 变更摘要\` / \`## 契约\` / \`## 规范要点\` / \`## 文件归属表\` / \`## Codebase 摘要\` / \`## 已产出（跨单元可见）\`；头部固定元信息 \`change:\` / \`producedBy: propose\` / \`producedAt:\` / \`sourceFingerprint:\`（覆盖 proposal / design / specs / tasks 的内容指纹）
+   - 下游 \`iagent_spec_verify\` / \`iagent_spec_apply\` / \`iagent_spec_archive\` **只读复用**该包并只追加 \`## 阶段结论\`，MUST NOT 重产整包；指纹不一致时由消费方重建并记 WARN
+   - Phase 3 自动修复若改动制品，MUST 在验证通过后按新指纹**重建该包一次**，保持 \`sourceFingerprint\` 与制品一致
+   - **产出失败只记 WARN 并继续**（不阻断提案）：下游包缺失时按同一六节协议自行产出一次，或降级为内联注入
 
 6. **Phase 3 验证（自动 —— 强制，不可跳过）**
    > **delegated 模式分支**：若 \`mode=delegated\`，**抑制本节**——不调用 \`iagent_spec_verify_proposal\`、不生成需求文档（编排器的 Phase 3 为其超集，含 \`proposal_review\` 深度复查），直接输出结构化回执交回编排器。\`interactive\` 模式照常执行本节。

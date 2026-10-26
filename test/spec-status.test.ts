@@ -9,6 +9,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { fileURLToPath } from 'node:url';
 import { getBuildOrder, isValidArtifactId, getArtifactIds } from '../src/core/spec/schema.js';
 import { getChangeStatus, parseTaskProgress, detectCompleted } from '../src/core/spec/status.js';
 import { getArtifactInstructions } from '../src/core/spec/instructions.js';
@@ -190,5 +191,34 @@ describe('spec 模板分发（instructions）', () => {
 
     it('变更不存在：报错并提示 iagent spec new', () => {
         expect(() => getArtifactInstructions(projectRoot, 'ghost', 'proposal')).toThrowError(/iagent spec new/);
+    });
+});
+
+// 任务 2.16：跨变更索引退役后的「措辞收口」——只读兼容路径不再以索引 / 索引重建为出口。
+describe('2.16 只读兼容路径的措辞收口（索引退役）', () => {
+    it('status / migration / archive / instructions 源码零索引措辞', () => {
+        const files = ['status.ts', 'migration.ts', 'archive.ts', 'instructions.ts'];
+        const forbidden = ['reindex', 'INDEX_DB_PATH', 'index.db', '生成索引', 'sqlite'];
+        for (const name of files) {
+            const file = fileURLToPath(new URL(`../src/core/spec/${name}`, import.meta.url));
+            const source = fs.readFileSync(file, 'utf8');
+            for (const word of forbidden) {
+                expect(source, `${name} 仍含索引措辞 ${word}`).not.toContain(word);
+            }
+        }
+    });
+
+    it('历史 JSON-only 变更的只读状态行为不变（不因索引退役而改变判定）', () => {
+        const root = makeTempProject();
+        try {
+            const changeDir = makeChange(root, 'legacy-readonly');
+            writeChangeJson(changeDir, { proposal: true });
+            // 仅 change.json、无 Markdown：只读状态可判定，不要求任何索引
+            const status = getChangeStatus(root, 'legacy-readonly');
+            const proposal = status.artifacts.find((artifact) => artifact.id === 'proposal');
+            expect(proposal?.status).toBe('done');
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
     });
 });

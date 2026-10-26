@@ -6,7 +6,14 @@
  * 供生成期渲染与校验使用。
  */
 
-import { DEFAULT_RECEIPT_FIELDS, type PhaseSpec, type WorkflowProtocol } from './protocol.js';
+import {
+    DEFAULT_RECEIPT_FIELDS,
+    GATE_WHITELIST,
+    GATE_WHITELIST_ANCHORS,
+    type GateWhitelistId,
+    type PhaseSpec,
+    type WorkflowProtocol,
+} from './protocol.js';
 
 /** 阶段输入契约的常用形态 */
 const TOPIC_INPUT = { required: ['topic'], optional: ['constraints'] } as const;
@@ -153,4 +160,50 @@ export const WORKFLOW_PROTOCOLS: Readonly<Record<string, WorkflowProtocol>> = {
 /** 取得工作流协议（不存在返回 undefined） */
 export function getWorkflowProtocol(workflowId: string): WorkflowProtocol | undefined {
     return WORKFLOW_PROTOCOLS[workflowId];
+}
+
+/**
+ * 阶段门 id → 白名单类别（锚点映射）。
+ *
+ * `diagnostic-confirmation` / `fix-option-confirmation` 挂在**需求澄清**类别下
+ * （调试的诊断结论与修复方案选择都属「需求 / 方案歧义」），其余阶段门各自挂同名类别。
+ * 该映射只用于可校验对齐，MUST NOT 被理解为新增阶段门。
+ */
+export const PHASE_GATE_CATEGORY: Readonly<Record<string, GateWhitelistId>> = {
+    'flow-final-confirmation': 'flow-final-confirmation',
+    'implementation-bridge': 'implementation-bridge',
+    'archive-confirmation': 'archive-confirmation',
+    'diagnostic-confirmation': 'requirement-clarification',
+    'fix-option-confirmation': 'requirement-clarification',
+};
+
+/**
+ * 审计「协议阶段门 ⊆ 白名单锚点」对齐关系。
+ *
+ * @returns 违规描述列表（空数组即对齐）；供生成期测试断言，MUST NOT 在运行期抛错
+ */
+export function auditGateWhitelistAlignment(): string[] {
+    const violations: string[] = [];
+    for (const [workflowId, protocol] of Object.entries(WORKFLOW_PROTOCOLS)) {
+        for (const phase of protocol.phases) {
+            const gateId = phase.gate?.id;
+            if (gateId === undefined) {
+                continue;
+            }
+            if (!GATE_WHITELIST_ANCHORS.includes(gateId)) {
+                violations.push(`${workflowId}/${phase.id}：门 ${gateId} 不在白名单锚点集合内`);
+                continue;
+            }
+            const category = PHASE_GATE_CATEGORY[gateId];
+            if (category === undefined) {
+                violations.push(`${workflowId}/${phase.id}：门 ${gateId} 缺少白名单类别映射`);
+                continue;
+            }
+            const entry = GATE_WHITELIST.find((item) => item.id === category);
+            if (entry === undefined || !entry.anchors.includes(gateId)) {
+                violations.push(`${workflowId}/${phase.id}：门 ${gateId} 未挂在其类别的锚点集合内`);
+            }
+        }
+    }
+    return violations;
 }

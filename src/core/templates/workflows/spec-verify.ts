@@ -3,6 +3,7 @@
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
+import { renderGateWhitelistSection } from '../prompt-gate.js';
 
 export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
     return {
@@ -13,6 +14,10 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
         instructions: `**验证前先阅读 .iagent/rules/coding-rules.md 中的验证标准。** 重点检查未定义数据字段、架构分层违规、前端 UI 状态覆盖。
 
 验证实现是否与变更制品（specs / tasks / design）一致。
+
+**handoff 包（只读 + 追加）**：若 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\` 存在，本技能**只读**该包并在收尾时只向 \`## 阶段结论\` 追加一行（\`phase\` / \`status\` / \`artifact\` / \`nextAllowed\`）；MUST NOT 重产整包。包缺失时按需直接读取制品（不强制产包）；\`sourceFingerprint\` 与当前制品不一致时记 WARN，并以磁盘制品为准完成验证。
+
+${renderGateWhitelistSection()}
 
 **只读验证步骤无需确认即可执行**：读取制品、扫描文件、一致性分析等环节直接运行，无需中途确认。仅最终验证报告（以及真正需要用户决策的选项，例如发现问题后选择修复路径）需呈现给用户。
 

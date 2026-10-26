@@ -5,7 +5,7 @@
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
-import { GATE_PROTOCOL_PREAMBLE } from '../prompt-gate.js';
+import { GATE_PROTOCOL_PREAMBLE, renderGateWhitelistSection } from '../prompt-gate.js';
 import { CODEGRAPH_MCP, SUBAGENT_DISPATCH, skillDelegation } from '../tool-whitelist.js';
 
 const VERIFICATION_PROTOCOL_FULL = `### 3.1 自动执行验证（无用户询问）
@@ -74,9 +74,8 @@ iagent spec status --change "<name>" --json
 # Match keywords: TypeScript, Java/JSP, Python, Go, Rust
 \`\`\`
 
-检测到技术栈时：
-> "检测到技术栈：[TypeScript]。是否运行技术栈专项校验？"
-> [是] [否 - 仅基础校验]
+检测到技术栈时：**直接执行技术栈专项校验**（不再询问），并在验证报告中说明已校验的项目。
+> 例：检测到 [TypeScript] → 直接应用 TypeScript 专项规则，报告「技术栈专项校验：已执行（TypeScript）」
 
 ### 3.5 验证通过 → 自动触发深度复查 → 需求文档桥（生成 / 跳过）
 
@@ -176,6 +175,10 @@ export function getWorkflowSkillTemplate(): SkillTemplate {
 
 ${GATE_PROTOCOL_PREAMBLE}
 
+${renderGateWhitelistSection()}
+
+**handoff 包（跨阶段只读复用）**：\`iagent_spec_propose\` 在 Phase 2 定稿时产出 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\`；Phase 3 / 4 / 5 的阶段入口读取该包（\`sourceFingerprint\` 与制品不一致 → 重建 + WARN），各阶段收尾只向 \`## 阶段结论\` 追加一行（\`phase\` / \`status\` / \`artifact\` / \`nextAllowed\`）；MUST NOT 另立包格式或重产整包。
+
 ---
 ## Phase 1: 探索（委派 iagent_spec_explore）
 
@@ -186,6 +189,8 @@ Phase 1 SHALL 委派阶段 \`iagent_spec_explore\`（传 \`mode=delegated\`）�
 **退出守卫**：被委派的 \`iagent_spec_explore\` 完成后 MUST NOT 自行进入提案或实现；阶段完成判定与推进主权归编排器。
 
 ## Phase 2: 提案
+
+**⚠️ Phase 1 完成后本阶段立即开始 —— 不停顿、不宣告、不向用户提问。** 下一个动作 MUST 是 Phase 2.0 预迁移验证，MUST NOT 输出「探索完成」类单独消息等待确认。
 
 **TodoWrite 跟踪**：把 Phase 2 事项加入 TodoWrite：
 \`\`\`
@@ -320,6 +325,8 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 
 ## Phase 3: 验证
 
+**⚠️ 提案制品生成完成后本阶段立即开始 —— 不停顿、不宣告、不向用户提问。**
+
 **委派的 iagent_spec_propose 完成后 Phase 3 自动执行。Phase 3 运行验证超集（iagent_spec_verify_proposal + iagent_proposal_review + 需求文档"生成 / 跳过"桥）；被委派的 spec_propose 已抑制自身的 Phase 3 以避免重复评分，且其独立调用不生成需求文档（文档桥只属于本父流程）。**
 
 **TodoWrite 跟踪**：把 Phase 3 事项加入 TodoWrite：
@@ -348,6 +355,8 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 ---
 ## Phase 4: 实现（委派 iagent_spec_apply）
 
+**⚠️ Phase 3.7 实现桥确认后本阶段立即开始 —— 不停顿、不宣告、不向用户提问。** MUST NOT 再输出对该技能的调用确认询问（确认已由 3.7 桥承载）。
+
 **委派 \`iagent_spec_apply\` 技能**执行实现：
 - 传入 change-name + \`auto-mode=true\`（跳过 apply 内部的设计确认门——确认已由 Phase 3.7 实现桥承载，避免重复确认）
 - apply 内部完成：分层代码生成（Entity/DTO → Mapper/DAO → Service → Controller）、tasks.md 勾选更新、编译检查
@@ -373,6 +382,8 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 
 ---
 ## Phase 5: 归档（委派 iagent_spec_archive）
+
+**⚠️ 实现验证通过后本阶段立即开始 —— 不停顿、不宣告、不向用户提问**，直至 5.1 归档确认门（唯一的归档阻塞门）。
 
 ### 5.1 归档桥（强制检查点）
 

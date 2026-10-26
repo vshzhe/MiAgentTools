@@ -23,8 +23,21 @@ coverage/
 .opencode/
 .codegraph/
 
-# openspec 本地产物（init 生成，不入库）
-openspec/
+# ── openspec：仅纳管提案制品（openspec/changes/**），其余保持本机状态 ──
+# 规则链（MUST 按此形态，否则放行无效）：先通配排除 openspec/ 的直接子项，
+# 再放行 changes/，最后逐个排除缓存目录。git 语义下「父目录被排除时无法用
+# `!` 重新纳入子路径」，故 MUST NOT 写成 `openspec/` + `!openspec/changes/**`。
+# 保持忽略（不纳管）：openspec/explorations/**、openspec/specs/**、
+# openspec/devdocs/**、openspec/rules/**、openspec/config.yaml、openspec/CONTEXT.md
+# —— 均被 `openspec/*` 覆盖。
+openspec/*
+!openspec/changes/
+openspec/changes/archive/.iagent/
+openspec/changes/**/attachments/
+# ADR（决策记录）随仓库走：仅放行 openspec/docs/adr/，其余 openspec/docs/** 仍忽略
+!openspec/docs/
+openspec/docs/*
+!openspec/docs/adr/
 .openspec-tmp/
 
 # ── 运行 / 发布临时产物 ─────────────────────────────────────────

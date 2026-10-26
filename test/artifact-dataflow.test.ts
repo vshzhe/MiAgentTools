@@ -363,8 +363,8 @@ describe('A8 auto-workflow 文档桥与自动阶段（N18–N20）', () => {
         expect(body).toContain('本阶段唯一的用户业务选择');
     });
 
-    it('桥后直接进入 Phase 4，不追加“是否调用 spec_apply”确认', () => {
-        expect(body).toContain('不再出现"是否调用 `iagent_spec_apply`"的询问');
+    it('桥后直接进入 Phase 4，不追加调用确认', () => {
+        expect(body).toContain('不再出现对该阶段技能的调用确认询问');
         expect(body).toContain('Phase 4 无其他用户确认');
     });
 

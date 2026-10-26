@@ -16,7 +16,7 @@
 
 ### 数据库
 
-**依据**：项目使用 sql.js（SQLite WASM）仅作为 CodeGraph 代码知识图谱的内嵌索引后端（`src/core/spec/sqlite-index.ts`）与规格工作流的内存态存储（`src/core/spec/sqlite-memory-backend.ts`）。索引文件 `.codegraph/` 为自动生成的本地产物（`.gitignore` 已排除），不存在 DDL 迁移脚本、ORM 映射、业务数据表或应用级数据库设计。
+**依据**：项目**不依赖任何 SQLite 运行时**（跨变更索引能力与 SQLite WASM 依赖已退役，DEC-2）。唯一与"索引"相关的是 CodeGraph 代码知识图谱，其索引文件 `.codegraph/` 由外部 CodeGraph 工具自动生成、属本地产物（`.gitignore` 已排除）；项目内不存在 DDL 迁移脚本、ORM 映射、业务数据表或应用级数据库设计。
 
 ### API 规范
 
@@ -29,5 +29,5 @@
 - 扫描基线：`.iagent/scan-baseline.json`（2026-10-10，82 目录 / 205 文件）
 - 索引：CodeGraph（99 文件 / 1003 符号节点 / 1494 边）
 - 基线 failures：无
-- 基线 limits：命中（MAX_SCAN_DEPTH=8，更深层目录未遍历，已覆盖全部源码目录）
+- 基线 limits：v2（无深度/文件数上限；跳过按 ignored / soft-timeout / unreadable 分类计数）
 - 降级：`iagent_feature_doc` 不适用于 TypeScript CLI 项目，改用 CodeGraph + 源码扫描

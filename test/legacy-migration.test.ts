@@ -27,6 +27,7 @@ import {
     runLegacyMigration,
 } from '../src/core/legacy-migration.js';
 import { CONFIG_FILE_NAME, readProjectConfig } from '../src/core/project-config.js';
+import { parseScanBaseline } from '../src/core/project-scan.js';
 import { getSkillTemplates } from '../src/core/templates/index.js';
 import { runInit } from '../src/commands/init.js';
 import { runUpdate } from '../src/commands/update.js';
@@ -325,6 +326,17 @@ describe('2.2 配置搬运保真（逐行段替换，不重新序列化 YAML）'
         expect(fs.readFileSync(path.join(projectRoot, '.iagent', 'scan-baseline.json'), 'utf8')).toBe(
             '{"legacy":true}\n'
         );
+    });
+
+    it('搬移后的基线可被 v2 读取方按 v1 分支解析（不因 schema 升级而失败）', () => {
+        // 搬移内容逐字保留（上一用例），读取侧承担版本归一：无 version/skipped 的
+        // 历史结构按 v1 只读分支处理，不抛错、不要求 skipped 字段存在。
+        const raw = fs.readFileSync(path.join(projectRoot, '.iagent', 'scan-baseline.json'), 'utf8');
+        const report = parseScanBaseline(raw);
+        expect(report.version).toBe(2);
+        expect(report.limits.hit).toBe(false);
+        expect(report.limits.skipped).toEqual({ ignored: 0, timeout: 0, unreadable: 0 });
+        expect(report.signals.tests).toEqual([]);
     });
 
     it('搬运完成且旧配置目录被移除（报告同时记入搬运项与删除项）', () => {
@@ -686,13 +698,14 @@ describe('2.7 旧版品牌命名的磁盘产物清理', () => {
         expect(report.warnings.some((w) => w.includes('补全标记块不成对'))).toBe(true);
     });
 
-    it('旧 sidecar 目录与旧索引库被删除，报告含 reindex 重建提示', () => {
+    it('旧 sidecar 目录与旧索引库被删除，提示中性且不指向已删命令', () => {
         const changesDir = path.join(projectRoot, 'openspec', 'changes');
         writeAt(path.join(changesDir, 'some-change', '.venus', 'decisions.json'), '{}');
         writeAt(path.join(changesDir, 'archive', 'archived-change', '.venus', 'manifest.json'), '{}');
         writeAt(path.join(changesDir, 'archive', '.venus', 'index.db'), 'db');
-        // 新口径目录不得被触碰
+        // 新口径目录不得被触碰；用户当前目录的历史索引也不得被删除
         writeAt(path.join(changesDir, 'some-change', '.iagent', 'change.json'), '{}');
+        writeAt(path.join(projectRoot, 'openspec', '.iagent', 'index.db'), 'user-db');
 
         const report = runLegacyMigration(projectRoot, { homeDir });
 
@@ -700,8 +713,13 @@ describe('2.7 旧版品牌命名的磁盘产物清理', () => {
         expect(fs.existsSync(path.join(changesDir, 'archive', 'archived-change', '.venus'))).toBe(false);
         expect(fs.existsSync(path.join(changesDir, 'archive', '.venus'))).toBe(false);
         expect(fs.readFileSync(path.join(changesDir, 'some-change', '.iagent', 'change.json'), 'utf8')).toBe('{}');
+        // 历史 index.db 不属本工具产物：不读取、不写入、不删除
+        expect(fs.readFileSync(path.join(projectRoot, 'openspec', '.iagent', 'index.db'), 'utf8')).toBe('user-db');
         expect(report.removed.some((item) => item.includes('旧版 sidecar 目录'))).toBe(true);
-        expect(report.hints.some((hint) => hint.includes('reindex'))).toBe(true);
+        // 中性提示：说明能力已退役，不得指向已删除的命令
+        const hint = report.hints.find((item) => item.includes('旧跨变更索引已删除'));
+        expect(hint).toBeDefined();
+        expect(report.hints.some((item) => item.includes('reindex'))).toBe(false);
     });
 
     it('无任何旧产物时不写用户主目录与 rc/profile', () => {

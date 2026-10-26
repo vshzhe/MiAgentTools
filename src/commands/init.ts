@@ -9,7 +9,7 @@
  */
 
 import path from 'path';
-import * as fs from 'fs';
+import * as fs from 'node:fs';
 import { createRequire } from 'node:module';
 import { getSkillTemplates, getCommandTemplates, getKnownCommandIds, rewriteCommandRefs } from '../core/templates/index.js';
 import {
@@ -28,6 +28,7 @@ import { scanReconcileOrphans, type ReconcileOrphans } from '../core/reconcile.j
 import {
     scanProject,
     createEmptyScanReport,
+    DEFAULT_SCAN_SOFT_TIMEOUT_MS,
     type ProjectScanReport,
 } from '../core/project-scan.js';
 import {
@@ -36,7 +37,6 @@ import {
     type MergeResult,
 } from '../core/permissions.js';
 import { ensureDir, writeFile, pathExists, writeSkillReferences } from '../utils/file-system.js';
-import { initDatabase, isSqlite3Available, resolveIndexDb } from '../core/spec/sqlite-index.js';
 import { runLegacyMigration, type LegacyMigrationReport } from '../core/legacy-migration.js';
 import { cleanupMisplacedCommands, type MisplacedCleanupResult } from '../core/command-artifacts.js';
 import { runSkillIdMigration, type SkillIdMigrationReport } from '../core/skill-id-migration.js';
@@ -76,8 +76,12 @@ export interface InitOptions {
     force?: boolean;
     /** 是否执行项目预扫描（--no-scan 时由 Commander 生成 scan: false，跳过扫描且不写基线） */
     scan?: boolean;
+    /** 是否解析 ignore 文件（--no-scan-ignore 时由 Commander 生成 scanIgnore: false，退化为仅固定忽略清单） */
+    scanIgnore?: boolean;
     /** 是否执行旧装机迁移（--no-migrate 时由 Commander 生成 migrate: false） */
     migrate?: boolean;
+    /** 环境变量注入（仅测试与自定义环境使用；默认 process.env） */
+    env?: NodeJS.ProcessEnv;
     /** 用户主目录（旧补全产物所在；仅测试与自定义环境注入，默认 os.homedir()） */
     homeDir?: string;
     /** Pi 运行时命令执行器（仅 CLI 注入真实执行器；缺省为安全空执行器 = degraded） */
@@ -107,8 +111,10 @@ export interface InitResult {
     permissionSettings: MergeResult[];
     /** 项目预扫描报告（--no-scan 时为空报告，未扫描、未写基线） */
     scanReport: ProjectScanReport;
-    /** SQLite 跨变更索引初始化结果（index.db 创建状态） */
-    indexDbStatus: 'created' | 'skipped-exists' | 'skipped-unavailable' | 'failed';
+    /** 扫描配置告警（如非法 IAGENT_SCAN_SOFT_TIMEOUT_MS 被忽略） */
+    scanWarnings: string[];
+    /** 提案制品纳管策略提示（仓库未放行 openspec/changes/ 时给出；MUST NOT 改写 .gitignore） */
+    changeArtifactsHint: string | null;
     /** 旧装机迁移报告（未发生迁移时 migrated 为 false） */
     legacyMigration: LegacyMigrationReport;
     /** 清理早期错误位置 .pi/commands/iagent/ 的结果 */
@@ -123,8 +129,72 @@ export interface InitResult {
     piNative: PiNativeWriteResult | null;
 }
 
-/** 读取当前包版本（供 metadata.generatedBy） */
-function getPackageVersion(): string {
+/** 扫描软超时预算的环境变量名（正整数毫秒；非法值忽略并 WARN） */
+export const SCAN_SOFT_TIMEOUT_ENV = 'IAGENT_SCAN_SOFT_TIMEOUT_MS';
+
+/**
+ * 解析扫描软超时预算的环境变量覆盖。
+ *
+ * 契约（见 init-project-scan / 软超时与跳过量统计）：正整数毫秒生效；非法值**忽略**
+ * （保持默认 30s）并产出 WARN 文本；`config.yaml` MUST NOT 新增 scan 段。
+ *
+ * @param env - 环境变量载体（默认 process.env；测试可注入）
+ */
+export function resolveScanSoftTimeoutMs(env: NodeJS.ProcessEnv = process.env): {
+    softTimeoutMs?: number;
+    warnings: string[];
+} {
+    const raw = env[SCAN_SOFT_TIMEOUT_ENV];
+    if (raw === undefined || raw.trim() === '') {
+        return { warnings: [] };
+    }
+    const parsed = Number(raw.trim());
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+        return {
+            warnings: [
+                `忽略非法环境变量 ${SCAN_SOFT_TIMEOUT_ENV}=${raw}（需正整数毫秒），扫描沿用默认预算 ${DEFAULT_SCAN_SOFT_TIMEOUT_MS}ms`,
+            ],
+        };
+    }
+    return { softTimeoutMs: parsed, warnings: [] };
+}
+
+/** `.gitignore` 中放行 `openspec/changes/` 的规则（gitignore 语义：`!` 取反 + 目录结尾） */
+const CHANGE_ARTIFACTS_ALLOW_RULE = /^\s*!\s*openspec\/changes\/?\s*$/m;
+
+/**
+ * 解析提案制品纳管策略提示。
+ *
+ * 契约（commit-push-skill / openspec 变更制品的纳管策略）：`iagent init` MAY 提示该策略，
+ * MUST NOT 擅自写入或改写业务 `.gitignore`。判定为纯读取：
+ *   - 非 Git 仓库（无 `.git/`）→ 不提示（SVN 语义不受影响）
+ *   - `.gitignore` 已含放行规则 `!openspec/changes/` → 已纳管，不提示
+ *   - 其余情形 → 返回一行提示（不修改任何文件）
+ *
+ * @param projectRoot - 项目根目录
+ */
+export function resolveChangeArtifactsHint(projectRoot: string): string | null {
+    if (!fs.existsSync(path.join(projectRoot, '.git'))) {
+        return null;
+    }
+    const gitignorePath = path.join(projectRoot, '.gitignore');
+    let content = '';
+    try {
+        content = fs.existsSync(gitignorePath) ? fs.readFileSync(gitignorePath, 'utf8') : '';
+    } catch {
+        content = '';
+    }
+    if (CHANGE_ARTIFACTS_ALLOW_RULE.test(content)) {
+        return null;
+    }
+    return (
+        '提示：openspec/changes/** 下的提案制品尚未纳入版本控制。' +
+        '如需随代码提交，请在 .gitignore 用规则链放行（openspec/* → !openspec/changes/ → 逐个排除缓存目录）；' +
+        'iagent MUST NOT 自动改写你的 .gitignore'
+    );
+}
+
+/** 读取当前包版本（供 metadata.generatedBy） */function getPackageVersion(): string {
     try {
         const req = createRequire(import.meta.url);
         const pkg = req('../../package.json') as { version?: string };
@@ -311,26 +381,19 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
     const reconcileOrphans = scanReconcileOrphans(projectRoot, resolved.workflows);
 
     // 6. 项目预扫描（非阻断）：产出 .iagent/scan-baseline.json 供 project-init 技能参考；
-    //    失败只记入报告的 failures，不影响安装结果；--no-scan 时整体跳过
-    const scanReport = options.scan === false ? createEmptyScanReport() : scanProject(projectRoot);
-
-    // 7. SQLite 跨变更索引初始化（非阻断）：创建 openspec/changes/archive/.iagent/index.db；
-    //    sqlite3 CLI 不可用时跳过；数据库已存在时跳过
-    let indexDbStatus: 'created' | 'skipped-exists' | 'skipped-unavailable' | 'failed' = 'skipped-unavailable';
-    const openspecDir = path.join(projectRoot, 'openspec');
-    if (fs.existsSync(openspecDir)) {
-        if (!isSqlite3Available()) {
-            indexDbStatus = 'skipped-unavailable';
-        } else {
-            const dbPath = resolveIndexDb(openspecDir);
-            if (fs.existsSync(dbPath)) {
-                indexDbStatus = 'skipped-exists';
-            } else {
-                const dbResult = initDatabase(openspecDir);
-                indexDbStatus = dbResult.success ? 'created' : 'failed';
-            }
-        }
-    }
+    //    失败只记入报告的 failures / skipped，不影响安装结果；--no-scan 时整体跳过。
+    //    软超时预算可经 IAGENT_SCAN_SOFT_TIMEOUT_MS 覆盖（非法值忽略并 WARN）；
+    //    --no-scan-ignore 退化为仅内置固定忽略清单（config.yaml 不新增 scan 段）。
+    const scanTimeout = resolveScanSoftTimeoutMs(options.env ?? process.env);
+    const scanReport =
+        options.scan === false
+            ? createEmptyScanReport()
+            : scanProject(projectRoot, {
+                  softTimeoutMs: scanTimeout.softTimeoutMs,
+                  respectIgnoreFiles: options.scanIgnore !== false,
+              });
+    const scanWarnings = scanTimeout.warnings;
+    const changeArtifactsHint = resolveChangeArtifactsHint(projectRoot);
 
     return {
         projectRoot,
@@ -346,7 +409,8 @@ export function runInit(projectRoot: string, options: InitOptions = {}): InitRes
         reconcileOrphans,
         permissionSettings,
         scanReport,
-        indexDbStatus,
+        scanWarnings,
+        changeArtifactsHint,
         legacyMigration,
         misplacedCommands,
         skillIdMigration,

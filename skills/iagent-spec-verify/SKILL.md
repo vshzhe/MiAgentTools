@@ -8,12 +8,33 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:a14c88cc920f65aba651c5932dc0c4acb8d72e7ae89ded0ea0b8456d34b43a89"
+  generatedFingerprint: "sha256:59b3231ee7042fce0a15bd7f21ca10008d38b9c4ab1f99fa1f75b5fbee38f994"
 ---
 
 **验证前先阅读 .iagent/rules/coding-rules.md 中的验证标准。** 重点检查未定义数据字段、架构分层违规、前端 UI 状态覆盖。
 
 验证实现是否与变更制品（specs / tasks / design）一致。
+
+**handoff 包（只读 + 追加）**：若 `.openspec-tmp/pipeline-<change-name>/handoff-pack.md` 存在，本技能**只读**该包并在收尾时只向 `## 阶段结论` 追加一行（`phase` / `status` / `artifact` / `nextAllowed`）；MUST NOT 重产整包。包缺失时按需直接读取制品（不强制产包）；`sourceFingerprint` 与当前制品不一致时记 WARN，并以磁盘制品为准完成验证。
+
+## 门白名单与 MUST NOT 确认清单
+
+**必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
+- **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
+- **实现 + 测试桥**：implementation-bridge（不可豁免）
+- **归档桥**：archive-confirmation（不可豁免）
+- **破坏性改动确认（动作级，不可豁免：删除目录 / 覆盖既有制品 / 改写版本库跟踪 / 不可逆命令）**（不可豁免）
+
+**MUST NOT 请求确认（非门动作，MUST NOT 被实现为停止点）**：
+- 阶段宣告（如「进入 Phase N」「本阶段开始」）
+- 技能委派（含「是否调用 <技能>」类询问）—— 已授权的 nextAllowed 技能直接委派
+- 只读扫描（Glob / Grep / Read 与只读查询）
+- CodeGraph 查询与能力探测（含锁阶梯只读复用）
+- 状态查询（`iagent spec status` / `getChangeStatus` 等）
+- 只读校验的「是否运行 <校验>？」询问（如技术栈专项校验）—— 直接执行并在报告中说明校验项
+
+> 跨变更索引重建类动作已随索引能力退役（DEC-2），不构成任何门或动作。
 
 **只读验证步骤无需确认即可执行**：读取制品、扫描文件、一致性分析等环节直接运行，无需中途确认。仅最终验证报告（以及真正需要用户决策的选项，例如发现问题后选择修复路径）需呈现给用户。
 

@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:6c2dbafac527ee4a357621c1ba523d6dea259147a76a54c47f976cb621080789"
+  generatedFingerprint: "sha256:efe89781acec2cf2754bdaf9780ab2488be7769af60cb876f897eae8324a104b"
 ---
 
 
@@ -33,7 +33,30 @@ metadata:
 - 走到 ⛔ GATE 时，**本次响应到此结束** —— 输出门内容后立即停止
 - 不得执行、描述或预生成门之后的任何步骤
 - 用户的下一则消息即为确认信号 —— 仅在其响应后从门之后继续
+- **非门动作 MUST NOT 停止，也 MUST NOT 请求确认**：阶段宣告 / 技能委派（含「是否调用 <技能>」）/ 只读扫描 / CodeGraph 查询 / 状态查询 / 只读校验的「是否运行 <校验>？」询问，均不是确认门
+- **只有**门白名单（见「门白名单与 MUST NOT 确认清单」段）声明的 5 类门可以阻断推进；白名单外的动作 MUST NOT 被实现为停止点
 - **违规**：未经用户确认而执行门之后的步骤，是破坏工作流的严重错误
+
+## 门白名单与 MUST NOT 确认清单
+
+**必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
+- **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
+- **实现 + 测试桥**：implementation-bridge（不可豁免）
+- **归档桥**：archive-confirmation（不可豁免）
+- **破坏性改动确认（动作级，不可豁免：删除目录 / 覆盖既有制品 / 改写版本库跟踪 / 不可逆命令）**（不可豁免）
+
+**MUST NOT 请求确认（非门动作，MUST NOT 被实现为停止点）**：
+- 阶段宣告（如「进入 Phase N」「本阶段开始」）
+- 技能委派（含「是否调用 <技能>」类询问）—— 已授权的 nextAllowed 技能直接委派
+- 只读扫描（Glob / Grep / Read 与只读查询）
+- CodeGraph 查询与能力探测（含锁阶梯只读复用）
+- 状态查询（`iagent spec status` / `getChangeStatus` 等）
+- 只读校验的「是否运行 <校验>？」询问（如技术栈专项校验）—— 直接执行并在报告中说明校验项
+
+> 跨变更索引重建类动作已随索引能力退役（DEC-2），不构成任何门或动作。
+
+**handoff 包（跨阶段只读复用）**：`iagent_spec_propose` 在 Phase 2 定稿时产出 `.openspec-tmp/pipeline-<change-name>/handoff-pack.md`；Phase 3 / 4 / 5 的阶段入口读取该包（`sourceFingerprint` 与制品不一致 → 重建 + WARN），各阶段收尾只向 `## 阶段结论` 追加一行（`phase` / `status` / `artifact` / `nextAllowed`）；MUST NOT 另立包格式或重产整包。
 
 ---
 ## Phase 1: 探索（委派 iagent_spec_explore）
@@ -45,6 +68,8 @@ Phase 1 SHALL 委派阶段 `iagent_spec_explore`（传 `mode=delegated`）执行
 **退出守卫**：被委派的 `iagent_spec_explore` 完成后 MUST NOT 自行进入提案或实现；阶段完成判定与推进主权归编排器。
 
 ## Phase 2: 提案
+
+**⚠️ Phase 1 完成后本阶段立即开始 —— 不停顿、不宣告、不向用户提问。** 下一个动作 MUST 是 Phase 2.0 预迁移验证，MUST NOT 输出「探索完成」类单独消息等待确认。
 
 **TodoWrite 跟踪**：把 Phase 2 事项加入 TodoWrite：
 ```
@@ -179,6 +204,8 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 
 ## Phase 3: 验证
 
+**⚠️ 提案制品生成完成后本阶段立即开始 —— 不停顿、不宣告、不向用户提问。**
+
 **委派的 iagent_spec_propose 完成后 Phase 3 自动执行。Phase 3 运行验证超集（iagent_spec_verify_proposal + iagent_proposal_review + 需求文档"生成 / 跳过"桥）；被委派的 spec_propose 已抑制自身的 Phase 3 以避免重复评分，且其独立调用不生成需求文档（文档桥只属于本父流程）。**
 
 **TodoWrite 跟踪**：把 Phase 3 事项加入 TodoWrite：
@@ -207,6 +234,8 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 ---
 ## Phase 4: 实现（委派 iagent_spec_apply）
 
+**⚠️ Phase 3.7 实现桥确认后本阶段立即开始 —— 不停顿、不宣告、不向用户提问。** MUST NOT 再输出对该技能的调用确认询问（确认已由 3.7 桥承载）。
+
 **委派 `iagent_spec_apply` 技能**执行实现：
 - 传入 change-name + `auto-mode=true`（跳过 apply 内部的设计确认门——确认已由 Phase 3.7 实现桥承载，避免重复确认）
 - apply 内部完成：分层代码生成（Entity/DTO → Mapper/DAO → Service → Controller）、tasks.md 勾选更新、编译检查
@@ -232,6 +261,8 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 
 ---
 ## Phase 5: 归档（委派 iagent_spec_archive）
+
+**⚠️ 实现验证通过后本阶段立即开始 —— 不停顿、不宣告、不向用户提问**，直至 5.1 归档确认门（唯一的归档阻塞门）。
 
 ### 5.1 归档桥（强制检查点）
 

@@ -225,13 +225,13 @@ _Avoid_: JSON 模板（易与 MD template 混淆）
 **降级链（读取链）**: 消费方读取变更结构化数据的优先次序——`.venus/change.json` 对应段 → 旧 JSON（manifest/decisions/capabilities）→ MD 散文解析，逐级 WARN、不阻断流程。
 _Avoid_: fallback（英混）、回退路径（歧义）
 
-**SQLite Cross-Change Index**: 本地 SQLite 数据库（`openspec/changes/archive/.venus/index.db`），归档变更时写入变更/能力/决策/需求/探索记忆索引，供探索和提案阶段快速搜索历史变更。
-_Avoid_: SQLite 索引 / index.db / 跨变更检索
+**SQLite Cross-Change Index（已退役，DEC-2）**: 历史上用于归档变更后写入变更/能力/决策/需求/探索记忆索引、供探索和提案阶段快速搜索的本地 SQLite 数据库；跨变更索引能力已整体退役（命令、模块、依赖一并移除），历史索引库不由本工具删除，检索改用 Glob/Grep 与 `openspec/specs/<capability>/explorations.md`。
+_Avoid_: SQLite 索引 / 跨变更检索
 
 **SkillTemplate.references**: 技能模板的附加参考文件机制，将大体积文本段（Gate 全文、检查矩阵等）拆分为独立 `references/*.md` 文件，AI 按需读取。由 `writeSkillReferences` 写入，`syncReferences` 管理生命周期。
 _Avoid_: references 机制 / 技能参考文件
 
-**MemoryBackend**: SQLite 内存后端，实现与 sqlite-index.ts 相同接口但数据存储在内存 Map 中，不依赖 sqlite3 CLI 或 better-sqlite3。供测试使用。
+**MemoryBackend（已退役，DEC-2）**: 历史上提供的 SQLite 内存后端（测试用），随跨变更索引能力退役一并删除。
 _Avoid_: 内存后端 / 测试 SQLite
 
 **需求文档生成时机**: SKILL 工作流中需求文档的生成时间点——当前为提案验证通过后（Phase 3 / Stage 2 收束阶段），归档阶段做增量对齐或后向兼容生成。

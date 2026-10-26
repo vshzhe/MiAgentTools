@@ -3,9 +3,10 @@
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
-import { buildPromptGateBlock, buildPromptGateCompact, GATE_PROTOCOL_PREAMBLE, REQUIREMENT_DIMENSIONS } from '../prompt-gate.js';
+import { buildPromptGateBlock, buildPromptGateCompact, GATE_PROTOCOL_PREAMBLE, renderGateWhitelistSection, REQUIREMENT_DIMENSIONS } from '../prompt-gate.js';
 import { buildFlowchartBlock, buildFlowchartCompact, REQUIREMENT_FLOW_COLUMNS } from '../flowchart-gate.js';
-import { CODEGRAPH_MCP } from '../tool-whitelist.js';
+import { CODEGRAPH_CLI, CODEGRAPH_MCP } from '../tool-whitelist.js';
+import { renderCodegraphProbeOrder } from '../codegraph-protocol.js';
 
 /** 需求维度的提示词校验门紧凑版（技能正文内联）；全文细则见 references/prompt-gate.md */
 const PROMPT_GATE = buildPromptGateCompact(REQUIREMENT_DIMENSIONS);
@@ -292,11 +293,13 @@ const EXPLORATION_PROTOCOL_FULL = `## 强制检查点体系（delegated 模式�
 
 结构化格式初始化之后，系统 MUST 执行强制的 CodeGraph 基础扫描：
 
-0. **检查 CodeGraph 可用性（强制的首个动作）**：
-   - **MUST 先运行 \`codegraph_status\`。** 在它返回不可用之前，MUST NOT 用 Glob/Grep 做文件或符号调查 —— 下面的 \`codegraph_*\` 工具才是主路径，而非可选路径。
-   - 可用时：继续使用下面的 CodeGraph 工具
-   - \`codegraph_status\` 确认不可用（未初始化或报错）时：**只有此时**才记录 "CodeGraph 未初始化 — 降级到 Glob/Grep" 并跳到下面的降级路径
-   - Grep/Glob 是最后手段，**只有**在 \`codegraph_status\` 确认不可用后才允许使用 —— 绝不作为跳过 CodeGraph 的捷径
+0. **探测 CodeGraph 可用性（能力探测顺序，不是单一工具硬约束）**：
+
+   ${renderCodegraphProbeOrder({ withCli: true })}
+
+   可用时：继续使用下面的 CodeGraph 工具。
+   三通道全部不可用 → 记录 "CodeGraph 不可用 — 降级到 Glob/Grep" 并跳到下面的降级路径。
+   Grep/Glob 是最后手段，**只有**在能力探测三通道全部失败后才允许使用 —— 绝不作为跳过 CodeGraph 的捷径。
 
 1. 用 \`codegraph_files\` 工具**扫描项目文件结构**
    - 获取带元数据的完整项目文件树
@@ -324,7 +327,7 @@ const EXPLORATION_PROTOCOL_FULL = `## 强制检查点体系（delegated 模式�
    - <pattern-name>: <example-location>
    \`\`\`
 
-**降级（回退，最后手段）**：**只有**在 \`codegraph_status\` 确认 CodeGraph MCP 工具不可用（未初始化或报错）后才允许：
+**降级（回退，最后手段）**：**只有**在能力探测三通道全部不可用（未初始化或报错）后才允许：
 - 文件结构发现降级到 Glob 工具
 - 符号检索降级到 Grep 工具
 - 在探索文件中记录："CodeGraph 不可用 — 已用 Glob/Grep 降级"
@@ -928,12 +931,12 @@ const EXPLORATION_GUIDANCE = `> 探索指南（派生自上游 OpenSpec \`opensp
 
 **调研代码库**
 - 运行 CodeGraph 基础扫描（codegraph_files + codegraph_search）以理解项目结构
-- **MUST 先运行 \`codegraph_status\`。** 在它确认不可用之前，MUST NOT 用 Glob/Grep 调研代码库 —— codegraph 工具才是主路径。确认不可用时：用 Glob/Grep 降级（最后手段）。
+- 先按能力探测顺序确认可用性（MCP 具名工具 → codegraph_explore 时效横幅 → CLI status --json，任一成功即可用；见 delegated 模式的探测段）；三通道全部不可用才用 Glob/Grep 降级（最后手段）
 - 梳理与讨论相关的既有架构
 - 寻找集成点
 - 识别已在使用的模式
 - 揭示隐藏的复杂度
-- Grep/Glob 是最后手段，**只有**在 \`codegraph_status\` 确认 CodeGraph 不可用后才使用
+- Grep/Glob 是最后手段，**只有**在能力探测三通道全部失败后才使用
 - **考虑保存发现**：扫描之后，可提议把结果保存到 \`openspec/explorations/\`，供后续工作流使用
 
 **理解设计理由（深度分析）**
@@ -991,11 +994,12 @@ const EXPLORATION_GUIDANCE = `> 探索指南（派生自上游 OpenSpec \`opensp
 iagent spec status --json
 \`\`\`
 
-### 检查历史（SQLite 索引）
+### 检查历史（能力级探索记忆文件）
 
-探索某个能力时，通过 SQLite 索引查看历史上下文：
-- \`openspec/.iagent/index.db\` 存在 → 按能力名查询 \`exploration_memory\` 表，获取既往决策 / 术语 / 边界场景
-- index.db 不可用 → 降级到 Glob \`openspec/specs/<capability>/explorations.md\`
+探索某个能力时，读取能力级探索记忆文件获取历史上下文（唯一通道，跨变更索引已退役）：
+- 用 Glob 定位 \`openspec/specs/<capability>/explorations.md\`
+- 文件存在 → 读取其中既往决策 / 术语 / 边界场景；标为 \`已过时（由 <change-name> 取代）\` 的段落仅作历史参考
+- 文件缺失 → 记录「无能力级探索记忆 — 全新探索」，按常规探索继续（MUST NOT 因此阻塞）
 - 把找到的历史决策 / 术语注入探索上下文
 
 这能告诉你：
@@ -1192,7 +1196,7 @@ export function getSpecExploreSkillTemplate(): SkillTemplate {
     return {
         name: 'iagent_spec_explore',
         description: '进入探索模式。当用户想要在变更前或变更中思考问题、调研代码库、明确需求时使用；触发词"探索 / explore / 调研 / 思考 / 明确需求"；NOT for 一站式引导全流程（改用 iagent_workflow）或缺陷根因排查（改用 iagent_debug）。',
-        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(git:*), ${CODEGRAPH_MCP}`,
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(git:*), ${CODEGRAPH_CLI}, ${CODEGRAPH_MCP}`,
         type: 'spec',
         instructions: `**适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
 
@@ -1212,6 +1216,8 @@ export function getSpecExploreSkillTemplate(): SkillTemplate {
 - 什么都不带（仅进入探索模式）
 
 ${GATE_PROTOCOL_PREAMBLE}
+
+${renderGateWhitelistSection()}
 
 ---
 

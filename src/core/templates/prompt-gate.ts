@@ -12,6 +12,8 @@
  * 手写指令正文使用 buildPromptGateCompact(dimensions) 压缩渲染。
  */
 
+import { GATE_WHITELIST } from '../host-orchestration/protocol.js';
+
 /** 一个清晰度维度 */
 export interface PromptDimension {
     /** 维度名（中英并列，如 "目标 Goal"） */
@@ -118,7 +120,50 @@ export const GATE_PROTOCOL_PREAMBLE = `## ⛔ GATE PROTOCOL — ACTIVE
 - 走到 ⛔ GATE 时，**本次响应到此结束** —— 输出门内容后立即停止
 - 不得执行、描述或预生成门之后的任何步骤
 - 用户的下一则消息即为确认信号 —— 仅在其响应后从门之后继续
+- **非门动作 MUST NOT 停止，也 MUST NOT 请求确认**：阶段宣告 / 技能委派（含「是否调用 <技能>」）/ 只读扫描 / CodeGraph 查询 / 状态查询 / 只读校验的「是否运行 <校验>？」询问，均不是确认门
+- **只有**门白名单（见「门白名单与 MUST NOT 确认清单」段）声明的 5 类门可以阻断推进；白名单外的动作 MUST NOT 被实现为停止点
 - **违规**：未经用户确认而执行门之后的步骤，是破坏工作流的严重错误`;
+
+/**
+ * 负向清单：**不是确认门**的动作（MUST NOT 被实现为停止点）。
+ *
+ * 单一源：各模板 MUST 通过 `renderGateWhitelistSection()` 引用本清单，
+ * MUST NOT 手写第二份（避免各技能负向边界漂移）。
+ */
+export const GATE_MUST_NOT_CONFIRM_ITEMS: readonly string[] = [
+    '阶段宣告（如「进入 Phase N」「本阶段开始」）',
+    '技能委派（含「是否调用 <技能>」类询问）—— 已授权的 nextAllowed 技能直接委派',
+    '只读扫描（Glob / Grep / Read 与只读查询）',
+    'CodeGraph 查询与能力探测（含锁阶梯只读复用）',
+    '状态查询（`iagent spec status` / `getChangeStatus` 等）',
+    '只读校验的「是否运行 <校验>？」询问（如技术栈专项校验）—— 直接执行并在报告中说明校验项',
+];
+
+/**
+ * 渲染「门白名单 + MUST NOT 确认清单」段（模板正文唯一来源）。
+ *
+ * 必留门清单由协议层 `GATE_WHITELIST` 渲染（模板层依赖协议层），
+ * 负向清单来自 `GATE_MUST_NOT_CONFIRM_ITEMS`；二者 MUST NOT 在各模板中手写副本。
+ */
+export function renderGateWhitelistSection(): string {
+    const gateLines = GATE_WHITELIST.map((entry) => {
+        const anchors = entry.anchors.length > 0 ? `：${entry.anchors.join(' / ')}` : '';
+        const exemption = entry.conditional ? '（可按条件豁免）' : '（不可豁免）';
+        return `- **${entry.label}**${anchors}${exemption}`;
+    });
+    const negativeLines = GATE_MUST_NOT_CONFIRM_ITEMS.map((item) => `- ${item}`);
+    return [
+        '## 门白名单与 MUST NOT 确认清单',
+        '',
+        '**必留门（正向枚举 5 类，缺一即流程安全缺陷）**：',
+        ...gateLines,
+        '',
+        '**MUST NOT 请求确认（非门动作，MUST NOT 被实现为停止点）**：',
+        ...negativeLines,
+        '',
+        '> 跨变更索引重建类动作已随索引能力退役（DEC-2），不构成任何门或动作。',
+    ].join('\n');
+}
 
 /**
  * 渲染完整提示词校验门文本（Step 1-5 + 入口形态适配）。

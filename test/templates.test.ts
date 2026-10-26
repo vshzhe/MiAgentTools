@@ -3,6 +3,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { fileURLToPath } from 'node:url';
+import * as fs from 'node:fs';
 import { getSkillTemplates, getCommandTemplates, deriveCommandId, countSkillsByType } from '../src/core/templates/index.js';
 import { SKILL_PREFIX, SKILL_TYPE_IDS, isSkillType } from '../src/core/config.js';
 import {
@@ -11,6 +13,8 @@ import {
     REQUIREMENT_FLOW_COLUMNS,
     FAULT_CHAIN_FLOW_COLUMNS,
 } from '../src/core/templates/flowchart-gate.js';
+import { GATE_MUST_NOT_CONFIRM_ITEMS } from '../src/core/templates/prompt-gate.js';
+import { GATE_WHITELIST } from '../src/core/host-orchestration/protocol.js';
 
 /** 全量技能模板（模块级共用，供跨 describe 的契约断言使用） */
 const allSkills = getSkillTemplates();
@@ -383,5 +387,397 @@ describe('debug 决策与回归测试职责（4.3）', () => {
         expect(debugMain).toContain('重跑仍失败时');
         expect(debugMain).toContain('没有跳过直接实现的路径');
         expect(debugMain).toContain('[1] 手动编辑，[2] 返回探索，[3] 查看详细差异报告');
+    });
+});
+
+// 任务 2.11：spec-explore 既有探索协议回归（MODIFIED 需求整体重写后逐条守护）。
+describe('2.11 spec-explore 既有探索协议回归', () => {
+    const explore = skillCorpus('iagent_spec_explore');
+    const exploreMain = allSkills.find((s) => s.template.name === 'iagent_spec_explore')?.template.instructions ?? '';
+
+    it('探索文件持久化（强制创建检查点与命名规则）', () => {
+        expect(explore).toContain('创建探索文件（强制检查点）');
+        expect(explore).toContain('openspec/explorations/<keyword>-explore-<sequence>.md');
+        expect(explore).toContain('没有有效探索文件时，系统 MUST NOT 进入追问环节');
+    });
+
+    it('写入确认守卫（范围限定 + 显式同意）', () => {
+        expect(explore).toContain('写操作确认限定范围且须显式');
+        expect(explore).toContain('每次写都需独立的同意/拒绝确认');
+    });
+
+    it('依赖文件 re-read from disk（不依赖会话缓存）', () => {
+        expect(explore).toContain('从磁盘重新读取文件');
+        expect(explore).toContain('MUST 从磁盘重新读取');
+        expect(explore).toContain('绝不依赖会话缓存的内容');
+    });
+
+    it('材料性歧义划分（实质性 vs 细节级）', () => {
+        expect(explore).toContain('实质性歧义要表面化');
+        expect(explore).toContain('非实质性的细节级歧义可用合理假设解决');
+    });
+
+    it('条件触发保持探索立场（非固定流程步骤）', () => {
+        expect(exploreMain).toContain('这不是固定流程步骤');
+        expect(exploreMain).toContain('不因本门改变');
+    });
+
+    it('入口形态适配（最终输入 / 变更名 / 已有基线）', () => {
+        expect(explore).toContain('入口形态适配');
+        expect(explore).toContain('MUST NOT 对空输入执行校验');
+        expect(explore).toContain('上游已产出提示词基线时直接通过');
+    });
+
+    it('含糊输入激活门并阻塞确认', () => {
+        expect(explore).toContain('输入含糊或多义时激活本门');
+        expect(explore).toContain('确认前 MUST NOT 进行代码库扫描与需求澄清追问');
+    });
+
+    it('浮现业务功能流程时产出并确认', () => {
+        expect(explore).toContain('流程浮现时要产出功能流程图');
+        expect(explore).toContain('流程最终确认门（强制停止）');
+    });
+
+    it('无业务功能流程时直通不阻断', () => {
+        expect(explore).toContain('本次无功能流程');
+        expect(explore).toContain('不阻断探索');
+    });
+
+    it('流程最终确认门不死锁（四出口）', () => {
+        expect(explore).toContain('不要在流程最终确认门上死锁');
+        expect(explore).toContain('拒绝后按原理解继续');
+    });
+
+    it('探索阶段阻塞门仍 ≤1（门预算段存在）', () => {
+        expect(explore).toContain('每个阶段至多 **1 个流程级阻塞确认门**');
+        expect(explore).toContain('探索阶段**：**功能流程图门**为唯一流程级阻塞门');
+    });
+});
+
+// 任务 2.12：spec-archive 需求文档检查点回归（改 CodeGraph 段时不得削弱既有状态分支）。
+describe('2.12 spec-archive 需求文档检查点回归', () => {
+    const archive = skillCorpus('iagent_spec_archive');
+
+    it('跳过不补生成 / 已存在则对齐', () => {
+        expect(archive).toContain('skipped-by-user');
+        expect(archive).toContain('MUST NOT 调用 `iagent_requirement_doc`、MUST NOT 生成');
+        expect(archive).toContain('就地增量对齐');
+    });
+
+    it('生成失败不重试 / 已生成缺失不重建', () => {
+        expect(archive).toContain('generation-failed');
+        expect(archive).toContain('MUST NOT 静默重试生成');
+        expect(archive).toContain('generated');
+        expect(archive).toContain('MUST NOT 重新生成');
+    });
+
+    it('读取失败不落入兼容生成（重试一次后停止）', () => {
+        expect(archive).toContain('自动重试同一读取**一次**');
+        expect(archive).toContain('MUST NOT 进入历史兼容生成分支');
+    });
+
+    it('历史无状态兼容（absent 分支）', () => {
+        expect(archive).toContain('分支 E');
+        expect(archive).toContain('非交互模式');
+        expect(archive).toContain('`absent`');
+    });
+
+    it('人工域受保护（基本信息与评审记录逐字保留）', () => {
+        expect(archive).toContain('人工域');
+        expect(archive).toContain('逐字保留');
+        expect(archive).toContain('## 八、评审记录');
+    });
+
+    it('单独调用读持久状态（文件存在性与状态同读）', () => {
+        expect(archive).toContain('检查点同时读取**两件事**');
+        expect(archive).toContain('文档文件存在 > 持久状态');
+    });
+
+    it('失败不阻断归档', () => {
+        expect(archive).toContain('绝不因本检查点阻塞归档');
+    });
+
+    it('探索记忆同步与 delta 智能合并仍在', () => {
+        expect(archive).toContain('探索记忆同步');
+        expect(archive).toContain('ADDED/MODIFIED/REMOVED/RENAMED');
+    });
+
+    it('需求文档状态四值语义与 host-orchestration 一致', () => {
+        for (const status of ['absent', 'skipped-by-user', 'generation-failed', 'generated']) {
+            expect(archive).toContain(status);
+        }
+    });
+});
+
+// 任务 3.5：spec-apply 既有实现流程回归（MODIFIED 需求整体重写后逐条守护）。
+describe('3.5 spec-apply 既有实现流程回归', () => {
+    const apply = skillCorpus('iagent_spec_apply');
+
+    it('设计确认门（批次计划 + 显式确认）', () => {
+        expect(apply).toContain('设计确认');
+        expect(apply).toMatch(/批次计划|批计划/);
+        expect(apply).toContain('确认');
+    });
+
+    it('任务上下文获取（优先 CLI，失败降级直接读变更目录）', () => {
+        expect(apply).toContain('iagent spec instructions apply --change');
+        expect(apply).toContain('contextFiles');
+        expect(apply).toContain('降级');
+    });
+
+    it('任务勾选推进（完整实现才勾选）', () => {
+        expect(apply).toContain('以 tasks.md 的勾选框为唯一权威');
+        expect(apply).toContain('部分实现或延后实现 SHALL NOT 勾选');
+    });
+
+    it('scope-creep 防护（表面化并同步制品）', () => {
+        expect(apply).toContain('范围蔓延护栏');
+        expect(apply).toContain('MUST 先更新 proposal/specs/design');
+    });
+
+    it('编译检查（技术栈探测 + 自动修复上限 3 次）', () => {
+        expect(apply).toContain('编译检查阶段');
+        expect(apply).toContain('最多 3 次');
+    });
+
+    it('[测试] 任务委派 iagent_test，不另立测试规则', () => {
+        expect(apply).toContain('MUST 委派 `iagent_test`');
+        expect(apply).toContain('MUST NOT 在 apply 内另立一套测试规则');
+    });
+
+    it('[测试] 任务不按补充文档路由（不走 attachments）', () => {
+        expect(apply).toContain('MUST NOT 走 `产出:` → `attachments/` 规则');
+        expect(apply).toContain('`[测试]` 任务 MUST NOT 当作补充文档处理');
+    });
+
+    it('未标注任务仍按代码实现处理', () => {
+        expect(apply).toContain('带 `[代码]` 标签或无标签的任务');
+    });
+
+    it('测试执行关卡运行变更范围', () => {
+        expect(apply).toContain('测试执行门');
+        expect(apply).toContain('变更范围');
+    });
+
+    it('存量失败不阻塞 / 变更范围失败处置', () => {
+        expect(apply).toContain('变更范围外的存量失败');
+        expect(apply).toContain('范围内失败处理');
+        expect(apply).toContain('MUST NOT 把对应任务标为 `[x]`');
+    });
+
+    it('无测试框架时降级为 WARN 不阻塞', () => {
+        expect(apply).toContain('未探测到测试框架');
+        expect(apply).toContain('跳过本门并继续（非阻塞）');
+    });
+
+    it('测试任务与实现任务的依赖串行', () => {
+        expect(apply).toContain('MUST NOT 与其实现任务并发运行');
+    });
+
+    it('完成段精确暂存提案制品（不 commit、不全量添加）', () => {
+        expect(apply).toContain('提案制品精确暂存');
+        expect(apply).toContain('MUST NOT 执行 `git commit`');
+        expect(apply).toContain('MUST NOT 使用 `git add -A`');
+        expect(apply).toContain('提案: <change-name>');
+    });
+
+    it('实现阶段阻塞门仍为单门（唯一设计确认门）', () => {
+        // 门预算的跨技能断言在 4.6（workflow 正文）；本技能只保留单一设计确认门
+        expect(apply).toContain('设计确认');
+        expect(apply).toContain('auto-mode');
+    });
+});
+
+// 任务 4.6：编排技能门白名单与直通句（DEC-5）。
+describe('4.6 编排技能门白名单与直通句', () => {
+    /** 需引入门白名单段的编排 / 阶段技能（与 workflow-suite-skills 需求一致） */
+    const GATE_SKILLS = [
+        'iagent_workflow',
+        'iagent_auto_workflow',
+        'iagent_debug',
+        'iagent_migration',
+        'iagent_spec_explore',
+        'iagent_spec_propose',
+        'iagent_spec_apply',
+        'iagent_spec_verify',
+        'iagent_spec_verify_proposal',
+        'iagent_spec_archive',
+        'iagent_spec_bulk_archive',
+    ];
+
+    it('每个编排技能正文含 5 类必留门文本（由 GATE_WHITELIST 渲染）', () => {
+        expect(GATE_WHITELIST.length).toBe(5);
+        for (const name of GATE_SKILLS) {
+            const body = skillCorpus(name);
+            for (const entry of GATE_WHITELIST) {
+                expect(body, `${name} 缺少必留门 ${entry.id}`).toContain(`**${entry.label}**`);
+            }
+        }
+    });
+
+    it('负向清单齐备（非门动作 + 只读校验询问 + 索引退役声明）', () => {
+        for (const name of GATE_SKILLS) {
+            const body = skillCorpus(name);
+            expect(body, `${name} 缺少负向清单`).toContain('MUST NOT 请求确认');
+            for (const item of GATE_MUST_NOT_CONFIRM_ITEMS) {
+                expect(body, `${name} 缺少负向项「${item.slice(0, 20)}」`).toContain(item);
+            }
+            expect(body).toContain('索引');
+            expect(body).toContain('退役');
+        }
+    });
+
+    it('workflow 四处阶段委派点含直通句（不停顿、不宣告、不向用户提问）', () => {
+        const body = skillCorpus('iagent_workflow');
+        const passes = body.match(/本阶段立即开始 —— 不停顿、不宣告、不向用户提问/g) ?? [];
+        expect(passes.length).toBeGreaterThanOrEqual(4);
+        expect(body).toContain('不停顿');
+        expect(body).toContain('不宣告');
+    });
+
+    it('不含自造门句式（是否调用某技能 / 是否继续 / 是否开始阶段）', () => {
+        for (const name of GATE_SKILLS) {
+            const body = skillCorpus(name);
+            expect(body, `${name} 含自造门`).not.toMatch(/是否调用\s*`?(iagent_)?spec_apply/);
+            expect(body, `${name} 含自造门`).not.toMatch(/是否继续/);
+            expect(body, `${name} 含自造门`).not.toMatch(/是否开始阶段/);
+        }
+    });
+
+    // workflow-suite-skills / 「编排技能门白名单与直通句」：只读校验直接执行，不再以「是否运行 … 校验？」询问。
+    it('只读校验询问无具体校验名（仅保留 <校验> 占位负向示例）', () => {
+        for (const name of GATE_SKILLS) {
+            const body = skillCorpus(name);
+            const tails = [...body.matchAll(/是否运行([^「」\n]*)/g)].map((match) => match[1]);
+            // 负向清单中的占位示例仍在（非空证明：不是「一个都没匹配」的恒真断言）
+            expect(tails.length, `${name} 缺少只读校验负向项`).toBeGreaterThan(0);
+            for (const tail of tails) {
+                expect(tail.startsWith(' <校验>'), `${name} 出现具体校验询问：是否运行${tail}`).toBe(true);
+            }
+            // 具体询问句式（真实校验名 + 问号）零命中
+            expect(body, `${name} 含具体只读校验询问`).not.toMatch(/是否运行(?!\s*<校验>)[^\n？]*校验？/);
+        }
+    });
+
+    it('门协议不弱化（硬停止语义仍在）', () => {
+        const body = skillCorpus('iagent_workflow');
+        expect(body).toContain('本次响应到此结束');
+        expect(body).toContain('非门动作 MUST NOT 停止');
+    });
+
+    it('门预算：实现阶段仍为单一阻塞门', () => {
+        const body = skillCorpus('iagent_workflow');
+        expect(body).toContain('实现 + 测试桥（强制停止，单一阻塞门）');
+        expect((body.match(/⛔ GATE: 实现 \+ 测试桥/g) ?? []).length).toBe(1);
+    });
+});
+
+// 任务 4.1 / 4.9：门协议导言与只读校验询问收口。
+describe('4.1 / 4.9 门协议导言与只读校验收口', () => {
+    it('PREAMBLE 仍含硬停止语义与负向边界句', () => {
+        const body = skillCorpus('iagent_workflow');
+        expect(body).toContain('本次响应到此结束');
+        expect(body).toContain('非门动作 MUST NOT 停止');
+    });
+
+    it('分层方向：协议层不 import 模板层', () => {
+        const protocolFile = fileURLToPath(
+            new URL('../src/core/host-orchestration/protocol.ts', import.meta.url)
+        );
+        const workflowsFile = fileURLToPath(
+            new URL('../src/core/host-orchestration/workflows.ts', import.meta.url)
+        );
+        for (const file of [protocolFile, workflowsFile]) {
+            const source = fs.readFileSync(file, 'utf8');
+            expect(source).not.toContain("from '../templates/");
+            expect(source).not.toContain('templates/');
+        }
+    });
+
+    it('只读校验询问已收口（全模板零「是否运行技术栈专项校验」）', () => {
+        const bodies = [
+            ...getSkillTemplates().flatMap(({ template }) => [
+                template.name,
+                template.instructions,
+                ...(template.references ?? []).map((ref) => ref.content),
+            ]),
+            ...getCommandTemplates().map(({ template }) => template.content),
+        ].join('\n');
+        expect(bodies).not.toContain('是否运行技术栈专项校验');
+        expect(bodies).toContain('直接执行技术栈专项校验');
+    });
+});
+
+// 任务 7.7：归档步骤序回归（无 reindex / daemon 感知同步）。
+describe('7.7 归档步骤序回归', () => {
+    const archive = skillCorpus('iagent_spec_archive');
+    const bulk = skillCorpus('iagent_spec_bulk_archive');
+
+    it('归档不含索引重建（零 reindex / 零索引重建步骤）', () => {
+        for (const body of [archive, bulk]) {
+            expect(body).not.toContain('reindex');
+            expect(body).toContain('不含任何索引重建');
+        }
+    });
+
+    it('daemon 活跃 → 不同步也不解锁（两技能）', () => {
+        for (const body of [archive, bulk]) {
+            expect(body).toContain('daemon 存活');
+            expect(body).toContain('MUST NOT 执行 `codegraph sync`');
+            expect(body).toContain('MUST NOT 执行 `codegraph unlock`');
+        }
+    });
+
+    it('无 daemon → 按需同步一次（两技能）', () => {
+        for (const body of [archive, bulk]) {
+            expect(body).toContain('确认无 daemon');
+            expect(body).toMatch(/恰(好)?一次/);
+        }
+    });
+
+    it('锁阶梯写入协议单一源（两技能引用同一常量渲染）', () => {
+        for (const body of [archive, bulk]) {
+            expect(body).toContain('writer.pid');
+            expect(body).toContain('ready:false');
+            expect(body).toContain('不可判定 = 存活');
+        }
+    });
+});
+
+// spec-workflow-skills / 「spec-archive 归档技能」：归档步骤序（探索记忆同步 →
+// 需求文档检查点 → 目录迁移 → ARCHIVE-INDEX）。顺序是协议约束，故断言文本相对位置。
+describe('7.7 归档步骤序（探索记忆同步 → 需求文档检查点 → 目录迁移 → ARCHIVE-INDEX）', () => {
+    const STEPS = [
+        '4.7 **归档前探索记忆同步',
+        '4.8 **归档前需求文档检查点',
+        '5. **执行归档**',
+        '7. **更新或创建 ARCHIVE-INDEX.md**',
+    ];
+
+    it('技能版与指令版正文的相对位置一致且严格递增', () => {
+        const command = getCommandTemplates().find((entry) => entry.id === 'spec-archive');
+        expect(command, 'spec-archive 指令未注册').toBeDefined();
+
+        for (const body of [skillCorpus('iagent_spec_archive'), command?.template.content ?? '']) {
+            const positions = STEPS.map((step) => body.indexOf(step));
+            STEPS.forEach((step, index) => {
+                expect(positions[index], `缺少步骤「${step}」`).toBeGreaterThanOrEqual(0);
+            });
+            // 四个不同位置（防止同一处文本被重复计为多个步骤）
+            expect(new Set(positions).size).toBe(STEPS.length);
+            expect(positions).toEqual([...positions].sort((left, right) => left - right));
+        }
+    });
+
+    it('目录迁移位于两个检查点之后、ARCHIVE-INDEX 之前（顺序约束语义）', () => {
+        const body = skillCorpus('iagent_spec_archive');
+        const move = body.indexOf('把 `changeRoot` 移动到');
+
+        expect(move).toBeGreaterThan(body.indexOf('4.7 **归档前探索记忆同步'));
+        expect(move).toBeGreaterThan(body.indexOf('4.8 **归档前需求文档检查点'));
+        expect(move).toBeLessThan(body.indexOf('7. **更新或创建 ARCHIVE-INDEX.md**'));
+        // 两个检查点都显式声明「移动变更目录前」完成（顺序约束的正文依据）
+        expect(body).toContain('系统 MUST 在移动变更目录前完成探索记忆同步');
+        expect(body).toContain('系统 MUST 在移动变更目录前完成需求文档检查点');
     });
 });

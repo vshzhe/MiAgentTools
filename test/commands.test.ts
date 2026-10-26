@@ -8,7 +8,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { runInit } from '../src/commands/init.js';
+import { runInit, resolveChangeArtifactsHint } from '../src/commands/init.js';
 import { runUpdate } from '../src/commands/update.js';
 import { runList, scanInstalledSkills } from '../src/commands/list.js';
 import { runGenerate } from '../src/commands/generate.js';
@@ -86,12 +86,62 @@ describe('iagent init', () => {
         expect(fs.existsSync(path.join(initRefs, 'doc-architecture.md'))).toBe(true);
     });
 
-    it('index.db 初始化状态记录正确', () => {
-        // 前序 init 已执行，检查返回的 indexDbStatus 字段
-        const result = runInit(tempRoot); // 重复 init（跳过已有文件）但仍返回 indexDbStatus
-        expect(['created', 'skipped-exists', 'skipped-unavailable', 'failed']).toContain(
-            result.indexDbStatus
+    it('跨变更索引已退役：init 不再返回 indexDbStatus，也不创建索引库', () => {
+        const result = runInit(tempRoot); // 重复 init（跳过已有文件）
+        // 索引能力退役（DEC-2）：InitResult 不再携带 indexDbStatus 字段
+        expect('indexDbStatus' in result).toBe(false);
+        expect(fs.existsSync(path.join(tempRoot, 'openspec', 'changes', 'archive', '.iagent', 'index.db'))).toBe(
+            false
         );
+    });
+});
+
+// 任务 3.4：iagent init 的提案制品纳管提示（只提示，不改写 .gitignore）
+describe('3.4 纳管策略提示', () => {
+    /** 造一个独立夹具（不污染共享 tempRoot 的配置） */
+    function makeRepo(withGitignore?: string): string {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-manage-hint-'));
+        fs.mkdirSync(path.join(root, '.git'), { recursive: true });
+        if (withGitignore !== undefined) {
+            fs.writeFileSync(path.join(root, '.gitignore'), withGitignore, 'utf8');
+        }
+        return root;
+    }
+
+    it('Git 仓库未放行 openspec/changes/ 时给出提示，且不改写 .gitignore', () => {
+        const original = 'node_modules/\nopenspec/\n';
+        const root = makeRepo(original);
+        try {
+            const hint = resolveChangeArtifactsHint(root);
+            expect(hint).toBeTruthy();
+            expect(hint).toContain('openspec/changes/**');
+            expect(hint).toContain('MUST NOT 自动改写');
+
+            const result = runInit(root, { scan: false });
+            expect(result.changeArtifactsHint).toBeTruthy();
+            expect(fs.readFileSync(path.join(root, '.gitignore'), 'utf8')).toBe(original);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('已含放行规则 !openspec/changes/ 时不提示', () => {
+        const root = makeRepo('openspec/*\n!openspec/changes/\n');
+        try {
+            expect(resolveChangeArtifactsHint(root)).toBeNull();
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('非 Git 仓库（SVN 等）不提示，也不创建 .gitignore', () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-manage-hint-nogit-'));
+        try {
+            expect(resolveChangeArtifactsHint(root)).toBeNull();
+            expect(fs.existsSync(path.join(root, '.gitignore'))).toBe(false);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
     });
 });
 

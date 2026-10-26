@@ -40,7 +40,7 @@ function commandBody(workflowId: string): string {
 describe('A1–A4 · spec-apply 共享资源协议（单一源正文）', () => {
     const body = skillBody('iagent_spec_apply');
 
-    it('A1 上下文包六节齐备且路径正确', () => {
+    it('A1 handoff 包六节齐备且路径正确', () => {
         // 六节名称逐字（顺序即协议规定的产出顺序）
         expect(body).toContain('## 变更摘要');
         expect(body).toContain('## 契约');
@@ -49,15 +49,23 @@ describe('A1–A4 · spec-apply 共享资源协议（单一源正文）', () => 
         expect(body).toContain('## Codebase 摘要');
         expect(body).toContain('## 已产出（跨单元可见）');
         // 制品名与流程级工作区路径
-        expect(body).toContain('context-pack.md');
-        expect(body).toContain('.openspec-tmp/apply-<change-name>/');
+        expect(body).toContain('handoff-pack.md');
+        expect(body).toContain('.openspec-tmp/pipeline-<change-name>/');
         // 包是子代理唯一必读制品
-        expect(body).toContain('上下文包是子代理**唯一**必读的制品');
+        expect(body).toContain('handoff 包是子代理**唯一**必读的制品');
+        // 文件内不得再出现旧路径 / 旧文件名作为正向协议路径
+        expect(body).not.toContain('context-pack.md');
     });
 
-    it('A1 一次性产出 + 逐批追加（不重产整包）', () => {
-        expect(body).toContain('只在首次派发前产出一次');
+    it('A1 一次性产出 + 逐批追加（不重产整包）+ 阶段结论只追加', () => {
+        expect(body).toContain('只在首次派发前产出');
         expect(body).toContain('MUST NOT 重产整包');
+        // 跨阶段复用 propose 产出的包
+        expect(body).toContain('跨阶段复用');
+        expect(body).toContain('独立调用时（包不存在）');
+        // 阶段结论只追加不改写，四列
+        expect(body).toContain('## 阶段结论');
+        expect(body).toContain('只追加不改写');
         // 追加动作与批后集中勾选同段
         expect(body).toContain('把本批的产出文件与公开签名追加到包');
     });
@@ -179,7 +187,7 @@ describe('A8 · auto-migration 规范要点写入共享包（skill + command 两
     const WORKFLOW_ID = 'migration';
 
     const REQUIRED = [
-        'MUST 写入上下文包的 `## 规范要点` 段',
+        'MUST 写入 handoff 包的 `## 规范要点` 段',
         'MUST NOT 全文内联规范要点',
         '降级为逐子代理内联注入',
     ];
@@ -203,5 +211,160 @@ describe('A8 · auto-migration 规范要点写入共享包（skill + command 两
         for (const body of bodies) {
             expect(body).not.toContain('Every sub-agent dispatch instruction MUST inject the target coding-spec essentials');
         }
+    });
+});
+
+// 任务 6.9 / 6.10 / 6.11：变更级 handoff 包（跨阶段）回归。
+describe('6.9–6.11 · handoff 包跨阶段协议', () => {
+    const PACK = '.openspec-tmp/pipeline-<change-name>/handoff-pack.md';
+    const SIX_SECTIONS = ['## 变更摘要', '## 契约', '## 规范要点', '## 文件归属表', '## Codebase 摘要', '## 已产出（跨单元可见）'];
+
+    it('propose 一次性产出六节包 + 头部指纹元信息', () => {
+        const propose = skillBody('iagent_spec_propose');
+        for (const section of SIX_SECTIONS) {
+            expect(propose, `propose 缺章节 ${section}`).toContain(section);
+        }
+        expect(propose).toContain(PACK);
+        expect(propose).toContain('sourceFingerprint');
+        expect(propose).toContain('producedBy: propose');
+        expect(propose).toContain('产出失败只记 WARN');
+    });
+
+    it('apply 跨阶段复用 + 独立调用时同一协议产出一次 + 结论只追加', () => {
+        const apply = skillBody('iagent_spec_apply');
+        expect(apply).toContain(PACK);
+        expect(apply).toContain('跨阶段复用');
+        expect(apply).toContain('独立调用时（包不存在）');
+        expect(apply).toContain('## 阶段结论');
+        expect(apply).toContain('只追加不改写');
+        // 指纹不一致 → 重建 + WARN（不得静默沿用陈旧包）
+        expect(apply).toContain('sourceFingerprint');
+        expect(apply).toContain('MUST NOT 静默沿用陈旧包');
+    });
+
+    it('verify / archive 只读消费并追加阶段结论（不重产整包）', () => {
+        for (const name of ['iagent_spec_verify', 'iagent_spec_archive']) {
+            const body = skillBody(name);
+            expect(body, `${name} 未声明只读消费`).toContain('只读');
+            expect(body, `${name} 未声明追加阶段结论`).toContain('## 阶段结论');
+            expect(body, `${name} 未禁止重产整包`).toContain('MUST NOT 重产整包');
+            expect(body).toContain(PACK);
+        }
+    });
+
+    it('auto-workflow / workflow 阶段入口引用同一包且不另立格式', () => {
+        for (const name of ['iagent_auto_workflow', 'iagent_workflow']) {
+            const body = skillBody(name);
+            expect(body, `${name} 未引用 handoff 包`).toContain('handoff-pack.md');
+            expect(body, `${name} 未声明阶段结论`).toContain('## 阶段结论');
+            expect(body, `${name} 另立包格式`).toContain('MUST NOT 另立包格式');
+        }
+    });
+
+    it('流程级工作区收尾清理同时识别 pipeline- 与旧 apply- 前缀', () => {
+        const apply = skillBody('iagent_spec_apply');
+        expect(apply).toContain('统一临时工作区清理');
+        expect(apply).toContain('.openspec-tmp/pipeline-<change-name>/');
+        expect(apply).toContain('旧前缀');
+        expect(apply).toContain('apply-<change-name>/');
+        expect(apply).toContain('清理失败');
+    });
+
+    // spec-workflow-skills / 「spec-apply 实现技能」：清理协议在派生指令版不得丢失。
+    it('流程级工作区清理在指令版同样保留（派生正文不丢清理协议）', () => {
+        const command = commandBody('spec-apply');
+        expect(command).toContain('统一临时工作区清理');
+        expect(command).toContain('.openspec-tmp/pipeline-<change-name>/');
+        expect(command).toContain('旧前缀');
+        expect(command).toContain('apply-<change-name>/');
+        expect(command).toContain('清理失败');
+        // 旧前缀仅作清理对象，MUST NOT 成为正向协议路径
+        expect(command).not.toContain('.openspec-tmp/apply-<change-name>/');
+    });
+
+    it('6.10 正向协议路径唯一：模板正文零 context-pack.md 与零旧工作区路径', () => {
+        const names = [
+            'iagent_spec_apply',
+            'iagent_spec_propose',
+            'iagent_spec_verify',
+            'iagent_spec_archive',
+            'iagent_auto_workflow',
+            'iagent_workflow',
+            'iagent_migration',
+        ];
+        for (const name of names) {
+            const body = skillBody(name);
+            expect(body, `${name} 仍含 context-pack.md`).not.toContain('context-pack.md');
+            expect(body, `${name} 仍以旧工作区为正向路径`).not.toContain('.openspec-tmp/apply-<change-name>/');
+        }
+    });
+
+    it('6.11 派发协议既有行为逐条仍可定位', () => {
+        const apply = skillBody('iagent_spec_apply');
+        const scenarios: [string, string][] = [
+            ['调度指令瘦身', '指令 MUST NOT 内联完整护栏摘要'],
+            ['产出登记表跨批共享', '## 已产出（跨单元可见）'],
+            ['回执最小化', '回执 MUST NOT 粘贴代码正文'],
+            ['共享指令前缀字节一致', '共享前缀 MUST 逐字节一致'],
+            ['禁止重读与重跑', 'MUST NOT 重跑包已覆盖的 CodeGraph 查询'],
+            ['空值处置', 'MUST NOT 留空'],
+            ['包缺口回执与回填', '包缺口回执'],
+            ['auto-mode 不豁免', 'auto-mode'],
+            ['派发单元与并发上限', 'MUST NOT 超过并发上限'],
+            ['跨单元同文件拆出', '从并发组中拆出'],
+            ['无子代理降级', '降级为由你串行实现全部任务'],
+            ['任务勾选集中管理', '由你集中更新 tasks.md'],
+        ];
+        for (const [name, text] of scenarios) {
+            expect(apply, `缺失既有场景「${name}」`).toContain(text);
+        }
+    });
+});
+
+// 任务 5.4：debug 派发形态与白名单断言（批次一）。
+describe('5.4 · debug 修复循环派发形态', () => {
+    const debug = getSkillTemplates().find(({ template }) => template.name === 'iagent_debug');
+    const body = skillBody('iagent_debug');
+
+    it('白名单含 Agent / Task 双写条目', () => {
+        const entries = (debug?.template.allowedTools ?? '')
+            .split(',')
+            .map((entry) => entry.trim());
+        expect(entries).toContain('Agent');
+        expect(entries).toContain('Task');
+    });
+
+    it('Phase 4 按 bug 派发单元（同文件串行、并发 ≤ apply.concurrency）', () => {
+        expect(body).toContain('4.0.5 修复循环的派发形态');
+        expect(body).toContain('派发单元** = 每个待修复 bug');
+        expect(body).toContain('同一文件被多个 bug 触及时 MUST 串行执行');
+        expect(body).toContain('apply.concurrency');
+    });
+
+    it('四列回执格式与 EXIT GUARD', () => {
+        expect(body).toContain('<bug id> | <状态> | <产出文件> | <公开签名>');
+        expect(body).toContain('MUST NOT 粘贴代码正文');
+        expect(body).toContain('EXIT GUARD');
+    });
+
+    it('批次一降级口径：包存在读包，不存在读 digest + 单元清单 + 文件归属', () => {
+        expect(body).toContain('handoff 包存在时');
+        expect(body).toContain('investigation-digest` 摘要 + 本单元 bug 清单 + 文件归属');
+        expect(body).toContain('MUST NOT 因缺包而拒绝派发');
+        expect(body).toContain('MUST NOT 在本技能内自建第二套包格式');
+    });
+
+    it('子代理不推进阶段 / 不改 tasks.md / 不标记可归档；无派发能力时降级', () => {
+        expect(body).toContain('子代理 MUST NOT 推进阶段');
+        expect(body).toContain('MUST NOT 修改 `tasks.md`');
+        expect(body).toContain('MUST NOT 标记可归档');
+        expect(body).toContain('降级为串行本地修复并告知用户');
+        expect(body).toContain('MUST NOT 声称发生过派发');
+    });
+
+    it('5.3 探查摘要作为 handoff 包 Codebase 摘要来源（不重复探查 / 不替代诊断记录）', () => {
+        expect(body).toContain('`## Codebase 摘要` 节来源之一');
+        expect(body).toContain('MUST NOT 因写入包而重新执行已覆盖的探查');
+        expect(body).toContain('MUST NOT 把摘要内容改写为交付物');
     });
 });

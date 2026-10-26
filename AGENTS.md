@@ -6,7 +6,7 @@
 
 AI Agent 技能生成与管理 CLI：按技能类型（`init` / `impl` / `test` / `commit` / `review` / `release` / `tools` / `docs` / `spec`）生成 `iagent_` 前缀的 SKILL 与斜杠指令，安装到目标项目的 `.claude/` 目录。技能名以功能命名，类型只写入 frontmatter `metadata.type`。TypeScript + Commander.js + ESM，参考 [OpenSpec](https://github.com/Fission-AI/OpenSpec) 的三层架构。
 
-技术栈：TypeScript 5.9 + Node.js 20+ + pnpm 10 + Commander.js 14 + Vitest 3 + sql.js
+技术栈：TypeScript 5.9 + Node.js 20+ + pnpm 10 + Commander.js 14 + Vitest 3
 
 ## 仓库地图
 
@@ -23,7 +23,7 @@ src/
 │   ├── show.ts                       iagent show（模糊匹配 + 详情）
 │   ├── completion.ts                 iagent completion（bash/pwsh 补全脚本生成与安装）
 │   ├── onboarding.ts                 init 后的引导提示
-│   ├── spec.ts                       iagent spec 子命令组（new / status / instructions / validate / migrate / archive / reindex / render / sidecar）
+│   ├── spec.ts                       iagent spec 子命令组（new / status / instructions / validate / migrate / archive / render / sidecar）
 │   └── config.ts                     iagent config（交互式 workflow 配置）
 ├── core/
 │   ├── config.ts                     常量中心：SKILL_PREFIX、9 类 SKILL_TYPES、AI_TOOLS
@@ -31,7 +31,8 @@ src/
 │   ├── templates/
 │   │   ├── types.ts                 SkillTemplate / CommandTemplate 接口
 │   │   ├── registry.ts              模板注册表 + deriveCommandId 派生规则 + 指令白名单回填
-│   │   ├── tool-whitelist.ts        白名单共享常量（CodeGraph MCP 双写 / 派发条目 / 委派条目生成）
+│   │   ├── tool-whitelist.ts        白名单共享常量（CodeGraph MCP 双写 / CodeGraph CLI / 派发条目 / 委派条目生成）
+│   │   ├── codegraph-protocol.ts    CodeGraph 探测顺序 + 锁阶梯单一源（两形态渲染）
 │   │   ├── command-references.ts    指令引用单一源（规范形 /iagent:<id> + 按工具布局改写 + KNOWN id 派生）
 │   │   ├── derive-command.ts        spec 模板 command 压缩版派生（CMD:SKIP 标记裁剪）
 │   │   ├── prompt-gate.ts          提示门控逻辑
@@ -55,23 +56,20 @@ src/
 │   │   ├── validation/             结构校验 + Scenario→Task 追溯
 │   │   ├── migration.ts            显式 JSON → OpenSpec Markdown 迁移
 │   │   ├── legacy-artifacts.ts     历史 JSON 只读兼容边界
-│   │   ├── markdown-index.ts       Markdown → SQLite 索引
-│   │   ├── index-cache.ts          索引内容指纹缓存
-│   │   ├── sqlite-index.ts         SQLite 索引后端
-│   │   ├── sqlite-memory-backend.ts SQLite 内存后端（sql.js WASM）
 │   │   ├── sidecar-schema.ts       历史 JSON schema（@deprecated，仅兼容读取）
 │   │   ├── sidecar-writer.ts       历史 JSON 读写 / tasks.md 渲染（@deprecated，仅兼容）
 │   │   └── templates/index.ts      规格模板
 │   ├── profiles.ts                  框架档案
 │   ├── dependencies.ts              依赖检测（codegraph / openspec）
 │   ├── child-process.ts             子进程执行（Windows shell 兼容 + Node DEP0190 规避）
-│   ├── project-scan.ts              项目预扫描（scan-baseline.json）
+│   ├── project-scan.ts              项目预扫描（scan-baseline.json v2：无上限 + 忽略规则 + 软超时）
+│   ├── scan-ignore.ts               忽略规则解析（固定清单 + .gitignore/自定义 ignore，fail-open）
 │   ├── reconcile.ts                 孤立产物协调
 │   ├── shell-completion.ts          shell rc/profile 路径解析与标记块增删（补全与迁移共用）
 │   └── legacy-migration.ts          旧装机一次性迁移（旧标识常量 + 映射表的唯一落点）
 └── utils/file-system.ts             文件系统工具
 
-test/                                vitest（29 个测试文件 + setup）
+test/                                vitest（50 个测试文件 + setup）
 test/setup-home-sandbox.ts           vitest setupFiles：把主目录沙箱到临时目录
 skills/                              静态快照（勿手编，pnpm generate:skills 生成）
 scripts/generate-skills.mjs          快照生成脚本
@@ -118,12 +116,13 @@ node bin/iagent.js <cmd> # 直接运行 CLI
    | 层 | 内容 | 约束 |
    |---|---|---|
    | 只读检索 | `Read` / `Glob` / `Grep` | 按正文实际使用，不无差别补齐 |
-   | 调用类 | CodeGraph MCP、`Skill(<裸名>)`、`Agent, Task` | 见下列四条规则 |
+   | 调用类 | CodeGraph MCP、CodeGraph CLI（`Bash(codegraph:*)`）、`Skill(<裸名>)`、`Agent, Task` | 见下列四条规则 |
    | 技能专有 | `Bash(...)` / `Write` / `Edit` | 只增不减地维持现状，MUST NOT 扩大 |
 
    - **MCP 双写**：用 CodeGraph 的技能同时写 `${CODEGRAPH_MCP}`（裸服务器形式 + 9 个具名工具）——
-     服务器级形式有失效报告，双写使任一路径生效；CLI 形态 `Bash(codegraph:*)` 与 MCP 工具名是
-     **两套命名**，互不覆盖
+     服务器级形式有失效报告，双写使任一路径生效；CLI 形态条目经 `${CODEGRAPH_CLI}`
+     （`Bash(codegraph:*)`，仅放行 `codegraph` 子命令）构造，与 MCP 工具名是**两套命名**，互不覆盖；
+     正文确有 CLI 调用的技能 MUST 同时持两者，MUST NOT 手写字面量
    - **委派逐技能枚举**：写 `${skillDelegation([...])}` 产出 `Skill(<裸名>)` 精确条目
      （裸名 = 技能名去掉 `iagent_` 前缀，如 `spec_apply`、`requirement_doc`；写成全名
      `Skill(iagent_spec_apply)` 会产出永不放行的死条目），**禁用** `Skill(*)`；
@@ -194,9 +193,9 @@ node bin/iagent.js <cmd> # 直接运行 CLI
 - 模板正文中的指令引用以**规范形** `/iagent:<id>` 书写（单一源 `command-references.ts`），生成期按工具
   布局改写（Pi 为 `/iagent-<id>`）；未注册 id 由 `test/command-reference-refs.test.ts` 拦截
 - `iagent generate` 组合规则为 `<技能前缀><name 参数>`，类型仅写入 `metadata.type`
-- `.iagent/` 在本工具中有三处独立含义，改动时勿混为一谈：① 项目配置目录（`config.yaml`、`rules/`、
-  `scan-baseline.json`）；② 变更目录下的遗留 sidecar 目录（`SIDECAR_DIR`，@deprecated 布局）；
-  ③ 跨变更索引目录（`INDEX_DB_PATH` 所在）
+- `.iagent/` 在本工具中有两处独立含义，改动时勿混为一谈：① 项目配置目录（`config.yaml`、`rules/`、
+  `scan-baseline.json`）；② 变更目录下的遗留 sidecar 目录（`SIDECAR_DIR`，@deprecated 布局）。
+  历史上的「跨变更索引目录（`INDEX_DB_PATH`）」已随索引能力退役（DEC-2），不再存在
 - 品牌标识 vs 产品领域名：`venus`（小写品牌 token：`venus_` / `.venus` / `/venus:` / `commands/venus` /
   `VenusAgentTools`）属本工具品牌；`Venus4A` / `Venustech` / SVN 仓库路径 `/svn/venus/` /
   `E:\WorkSpaces_ahdx\Venus4A` 属产品与仓库领域名，仅作历史 / 示例语境出现，**MUST NOT**
@@ -239,16 +238,33 @@ node bin/iagent.js <cmd> # 直接运行 CLI
   仅 `--tools opencode` 或 `config.yaml` 的 `tools` 显式列出时生成；其 `sessionPermissions: false`
   （权限走项目级 `.opencode/opencode.jsonc` 的 V2 `permissions` 段，不写 `.opencode/settings.json`）
 - 工具选择持久化：`iagent init` 回写 `config.yaml` 的 `tools` 字段，`iagent update` 仅显式 `--tools` 时回写
+- **项目预扫描（scan-baseline v2）**：`iagent init` 的确定性预扫描 MUST NOT 设目录深度或文件数上限；
+  有界性只由「内置固定忽略清单 + `.gitignore`/自定义 ignore（`src/core/scan-ignore.ts`，fail-open）
+  + 30s 软超时」承担。基线 `limits` 为 v2（`hit` / `detail` / `reasons` / `softTimeout` / `skipped`
+  三分类计数），`iagent init` 写入恒为 v2，读取侧按 `version` 兼容 v1（只读 `hit`/`detail`）。
+  跳过三个计数与 `failures` MUST 由消费侧（`project-init`）呈现；`IAGENT_SCAN_SOFT_TIMEOUT_MS`
+  与 `--no-scan-ignore` 是注入 / 逃生路径，`config.yaml` MUST NOT 新增 `scan` 段
+- **变更制品纳管策略**：`.gitignore` 采用规则链 `openspec/*` → `!openspec/changes/` →
+  逐个再排除（`openspec/changes/archive/.iagent/`、`openspec/changes/**/attachments/`）；
+  父目录排除时 `!` 不生效，**MUST NOT** 写成 `openspec/` + `!openspec/changes/**`。
+  `openspec/specs/**`、`explorations/**`、`devdocs/**`、`rules/**`、`config.yaml`、`CONTEXT.md`
+  仍由 `openspec/*` 忽略（`openspec/docs/adr/**` 例外放行 —— 决策记录随仓库走）；`.openspec-tmp/`（含 handoff 包）永不进提交面。`iagent init` 只提示该策略，
+  MUST NOT 改写业务 `.gitignore`
 - 自定义 iagent 流程为 **Markdown-first**：新变更以 `proposal.md`、`design.md`、
   `specs/<capability>/spec.md`、`tasks.md` 为唯一可编辑真源；CLI `--json` 仅为机器响应，不写回制品。
   技能逐个任务在 `tasks.md` 上勾选；`iagent spec render` 仅保留渲染兼容提示（不再生成/覆盖 tasks.md）。
   历史 `change.json` / `tasks.json` 只读兼容，通过 `iagent spec migrate --from-json` 显式迁移。
-  新增能力或模板时 MUST NOT 重新引入 JSON 主产物（`test/markdown-first-regression.test.ts` 回归锁）
+  跨变更 SQLite 索引能力已整体退役（索引命令、索引模块与 SQLite 依赖一并移除），代码与生成快照
+  MUST NOT 重新引入索引 API 或相关字样（`test/markdown-first-regression.test.ts` 回归锁）。
+  **跨阶段上下文**：`iagent_spec_propose` 在 `.openspec-tmp/pipeline-<change>/handoff-pack.md`
+  产出变更级 handoff 包（六节 + 可选 `## 阶段结论`），`spec-verify` / `spec-apply` / `spec-archive`
+  只读并只追加阶段结论，MUST NOT 重产整包；流程收尾清理该工作区（迁移期同时识别旧 `apply-` 前缀）
 - SKILL 正文中文；代码注释中文；标识符英文
 - `update` 的手改保护依赖 frontmatter `generatedFingerprint`（内容指纹）—— 生成路径必须写全该字段；
   无该字段的存量产物回退到 `generatedBy` 版本号判定
 - 指令 id 派生：`iagent_spec_apply` → `spec-apply`（下划线转连字符，去前缀）
 - 本机产物均**不入库**（`.gitignore` 忽略）：`.iagent/`（本项目配置）、`.claude/`（dogfood 产物）、
-  `openspec/`（本地产物）、`.codegraph/`。模板的可提交真源是 `skills/` 静态快照；
-  `.claude/` 仅供本机 Claude Code 使用，其旧内容曾入库、现由 `.gitignore` 整体排除
+  `.codegraph/`、`.openspec-tmp/`；`openspec/` 仅放行 `changes/**` 的提案制品（见「变更制品纳管策略」），
+  其余（`specs/`、`explorations/`、`devdocs/`、`config.yaml` 等）仍忽略。模板的可提交真源是
+  `skills/` 静态快照；`.claude/` 仅供本机 Claude Code 使用，其旧内容曾入库、现由 `.gitignore` 整体排除
 - 提交信息：Conventional Commits 一行式，中文描述

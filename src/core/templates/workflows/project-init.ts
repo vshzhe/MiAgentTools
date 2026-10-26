@@ -13,7 +13,8 @@
  * 的第一步，其余功能名模板仍在此作用域外）。
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
-import { CODEGRAPH_MCP, skillDelegation } from '../tool-whitelist.js';
+import { CODEGRAPH_CLI, CODEGRAPH_MCP, skillDelegation } from '../tool-whitelist.js';
+import { renderCodegraphProbeOrder } from '../codegraph-protocol.js';
 import { deriveCommandContent } from '../derive-command.js';
 import { MANUAL_DOMAIN_MARKS } from '../../project-config.js';
 
@@ -150,6 +151,8 @@ export function getProjectInitSkillTemplate(): SkillTemplate {
         description: '初始化项目。当用户要创建新项目、搭建目录结构、生成配置文件、初始化知识文档或准备开发环境时使用；触发词"初始化项目 / project init / 搭建项目 / 生成配置"；NOT for 扫描源项目功能模块（改用 iagent_feature_doc）。',
         allowedTools:
             'Bash(ls:*), Bash(pwd:*), Read, Write, Glob, Grep, ' +
+            CODEGRAPH_CLI +
+            ', ' +
             CODEGRAPH_MCP +
             ', ' +
             skillDelegation(['feature_doc']),
@@ -166,11 +169,12 @@ export function getProjectInitSkillTemplate(): SkillTemplate {
 
 ### 1. 读取扫描基线
 
-先读 \`.iagent/scan-baseline.json\` —— 由 \`iagent init\` 的确定性预扫描产出，内含机械探测得到的 \`signals\`（构建文件 / 骨架 / 配置键名 / 路由 / 文档 / 测试探针（tests））与 \`candidates\`。
+先读 \`.iagent/scan-baseline.json\` —— 由 \`iagent init\` 的确定性预扫描产出，内含机械探测得到的 \`signals\`（构建文件 / 骨架 / 配置键名 / 路由 / 文档 / 测试探针（tests））、\`candidates\` 与完整性信息（\`limits\` / \`failures\`）。
 
 - **存在且可解析**：直接复用其中的 \`signals\` 与 \`candidates\`，免去重复机械探测；仅对基线未覆盖的维度补扫
-- **缺失或无法解析**：记 WARN（写明缺失原因），自行用 Glob / Grep / Read 机械探测，MUST NOT 因此终止
-- 基线中的 \`failures\` MUST 在报告中呈现，MUST NOT 静默丢弃
+- **必须呈现跳过与失败**（硬要求）：读取 \`limits.skipped\` 的三类计数（\`ignored\` / \`timeout\` / \`unreadable\`）与 \`limits.softTimeout.exceeded\`、\`failures[]\`；\`skipped\` 任一非 0 时 MUST 在报告中按类别呈现数量，并显式声明「**跳过所致 ≠ 项目无该内容**」；\`failures\` MUST 逐条呈现（目标 + 原因）。\`skipped\` 三项全为 0 且 \`failures\` 为空时可省略该段。MUST NOT 只消费 \`signals\` / \`candidates\` 而静默丢弃跳过信息
+- **历史基线（v1）仍可读**：\`version\` 为 \`1\` 或缺失时按历史结构只读 \`limits.hit\` / \`limits.detail\` 与既有事实字段，MUST NOT 因缺少 \`skipped\` 而报错
+- **缺失或无法解析**：记 WARN（写明缺失原因），自行用 Glob / Grep / Read 机械探测，MUST NOT 因此终止，并在报告中**标注**该降级路径（「基线缺失 → 已降级为机械探测」）
 
 ### 2. 技术框架语义扫描
 
@@ -191,7 +195,11 @@ export function getProjectInitSkillTemplate(): SkillTemplate {
 
 - **降级路径一（委派不可得）**：该技能不可调用或执行失败 → 记 WARN，改为自行扫描（Glob / Grep / Read），MUST NOT 因此终止
 - **降级路径二（无 CodeGraph 索引）**：目标项目未初始化 CodeGraph 索引时，改用 Glob / Grep / Read 完成扫描
-- 有索引时先用 \`codegraph_status\` 确认索引可用性，再用 \`codegraph_files\` / \`codegraph_search\` / \`codegraph_context\` 获取模块与符号结构
+- 探测 CodeGraph 可用性时按能力探测顺序（任一通道成功即视为可用）：
+
+${renderCodegraphProbeOrder({ withCli: true })}
+
+- 可用时用 \`codegraph_files\` / \`codegraph_search\` / \`codegraph_context\` 获取模块与符号结构
 - 该技能是信息基础的可选来源，MUST NOT 写成必须依赖；无索引亦 MUST NOT 阻断流程
 
 ### 4. 安全规范扫描

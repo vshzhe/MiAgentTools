@@ -46,7 +46,7 @@ const IAGENT_COMMANDS: { name: string; description: string; flags: string[]; sub
     {
         name: 'init',
         description: '生成全部技能与指令到当前项目',
-        flags: ['--tools', '--force', '--no-deps', '--no-scan', '--no-migrate', '--onboarding'],
+        flags: ['--tools', '--force', '--no-deps', '--no-scan', '--no-scan-ignore', '--no-migrate', '--onboarding'],
     },
     { name: 'list', description: '列出已安装技能', flags: ['--json'] },
     { name: 'validate', description: '校验技能规范符合性', flags: ['--json'] },
@@ -62,9 +62,9 @@ const IAGENT_COMMANDS: { name: string; description: string; flags: string[]; sub
     { name: 'config', description: '配置要安装的 workflow', flags: ['--set', '--show'] },
     {
         name: 'spec',
-        description: '规格驱动工作流（new/status/migrate/validate/instructions/archive/reindex/render/sidecar）',
+        description: '规格驱动工作流（new/status/migrate/validate/instructions/archive/render/sidecar）',
         flags: [],
-        subcommands: ['new', 'status', 'migrate', 'validate', 'instructions', 'archive', 'reindex', 'render', 'sidecar'],
+        subcommands: ['new', 'status', 'migrate', 'validate', 'instructions', 'archive', 'render', 'sidecar'],
     },
 ];
 

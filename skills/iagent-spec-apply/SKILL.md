@@ -1,19 +1,38 @@
 ---
 name: iagent-spec-apply
 description: "实现变更。当 openspec/changes/ 下已有变更制品（proposal/specs/design/tasks），需要基于规格驱动实现任务清单时使用；触发词\"实现变更 / apply / 执行任务 / 按规格实现\"；NOT for 无变更制品时直接描述需求（改用 iagent_workflow 引导生成制品后再实现）。"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(ant:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), Agent, Task
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(ant:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), Skill(test), Agent, Task
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）。
 metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:4181512677b2c38faec7177f4571dea8803045c2934749f1d057ce861bd3ab76"
+  generatedFingerprint: "sha256:48946084eda8020e95cae330f9a4eea1c42672b61895432011bca33f887134be"
 ---
 
 **实现前先阅读 .iagent/rules/coding-rules.md 的 AI 编码护栏。** 禁止猜测数据库字段、API 参数或业务规则 —— 标 **[待确认]** 并询问用户。
 
 按 openspec/changes/ 下的变更制品（proposal/specs/design/tasks）实现任务。
+
+## 门白名单与 MUST NOT 确认清单
+
+**必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
+- **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
+- **实现 + 测试桥**：implementation-bridge（不可豁免）
+- **归档桥**：archive-confirmation（不可豁免）
+- **破坏性改动确认（动作级，不可豁免：删除目录 / 覆盖既有制品 / 改写版本库跟踪 / 不可逆命令）**（不可豁免）
+
+**MUST NOT 请求确认（非门动作，MUST NOT 被实现为停止点）**：
+- 阶段宣告（如「进入 Phase N」「本阶段开始」）
+- 技能委派（含「是否调用 <技能>」类询问）—— 已授权的 nextAllowed 技能直接委派
+- 只读扫描（Glob / Grep / Read 与只读查询）
+- CodeGraph 查询与能力探测（含锁阶梯只读复用）
+- 状态查询（`iagent spec status` / `getChangeStatus` 等）
+- 只读校验的「是否运行 <校验>？」询问（如技术栈专项校验）—— 直接执行并在报告中说明校验项
+
+> 跨变更索引重建类动作已随索引能力退役（DEC-2），不构成任何门或动作。
 
 **Input**: 可选指定变更名；省略时检查能否从对话上下文推断。若含糊或有歧义，MUST 提示可用变更供用户选择。工作流也可能传入 `auto-mode=true` 以跳过设计确认门，实现自动执行。
 
@@ -142,9 +161,9 @@ metadata:
    - 本门**不能**跳过 —— 未经显式确认不得继续（除非 auto-mode 生效）
 
    **临时工作区协议（流程级，由主代理管理）：**
-   - 用户确认设计后（或 auto-mode 生效时）、派发任何批**之前**，创建一个临时工作区目录 —— **优先项目内**：项目根下的 `.openspec-tmp/apply-<change-name>/`（路径用 path.join 构建以保证跨平台）。若项目 `.gitignore` 中尚无 `.openspec-tmp/` 条目则补上，使该工作区不会污染 git status；清理后保留该条目供后续运行使用。若项目根不可写，降级到系统临时目录 `iagent-apply-<change-name>/` 并记录 WARN 说明降级位置
-   - 流程内产生的所有临时文件（编译校验脚本、临时配置、草稿输出）MUST 放在该工作区内 —— 不得把临时文件散落到项目目录各处
-   - 工作区在流程开始时创建一次、流程结束时清理一次 —— 不得按任务或按批创建/删除临时目录
+   - 用户确认设计后（或 auto-mode 生效时）、派发任何批**之前**，创建流程级临时工作区 —— **优先项目内**：项目根下的 `.openspec-tmp/pipeline-<change-name>/`（路径用 path.join 构建以保证跨平台）。若项目 `.gitignore` 中尚无 `.openspec-tmp/` 条目则补上，使该工作区不会污染 git status；清理后保留该条目供后续运行使用。若项目根不可写，降级到系统临时目录 `iagent-pipeline-<change-name>/` 并记录 WARN 说明降级位置
+   - 流程内产生的所有临时文件（handoff 包、编译校验脚本、临时配置、草稿输出）MUST 放在该工作区内 —— 不得把临时文件散落到项目目录各处
+   - 工作区是**流程级**（不是 apply 级）：流程开始时创建一次、流程结束时清理一次 —— 不得按任务或按批创建/删除临时目录
 
 > **批调度细则下沉**：Step 6 并发批调度协议（批形态判定、子代理派发、共享资源协议、失败处理）见 `references/batch-scheduling.md`；执行 Step 6 前 MUST 先 `Read` 该文件。
 
@@ -242,9 +261,17 @@ metadata:
    **9.6 测试门报告** —— 汇总：覆盖范围、范围内通过/失败数、范围外存量失败（WARN）、覆盖率工具运行时的覆盖率数据（见 `iagent_test` §5.1）
 
 10. **统一临时工作区清理** ⚠️ 强制
-   - 编译检查（§8）与测试执行门（§9）都结束后 —— 无论通过、失败还是跳过 —— 在单次清理中删除整个临时工作区
-   - 清理范围**包含**共享上下文包及其产出登记表（二者都在临时工作区内）—— 它们是流程级制品，MUST NOT 遗留
-   - 若清理失败（文件被占用、权限不足）：记录 WARN 并给出工作区路径，便于用户手动删除，流程继续、不阻塞
+   - 编译检查（§8）与测试执行门（§9）都结束后 —— 无论通过、失败还是跳过 —— 在单次清理中删除整个流程级临时工作区
+   - **清理对象**：`.openspec-tmp/pipeline-<change-name>/`（handoff 包及其产出登记表、阶段结论都在其中）；**迁移期同时识别旧前缀 `apply-<change-name>/`**（若存在一并清理），清理失败记 WARN 并给出路径，MUST NOT 阻断流程
+   - 它们是流程级制品，MUST NOT 遗留；清理失败（文件被占用、权限不足）：记录 WARN 并给出工作区路径，便于用户手动删除，流程继续、不阻塞
+
+10.5 **提案制品精确暂存（收尾提示，不提交）** ⚠️ 强制
+   - 目标变更名：本次执行的 `<change-name>`（无父流程时取唯一活跃变更；多活跃变更时以本次 change-name 为准）
+   - 固定清单（逐条精确暂存，逐条校验前缀 `openspec/changes/<change-name>/`）：`proposal.md` / `design.md` / `tasks.md` / `exploration.md` / `.openspec.yaml` / `specs/**/*.md`
+   - **排除**：`attachments/**` 与 `需求文档.md`
+   - 逐条执行 `git add <精确路径>`（不存在的条目跳过），并展示拟暂存清单；**MUST NOT 使用 `git add -A` / `git add openspec` / 目录级添加**
+   - **MUST NOT 执行 `git commit`** —— 仅暂存并提示「提案制品已暂存」；建议的提交信息尾行为 `提案: <change-name>`，提交请走 `/iagent:commit`（人工闸）
+   - 暂存失败（未纳管 / 权限不足 / 路径不存在）→ 只记 WARN 并提示手动处理，MUST NOT 阻断收尾
 
 11. **最终状态与归档建议**
 
@@ -396,10 +423,11 @@ What would you like to do?
 - 直接从变更目录读取制品文件 —— 除标准集合外不要假设具体文件名
 - ⚠️ **强制**：全部任务完成后执行 Step 8 编译检查
 - ⚠️ **强制**：编译检查后执行 Step 9 测试执行门 —— 范围限定为本次变更（范围内失败阻塞；范围外存量失败仅 WARN 且 MUST NOT 阻塞）
-- ⚠️ **强制**：`[测试]` 任务 MUST 内联实现，遵循测试生成规则（框架探测 → 风格对齐 → BCDE 覆盖 → 反模式防护）；MUST NOT 委派给外部技能，MUST NOT 走补充文档的 `产出:` → `attachments/` 规则（放在 attachments/ 下的测试代码无法运行）
+- ⚠️ **强制**：`[测试]` 任务 MUST 委派 `iagent_test`（传测试层级与优先级）生成测试代码，MUST NOT 在 apply 内另立一套测试规则；该技能不可用时记录 WARN 并按同一规则本地实现（MUST NOT 伪装为委派完成）；MUST NOT 走补充文档的 `产出:` → `attachments/` 规则（放在 attachments/ 下的测试代码无法运行）
 
 - ⚠️ **强制**：子代理派发指令 MUST 携带 EXIT GUARD（子代理退出守卫）—— 完成分配任务后立即停止并返回回执，MUST NOT 进入 plan 模式 / 设计模式，也不得提出后续步骤；编排器是唯一有权判停和推进阶段的角色
-- ⚠️ **强制**：子代理 MUST 先读取上下文包，再执行其它任何动作 —— 不得先做其他动作；MUST NOT 重读 proposal/specs/design，MUST NOT 重跑包已覆盖的 CodeGraph 查询；仅做增量查询
+- ⚠️ **强制**：子代理 MUST 先读取 handoff 包（`.openspec-tmp/pipeline-<change-name>/handoff-pack.md`），再执行其它任何动作 —— 不得先做其他动作；MUST NOT 重读 proposal/specs/design，MUST NOT 重跑包已覆盖的 CodeGraph 查询；仅做增量查询
+- ⚠️ **强制**：收尾按固定清单精确暂存提案制品（逐条 `git add`，MUST NOT 全量添加），**MUST NOT 自动 commit**；暂存失败只 WARN、不阻断收尾
 - ⚠️ **强制**：给出归档建议前先解析编译错误并提供修复选项
 
 **流畅工作流集成**

@@ -7,6 +7,47 @@
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-26
+
+### BREAKING
+
+- 移除 `iagent spec reindex` 子命令与跨变更 SQLite 索引能力（`sqlite-cross-change-index` 整体退役）：
+  索引模块 / 命令与全部索引辅助 / `init` 建库段 / 归档索引重建步骤 / shell 补全候选一并删除，
+  `sql.js` 依赖移除；历史 `index.db` 不由本工具删除（清理指引见 `docs/upgrade-guide.md`）
+- 扫描基线产物升级为 v2（`limits` 改为 `hit` / `detail` / `reasons` / `softTimeout` / `skipped`）：
+  删除目录深度与文件数上限，有界性改由「固定忽略清单 + `.gitignore`/自定义 ignore + 30s 软超时」承担；
+  v1 基线仍可只读解析（读取侧按 `version` 分支），`iagent init` 写入恒为 v2
+- `openspec/changes/**` 提案制品纳入版本控制（`.gitignore` 规则链 `openspec/*` → `!openspec/changes/`
+  → 逐个排除缓存目录）；`openspec/specs/**` / `explorations/**` / `config.yaml` 等仓库级产物仍保持忽略
+- CodeGraph 探测不再绑定单一工具名（MCP 具名工具 → 时效横幅 → CLI `status --json` 三通道），
+  锁阶梯读 `.codegraph/writer.pid`；daemon 存活时不再显式 `sync` / `unlock`
+
+### Added
+
+- 扫描跳过分类统计（`limits.skipped` 的 `ignored` / `timeout` / `unreadable`）与终端报告「跳过」段；
+  新增 `IAGENT_SCAN_SOFT_TIMEOUT_MS` 与 `iagent init --no-scan-ignore` 注入 / 逃生路径
+- 新模块 `src/core/scan-ignore.ts`（忽略规则解析，fail-open）与
+  `src/core/templates/codegraph-protocol.ts`（探测顺序 + 锁阶梯单一源）
+- `CODEGRAPH_CLI` 白名单常量；`spec-archive` / `spec-bulk-archive` / `spec-explore` / `debug` /
+  `project-init` 引用 CLI 条目（`migration` 仅两通道、不持 CLI 权限）
+- 确认门白名单 `GATE_WHITELIST`（5 类 + `anchors` + `conditional`）与「MUST NOT 请求确认」负向清单；
+  `workflow` 四处阶段委派点补直通句
+- Git 侧提案制品纳管：`commit` 按固定清单精确暂存并加尾行 `提案: <change-name>`；
+  `spec-apply` 收尾提示暂存（不自动提交）
+- debug 修复循环按 bug 派发子代理（四列回执 + EXIT GUARD）；变更级 handoff 包
+  `.openspec-tmp/pipeline-<change-name>/handoff-pack.md`（propose 产出，verify/apply/archive 只读并追加阶段结论）
+
+### Changed
+
+- 调用类白名单条目统一经 `tool-whitelist.ts` 共享常量构造（MCP / CLI / 技能委派 / 子代理派发）
+- `spec-apply` 的 `[测试]` 任务改为委派 `iagent_test`（不再在 apply 内另立测试规则）
+- `iagent init` 提示提案制品纳管策略（只提示，不改写业务 `.gitignore`）
+
+### Fixed
+
+- 归档链路删除与 daemon 争锁的无条件 `codegraph sync`；锁冲突按阶梯处置，失败降级 Grep + WARN
+- `sqlite3` / `reindex` / `index.db` 残留字样清理（`src/**` 与生成快照零引用，白名单限迁移说明）
+
 ## [1.0.2] - 2026-10-26
 
 ### Fixed
@@ -1331,10 +1372,10 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [4.0.0]: https://github.com/mi-agent-tools/compare/v3.0.0...v4.0.0
 [3.0.0]: https://github.com/mi-agent-tools/compare/v2.1.0...v3.0.0
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
-[2.0.0]: https://github.com/mi-agent-tools/compare/v1.18.1...v2.0.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/mi-agent-tools/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/mi-agent-tools/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/mi-agent-tools/compare/v1.0.2...v2.0.0
 [1.0.2]: https://github.com/mi-agent-tools/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/mi-agent-tools/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/mi-agent-tools/releases/tag/v1.0.0

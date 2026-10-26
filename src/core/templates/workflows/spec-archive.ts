@@ -3,17 +3,23 @@
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
-import { CODEGRAPH_MCP, skillDelegation } from '../tool-whitelist.js';
+import { CODEGRAPH_CLI, CODEGRAPH_MCP, skillDelegation } from '../tool-whitelist.js';
+import { CODEGRAPH_LOCK_LADDER, renderCodegraphProbeOrder } from '../codegraph-protocol.js';
+import { renderGateWhitelistSection } from '../prompt-gate.js';
 
 export function getSpecArchiveChangeSkillTemplate(): SkillTemplate {
     return {
         name: 'iagent_spec_archive',
         description: '归档变更。当用户要归档已实现完成的变更、结束变更工作流时使用；触发词"归档 / archive / 结束变更"；NOT for 一次归档多个变更（改用 iagent_spec_bulk_archive）。',
-        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(ls:*), ${CODEGRAPH_MCP}, ${skillDelegation(['requirement_doc'])}`,
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(ls:*), ${CODEGRAPH_CLI}, ${CODEGRAPH_MCP}, ${skillDelegation(['requirement_doc'])}`,
         type: 'spec',
         instructions: `**适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
 
 在变更工作流中归档一个已完成的变更。
+
+**handoff 包（只读 + 追加）**：若 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\` 存在，本技能**只读**该包并在收尾时只向 \`## 阶段结论\` 追加一行（\`phase=archive\` / \`status\` / \`artifact\` / \`nextAllowed\`）；MUST NOT 重产整包。包缺失时按需直接读取制品；\`sourceFingerprint\` 与当前制品不一致时记 WARN 并以磁盘制品为准。
+
+${renderGateWhitelistSection()}
 
 **Input**: 可选指定变更名；省略时检查能否从对话上下文推断。若含糊或有歧义，MUST 提示可用变更供用户选择。工作流也可能为自动执行直接传入变更名。
 
@@ -112,21 +118,21 @@ export function getSpecArchiveChangeSkillTemplate(): SkillTemplate {
    - CONTEXT.md 缺失时，从变更制品自动创建
    - 不得因检查失败而阻塞归档 —— 记录日志并继续
 
-4.6 **归档前 CodeGraph 状态检查（强制检查点）**
+4.6 **归档前 CodeGraph 能力探测（强制检查点）**
 
-   **⚠️ 强制：归档前 MUST 检查 CodeGraph 状态**
+   **⚠️ 强制：归档前 MUST 探测 CodeGraph 是否可用**
 
-   归档前，用「状态优先」的方式检测项目是否启用了 CodeGraph：
+   归档前按能力探测顺序判定可用性（任一通道成功即视为可用）：
 
-   1. **运行 \`codegraph status\`（经 Bash）作为唯一检测步骤** —— 不得用 Glob 预先检查 \`.codegraph/\` 目录是否存在（点号开头的目录会返回假阴性，导致 CodeGraph 被误判为未初始化）
-   2. **若调用成功**：CodeGraph 已初始化且索引健康 —— 记录该调用报告的当前索引统计（文件/节点数），继续归档
-   3. **若调用失败**（codegraph CLI 不在 PATH —— 命令未找到类错误 —— 或其他任何错误，含 CodeGraph 未初始化）：自动跳过**全部** CodeGraph 步骤（本 4.6 检查与 6.5 同步），记录 WARN 说明 codegraph CLI 不可用且已跳过同步，继续归档 —— 不得询问用户是否重试或继续
+   ${renderCodegraphProbeOrder({ withCli: true })}
+
+   ${CODEGRAPH_LOCK_LADDER}
 
    **强制检查点**：
-   - 系统 MUST 在执行归档前完成 CodeGraph 状态检查
-   - CodeGraph 未初始化时，跳过**全部** CodeGraph 步骤（本 4.6 检查 + 6.5 同步）
-   - codegraph CLI 不可用或状态检查失败时，自动跳过**全部** CodeGraph 步骤并记录 WARN —— 绝不询问用户
-   - 不得因检查失败而阻塞归档 —— 记录日志并继续
+   - 系统 MUST 在执行归档前完成能力探测（三条通道任一成功即视为可用）
+   - 三条通道全部失败 → 自动跳过**全部** CodeGraph 步骤（本 4.6 检查 + 6.5 同步），记录 WARN 说明当前不可用且已跳过，继续归档 —— 不得询问用户是否重试或继续
+   - MUST NOT 用「\`.codegraph/\` 目录是否存在」判定可用性（点号目录的 Glob 假阴性会把 CodeGraph 误判为未初始化）
+   - 不得因探测失败而阻塞归档 —— 记录日志并继续
    - 与 4.5 的 CONTEXT.md 检查点理念保持一致
 
 4.7 **归档前探索记忆同步（强制检查点）**
@@ -233,16 +239,15 @@ export function getSpecArchiveChangeSkillTemplate(): SkillTemplate {
      - devdocs 目录不存在则创建（用 \`path.join()\`）；目标已存在则覆盖
    - **若文件不存在**：静默跳过本步骤 —— 不报错、不告警，继续归档流程
 
-6.5 **归档后 CodeGraph 同步 + 验证（条件执行）**
+6.5 **归档后 CodeGraph 同步 + 验证（条件执行，daemon 感知）**
 
-   **仅当 Step 4.6 确认 CodeGraph 已启用时才执行。** 若 Step 4.6 被跳过（CodeGraph 未初始化），整体跳过本步骤。
+   **仅当 Step 4.6 判定 CodeGraph 可用时才执行。** 若 Step 4.6 三通道全部失败，整体跳过本步骤。
 
-   1. **同步 CodeGraph 知识图谱**，纳入刚归档变更已实现的代码：
-      - 运行 \`codegraph sync\`（经 Bash）增量索引新实现的代码
-      - 运行前展示 "CodeGraph：正在同步已实现的代码..."
-      - 完成后记录同步结果
+   1. **先判 daemon 存活**（读取 \`.codegraph/writer.pid\`，判据见 Step 4.6 的锁阶梯）：
+      - **daemon 存活（含 \`ready:false\` / 解析失败等不可判定态）** → MUST NOT 执行 \`codegraph sync\`、MUST NOT 执行 \`codegraph unlock\`；直接只读复用既有索引，进入第 2 步验证
+      - **确认无 daemon（纯 CLI 用户）** → 经 Bash 执行 \`codegraph sync\` **恰一次**，增量索引刚归档变更已实现的代码；运行前展示 "CodeGraph：正在同步已实现的代码..."
 
-   2. 同步成功后**验证一致性**：
+   2. 同步（或只读复用）后**验证一致性**：
       - 用 MCP \`codegraph_search\` 查询变更名，以及变更 \`tasks.md\` 与 \`design.md\` 中提到的关键符号
       - 确认已实现的符号现已被索引
       - 展示 "CodeGraph：✓ 索引中已校验 N 个符号"，无匹配时告警
@@ -250,6 +255,7 @@ export function getSpecArchiveChangeSkillTemplate(): SkillTemplate {
 
    3. **失败处理**（非阻塞）：
       - \`codegraph sync\` 失败（CLI 错误、超时或 CLI 不在 PATH）：记录告警，不阻塞归档
+      - 锁冲突按 Step 4.6 的锁阶梯处置：存活只读复用；不存活 \`unlock\` 一次 + 重试读取一次；仍失败降级 Glob / Grep 并记 WARN
       - 验证查询失败或返回空：记录告警，不阻塞归档
       - CodeGraph 同步独立于 \`--skip-specs\` / \`--no-validate\` / 跳过校验的选择执行
 
@@ -386,14 +392,7 @@ Target archive directory already exists.
 - 当变更声明 \`skip_specs\`（状态报告 specs 为 skipped）时，归档摘要 MUST 注明 "主规格未同步（skip_specs 声明）"，避免用户误以为规格同步被遗漏
 - 清晰展示发生了什么
 - 若存在 delta spec，执行同步评估、展示合并摘要，并直接执行内联 AI 合并（ADDED/MODIFIED/REMOVED/RENAMED → 主规格，遵循 v1.1.20 specs-apply 语义）
-
-## 归档后索引同步（SQLite）
-
-归档移动（Step 5）与 CodeGraph 同步（Step 6.5）之后，MUST 重建 SQLite 跨变更索引：
-
-1. **MUST 运行**：\`Bash(iagent spec reindex --force)\` —— 从所有已归档变更重建完整索引
-2. 成功时：报告 "SQLite 索引已重建 —— 已索引 N 个变更"
-3. 失败时：记录 WARN 及错误原因并继续（非阻塞）；之后可用同一命令重建索引`,
+- 归档流程不含任何索引重建：跨变更 SQLite 索引能力已退役，MUST NOT 出现索引重建类步骤`,
         license: 'MIT',
         compatibility: '依赖 iagent CLI（spec 命令组）与 CodeGraph CLI（可选）。',
         metadata: { author: 'mi-agent-tools' },

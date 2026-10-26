@@ -89,7 +89,13 @@ export const LEGACY_SIDECAR_DIR_NAME = '.venus';
 /** 旧跨变更索引目录（相对 openspec 根），其下的旧索引库随目录删除 */
 export const LEGACY_INDEX_DIR_RELATIVE_PATH = 'changes/archive/.venus';
 
-/** 旧索引库文件名（删除后可由 iagent spec reindex 重建） */
+/**
+ * 旧索引库文件名（旧品牌目录下的历史跨变更索引，随旧品牌目录一并清理）。
+ *
+ * 边界：清理对象是 `openspec/changes/archive/.venus/`（旧品牌缓存目录），
+ * **不是**用户当前目录里的历史索引库 —— 后者不是本工具的产物，
+ * `iagent init` / `iagent update` MUST NOT 删除或改写它（跨变更索引能力已退役）。
+ */
 export const LEGACY_INDEX_DB_FILE = 'index.db';
 
 /**
@@ -387,7 +393,7 @@ export interface LegacyMigrationReport {
     skipped: string[];
     /** 告警（手工修改可能已丢失、配置未迁移、目录保留未删等） */
     warnings: string[];
-    /** 中性提示（如索引库已删可由 reindex 重建） */
+    /** 中性提示（如旧索引库已删且跨变更索引能力已退役） */
     hints: string[];
 }
 
@@ -746,7 +752,8 @@ function homeDisplayPath(filePath: string): string {
  *
  * rc/profile 的标记块清理 MUST 以旧起止标记**成对出现**为前提：不成对时记入跳过项并告警，
  * MUST NOT 改动文件（避免误删用户内容）。
- * 旧索引库删除后在报告中提示可由 reindex 重建。
+ * 旧品牌索引目录（`openspec/changes/archive/.venus/`）删除后只给中性提示：
+ * 跨变更索引能力已退役，提示 MUST NOT 指向已删除的 CLI 命令。
  *
  * @param projectRoot - 项目根目录
  * @param detection - 检测结果
@@ -790,6 +797,6 @@ function cleanLegacyBrandArtifacts(
     if (brand.indexDb !== null) {
         fs.rmSync(legacyIndexDirPath(projectRoot), { recursive: true, force: true });
         report.removed.push(`${brand.indexDb}（旧跨变更索引库）`);
-        report.hints.push('旧索引库已删除，可用 iagent spec reindex 重建');
+        report.hints.push('旧跨变更索引已删除（索引能力已退役）');
     }
 }

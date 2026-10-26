@@ -1,14 +1,14 @@
 ---
 name: iagent-debug
 description: "一站式调试工作流：复现→用 CodeGraph 与能力记忆调查根因→变更关联→带强制回归测试的修复→编译检查→同步提案→验证；触发词\"调试 / debug / 修复 bug / bug 报告 / 复现 / 根因\"；NOT for：新功能开发用 iagent_workflow、单一阶段探索用 iagent_spec_explore"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_verify_proposal), Skill(proposal_review), Skill(requirement_doc), Skill(test)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_verify_proposal), Skill(proposal_review), Skill(requirement_doc), Skill(test), Agent, Task
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）与 iagent_spec_verify_proposal / iagent_proposal_review / iagent_requirement_doc / iagent_test 技能（test 为条件委派）；CodeGraph MCP 可选（不可用时降级 Glob/Grep）。
 metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:ca0fc5024b2d5819d02927c1f8275772b1697a76df3c5dd9f9c72c4c797d986a"
+  generatedFingerprint: "sha256:8066475200ee0e4acce6f111cd73eedd48d23de3792359626a8b9d6372e21edb"
 ---
 
 
@@ -34,7 +34,28 @@ metadata:
 - 走到 ⛔ GATE 时，**本次响应到此结束** —— 输出门内容后立即停止
 - 不得执行、描述或预生成门之后的任何步骤
 - 用户的下一则消息即为确认信号 —— 仅在其响应后从门之后继续
+- **非门动作 MUST NOT 停止，也 MUST NOT 请求确认**：阶段宣告 / 技能委派（含「是否调用 <技能>」）/ 只读扫描 / CodeGraph 查询 / 状态查询 / 只读校验的「是否运行 <校验>？」询问，均不是确认门
+- **只有**门白名单（见「门白名单与 MUST NOT 确认清单」段）声明的 5 类门可以阻断推进；白名单外的动作 MUST NOT 被实现为停止点
 - **违规**：未经用户确认而执行门之后的步骤，是破坏工作流的严重错误
+
+## 门白名单与 MUST NOT 确认清单
+
+**必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
+- **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
+- **实现 + 测试桥**：implementation-bridge（不可豁免）
+- **归档桥**：archive-confirmation（不可豁免）
+- **破坏性改动确认（动作级，不可豁免：删除目录 / 覆盖既有制品 / 改写版本库跟踪 / 不可逆命令）**（不可豁免）
+
+**MUST NOT 请求确认（非门动作，MUST NOT 被实现为停止点）**：
+- 阶段宣告（如「进入 Phase N」「本阶段开始」）
+- 技能委派（含「是否调用 <技能>」类询问）—— 已授权的 nextAllowed 技能直接委派
+- 只读扫描（Glob / Grep / Read 与只读查询）
+- CodeGraph 查询与能力探测（含锁阶梯只读复用）
+- 状态查询（`iagent spec status` / `getChangeStatus` 等）
+- 只读校验的「是否运行 <校验>？」询问（如技术栈专项校验）—— 直接执行并在报告中说明校验项
+
+> 跨变更索引重建类动作已随索引能力退役（DEC-2），不构成任何门或动作。
 
 ---
 ## Startup
@@ -232,6 +253,7 @@ _Avoid_: <synonyms>`
 
 - 归属判定完成后 MUST 明确 `changeName`（进行中变更名 / 自动新建的 `fix-<module>-<topic>` / 新修复变更名）；缺失时 `fix` 阶段 MUST NOT 启动并按回执校验规则报告不完整
 - 同步确定 `affectedSymbols`（受影响符号清单）；与 `rootCause` / `defectChain` 一并构成 `investigate` 阶段的 handoff
+- **摘要作为 handoff 包来源（不重复探查）**：`changeName` 确定后，`investigation-digest` 的既有结论 SHALL 作为 `.openspec-tmp/pipeline-<changeName>/handoff-pack.md` 的 `## Codebase 摘要` 节来源之一；MUST NOT 因写入包而重新执行已覆盖的探查，也 MUST NOT 把摘要内容改写为交付物（摘要仍只是流程内缓存）
 
 ---
 ## Phase 4: 修复（方案判定 → 实施 → 回归测试）
@@ -245,6 +267,17 @@ _Avoid_: <synonyms>`
 - **唯一性证据不足**：MUST 按多方案处理（不得凭"看起来只有一种"直通）
 - **既有独立确认仍保留**：方案涉及数据库 / schema 变更时，仍须按 4.1 单独输出 DDL 并在应用前取得显式确认 —— 唯一方案直通规则 MUST NOT 绕过该确认
 - 该门是**条件门**：多方案（`multiple-fix-options = true`）时阻塞待确认；唯一且证据充分（`false`）时门不适用
+
+### 4.0.5 修复循环的派发形态（按 bug 派发单元，强制）
+
+- **派发单元** = 每个待修复 bug；同一文件被多个 bug 触及时 MUST 串行执行（从并发组拆出）；同时运行的子代理数 MUST NOT 超过 `apply.concurrency`（缺省 3）
+- **唯一必读制品（批次一降级口径）**：
+  - handoff 包存在时：子代理只读包的 `## 契约` / `## 文件归属表` / `## Codebase 摘要` / `## 已产出` 四节 + 本单元 bug 清单，MUST NOT 各自重读完整技能正文或重复已覆盖的 CodeGraph 查询
+  - 包不存在时（未跑 propose 的独立 debug / 批次一独立实施）：子代理只读「`investigation-digest` 摘要 + 本单元 bug 清单 + 文件归属」三件；MUST NOT 因缺包而拒绝派发，也 MUST NOT 在本技能内自建第二套包格式
+- **派发指令 MUST 携带**：本单元 bug 清单（症状 / 证据 / 根因 / 修复口径）、文件归属、四列回执格式与 `⛔ EXIT GUARD`（完成即停、回四列回执）
+- **四列回执**：`<bug id> | <状态> | <产出文件> | <公开签名>`；MUST NOT 粘贴代码正文，失败单元额外附失败原因摘要
+- **收束归属**：任务状态、回归测试验收与阶段推进由主代理集中管理；子代理 MUST NOT 推进阶段、MUST NOT 修改 `tasks.md`、MUST NOT 标记可归档
+- **降级**：运行时不提供子代理派发工具时，降级为串行本地修复并告知用户，MUST NOT 声称发生过派发
 
 ### 4.1 修复实现
 
@@ -275,32 +308,12 @@ _Avoid_: <synonyms>`
 ---
 ## Phase 5: 编译检查 — 汇总所有修复
 
-遵循 iagent_spec_apply 技能的编译检查约定（Step 8）。本阶段只运行**一次**，覆盖循环中修复的**所有** bug。
+遵循 `iagent_spec_apply` 技能的编译检查约定（Step 8），只运行**一次**，覆盖循环中修复的**所有** bug：
 
-### 5.1 加载配置
-
-- 读取 `openspec/config.yaml` 的 `compileCheck` 设置
-- 若 `compileCheck.enabled` 为 false 或该段未配置（默认禁用），跳到 Phase 6
-
-### 5.2 执行检查
-
-- 从 `config.yaml` 的 context 探测技术栈（TypeScript、Java、Go、Rust……）
-- 将变更文件分类为后端（TypeScript/Java/Go/Rust）与前端（JSP/Vue/React）
-- 按技术栈执行编译命令：
-  - TypeScript: `tsc --noEmit` 或 `pnpm run build`
-  - Java-Maven: `mvn compile -DskipTests`
-  - Java-Gradle: `gradle compileJava`
-  - Go: `go build ./...`
-  - Rust: `cargo build`
-
-### 5.3 自动修复循环
-
-- 若 `autoFix.enabled` 为 true：按可修复性分类问题，对变更范围内文件应用修复，重跑检查（最多 `maxRetries` 次，默认 3）
-
-### 5.4 报告
-
-- 汇总结果（编译、lint、前端），区分已修复与遗留问题
-- 遗留失败**报告**给用户 —— MUST NOT 静默越过失败检查
+- 读取 `openspec/config.yaml` 的 `compileCheck`；未启用（默认禁用）→ 跳到 Phase 6
+- 从 context 探测技术栈并按对应编译命令检查（TypeScript / Java-Maven / Java-Gradle / Go / Rust）；分类变更文件为后端与前端
+- `autoFix.enabled` 时按可修复性自动修复并重跑（最多 `maxRetries` 次，默认 3）
+- 汇总编译 / lint / 前端结果，区分已修复与遗留问题；遗留失败**报告**给用户 —— MUST NOT 静默越过失败检查
 
 ---
 ## Phase 6: 同步提案 — 汇总所有修复

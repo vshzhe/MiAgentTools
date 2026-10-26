@@ -2,14 +2,21 @@
 
 把工作流的 CodeGraph 查询体系（状态预检 → 文件扫描 → 符号 + 上下文 → 调用链 + 影响 → **分级** → 探索 + 深度分析）适配到调试排查场景。所有发现实时写入诊断记录（在**每一步**查询之后写入，不得在末尾批量补写），以便 Phase 6 持久化完整排查路径。
 
-#### 2.2.0 Status 预检（强制首动作与硬回退）
+#### 2.2.0 能力探测（探测顺序，不是单一工具硬约束）
 
-**MUST 把 `codegraph_status` 作为 Phase 2 的首个动作运行。** 在 `codegraph_status` 返回不可用之前，MUST NOT 用 Grep 或 Glob 做符号/文件排查 —— `codegraph_*` 工具（2.2.1–2.2.4）是主路径，而非可选路径。
+追踪代码前先按能力探测顺序判定 CodeGraph 是否可用（任一通道成功即视为可用）：
 
-- 若已初始化（files/nodes > 0）：继续使用 2.2.1–2.2.4 的 CodeGraph 工具
-- 若 `codegraph_status` 确认不可用（未初始化、报错或工具未挂载）：**仅在此时**才降级（回退）到 Glob（文件结构）与 Grep（符号搜索），并在诊断记录记「CodeGraph 不可用 —— 使用 Glob/Grep 降级」
+**CodeGraph 能力探测（按顺序尝试，三条通道任一成功即视为可用）**：
+1. 先调用 MCP 具名工具（`codegraph_explore` / `codegraph_status` 等）——能返回结果即视为可用；
+2. 若 MCP 具名工具未暴露，改看 `codegraph_explore` 返回的**时效横幅**（含索引构建/滞后提示）——横幅存在即视为可用；
+3. 若前两条通道均不可得，再经 Bash 运行 `codegraph status --json`——命令成功并返回 JSON 即视为可用。
+- **工具名缺失 ≠ 索引不可用**：某一通道在当前宿主不存在，只说明该通道不可用，MUST NOT 据此断言索引未初始化。
+- MUST NOT 用「`.codegraph/` 目录是否存在」判定索引可用性（点号目录的 Glob 存在假阴性）；目录存在性不构成可用性判据。
 
-Grep/Glob 是**最后手段**，仅在 `codegraph_status` 确认不可用后允许 —— MUST NOT 作为跳过 CodeGraph 的捷径。降级（回退）MUST NOT 阻断排查，但 MUST NOT 在可用性检查之前采用。
+- 任一路径可用：继续使用 2.2.1–2.2.4 的 CodeGraph 工具
+- 三通道全部不可用：**仅在此时**才降级（回退）到 Glob（文件结构）与 Grep（符号搜索），并在诊断记录记「CodeGraph 不可用 —— 使用 Glob/Grep 降级」
+
+Grep/Glob 是**最后手段**，仅在能力探测三通道全部失败后允许 —— MUST NOT 作为跳过 CodeGraph 的捷径。降级（回退）MUST NOT 阻断排查，但 MUST NOT 在可用性探测之前采用。
 
 #### 2.2.1 文件结构扫描（codegraph_files）
 

@@ -20,6 +20,7 @@ import {
     CONDITIONAL_DELEGATIONS,
     ORCHESTRATION_DELEGATIONS,
 } from '../src/core/host-orchestration/index.js';
+import { CODEGRAPH_CLI } from '../src/core/templates/tool-whitelist.js';
 
 describe('allowed-tools 白名单覆盖', () => {
     const skills = getSkillTemplates();
@@ -289,6 +290,7 @@ describe('调用类白名单条目（MCP / Skill 委派 / 子代理派发）', (
             'debug',
             'migration',
             'project-init',
+            'spec-apply',
             'spec-archive',
             'spec-bulk-archive',
             'spec-propose',
@@ -319,9 +321,10 @@ describe('调用类白名单条目（MCP / Skill 委派 / 子代理派发）', (
         const dispatching = skills.filter(({ template }) =>
             parseEntries(template.allowedTools).includes('Agent')
         );
-        // 派发技能集合（回归锁）
+        // 派发技能集合（回归锁）：debug 在批次一补齐派发
         expect(dispatching.map((s) => s.commandId).sort()).toEqual([
             'auto-workflow',
+            'debug',
             'migration',
             'spec-apply',
             'spec-bulk-archive',
@@ -434,10 +437,89 @@ describe('debug 授权与宿主委派表一致（4.5）', () => {
         expect(debug.template.instructions).toContain('显式协商 degraded 时才允许本地编写');
     });
 
-    it('授权面最小：无 Agent/Task 派发（debug 不做子代理派发）与通配', () => {
+    it('4.8 debug 含 Agent/Task 派发条目（批次一补齐派发能力）', () => {
         const entries = parseEntries(debug.template.allowedTools);
-        expect(entries).not.toContain('Agent');
-        expect(entries).not.toContain('Task');
+        expect(entries).toContain('Agent');
+        expect(entries).toContain('Task');
         expect(debug.template.allowedTools).not.toContain('Skill(*)');
+    });
+
+    it('4.8 宿主委派表未虚增（debug 的派发条目不改变委派目标清单）', () => {
+        expect(ORCHESTRATION_DELEGATIONS.debug).toEqual([
+            'spec-verify-proposal',
+            'proposal-review',
+            'requirement-doc',
+            'test',
+        ]);
+    });
+});
+
+// 任务 4.8：CodeGraph CLI 条目覆盖 + commit 提案制品断言。
+describe('4.8 CodeGraph CLI 条目与 commit 提案制品', () => {
+    const skills = getSkillTemplates();
+
+    /** 正文确有 CLI 调用、MUST 具备 CODEGRAPH_CLI 的技能 */
+    const CLI_SKILLS = [
+        'iagent_spec_archive',
+        'iagent_spec_bulk_archive',
+        'iagent_spec_explore',
+        'iagent_debug',
+        'iagent_project_init',
+    ];
+
+    it('归档 / 探索 / 调试 / 初始化技能含 Bash(codegraph:*)', () => {
+        for (const name of CLI_SKILLS) {
+            const skill = skills.find((s) => s.template.name === name);
+            expect(skill, `${name} 未注册`).toBeDefined();
+            const entries = (skill?.template.allowedTools ?? '').split(',').map((e) => e.trim());
+            expect(entries, `${name} 缺少 CODEGRAPH_CLI`).toContain(CODEGRAPH_CLI);
+            // MCP 条目不被 CLI 条目替代
+            expect(entries).toContain('mcp__codegraph');
+        }
+    });
+
+    it('migration 不跑 CLI：不含 Bash(codegraph:*) 且渲染无 codegraph status', () => {
+        const migration = skills.find((s) => s.template.name === 'iagent_migration');
+        expect(migration?.template.allowedTools).not.toContain('Bash(codegraph:*)');
+        expect(migration?.template.instructions).not.toContain('codegraph status');
+    });
+
+    it('commit 正文声明提案制品纳入 + 尾行溯源 + 人工闸', () => {
+        const commit = skills.find((s) => s.template.name === 'iagent_commit');
+        const body = commit?.template.instructions ?? '';
+        expect(body).toContain('提案制品纳入');
+        expect(body).toContain('提案: <change-name>');
+        expect(body).toContain('MUST NOT 使用 `git add -A`');
+        expect(body).toContain('MUST NOT 自动 commit');
+        expect(body).toContain('确认后再执行');
+        // 不新增未使用的授权（git 命令面保持既有）
+        const entries = (commit?.template.allowedTools ?? '').split(',').map((e) => e.trim());
+        expect(entries.filter((e) => e.startsWith('Bash('))).toEqual([
+            'Bash(git status:*)',
+            'Bash(git diff:*)',
+            'Bash(git add:*)',
+            'Bash(git commit:*)',
+            'Bash(git log:*)',
+        ]);
+    });
+
+    // commit-push-skill / 「Git 提交技能的提案制品纳入」：暂存范围必须逐条精确，排除附件与人工评审产物。
+    it('提案制品固定清单逐条精确暂存：排除 attachments 与需求文档，禁目录级 add', () => {
+        const commit = skills.find((s) => s.template.name === 'iagent_commit');
+        const body = commit?.template.instructions ?? '';
+
+        // 正向：逐条精确暂存（非目录级 / 非通配）
+        expect(body).toContain('git add <files>');
+        expect(body).toContain('proposal.md');
+        expect(body).toContain('specs/**/*.md');
+        // 负向：附件与人工评审产物不入默认清单
+        expect(body).toContain('attachments/**');
+        expect(body).toContain('需求文档.md');
+        // 禁目录级批量暂存（三个禁用形态逐字列出）
+        expect(body).toContain(
+            'MUST NOT 使用 `git add -A` / `git add openspec` / `git add openspec/changes`'
+        );
+        // 0 个活跃变更时不得附加空溯源尾行
+        expect(body).toContain('MUST NOT 附加 `提案:` 尾行');
     });
 });

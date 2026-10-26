@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:fe845c0f10f200f6e21fd4b0122d9683ae66197afe60a1d69abe04395b025ab0"
+  generatedFingerprint: "sha256:4f98b0da7b8d1ecb4a4fce02c959bd0b77e193edb1c4e5828c343b645959040d"
 ---
 
 **验证前先阅读 .iagent/rules/coding-rules.md 中的验证标准。**
@@ -16,6 +16,25 @@ metadata:
 实现前，对照探索结果验证制品。
 
 本技能执行增强的 10 维度验证，含量化评分与技术栈检测。
+
+## 门白名单与 MUST NOT 确认清单
+
+**必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
+- **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
+- **实现 + 测试桥**：implementation-bridge（不可豁免）
+- **归档桥**：archive-confirmation（不可豁免）
+- **破坏性改动确认（动作级，不可豁免：删除目录 / 覆盖既有制品 / 改写版本库跟踪 / 不可逆命令）**（不可豁免）
+
+**MUST NOT 请求确认（非门动作，MUST NOT 被实现为停止点）**：
+- 阶段宣告（如「进入 Phase N」「本阶段开始」）
+- 技能委派（含「是否调用 <技能>」类询问）—— 已授权的 nextAllowed 技能直接委派
+- 只读扫描（Glob / Grep / Read 与只读查询）
+- CodeGraph 查询与能力探测（含锁阶梯只读复用）
+- 状态查询（`iagent spec status` / `getChangeStatus` 等）
+- 只读校验的「是否运行 <校验>？」询问（如技术栈专项校验）—— 直接执行并在报告中说明校验项
+
+> 跨变更索引重建类动作已随索引能力退役（DEC-2），不构成任何门或动作。
 
 **只读验证步骤无需确认即可执行**：读取制品、扫描文件、CodeGraph 查询与 D1-D10 评分分析直接运行，无需中途确认提示。仅验证报告（以及真正属于用户决策的选择，例如 FAIL 判定后选择修复路径）呈现给用户。
 
@@ -64,9 +83,8 @@ metadata:
 
 ### 技术栈提示
 
-若检测到技术栈：
-> "检测到技术栈：[TypeScript]。是否运行技术栈专项校验？"
-> [是 - 应用技术规则] [否 - 仅基础检查]
+若检测到技术栈 → **直接执行技术栈专项校验**（MUST NOT 就只读校验向用户提问），并在报告中说明校验项：
+> 例：「技术栈专项校验：已执行（TypeScript）」
 
 ### 技术栈专项检查
 

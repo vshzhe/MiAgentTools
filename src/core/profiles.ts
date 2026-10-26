@@ -44,9 +44,12 @@ export const DEFAULT_WORKFLOWS: readonly string[] = [
  *  - debug ⇒ spec-verify-proposal + requirement-doc
  *    （P7 验证调用；文档桥的"生成"分支**无条件委派** requirement-doc —— 被委派技能必须可得，
  *     否则形成指向未安装技能的死引用。`test` 属条件委派且正文已声明缺省降级路径，不触发注入）
- *  - spec-apply 不注入（apply 时假设 propose 阶段已过评分门，避免冗余） */
+ *  - spec-apply ⇒ test
+ *    （`[测试]` 任务**无条件委派** `iagent_test` 生成测试代码；缺该技能会形成死引用，
+ *     故随装补全。设计确认门由父流程实现桥或 apply 自身承载，不注入其他技能） */
 export const DEPS: Record<string, readonly string[]> = {
     'spec-propose': ['spec-verify-proposal'],
+    'spec-apply': ['test'],
     'spec-archive': ['spec-verify', 'requirement-doc'],
     'spec-bulk-archive': ['spec-verify', 'requirement-doc'],
     'migration': ['feature-doc', 'migration-check'],

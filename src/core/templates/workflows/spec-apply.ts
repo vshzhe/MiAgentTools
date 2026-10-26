@@ -3,22 +3,28 @@
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
-import { SUBAGENT_DISPATCH } from '../tool-whitelist.js';
+import { SUBAGENT_DISPATCH, skillDelegation } from '../tool-whitelist.js';
+import { renderGateWhitelistSection } from '../prompt-gate.js';
 
 const BATCH_SCHEDULING_FULL = `6. **实现任务（批调度循环，直至完成或被阻塞）**
 
-   **共享上下文包（流程级，只产出一次）：**
+   **变更级 handoff 包（流程级，一次产出、跨阶段复用）：**
 
-   - 设计确认后（或 auto-mode 生效时）、首次派发**之前**，编排器在流程级临时工作区（项目根下 \`.openspec-tmp/apply-<change-name>/\`，用 path.join 构建）内的 \`context-pack.md\` 产出**一份**共享上下文包 —— 只在首次派发前产出一次，不按批重产、也不按单元重产
-   - 上下文包是子代理**唯一**必读的制品：每个子代理只读该包加上自己单元的任务清单，变更目录中的其他内容一律不读
-   - 产出后编排器 MUST NOT 重产整包 —— 只允许向包的 \`## 已产出（跨单元可见）\` 章节**追加**内容（见批后步骤）
-   - 上下文包恰有六个章节，顺序如下：
+   - **路径**：项目根下 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\`（用 \`path.join()\` 构造；该目录已被 \`.gitignore\` 排除，**不进提交面**）
+   - **跨阶段复用（优先）**：\`iagent_spec_propose\` 在提案定稿时已产出该包 → apply **只读复用**，MUST NOT 重产整包；收尾时仅向 \`## 阶段结论\` 追加一行
+   - **独立调用时（包不存在）**：按同一六节协议**产出一次**（只在首次派发前产出，不按批重产、也不按单元重产）
+   - **头部固定元信息**：\`change: <name>\` / \`producedBy: propose|apply\` / \`producedAt: <ISO>\` / \`sourceFingerprint: <hash>\`
+   - **指纹校验**：阶段入口比对当前制品（proposal / design / specs / tasks）的内容指纹；与 \`sourceFingerprint\` 不一致 → 重建整包并记 WARN，MUST NOT 静默沿用陈旧包
+   - handoff 包是子代理**唯一**必读的制品：每个子代理只读该包（+ 自己单元的任务清单），变更目录中的其他内容一律不读
+   - 包内章节固定为六节 + 可选 \`## 阶段结论\`（顺序如下）：
      - \`## 变更摘要\` — 从 proposal.md 蒸馏出的变更要点（why/whatChanges）：本变更做什么、为什么
      - \`## 契约\` — 从 specs + design 蒸馏出的接口签名 / 数据结构 / 表字段
      - \`## 规范要点\` — 编排器一次性蒸馏出的 \`.iagent/rules/coding-rules.md\` 关键护栏（绝不由各子代理分别蒸馏）
      - \`## 文件归属表\` — 派发单元 → 该单元允许修改的文件
-     - \`## Codebase 摘要\` — 编排器的预扫描结论（分层 / 依赖事实，否则子代理需重新推导）
+     - \`## Codebase 摘要\` — 预扫描 / 探查摘要结论（分层 / 依赖事实，否则子代理需重新推导）
      - \`## 已产出（跨单元可见）\` — 产出登记表：已产出文件 + 公开签名，每批结束后追加
+     - \`## 阶段结论\`（可选，**只追加不改写**）— 每阶段一条，四列：\`phase\` / \`status\` / \`artifact\` / \`nextAllowed\`
+   - 产出后编排器 MUST NOT 重产整包 —— 只允许向 \`## 已产出（跨单元可见）\` 与 \`## 阶段结论\` **追加**内容（见批后步骤）
 
    **派发前加载并发上限：**
    - 从 \`openspec/config.yaml\` 读取 \`apply.concurrency\`（正整数）
@@ -40,15 +46,15 @@ const BATCH_SCHEDULING_FULL = `6. **实现任务（批调度循环，直至完�
    **批调度循环**（按 Step 5.5 确认的统一批计划逐批执行）：
 
    **批派发形态判定（显式，每批开始时 强制）：**
-   - 批含 **≥2** 个派发单元 → 产出共享上下文包（若尚未产出）并派发子代理（见第 2–5 条）
-   - 批含 **<2** 个派发单元 → 由编排器自己直接实现任务，且 MUST NOT 产出上下文包（单任务批永不产出包）
+   - 批含 **≥2** 个派发单元 → 产出或复用 handoff 包（若尚未存在则按六节协议产出）并派发子代理（见第 2–5 条）
+   - 批含 **<2** 个派发单元 → 由编排器自己直接实现任务，且 MUST NOT **新产出**包（已有 handoff 包仍可只读复用）
 
    1. **单任务批**：由你直接实现该任务 —— 不派发子代理、不输出并发执行提示；标明按串行执行（单任务批）；展示当前正在处理的任务，完成所需代码改动，保持改动最小且聚焦
    2. **多单元批 —— 并发状态提示**：派发含多个派发单元的批**之前**，输出醒目提示，说明批位置（Batch N/M）、正在派发的子代理数量（= 派发单元数）、涉及的任务组（本批 \`dispatchUnits\` 的 \`group\` 标签；无 group 标签的单元用任务 id），并提醒任务勾选更新与失败重试由编排器集中管理
    3. **派发前重叠检查（跨单元降级）**：跨派发单元检查本批任务的目标文件（依据任务描述、Spec Ref 与 \`产出:\` 声明）；不同单元中会修改同一文件的任务 MUST 从并发组中拆出、改为串行执行 —— 同一单元内的任务由同一子代理串行实现，因此同组文件绝不会被并发编辑
    4. **并发派发 —— 每个派发单元一个子代理**：为每个待处理的派发单元派发一个子代理；该单元的任务由该子代理按任务顺序串行实现；批内同时运行的子代理（派发单元）数 MUST NOT 超过并发上限；采用滑动窗口派发 —— 一旦某个子代理完成，立即派发同一批中下一个待处理的派发单元
    5. **子代理派发指令 MUST 包含**（先共享指令前缀，再单元差异部分）：
-      - 上下文包路径 —— 子代理**唯一**必读的制品（包位于流程级临时工作区）；**MUST 先读取本包，再执行其它任何动作** —— 包已承载蒸馏后的契约 / 摘要 / 文件归属表，因此子代理 MUST NOT 通过重读 proposal/specs/design 或重跑包已覆盖的 CodeGraph 查询来重新推导这些信息
+      - handoff 包路径 —— 子代理**唯一**必读的制品（包位于流程级临时工作区 \`.openspec-tmp/pipeline-<change-name>/\`）；**MUST 先读取本包，再执行其它任何动作** —— 包已承载蒸馏后的契约 / 摘要 / 文件归属表，因此子代理 MUST NOT 通过重读 proposal/specs/design 或重跑包已覆盖的 CodeGraph 查询来重新推导这些信息
       - 指向包的 \`## 规范要点\` 章节以获取 AI 编码护栏（绝不猜测 DB 字段、API 参数或业务规则 —— 标 **[待确认]**）—— 指令 MUST NOT 内联完整护栏摘要
       - 回执格式与禁止项清单（见下文共享资源协议）
       - 按顺序给出该派发单元的任务清单及每个任务的完整细节（描述、需求、Spec Ref），并要求按该顺序串行实现单元任务 —— 任务细节 MUST 内联在指令中，使子代理无需读取 tasks.md
@@ -56,22 +62,21 @@ const BATCH_SCHEDULING_FULL = `6. **实现任务（批调度循环，直至完�
       - 临时工作区路径及约束：子代理只把文件写入该工作区 —— MUST NOT 删除工作区，MUST NOT 自行按任务创建/清理临时目录
       - 显式禁止：**禁止修改 tasks.md** —— 子代理 MUST NOT 编辑任务勾选框
       - **⛔ EXIT GUARD (强制 — 子代理退出守卫)**: 完成本单元分配的全部任务后 MUST **立即停止并提交回执**给编排器；MUST NOT 进入 plan 模式 / 设计模式、不得提出后续步骤、不得超出分配的任务范围、不得建议归档或验证步骤；唯一职责 = 实现本单元分配的任务清单、产出回执的四个字段并返回；编排器是唯一有权判停、汇总、推进阶段的角色 —— 子代理 MUST NOT 越权替代编排器做阶段收尾决策
-   6. **整批返回后**：对照任务需求核验每个子代理的结果 → 由你集中更新 tasks.md（\`- [ ]\` → \`- [x]\`，仅限已确认完成的任务）→ 把本批的产出文件与公开签名追加到包的 \`## 已产出（跨单元可见）\` 章节 → 进入下一批
-   7. **失败任务**：由你串行重试该失败任务一次 → 若重试仍失败，暂停并向用户报告（该任务保持未勾选 \`- [ ]\`）
+   6. **整批返回后**：对照任务需求核验每个子代理的结果 → 由你集中更新 tasks.md（\`- [ ]\` → \`- [x]\`，仅限已确认完成的任务）→ 把本批的产出文件与公开签名追加到包的 \`## 已产出（跨单元可见）\` 章节 → 进入下一批   7. **失败任务**：由你串行重试该失败任务一次 → 若重试仍失败，暂停并向用户报告（该任务保持未勾选 \`- [ ]\`）
 
    **共享资源协议 —— 子代理职责与回执：**
 
    - **回执（回执最小化）**：子代理以固定四列回执行式回报，每个任务一行 —— \`<任务 id> | <状态> | <产出文件> | <公开签名>\`。回执 MUST NOT 粘贴代码正文。失败任务的回执 MUST 仍带失败原因摘要。
    - 「公开签名」定义：本单元产出中可能被其他单元引用的符号签名 —— 函数 / 方法 / 类型 / 接口 / 导出常量 / CLI 命令，含其参数与返回类型。若本单元没有可被引用的产出，记「无」。
    - **空值**：包的 \`## 契约\` 章节无对应条目时，在包中与回执的公开签名列均记「无」。MUST NOT 留空 / MUST NOT 编造。
-   - **共享指令前缀**：每条派发指令按固定顺序拼装 —— 共享前缀（上下文包路径 / \`## 规范要点\` 引用 / 回执格式 / 禁止项）→ 单元差异部分（本单元任务清单）。同一流程的每次派发，其共享前缀 MUST 逐字节一致。
+   - **共享指令前缀**：每条派发指令按固定顺序拼装 —— 共享前缀（handoff 包路径 / \`## 规范要点\` 引用 / 回执格式 / 禁止项）→ 单元差异部分（本单元任务清单）。同一流程的每次派发，其共享前缀 MUST 逐字节一致。
    - **禁止项**（每条派发指令 MUST 携带它们）：子代理 MUST NOT 重读 proposal/specs/design；子代理 MUST NOT 重跑包已覆盖的 CodeGraph 查询。对包未覆盖的内容 MAY 运行补充查询，但此时回执 MUST 附上**包缺口回执**（缺了什么、查了什么）；编排器据此回填包 —— 回填失败时记录 WARN，且 MUST NOT 阻塞实现。
    - **反幻觉**：包是蒸馏视图，不是制品的替代品。包中缺少某项时，子代理 MUST 查阅制品本身，MUST NOT 猜测字段或契约。
 
    **共享资源协议 —— fail-safe 降级：**
 
-   - 临时工作区不可写时：先降级到系统临时目录（\`iagent-apply-<change-name>/\`，既有的降级位置）；若仍失败，按下方降级
-   - 上下文包无法产出，或项目没有 \`.iagent/rules/coding-rules.md\` 时：降级为既有内联注入行为并记录 WARN —— MUST NOT 阻塞实现。降级只会让指令更长，绝不会丢弃护栏
+   - 临时工作区不可写时：先降级到系统临时目录（\`iagent-pipeline-<change-name>/\`，既有的降级位置）；若仍失败，按下方降级
+   - handoff 包无法产出，或项目没有 \`.iagent/rules/coding-rules.md\` 时：降级为既有内联注入行为并记录 WARN —— MUST NOT 阻塞实现。降级只会让指令更长，绝不会丢弃护栏
    - \`auto-mode=true\` 只跳过 Step 5.5 设计确认门 —— 共享资源协议 MUST NOT 因 auto-mode 而豁免，仍然适用
 
    **环境降级（无子代理能力）：**
@@ -89,7 +94,7 @@ const BATCH_SCHEDULING_FULL = `6. **实现任务（批调度循环，直至完�
    - 遵循常规实现流程
 
    **测试代码**（带 \`[测试]\` 标签的任务）：
-       - **MUST 内联实现**（不得委派给外部技能）—— apply 工作流直接负责测试生成，MUST NOT 委派给 \`iagent_test\` 或其他技能；整套写测试逻辑运行在实现对应生产代码的同一子代理内
+       - **MUST 委派 \`iagent_test\`**（传入测试层级与优先级）生成测试代码 —— MUST NOT 在 apply 内另立一套测试规则。\`iagent_test\` 不可用（degraded / 技能缺失）时记录 WARN 并按同一测试规则本地实现，MUST NOT 伪装为委派完成
        - **框架探测**：从构建文件（\`pom.xml\` → JUnit 4/5 + Mockito；\`build.gradle\` → JUnit 4/5 + Mockito；\`package.json\` → Vitest / Jest / Mocha）与结构线索（\`src/test/\` 或 \`test/\` 下的既有测试文件）探测项目测试框架；对齐**既有**测试风格（注解、断言、命名约定）—— 不得另造新风格
        - **覆盖范围**（最低要求）：① spec Scenario —— 为任务 \`Spec Ref\` 中引用的每个 \`#### Scenario:\` 写一个测试；② BCDE 边界 —— Boundary（最小/最大值、空集合）、Condition（null 入参、缺失字段）、Default（默认构造对象、未设置枚举）、Error（非法入参、抛出的异常）；③ 若某 Scenario 被判定为不可测，把结论以注释写入测试文件，使"未写"与"从未评估"可区分
        - **测试结构**：每个被测生产类一个测试类，命名为 \`<ClassName>Test\`（Java）或 \`<className>.test.<ext>\`（Node）；每个测试方法用 \`@Test\`（JUnit）/ \`it(...)\`（Vitest/Jest/Mocha）注解覆盖**一个**逻辑 Scenario；采用 Arrange-Act-Assert (AAA) 模式
@@ -127,11 +132,13 @@ export function getSpecApplyChangeSkillTemplate(): SkillTemplate {
     return {
         name: 'iagent_spec_apply',
         description: '实现变更。当 openspec/changes/ 下已有变更制品（proposal/specs/design/tasks），需要基于规格驱动实现任务清单时使用；触发词"实现变更 / apply / 执行任务 / 按规格实现"；NOT for 无变更制品时直接描述需求（改用 iagent_workflow 引导生成制品后再实现）。',
-        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(ant:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), ${SUBAGENT_DISPATCH}`,
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(ant:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), ${skillDelegation(['test'])}, ${SUBAGENT_DISPATCH}`,
         type: 'spec',
         instructions: `**实现前先阅读 .iagent/rules/coding-rules.md 的 AI 编码护栏。** 禁止猜测数据库字段、API 参数或业务规则 —— 标 **[待确认]** 并询问用户。
 
 按 openspec/changes/ 下的变更制品（proposal/specs/design/tasks）实现任务。
+
+${renderGateWhitelistSection()}
 
 **Input**: 可选指定变更名；省略时检查能否从对话上下文推断。若含糊或有歧义，MUST 提示可用变更供用户选择。工作流也可能传入 \`auto-mode=true\` 以跳过设计确认门，实现自动执行。
 
@@ -260,9 +267,9 @@ export function getSpecApplyChangeSkillTemplate(): SkillTemplate {
    - 本门**不能**跳过 —— 未经显式确认不得继续（除非 auto-mode 生效）
 
    **临时工作区协议（流程级，由主代理管理）：**
-   - 用户确认设计后（或 auto-mode 生效时）、派发任何批**之前**，创建一个临时工作区目录 —— **优先项目内**：项目根下的 \`.openspec-tmp/apply-<change-name>/\`（路径用 path.join 构建以保证跨平台）。若项目 \`.gitignore\` 中尚无 \`.openspec-tmp/\` 条目则补上，使该工作区不会污染 git status；清理后保留该条目供后续运行使用。若项目根不可写，降级到系统临时目录 \`iagent-apply-<change-name>/\` 并记录 WARN 说明降级位置
-   - 流程内产生的所有临时文件（编译校验脚本、临时配置、草稿输出）MUST 放在该工作区内 —— 不得把临时文件散落到项目目录各处
-   - 工作区在流程开始时创建一次、流程结束时清理一次 —— 不得按任务或按批创建/删除临时目录
+   - 用户确认设计后（或 auto-mode 生效时）、派发任何批**之前**，创建流程级临时工作区 —— **优先项目内**：项目根下的 \`.openspec-tmp/pipeline-<change-name>/\`（路径用 path.join 构建以保证跨平台）。若项目 \`.gitignore\` 中尚无 \`.openspec-tmp/\` 条目则补上，使该工作区不会污染 git status；清理后保留该条目供后续运行使用。若项目根不可写，降级到系统临时目录 \`iagent-pipeline-<change-name>/\` 并记录 WARN 说明降级位置
+   - 流程内产生的所有临时文件（handoff 包、编译校验脚本、临时配置、草稿输出）MUST 放在该工作区内 —— 不得把临时文件散落到项目目录各处
+   - 工作区是**流程级**（不是 apply 级）：流程开始时创建一次、流程结束时清理一次 —— 不得按任务或按批创建/删除临时目录
 
 > **批调度细则下沉**：Step 6 并发批调度协议（批形态判定、子代理派发、共享资源协议、失败处理）见 \`references/batch-scheduling.md\`；执行 Step 6 前 MUST 先 \`Read\` 该文件。
 
@@ -360,9 +367,17 @@ export function getSpecApplyChangeSkillTemplate(): SkillTemplate {
    **9.6 测试门报告** —— 汇总：覆盖范围、范围内通过/失败数、范围外存量失败（WARN）、覆盖率工具运行时的覆盖率数据（见 \`iagent_test\` §5.1）
 
 10. **统一临时工作区清理** ⚠️ 强制
-   - 编译检查（§8）与测试执行门（§9）都结束后 —— 无论通过、失败还是跳过 —— 在单次清理中删除整个临时工作区
-   - 清理范围**包含**共享上下文包及其产出登记表（二者都在临时工作区内）—— 它们是流程级制品，MUST NOT 遗留
-   - 若清理失败（文件被占用、权限不足）：记录 WARN 并给出工作区路径，便于用户手动删除，流程继续、不阻塞
+   - 编译检查（§8）与测试执行门（§9）都结束后 —— 无论通过、失败还是跳过 —— 在单次清理中删除整个流程级临时工作区
+   - **清理对象**：\`.openspec-tmp/pipeline-<change-name>/\`（handoff 包及其产出登记表、阶段结论都在其中）；**迁移期同时识别旧前缀 \`apply-<change-name>/\`**（若存在一并清理），清理失败记 WARN 并给出路径，MUST NOT 阻断流程
+   - 它们是流程级制品，MUST NOT 遗留；清理失败（文件被占用、权限不足）：记录 WARN 并给出工作区路径，便于用户手动删除，流程继续、不阻塞
+
+10.5 **提案制品精确暂存（收尾提示，不提交）** ⚠️ 强制
+   - 目标变更名：本次执行的 \`<change-name>\`（无父流程时取唯一活跃变更；多活跃变更时以本次 change-name 为准）
+   - 固定清单（逐条精确暂存，逐条校验前缀 \`openspec/changes/<change-name>/\`）：\`proposal.md\` / \`design.md\` / \`tasks.md\` / \`exploration.md\` / \`.openspec.yaml\` / \`specs/**/*.md\`
+   - **排除**：\`attachments/**\` 与 \`需求文档.md\`
+   - 逐条执行 \`git add <精确路径>\`（不存在的条目跳过），并展示拟暂存清单；**MUST NOT 使用 \`git add -A\` / \`git add openspec\` / 目录级添加**
+   - **MUST NOT 执行 \`git commit\`** —— 仅暂存并提示「提案制品已暂存」；建议的提交信息尾行为 \`提案: <change-name>\`，提交请走 \`/iagent:commit\`（人工闸）
+   - 暂存失败（未纳管 / 权限不足 / 路径不存在）→ 只记 WARN 并提示手动处理，MUST NOT 阻断收尾
 
 11. **最终状态与归档建议**
 
@@ -514,10 +529,11 @@ What would you like to do?
 - 直接从变更目录读取制品文件 —— 除标准集合外不要假设具体文件名
 - ⚠️ **强制**：全部任务完成后执行 Step 8 编译检查
 - ⚠️ **强制**：编译检查后执行 Step 9 测试执行门 —— 范围限定为本次变更（范围内失败阻塞；范围外存量失败仅 WARN 且 MUST NOT 阻塞）
-- ⚠️ **强制**：\`[测试]\` 任务 MUST 内联实现，遵循测试生成规则（框架探测 → 风格对齐 → BCDE 覆盖 → 反模式防护）；MUST NOT 委派给外部技能，MUST NOT 走补充文档的 \`产出:\` → \`attachments/\` 规则（放在 attachments/ 下的测试代码无法运行）
+- ⚠️ **强制**：\`[测试]\` 任务 MUST 委派 \`iagent_test\`（传测试层级与优先级）生成测试代码，MUST NOT 在 apply 内另立一套测试规则；该技能不可用时记录 WARN 并按同一规则本地实现（MUST NOT 伪装为委派完成）；MUST NOT 走补充文档的 \`产出:\` → \`attachments/\` 规则（放在 attachments/ 下的测试代码无法运行）
 
 - ⚠️ **强制**：子代理派发指令 MUST 携带 EXIT GUARD（子代理退出守卫）—— 完成分配任务后立即停止并返回回执，MUST NOT 进入 plan 模式 / 设计模式，也不得提出后续步骤；编排器是唯一有权判停和推进阶段的角色
-- ⚠️ **强制**：子代理 MUST 先读取上下文包，再执行其它任何动作 —— 不得先做其他动作；MUST NOT 重读 proposal/specs/design，MUST NOT 重跑包已覆盖的 CodeGraph 查询；仅做增量查询
+- ⚠️ **强制**：子代理 MUST 先读取 handoff 包（\`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\`），再执行其它任何动作 —— 不得先做其他动作；MUST NOT 重读 proposal/specs/design，MUST NOT 重跑包已覆盖的 CodeGraph 查询；仅做增量查询
+- ⚠️ **强制**：收尾按固定清单精确暂存提案制品（逐条 \`git add\`，MUST NOT 全量添加），**MUST NOT 自动 commit**；暂存失败只 WARN、不阻断收尾
 - ⚠️ **强制**：给出归档建议前先解析编译错误并提供修复选项
 
 **流畅工作流集成**

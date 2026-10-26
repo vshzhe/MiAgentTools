@@ -6,9 +6,10 @@
  * MUST NOT 手工双写两份 markdown 字符串。
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
-import { buildPromptGateBlock, BUG_DIMENSIONS, GATE_PROTOCOL_PREAMBLE } from '../prompt-gate.js';
+import { buildPromptGateBlock, BUG_DIMENSIONS, GATE_PROTOCOL_PREAMBLE, renderGateWhitelistSection } from '../prompt-gate.js';
 import { buildFlowchartBlock, FAULT_CHAIN_FLOW_COLUMNS } from '../flowchart-gate.js';
-import { CODEGRAPH_MCP, skillDelegation } from '../tool-whitelist.js';
+import { CODEGRAPH_CLI, CODEGRAPH_MCP, SUBAGENT_DISPATCH, skillDelegation } from '../tool-whitelist.js';
+import { renderCodegraphProbeOrder } from '../codegraph-protocol.js';
 import { deriveCommandContent } from '../derive-command.js';
 
 /** 提示词校验门全文（写入 references/prompt-gate.md，AI 在 Gate 触发时按需读取） */
@@ -18,14 +19,16 @@ const INVESTIGATION_PROTOCOL_FULL = `### 2.2 CodeGraph 排查（分层结构）
 
 把工作流的 CodeGraph 查询体系（状态预检 → 文件扫描 → 符号 + 上下文 → 调用链 + 影响 → **分级** → 探索 + 深度分析）适配到调试排查场景。所有发现实时写入诊断记录（在**每一步**查询之后写入，不得在末尾批量补写），以便 Phase 6 持久化完整排查路径。
 
-#### 2.2.0 Status 预检（强制首动作与硬回退）
+#### 2.2.0 能力探测（探测顺序，不是单一工具硬约束）
 
-**MUST 把 \`codegraph_status\` 作为 Phase 2 的首个动作运行。** 在 \`codegraph_status\` 返回不可用之前，MUST NOT 用 Grep 或 Glob 做符号/文件排查 —— \`codegraph_*\` 工具（2.2.1–2.2.4）是主路径，而非可选路径。
+追踪代码前先按能力探测顺序判定 CodeGraph 是否可用（任一通道成功即视为可用）：
 
-- 若已初始化（files/nodes > 0）：继续使用 2.2.1–2.2.4 的 CodeGraph 工具
-- 若 \`codegraph_status\` 确认不可用（未初始化、报错或工具未挂载）：**仅在此时**才降级（回退）到 Glob（文件结构）与 Grep（符号搜索），并在诊断记录记「CodeGraph 不可用 —— 使用 Glob/Grep 降级」
+${renderCodegraphProbeOrder({ withCli: true })}
 
-Grep/Glob 是**最后手段**，仅在 \`codegraph_status\` 确认不可用后允许 —— MUST NOT 作为跳过 CodeGraph 的捷径。降级（回退）MUST NOT 阻断排查，但 MUST NOT 在可用性检查之前采用。
+- 任一路径可用：继续使用 2.2.1–2.2.4 的 CodeGraph 工具
+- 三通道全部不可用：**仅在此时**才降级（回退）到 Glob（文件结构）与 Grep（符号搜索），并在诊断记录记「CodeGraph 不可用 —— 使用 Glob/Grep 降级」
+
+Grep/Glob 是**最后手段**，仅在能力探测三通道全部失败后允许 —— MUST NOT 作为跳过 CodeGraph 的捷径。降级（回退）MUST NOT 阻断排查，但 MUST NOT 在可用性探测之前采用。
 
 #### 2.2.1 文件结构扫描（codegraph_files）
 
@@ -138,6 +141,8 @@ export function getDebugSkillTemplate(): SkillTemplate {
 **宿主阶段对应（宿主无关协议）**：Phase 1–3（含 2.4 诊断确认包收束与变更归属判定）对应 \`investigate\` —— 交付 \`rootCause\` / \`defectChain\` / \`changeName\` / \`affectedSymbols\`；Phase 4 对应 \`fix\` —— 方案确认门绑定条件 \`multiple-fix-options\`（存在多个可行方案置真→阻塞待确认；唯一且证据充分置假→门不适用、直通）；Phase 5–7 对应 \`verify-close\` —— 消费 fix 结果并交付验证/复查结论与 \`requirementDocStatus\`。全部阶段仍由单一 \`iagent_debug\` 全流程技能承载，不拆分为多个对外技能。
 
 ${GATE_PROTOCOL_PREAMBLE}
+
+${renderGateWhitelistSection()}
 
 ---
 ## Startup
@@ -335,6 +340,7 @@ _Avoid_: <synonyms>\`
 
 - 归属判定完成后 MUST 明确 \`changeName\`（进行中变更名 / 自动新建的 \`fix-<module>-<topic>\` / 新修复变更名）；缺失时 \`fix\` 阶段 MUST NOT 启动并按回执校验规则报告不完整
 - 同步确定 \`affectedSymbols\`（受影响符号清单）；与 \`rootCause\` / \`defectChain\` 一并构成 \`investigate\` 阶段的 handoff
+- **摘要作为 handoff 包来源（不重复探查）**：\`changeName\` 确定后，\`investigation-digest\` 的既有结论 SHALL 作为 \`.openspec-tmp/pipeline-<changeName>/handoff-pack.md\` 的 \`## Codebase 摘要\` 节来源之一；MUST NOT 因写入包而重新执行已覆盖的探查，也 MUST NOT 把摘要内容改写为交付物（摘要仍只是流程内缓存）
 
 ---
 ## Phase 4: 修复（方案判定 → 实施 → 回归测试）
@@ -348,6 +354,17 @@ _Avoid_: <synonyms>\`
 - **唯一性证据不足**：MUST 按多方案处理（不得凭"看起来只有一种"直通）
 - **既有独立确认仍保留**：方案涉及数据库 / schema 变更时，仍须按 4.1 单独输出 DDL 并在应用前取得显式确认 —— 唯一方案直通规则 MUST NOT 绕过该确认
 - 该门是**条件门**：多方案（\`multiple-fix-options = true\`）时阻塞待确认；唯一且证据充分（\`false\`）时门不适用
+
+### 4.0.5 修复循环的派发形态（按 bug 派发单元，强制）
+
+- **派发单元** = 每个待修复 bug；同一文件被多个 bug 触及时 MUST 串行执行（从并发组拆出）；同时运行的子代理数 MUST NOT 超过 \`apply.concurrency\`（缺省 3）
+- **唯一必读制品（批次一降级口径）**：
+  - handoff 包存在时：子代理只读包的 \`## 契约\` / \`## 文件归属表\` / \`## Codebase 摘要\` / \`## 已产出\` 四节 + 本单元 bug 清单，MUST NOT 各自重读完整技能正文或重复已覆盖的 CodeGraph 查询
+  - 包不存在时（未跑 propose 的独立 debug / 批次一独立实施）：子代理只读「\`investigation-digest\` 摘要 + 本单元 bug 清单 + 文件归属」三件；MUST NOT 因缺包而拒绝派发，也 MUST NOT 在本技能内自建第二套包格式
+- **派发指令 MUST 携带**：本单元 bug 清单（症状 / 证据 / 根因 / 修复口径）、文件归属、四列回执格式与 \`⛔ EXIT GUARD\`（完成即停、回四列回执）
+- **四列回执**：\`<bug id> | <状态> | <产出文件> | <公开签名>\`；MUST NOT 粘贴代码正文，失败单元额外附失败原因摘要
+- **收束归属**：任务状态、回归测试验收与阶段推进由主代理集中管理；子代理 MUST NOT 推进阶段、MUST NOT 修改 \`tasks.md\`、MUST NOT 标记可归档
+- **降级**：运行时不提供子代理派发工具时，降级为串行本地修复并告知用户，MUST NOT 声称发生过派发
 
 ### 4.1 修复实现
 
@@ -378,32 +395,12 @@ _Avoid_: <synonyms>\`
 ---
 ## Phase 5: 编译检查 — 汇总所有修复
 
-遵循 iagent_spec_apply 技能的编译检查约定（Step 8）。本阶段只运行**一次**，覆盖循环中修复的**所有** bug。
+遵循 \`iagent_spec_apply\` 技能的编译检查约定（Step 8），只运行**一次**，覆盖循环中修复的**所有** bug：
 
-### 5.1 加载配置
-
-- 读取 \`openspec/config.yaml\` 的 \`compileCheck\` 设置
-- 若 \`compileCheck.enabled\` 为 false 或该段未配置（默认禁用），跳到 Phase 6
-
-### 5.2 执行检查
-
-- 从 \`config.yaml\` 的 context 探测技术栈（TypeScript、Java、Go、Rust……）
-- 将变更文件分类为后端（TypeScript/Java/Go/Rust）与前端（JSP/Vue/React）
-- 按技术栈执行编译命令：
-  - TypeScript: \`tsc --noEmit\` 或 \`pnpm run build\`
-  - Java-Maven: \`mvn compile -DskipTests\`
-  - Java-Gradle: \`gradle compileJava\`
-  - Go: \`go build ./...\`
-  - Rust: \`cargo build\`
-
-### 5.3 自动修复循环
-
-- 若 \`autoFix.enabled\` 为 true：按可修复性分类问题，对变更范围内文件应用修复，重跑检查（最多 \`maxRetries\` 次，默认 3）
-
-### 5.4 报告
-
-- 汇总结果（编译、lint、前端），区分已修复与遗留问题
-- 遗留失败**报告**给用户 —— MUST NOT 静默越过失败检查
+- 读取 \`openspec/config.yaml\` 的 \`compileCheck\`；未启用（默认禁用）→ 跳到 Phase 6
+- 从 context 探测技术栈并按对应编译命令检查（TypeScript / Java-Maven / Java-Gradle / Go / Rust）；分类变更文件为后端与前端
+- \`autoFix.enabled\` 时按可修复性自动修复并重跑（最多 \`maxRetries\` 次，默认 3）
+- 汇总编译 / lint / 前端结果，区分已修复与遗留问题；遗留失败**报告**给用户 —— MUST NOT 静默越过失败检查
 
 ---
 ## Phase 6: 同步提案 — 汇总所有修复
@@ -559,7 +556,7 @@ Ready for \`/iagent:spec-apply\` (fixes already applied) or archive.
 - **使用 \`path.join()\`** 处理所有文件路径（跨平台：macOS/Linux/Windows）
 - **术语实时收敛**：排查中确定的术语立即写入 CONTEXT.md
 `,
-        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), ${CODEGRAPH_MCP}, ${skillDelegation(['spec_verify_proposal', 'proposal_review', 'requirement_doc', 'test'])}`,
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), ${CODEGRAPH_CLI}, ${CODEGRAPH_MCP}, ${skillDelegation(['spec_verify_proposal', 'proposal_review', 'requirement_doc', 'test'])}, ${SUBAGENT_DISPATCH}`,
         type: 'impl',
         license: 'MIT',
         compatibility: '依赖 iagent CLI（spec 命令组）与 iagent_spec_verify_proposal / iagent_proposal_review / iagent_requirement_doc / iagent_test 技能（test 为条件委派）；CodeGraph MCP 可选（不可用时降级 Glob/Grep）。',

@@ -64,9 +64,8 @@ iagent spec status --change "<name>" --json
 # Match keywords: TypeScript, Java/JSP, Python, Go, Rust
 ```
 
-检测到技术栈时：
-> "检测到技术栈：[TypeScript]。是否运行技术栈专项校验？"
-> [是] [否 - 仅基础校验]
+检测到技术栈时：**直接执行技术栈专项校验**（不再询问），并在验证报告中说明已校验的项目。
+> 例：检测到 [TypeScript] → 直接应用 TypeScript 专项规则，报告「技术栈专项校验：已执行（TypeScript）」
 
 ### 3.5 验证通过 → 自动触发深度复查 → 需求文档桥（生成 / 跳过）
 

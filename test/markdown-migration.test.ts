@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { migrateChangeFromJson } from '../src/core/spec/migration.js';
 
 function makeLegacyProject(): { root: string; changeDir: string } {
@@ -83,6 +84,29 @@ describe('explicit JSON to Markdown migration', () => {
             expect(fs.existsSync(path.join(project.changeDir, 'change.json'))).toBe(false);
             expect(fs.existsSync(path.join(project.changeDir, 'tasks.json'))).toBe(false);
             expect(fs.existsSync(path.join(project.changeDir, 'proposal.md'))).toBe(true);
+        } finally {
+            fs.rmSync(project.root, { recursive: true, force: true });
+        }
+    });
+});
+
+// 任务 2.16：迁移路径的措辞收口（跨变更索引退役，迁移不再以索引为出口）。
+describe('2.16 迁移路径不依赖索引', () => {
+    it('migration.ts 源码零 reindex / INDEX_DB_PATH / 生成索引 措辞', () => {
+        const file = fileURLToPath(new URL('../src/core/spec/migration.ts', import.meta.url));
+        const source = fs.readFileSync(file, 'utf8');
+        for (const word of ['reindex', 'INDEX_DB_PATH', 'index.db', '生成索引']) {
+            expect(source, `migration.ts 仍含 ${word}`).not.toContain(word);
+        }
+    });
+
+    it('显式迁移只产出 Markdown 制品（不生成任何索引产物）', () => {
+        const project = makeLegacyProject();
+        try {
+            const result = migrateChangeFromJson(project.root, 'legacy');
+            const produced = JSON.stringify(result);
+            expect(produced).not.toContain('index.db');
+            expect(fs.existsSync(path.join(project.changeDir, 'index.db'))).toBe(false);
         } finally {
             fs.rmSync(project.root, { recursive: true, force: true });
         }

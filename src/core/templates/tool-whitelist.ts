@@ -4,8 +4,8 @@
  * 背景：iagent 生成的技能与斜杠指令在 Claude Code 中运行时，除对话级确认门之外的
  * 每次工具调用都会触发权限弹窗，把全自动管线切成碎片。三类缺口均属「调用类」条目
  * （不涉及任何文件读写授权面）：
- *   ① CodeGraph MCP 工具（`mcp__codegraph__*`）—— 白名单里只有 CLI 形态 `Bash(codegraph:*)`，
- *      二者是两套不同的工具名；
+ *   ① CodeGraph MCP 工具（`mcp__codegraph__*`）与 CLI 形态 `Bash(codegraph:*)` ——
+ *      二者是两套不同的工具名，互不覆盖；
  *   ② 技能间经 Skill 工具的委派（如 workflow 委派 spec_apply / spec_archive 等子技能）；
  *   ③ 子代理派发（多项目扫描、批调度）。
  *
@@ -24,6 +24,18 @@ export const CODEGRAPH_MCP: string =
     'mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, ' +
     'mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, ' +
     'mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore';
+
+/**
+ * CodeGraph CLI 条目（`Bash(codegraph:*)`）。
+ *
+ * 与 MCP 条目是**两套不同的工具名**，互不覆盖：正文确有经 Bash 运行 `codegraph`
+ * 子命令（`status` / `unlock` / 条件 `sync` 等）的技能 MUST 同时具备本条目；
+ * 只有 MCP 条目的技能 MUST NOT 因本条目存在而删除 MCP 条目。
+ *
+ * 授权面仅限 `codegraph` 子命令（非任意 shell），MUST NOT 扩展为 `Bash(*)`。
+ * 模板 MUST 以 `${CODEGRAPH_CLI}` 引用，MUST NOT 手写字面量。
+ */
+export const CODEGRAPH_CLI: string = 'Bash(codegraph:*)';
 
 /**
  * 子代理派发条目：`Agent, Task`。

@@ -270,11 +270,18 @@
 
 结构化格式初始化之后，系统 MUST 执行强制的 CodeGraph 基础扫描：
 
-0. **检查 CodeGraph 可用性（强制的首个动作）**：
-   - **MUST 先运行 `codegraph_status`。** 在它返回不可用之前，MUST NOT 用 Glob/Grep 做文件或符号调查 —— 下面的 `codegraph_*` 工具才是主路径，而非可选路径。
-   - 可用时：继续使用下面的 CodeGraph 工具
-   - `codegraph_status` 确认不可用（未初始化或报错）时：**只有此时**才记录 "CodeGraph 未初始化 — 降级到 Glob/Grep" 并跳到下面的降级路径
-   - Grep/Glob 是最后手段，**只有**在 `codegraph_status` 确认不可用后才允许使用 —— 绝不作为跳过 CodeGraph 的捷径
+0. **探测 CodeGraph 可用性（能力探测顺序，不是单一工具硬约束）**：
+
+   **CodeGraph 能力探测（按顺序尝试，三条通道任一成功即视为可用）**：
+1. 先调用 MCP 具名工具（`codegraph_explore` / `codegraph_status` 等）——能返回结果即视为可用；
+2. 若 MCP 具名工具未暴露，改看 `codegraph_explore` 返回的**时效横幅**（含索引构建/滞后提示）——横幅存在即视为可用；
+3. 若前两条通道均不可得，再经 Bash 运行 `codegraph status --json`——命令成功并返回 JSON 即视为可用。
+- **工具名缺失 ≠ 索引不可用**：某一通道在当前宿主不存在，只说明该通道不可用，MUST NOT 据此断言索引未初始化。
+- MUST NOT 用「`.codegraph/` 目录是否存在」判定索引可用性（点号目录的 Glob 存在假阴性）；目录存在性不构成可用性判据。
+
+   可用时：继续使用下面的 CodeGraph 工具。
+   三通道全部不可用 → 记录 "CodeGraph 不可用 — 降级到 Glob/Grep" 并跳到下面的降级路径。
+   Grep/Glob 是最后手段，**只有**在能力探测三通道全部失败后才允许使用 —— 绝不作为跳过 CodeGraph 的捷径。
 
 1. 用 `codegraph_files` 工具**扫描项目文件结构**
    - 获取带元数据的完整项目文件树
@@ -302,7 +309,7 @@
    - <pattern-name>: <example-location>
    ```
 
-**降级（回退，最后手段）**：**只有**在 `codegraph_status` 确认 CodeGraph MCP 工具不可用（未初始化或报错）后才允许：
+**降级（回退，最后手段）**：**只有**在能力探测三通道全部不可用（未初始化或报错）后才允许：
 - 文件结构发现降级到 Glob 工具
 - 符号检索降级到 Grep 工具
 - 在探索文件中记录："CodeGraph 不可用 — 已用 Glob/Grep 降级"

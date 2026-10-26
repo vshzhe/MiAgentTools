@@ -70,10 +70,10 @@ describe('resolveWorkflows', () => {
         expect(result.injected).toEqual([]);
     });
 
-    it('spec-apply 不触发注入', () => {
+    it('spec-apply 注入测试生成技能（[测试] 任务无条件委派）', () => {
         const result = resolveWorkflows(['spec-apply']);
-        expect(result.workflows).toEqual(['spec-apply']);
-        expect(result.injected).toEqual([]);
+        expect(result.workflows).toEqual(['spec-apply', 'test']);
+        expect(result.injected).toEqual(['test']);
     });
 
     it('已含依赖项时不重复注入', () => {
@@ -82,11 +82,12 @@ describe('resolveWorkflows', () => {
         expect(result.workflows).toEqual(['spec-propose', 'spec-verify-proposal']);
     });
 
-    it('DEPS 规则表含 propose/archive/bulk-archive/migration/workflow 套件七条', () => {
+    it('DEPS 规则表含 propose/apply/archive/bulk-archive/migration/workflow 套件条目', () => {
         expect(Object.keys(DEPS).sort()).toEqual([
             'auto-workflow',
             'debug',
             'migration',
+            'spec-apply',
             'spec-archive',
             'spec-bulk-archive',
             'spec-propose',
@@ -111,6 +112,7 @@ describe('resolveWorkflows', () => {
             'proposal-review',
             'spec-apply',
             'spec-archive',
+            'test',
             'spec-verify',
             'requirement-doc',
         ]);
@@ -132,6 +134,7 @@ describe('resolveWorkflows', () => {
             'proposal-review',
             'spec-apply',
             'spec-archive',
+            'test',
             'spec-verify',
             'requirement-doc',
         ]);

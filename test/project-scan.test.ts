@@ -1,21 +1,12 @@
 /**
- * 项目预扫描（src/core/project-scan.ts）测试。
+ * 项目预扫描（src/core/project-scan.ts）测试（v2 契约）。
  *
- * 覆盖：Ant 构建设施识别、敏感值零外泄、排除清单、变体合并与候选/信号分层、
- *       失败降级与上限可区分、iagent init 端到端、非 Maven/Ant 族（Node）项目。
+ * 覆盖：Ant / Node 构建设施识别、敏感值零外泄、固定忽略清单、变体合并与候选/信号分层、
+ *       非阻断失败降级、无深度与文件数上限、忽略计数、软超时受控停止（终端 + 基线双写）、
+ *       不可读计数、基线 v2 写入与 v1 只读兼容、CLI 注入路径（env / --no-scan-ignore）。
  *
- * 已评估、判定无需独立测试：
- *   任务 2.7 —— renderScanReport() 的纯排版分支（列表拼接、空列表占位、候选截断提示）
- *   不承载任何独立业务判定逻辑：该函数无 IO、无状态机，输入即 ProjectScanReport，
- *   输出为确定性字符串，其正确性已由 2.6 的端到端渲染输出断言（报告段存在、构建设施
- *   已列出、渲染文本与基线均不含配置取值）完整覆盖。若再单设排版用例，只会重复同一
- *   代码路径且无法定义独立的失败语义（失败必先由 2.6 的字段断言暴露），故不另设用例。
- *
- * 已修复（由协调者裁决后回改实现，见 2.4）：
- *   变体命名 `DataBase.properties_bss`（环境后缀位于扩展名之后）曾被实现静默忽略——
- *   只从「主干」剥离变体中缀（`DataBase_bss.properties`）与扩展名后缀
- *   （`DataBase.properties.bak`），而真实项目实际使用的恰是 `*.properties_<env>` 形态。
- *   `configBaseName()` 已补入「扩展名之后环境后缀」的识别，2.4 现覆盖该形态。
+ * 已移除的旧用例（v1「上限所致」语义废止）：MAX_SCAN_DEPTH / MAX_SCAN_FILES 截断断言 ——
+ * 有界性改由「忽略清单 + 忽略规则 + 软超时」承担（见 tasks 1.9 / 1.12）。
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -26,11 +17,12 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
     createEmptyScanReport,
+    parseScanBaseline,
     renderScanReport,
     scanProject,
     writeScanBaseline,
-    MAX_SCAN_DEPTH,
     SCAN_BASELINE_PATH,
+    SCAN_BASELINE_VERSION,
     type ProjectScanReport,
     type ScanOptions,
 } from '../src/core/project-scan.js';
@@ -91,15 +83,16 @@ function scanSafely(root: string, options?: ScanOptions): { report?: ProjectScan
 }
 
 /** 以指定项目目录为 cwd 执行 CLI init（返回 stdout） */
-function execInit(binPath: string, cwd: string, args: string[]): string {
+function execInit(binPath: string, cwd: string, args: string[], env?: NodeJS.ProcessEnv): string {
     return execFileSync(process.execPath, [binPath, 'init', ...args], {
         cwd,
         encoding: 'utf8',
         stdio: ['ignore', 'pipe', 'pipe'],
+        env: env === undefined ? process.env : { ...process.env, ...env },
     });
 }
 
-describe('2.1 Ant 项目构建设施识别', () => {
+describe('1.1 Ant 项目构建设施识别', () => {
     it('识别 build.xml 并给出 default/target evidence，不因缺 pom.xml 报失败', () => {
         const root = makeProject('ant');
         write(
@@ -113,7 +106,7 @@ describe('2.1 Ant 项目构建设施识别', () => {
                 '</project>',
             ].join('\n')
         );
-        // 依赖目录内的 package.json 不属于本项目构建设施（node_modules 属排除清单）
+        // 依赖目录内的 package.json 不属于本项目构建设施（node_modules 属固定忽略清单）
         write(root, 'node_modules/some-pkg/package.json', '{"name":"some-pkg"}');
 
         const report = scanProject(root);
@@ -125,10 +118,12 @@ describe('2.1 Ant 项目构建设施识别', () => {
         expect(evidence).toContain('war');
         // 四种构建标志文件平权：缺 pom.xml 不算缺失，不记失败
         expect(report.failures).toEqual([]);
+        // node_modules 命中固定忽略清单 → 计入 skipped.ignored（不再有「上限」语义）
+        expect(report.limits.skipped.ignored).toBeGreaterThanOrEqual(1);
     });
 });
 
-describe('2.2 敏感值防护（哨兵串断言）', () => {
+describe('1.2 敏感值防护（哨兵串断言）', () => {
     it('配置取值零外泄，config 条目仅含 file/keys', () => {
         const root = makeProject('secret');
         write(
@@ -167,13 +162,12 @@ describe('2.2 敏感值防护（哨兵串断言）', () => {
     });
 });
 
-describe('2.3 排除清单', () => {
-    it('PII/编译产物/日志/依赖目录/iagent 自身产物均不入信号，且不触达上限', () => {
+describe('1.3 固定忽略清单（iagent 自身产物不误报）', () => {
+    it('PII/编译产物/日志/依赖目录/iagent 自身产物均不入信号，跳过计入 ignored', () => {
         const root = makeProject('exclude');
         // 含 PII 的非源码文件：内容 MUST NOT 被读取
         write(root, 'org.xml', `<org><idcard>${SENTINEL_PII}</idcard></org>`);
-        // 编译产物目录与日志文件（真实 Web 项目常以 bin/ 存放编译产物，
-        // 含 .class 与 .sql 副本，故与 dist/ 同等排除）
+        // 编译产物目录与日志文件（真实 Web 项目常以 bin/ 存放编译产物）
         write(root, 'dist/app.js', 'compiled');
         write(root, 'bin/com/demo/Main.class', 'bytecode');
         write(root, 'x.log', 'runtime log');
@@ -182,9 +176,11 @@ describe('2.3 排除清单', () => {
         write(root, 'node_modules/dep/package.json', '{"name":"dep"}');
         // iagent 自身产物：技能目录 / 项目配置 / 代码图谱
         write(root, '.claude/skills/iagent_pwd/SKILL.md', 'name: iagent_pwd');
-        write(root, '.claude/skills/iagent_feature/SKILL.md', 'name: iagent_feature');
         write(root, '.iagent/config.yaml', 'workflows:\n  - tr_tools_pwd\n');
         write(root, '.codegraph/graph.db', 'binary');
+        // v2 固定清单新增的目录
+        write(root, '.venv/lib/site.py', 'print(1)');
+        write(root, '__pycache__/mod.pyc', 'bytecode');
 
         const report = scanProject(root);
 
@@ -212,20 +208,21 @@ describe('2.3 排除清单', () => {
         }
         expect(signalPaths).not.toContain('org.xml');
 
-        // 未触达上限（.claude/skills 下技能目录未被误判为项目信号）
-        expect(report.limits.hit).toBe(false);
+        // 跳过原因：ignored（v2：hit 表示「发生任一跳过」）
+        expect(report.limits.skipped.ignored).toBeGreaterThanOrEqual(6);
+        expect(report.limits.reasons).toContain('ignored');
+        expect(report.limits.hit).toBe(true);
+        expect(report.limits.detail).toContain('忽略');
     });
 });
 
-describe('2.4 变体合并 + 候选/信号分层', () => {
+describe('1.4 变体合并 + 候选/信号分层', () => {
     it('同配置多环境变体合并为一项、keys 取并集；jar 只进 candidates', () => {
         const root = makeProject('variant');
         write(root, 'DataBase.properties', 'DB_URL=jdbc:mysql://h/db\nDB_USER=u\n');
         write(root, 'DataBase.properties.bak', 'DB_USER=ubak\nDB_DRIVER=com.mysql.jdbc.Driver\n');
         write(root, 'DataBase_bss.properties', 'DB_URL=jdbc:mysql://bss/db\nDB_POOL_SIZE=10\n');
-        // 真实项目实际使用的形态：环境后缀位于**扩展名之后**（`*.properties_<env>`，
-        // 如 Venus4A 的 DataBase.properties_bss / _idc / _mysql）。该形态曾不被识别为变体、
-        // 被当作「不认识的扩展名」静默忽略（既不合并也不报失败），故此处显式覆盖。
+        // 真实项目实际使用的形态：环境后缀位于**扩展名之后**（`*.properties_<env>`）
         write(root, 'DataBase.properties_bss', 'DB_EXTRA_BSS=1\n');
         write(root, 'DataBase.properties_idc', 'DB_EXTRA_IDC=1\n');
         write(root, 'lib/spring-2.0.5.jar', 'jar-bytes');
@@ -256,16 +253,18 @@ describe('2.4 变体合并 + 候选/信号分层', () => {
     });
 });
 
-describe('2.5 失败降级 + 超限可区分', () => {
-    it('目录读取失败：返回结果且不抛出，原因落入 failures', () => {
+describe('1.5 非阻断失败降级', () => {
+    it('目录读取失败：返回结果且不抛出，原因落入 failures 并计入 skipped.unreadable', () => {
         // Windows 下难以构造真实「不可读目录」，改用「不存在的路径」等价触发
         // 同一 readdirSync 失败分支（目录读取失败 → 记 failures 而非抛出）。
-        const missing = path.join(tempRoot, 'no-such-dir-2-5');
+        const missing = path.join(tempRoot, 'no-such-dir-1-5');
 
         const { report, error } = scanSafely(missing, { writeBaseline: false });
 
         expect(error).toBeUndefined();
         expect(report?.failures.some((item) => item.reason.includes('目录读取失败'))).toBe(true);
+        expect(report?.limits.skipped.unreadable).toBeGreaterThanOrEqual(1);
+        expect(report?.limits.reasons).toContain('unreadable');
     });
 
     it('写基线失败：state=failed 且带 warning，扫描不抛出', () => {
@@ -284,42 +283,343 @@ describe('2.5 失败降级 + 超限可区分', () => {
         expect(error).toBeUndefined();
         expect(report?.failures.some((item) => item.target === SCAN_BASELINE_PATH)).toBe(true);
     });
+});
 
-    it('触及上限：hit=true 且说明含「上限所致」，与「未触达」可区分', () => {
-        const root = makeProject('limits');
-        write(root, 'a.txt', 'a');
-        write(root, 'b.txt', 'b');
-        write(root, 'nested/deep/c.txt', 'c');
+describe('1.9 无上限 / 忽略计数 / 软超时 / 基线 v2', () => {
+    it('深度 ≥12 的配置目录不再被漏采', () => {
+        const root = makeProject('deep');
+        const deepRel = 'src/main/java/com/acme/module/a/b/c/d/e/f/g';
+        write(root, `${deepRel}/db.properties`, 'DB_URL=jdbc:mysql://h/db\nPASSWORD=p\n');
+        write(root, 'package.json', '{"name":"deep"}');
 
-        // 未触达：说明文本明确为「未触达」，不含「上限所致」
-        const normal = scanProject(root, { writeBaseline: false });
-        expect(normal.limits.hit).toBe(false);
-        expect(normal.limits.detail).toContain('未触达');
-        expect(normal.limits.detail).not.toContain('上限所致');
+        const report = scanProject(root, { writeBaseline: false });
 
-        // 文件数上限（注入 1）：说明文本指向 MAX_SCAN_FILES
-        const byFiles = scanProject(root, { maxFiles: 1, writeBaseline: false });
-        expect(byFiles.limits.hit).toBe(true);
-        expect(byFiles.limits.detail).toContain('上限所致');
-        expect(byFiles.limits.detail).toContain('MAX_SCAN_FILES=1');
+        const configPaths = report.signals.config.map((item) => norm(item.file));
+        expect(configPaths).toContain(`${deepRel}/db.properties`);
+        // 无「上限所致」类跳过
+        expect(report.limits.detail).not.toContain('上限');
+    });
 
-        // 目录深度上限：造出比默认上限更深一层，验证默认值来自具名常量而非内联字面量
-        const deep = makeProject('limits-deep');
-        let cursor = deep;
-        for (let level = 1; level <= MAX_SCAN_DEPTH + 1; level++) {
-            cursor = path.join(cursor, `d${level}`);
+    // init-project-scan / 「不设深度与文件数上限」：深度远超 12 层仍完整采集（语义断言，不依赖耗时）。
+    it('深度 20 的配置文件仍被采集，且无任何「上限」类跳过原因', () => {
+        const root = makeProject('deep-20');
+        const deepRel = Array.from({ length: 20 }, (_, index) => `d${index + 1}`).join('/');
+        write(root, `${deepRel}/db.properties`, 'DB_URL=jdbc:mysql://h/db\nAPP_MODE=prod\n');
+
+        const report = scanProject(root, { writeBaseline: false });
+
+        expect(report.signals.config.map((item) => norm(item.file))).toEqual([`${deepRel}/db.properties`]);
+        // 深层文件被计入 scope.files（20 层目录 + 1 文件）
+        expect(report.scope.dirs).toBe(21);
+        expect(report.scope.files).toBe(1);
+        expect(report.limits.hit).toBe(false);
+        expect(report.limits.reasons).toEqual([]);
+        expect(report.failures).toEqual([]);
+    });
+
+    it('超过 2000 个文件不被截断', () => {
+        const root = makeProject('many-files');
+        const manyDir = path.join(root, 'many');
+        fs.mkdirSync(manyDir, { recursive: true });
+        for (let index = 0; index < 2050; index++) {
+            fs.writeFileSync(path.join(manyDir, `f${index}.txt`), 'x', 'utf8');
         }
-        fs.mkdirSync(cursor, { recursive: true });
-        fs.writeFileSync(path.join(cursor, 'x.txt'), 'x');
 
-        const byDepth = scanProject(deep, { writeBaseline: false });
-        expect(byDepth.limits.hit).toBe(true);
-        expect(byDepth.limits.detail).toContain(`MAX_SCAN_DEPTH=${MAX_SCAN_DEPTH}`);
+        const report = scanProject(root, { writeBaseline: false });
+
+        expect(report.scope.files).toBeGreaterThanOrEqual(2050);
+        expect(report.limits.hit).toBe(false);
+        expect(report.limits.reasons).toEqual([]);
+        expect(report.limits.detail).toBe('未发生跳过');
+    });
+
+    it('忽略命中计入 skipped.ignored（固定清单 + .gitignore 否定规则）', () => {
+        const root = makeProject('ignored-count');
+        write(root, '.gitignore', 'logs/\n!logs/keep.properties\n');
+        write(root, 'logs/a.properties', 'A=1\n');
+        write(root, 'logs/keep.properties', 'KEEP=1\n');
+        write(root, 'dist/bundle.js', 'compiled');
+        write(root, 'keep.txt', 'x');
+
+        const report = scanProject(root, { writeBaseline: false });
+
+        // logs/ 因否定规则仍被遍历（不计入忽略）→ logs/a.properties + dist/ = 2 项
+        expect(report.limits.skipped.ignored).toBe(2);
+        expect(report.limits.reasons).toEqual(['ignored']);
+        // 否定规则生效：keep.properties 被正常归类
+        expect(report.signals.config.map((item) => norm(item.file))).toContain('logs/keep.properties');
+        expect(report.signals.config.map((item) => norm(item.file))).not.toContain('logs/a.properties');
+    });
+
+    it('软超时：exceeded=true + skipped.timeout≥1，终端与基线双写提示（受控停止）', () => {
+        const root = makeProject('soft-timeout');
+        for (let index = 1; index <= 5; index++) {
+            write(root, `src/d${index}/a.properties`, `K${index}=1\n`);
+        }
+        // 可注入时钟：第 3 次读取后即超过 100ms 预算（不依赖真实计时）
+        let reads = 0;
+        const report = scanProject(root, {
+            softTimeoutMs: 100,
+            now: () => (reads++ > 2 ? 1_000 : 0),
+        });
+
+        expect(report.limits.softTimeout.exceeded).toBe(true);
+        expect(report.limits.softTimeout.ms).toBe(100);
+        expect(report.limits.skipped.timeout).toBeGreaterThanOrEqual(1);
+        expect(report.limits.reasons).toContain('soft-timeout');
+        expect(report.limits.hit).toBe(true);
+
+        // 终端报告与基线 JSON 双写（不得静默）
+        const rendered = renderScanReport(report);
+        expect(rendered).toContain('软超时');
+        expect(rendered).toContain('因软超时跳过');
+        const baseline = JSON.parse(fs.readFileSync(path.join(root, SCAN_BASELINE_PATH), 'utf8')) as {
+            limits: { softTimeout: { exceeded: boolean }; skipped: { timeout: number } };
+        };
+        expect(baseline.limits.softTimeout.exceeded).toBe(true);
+        expect(baseline.limits.skipped.timeout).toBeGreaterThanOrEqual(1);
+    });
+
+    // init-project-scan / 「软超时停止遍历但不失败」：受控停止 MUST NOT 记 failures、MUST NOT 抛出。
+    it('软超时为受控停止而非失败：不抛出、failures 为空、终端明示「非失败」', () => {
+        const root = makeProject('soft-timeout-not-failure');
+        write(root, 'a/f1.properties', 'K1=1\n');
+        write(root, 'b/f2.properties', 'K2=1\n');
+        // 预算 1ms + 可注入时钟：第 1 次取时建立 deadline，之后立即超预算（确定性，无真实等待）
+        let calls = 0;
+        const { report, error } = scanSafely(root, {
+            writeBaseline: false,
+            softTimeoutMs: 1,
+            now: () => (calls++ === 0 ? 0 : 10_000),
+        });
+
+        expect(error).toBeUndefined();
+        expect(report?.limits.softTimeout).toEqual({ ms: 1, exceeded: true });
+        expect(report?.limits.skipped.timeout).toBeGreaterThanOrEqual(1);
+        expect(report?.limits.reasons).toEqual(['soft-timeout']);
+        // 受控停止不是失败：failures 为空（不可读才落 failures）
+        expect(report?.failures).toEqual([]);
+        expect(report?.limits.detail).toContain('因软超时跳过');
+        const rendered = renderScanReport(report as ProjectScanReport);
+        expect(rendered).toContain('软超时');
+        expect(rendered).toContain('受控停止、非失败');
+    });
+
+    it('基线恒写 version=2 且不含 maxDepth/maxFiles；v1 基线仍可读取', () => {
+        const root = makeProject('baseline-v2');
+        write(root, 'build.xml', '<project name="v2" default="war"><target name="war"></target></project>');
+
+        const report = scanProject(root);
+        expect(report.version).toBe(SCAN_BASELINE_VERSION);
+        const raw = fs.readFileSync(path.join(root, SCAN_BASELINE_PATH), 'utf8');
+        expect(raw).toContain('"version": 2');
+        expect(raw).not.toContain('maxDepth');
+        expect(raw).not.toContain('maxFiles');
+        // v2 字段齐全
+        const parsed = JSON.parse(raw) as {
+            limits: { reasons: unknown[]; softTimeout: unknown; skipped: Record<string, number> };
+        };
+        expect(parsed.limits.reasons).toEqual([]);
+        expect(parsed.limits.softTimeout).toEqual({ ms: 30000, exceeded: false });
+        expect(parsed.limits.skipped).toEqual({ ignored: 0, timeout: 0, unreadable: 0 });
+
+        // 历史 v1 基线（无 skipped / softTimeout）：按 v1 分支只读 hit/detail，不报错
+        const legacy = parseScanBaseline(
+            JSON.stringify({
+                version: 1,
+                scannedAt: '2026-01-01T00:00:00.000Z',
+                scope: { dirs: 2, files: 3 },
+                limits: { hit: true, detail: '上限所致：目录深度已达 MAX_SCAN_DEPTH=8' },
+                signals: { build: [{ file: 'build.xml' }], skeleton: [], config: [], routes: [], docs: [], tests: [] },
+                candidates: [],
+                failures: [],
+            })
+        );
+        expect(legacy.version).toBe(2);
+        expect(legacy.scope).toEqual({ dirs: 2, files: 3 });
+        expect(legacy.limits.hit).toBe(true);
+        expect(legacy.limits.detail).toContain('MAX_SCAN_DEPTH');
+        expect(legacy.limits.skipped).toEqual({ ignored: 0, timeout: 0, unreadable: 0 });
+        expect(legacy.signals.build.map((item) => item.file)).toEqual(['build.xml']);
+    });
+
+    // init-project-scan / 「扫描基线落盘」：缺 version 字段的历史基线同样按 v1 归一（MUST NOT 报错）。
+    it('缺 version 字段（含 maxDepth / maxFiles）的 v1 基线归一为 v2：hit/detail 保留、skipped 置 0', () => {
+        const legacy = parseScanBaseline(
+            JSON.stringify({
+                scannedAt: '2026-01-01T00:00:00.000Z',
+                scope: { dirs: 4, files: 7 },
+                limits: { hit: true, detail: '上限所致：目录深度已达 MAX_SCAN_DEPTH=8', maxDepth: 8, maxFiles: 2000 },
+                signals: {
+                    build: [{ file: 'pom.xml' }],
+                    skeleton: [],
+                    config: [],
+                    routes: [],
+                    docs: [],
+                    tests: [],
+                },
+                candidates: [],
+                failures: [{ target: 'src', reason: '目录读取失败' }],
+            })
+        );
+
+        expect(legacy.version).toBe(SCAN_BASELINE_VERSION);
+        expect(legacy.scope).toEqual({ dirs: 4, files: 7 });
+        // 历史 hit/detail 逐字保留（不重写用户文件语义）
+        expect(legacy.limits.hit).toBe(true);
+        expect(legacy.limits.detail).toContain('MAX_SCAN_DEPTH');
+        // v2 新增字段按空值归一，而不是报错
+        expect(legacy.limits.reasons).toEqual([]);
+        expect(legacy.limits.skipped).toEqual({ ignored: 0, timeout: 0, unreadable: 0 });
+        expect(legacy.limits.softTimeout).toEqual({ ms: 30000, exceeded: false });
+        // 既有事实字段保留
+        expect(legacy.signals.build.map((item) => item.file)).toEqual(['pom.xml']);
+        expect(legacy.failures).toEqual([{ target: 'src', reason: '目录读取失败' }]);
+        // 上限字段不进入归一结果（无上限语义）
+        expect(JSON.stringify(legacy)).not.toContain('maxDepth');
+        expect(JSON.stringify(legacy)).not.toContain('maxFiles');
+    });
+
+    it('空报告为 v2 形态：version=2、skipped 三项为 0、hit=false 时 detail 中性', () => {
+        const empty = createEmptyScanReport();
+        expect(empty.version).toBe(2);
+        expect(empty.limits.skipped).toEqual({ ignored: 0, timeout: 0, unreadable: 0 });
+        expect(empty.limits.reasons).toEqual([]);
+        expect(empty.limits.hit).toBe(false);
+        expect(empty.limits.detail).not.toContain('上限');
+    });
+
+    it('--no-scan 占位报告与真实空扫描一致（limits 结构）', () => {
+        const root = makeProject('no-skip');
+        write(root, 'README.md', '# empty\n');
+        const report = scanProject(root, { writeBaseline: false });
+        expect(report.limits).toEqual({
+            hit: false,
+            detail: '未发生跳过',
+            reasons: [],
+            softTimeout: { ms: 30000, exceeded: false },
+            skipped: { ignored: 0, timeout: 0, unreadable: 0 },
+        });
     });
 });
 
-describe('2.6 iagent init 端到端', () => {
-    it('产出基线、scanReport 识别构建设施，--no-scan 不写基线且为空报告', () => {
+describe('1.12 既有行为回归（v2 契约下仍成立）', () => {
+    it('测试目录探针记录事实（任意层级按目录名命中）', () => {
+        const root = makeProject('probe-dir');
+        write(root, 'test/unit/a.ts', 'export {};\n');
+        write(root, 'src/test/java/DemoHelper.java', 'class DemoHelper {}\n');
+        write(root, 'package.json', '{"name":"app"}');
+
+        const report = scanProject(root, { writeBaseline: false });
+        const dirs = report.signals.tests.filter((item) => item.kind === 'test-dir');
+        expect(dirs.map((item) => norm(item.name)).sort()).toEqual(['src/test', 'test']);
+        // count 固定 1：只反映「观察到该目录」这一事实
+        expect(dirs.every((item) => item.count === 1)).toBe(true);
+        expect(renderScanReport(report)).toContain('测试探针：');
+    });
+
+    it('测试文件名模式命中即计数（*Test.java / *.test.* / *.spec.*）', () => {
+        const root = makeProject('probe-files');
+        write(root, 'src/main/java/DemoTest.java', 'class DemoTest {}\n');
+        write(root, 'src/main/java/OtherTests.java', 'class OtherTests {}\n');
+        write(root, 'web/src/a.test.ts', 'export {};\n');
+        write(root, 'web/src/b.test.ts', 'export {};\n');
+        write(root, 'web/src/c.spec.ts', 'export {};\n');
+        write(root, 'package.json', '{"name":"app"}');
+
+        const report = scanProject(root, { writeBaseline: false });
+        const byName = new Map(
+            report.signals.tests.filter((item) => item.kind === 'test-files').map((item) => [item.name, item.count])
+        );
+        expect(byName.get('*Test.java')).toBe(1);
+        expect(byName.get('*Tests.java')).toBe(1);
+        expect(byName.get('*.test.*')).toBe(2);
+        expect(byName.get('*.spec.*')).toBe(1);
+        // 只有文件名匹配，不读内容：任何模式记录都不含文件内容或框架名
+        expect(JSON.stringify(report.signals.tests)).not.toContain('class');
+    });
+
+    it('测试文件模式计数因软超时未完成：只记已计数部分并标注跳过', () => {
+        const root = makeProject('probe-soft-timeout');
+        for (let index = 0; index < 6; index++) {
+            write(root, `pkg/d${index}/a.test.ts`, 'export {};\n');
+        }
+        let reads = 0;
+        const report = scanProject(root, {
+            writeBaseline: false,
+            softTimeoutMs: 50,
+            now: () => (reads++ > 1 ? 1_000 : 0),
+        });
+
+        expect(report.limits.softTimeout.exceeded).toBe(true);
+        expect(report.limits.skipped.timeout).toBeGreaterThanOrEqual(1);
+        const counts = report.signals.tests
+            .filter((item) => item.kind === 'test-files')
+            .reduce((sum, item) => sum + item.count, 0);
+        // 已计数部分不超过夹具文件总数，且不得据此推断框架结论
+        expect(counts).toBeLessThanOrEqual(6);
+        expect(JSON.stringify(report.signals.tests)).not.toContain('框架');
+    });
+
+    it('无测试探针时为空（空报告形态同步该维度）', () => {
+        const root = makeProject('probe-none');
+        write(root, 'README.md', '# 无测试项目\n');
+        write(root, 'package.json', '{"name":"app"}');
+
+        const report = scanProject(root, { writeBaseline: false });
+
+        expect(report.signals.tests).toEqual([]);
+        expect(createEmptyScanReport().signals.tests).toEqual([]);
+        expect(renderScanReport(report)).toContain('测试探针：未探测到');
+    });
+
+    it('jar 候选不因存在而生成测试/框架结论', () => {
+        const root = makeProject('probe-jar');
+        write(root, 'lib/spring-2.0.5.jar', 'jar-bytes');
+        write(root, 'lib/junit-4.13.jar', 'jar-bytes');
+
+        const report = scanProject(root, { writeBaseline: false });
+
+        expect(report.candidates.map((item) => item.kind)).toEqual(['jar', 'jar']);
+        expect(report.candidates.every((item) => item.note.includes('候选'))).toBe(true);
+        expect(report.signals.tests).toEqual([]);
+        expect(report.signals.build).toEqual([]);
+        expect(JSON.stringify(report.signals)).not.toContain('junit');
+    });
+
+    it('非 Maven/Ant 族项目（Node/TypeScript）识别 package.json 为构建设施', () => {
+        const root = makeProject('node-ts');
+        write(root, 'package.json', '{"name":"app","version":"1.0.0"}');
+        write(root, 'pnpm-lock.yaml', 'lockfileVersion: 9\n');
+
+        const report = scanProject(root);
+
+        expect(report.signals.build.map((item) => item.file)).toEqual(['package.json']);
+        expect(report.signals.build[0].evidence).toContain('npm');
+        expect(report.failures).toEqual([]);
+    });
+
+    it('四种构建标志文件平权受理：任一存在即独立记为一项，无默认假设', () => {
+        const cases: { file: string; label: string }[] = [
+            { file: 'build.xml', label: 'Ant' },
+            { file: 'pom.xml', label: 'Maven' },
+            { file: 'build.gradle', label: 'Gradle' },
+            { file: 'package.json', label: 'npm' },
+        ];
+
+        for (const item of cases) {
+            const root = makeProject(`build-flag-${item.label}`);
+            write(root, item.file, '<project name="x" default="war"><target name="war"></target></project>');
+
+            const report = scanProject(root);
+            expect(report.signals.build.map((entry) => entry.file)).toEqual([item.file]);
+            expect(report.failures).toEqual([]);
+        }
+    });
+});
+
+describe('1.13 iagent init 端到端（扫描注入路径）', () => {
+    it('产出 v2 基线、scanReport 识别构建设施；--no-scan 不写基线且为空报告', () => {
         // 零文档项目：只有 build.xml，无任何 md 文档、无预置 .iagent/
         const root = makeProject('init-e2e');
         write(root, 'build.xml', '<project name="zero-doc" default="war"><target name="war"></target></project>');
@@ -335,12 +635,14 @@ describe('2.6 iagent init 端到端', () => {
         for (const field of ['version', 'scannedAt', 'scope', 'limits']) {
             expect(baseline[field]).toBeDefined();
         }
+        expect(baseline.version).toBe(2);
         // InitResult.scanReport 已识别构建设施
         expect(result.scanReport.signals.build.map((item) => item.file)).toContain('build.xml');
 
         const rendered = renderScanReport(result.scanReport);
         expect(rendered.length).toBeGreaterThan(0);
         expect(rendered).toContain('项目预扫描');
+        expect(rendered).toContain('跳过：');
         expect(rendered).not.toContain(SENTINEL_PASSWORD);
         expect(fs.readFileSync(baselinePath, 'utf8')).not.toContain(SENTINEL_PASSWORD);
 
@@ -372,119 +674,67 @@ describe('2.6 iagent init 端到端', () => {
         expect(noScan).not.toContain('项目预扫描');
         expect(fs.existsSync(baselinePath)).toBe(false);
     });
-});
 
-describe('2.9 测试探针（signals.tests）', () => {
-    it('test/ 目录记为 test-dir（任意层级按目录名命中）', () => {
-        const root = makeProject('probe-dir');
-        write(root, 'test/unit/a.ts', 'export {};\n');
-        write(root, 'src/test/java/DemoHelper.java', 'class DemoHelper {}\n');
-        write(root, 'package.json', '{"name":"app"}');
-
-        const report = scanProject(root, { writeBaseline: false });
-        const dirs = report.signals.tests.filter((item) => item.kind === 'test-dir');
-        expect(dirs.map((item) => norm(item.name)).sort()).toEqual(['src/test', 'test']);
-        // count 固定 1：只反映「观察到该目录」这一事实
-        expect(dirs.every((item) => item.count === 1)).toBe(true);
-        // 渲染行存在且标注免读内容
-        expect(renderScanReport(report)).toContain('测试探针：');
-    });
-
-    it('测试文件名模式命中即计数（*Test.java / *.test.* / *.spec.*）', () => {
-        const root = makeProject('probe-files');
-        write(root, 'src/main/java/DemoTest.java', 'class DemoTest {}\n');
-        write(root, 'src/main/java/OtherTests.java', 'class OtherTests {}\n');
-        write(root, 'web/src/a.test.ts', 'export {};\n');
-        write(root, 'web/src/b.test.ts', 'export {};\n');
-        write(root, 'web/src/c.spec.ts', 'export {};\n');
-        write(root, 'package.json', '{"name":"app"}');
-
-        const report = scanProject(root, { writeBaseline: false });
-        const byName = new Map(
-            report.signals.tests.filter((item) => item.kind === 'test-files').map((item) => [item.name, item.count])
-        );
-        expect(byName.get('*Test.java')).toBe(1);
-        expect(byName.get('*Tests.java')).toBe(1);
-        expect(byName.get('*.test.*')).toBe(2);
-        expect(byName.get('*.spec.*')).toBe(1);
-        // 只有文件名匹配，不读内容：任何模式记录都不含文件内容或框架名
-        expect(JSON.stringify(report.signals.tests)).not.toContain('class');
-    });
-
-    it('无测试代码时 signals.tests 为空（空报告形态同步该维度）', () => {
-        const root = makeProject('probe-none');
-        write(root, 'README.md', '# 无测试项目\n');
-        write(root, 'package.json', '{"name":"app"}');
-
-        const report = scanProject(root, { writeBaseline: false });
-
-        expect(report.signals.tests).toEqual([]);
-        expect(createEmptyScanReport().signals.tests).toEqual([]);
-        expect(renderScanReport(report)).toContain('测试探针：未探测到');
-    });
-
-    it('测试文件计数触达上限时 limits 标注「上限所致」', () => {
-        const root = makeProject('probe-limits');
-        write(root, 'a.test.ts', 'export {};\n');
-        write(root, 'b.test.ts', 'export {};\n');
-        write(root, 'c.test.ts', 'export {};\n');
-
-        const capped = scanProject(root, { maxFiles: 2, writeBaseline: false });
-
-        expect(capped.limits.hit).toBe(true);
-        expect(capped.limits.detail).toContain('上限所致');
-        expect(capped.limits.detail).toContain('MAX_SCAN_FILES=2');
-        const counts = capped.signals.tests
-            .filter((item) => item.kind === 'test-files')
-            .reduce((sum, item) => sum + item.count, 0);
-        // 计数不超过上限允许遍历的文件数（探针不强扫）
-        expect(counts).toBeLessThanOrEqual(2);
-    });
-
-    it('jar 候选不因存在而生成测试/框架结论', () => {
-        const root = makeProject('probe-jar');
-        write(root, 'lib/spring-2.0.5.jar', 'jar-bytes');
-        write(root, 'lib/junit-4.13.jar', 'jar-bytes');
-
-        const report = scanProject(root, { writeBaseline: false });
-
-        // jar 只进 candidates（候选语义），不进入任何 signals 维度
-        expect(report.candidates.map((item) => item.kind)).toEqual(['jar', 'jar']);
-        expect(report.candidates.every((item) => item.note.includes('候选'))).toBe(true);
-        expect(report.signals.tests).toEqual([]);
-        expect(report.signals.build).toEqual([]);
-        expect(JSON.stringify(report.signals)).not.toContain('junit');
-    });
-});
-
-describe('2.8 非 Maven/Ant 族项目（Node/TypeScript）', () => {
-    it('识别 package.json 为构建设施，且不因缺 pom.xml/build.xml 报缺失', () => {
-        const root = makeProject('node-ts');
-        write(root, 'package.json', '{"name":"app","version":"1.0.0"}');
-        write(root, 'pnpm-lock.yaml', 'lockfileVersion: 9\n');
-
-        const report = scanProject(root);
-
-        expect(report.signals.build.map((item) => item.file)).toEqual(['package.json']);
-        expect(report.signals.build[0].evidence).toContain('npm');
-        expect(report.failures).toEqual([]);
-    });
-
-    it('四种构建标志文件平权受理：任一存在即独立记为一项，无默认假设', () => {
-        const cases: { file: string; label: string }[] = [
-            { file: 'build.xml', label: 'Ant' },
-            { file: 'pom.xml', label: 'Maven' },
-            { file: 'build.gradle', label: 'Gradle' },
-            { file: 'package.json', label: 'npm' },
-        ];
-
-        for (const item of cases) {
-            const root = makeProject(`build-flag-${item.label}`);
-            write(root, item.file, '<project name="x" default="war"><target name="war"></target></project>');
-
-            const report = scanProject(root);
-            expect(report.signals.build.map((entry) => entry.file)).toEqual([item.file]);
-            expect(report.failures).toEqual([]);
+    it('IAGENT_SCAN_SOFT_TIMEOUT_MS 极小值：受控停止、双写提示、退出码 0', () => {
+        const root = makeProject('init-env-timeout');
+        for (let index = 0; index < 6; index++) {
+            write(root, `src/d${index}/db.properties`, `K${index}=1\n`);
         }
+        const binPath = fileURLToPath(new URL('../bin/iagent.js', import.meta.url));
+
+        // execFileSync 在非零退出码时抛错，故跑到这里即证明退出码为 0
+        const stdout = execInit(binPath, root, ['--tools', 'claude', '--no-deps'], {
+            IAGENT_SCAN_SOFT_TIMEOUT_MS: '1',
+        });
+
+        expect(stdout).toContain('软超时');
+        const baseline = JSON.parse(
+            fs.readFileSync(path.join(root, SCAN_BASELINE_PATH), 'utf8')
+        ) as { limits: { softTimeout: { exceeded: boolean; ms: number }; skipped: { timeout: number } } };
+        expect(baseline.limits.softTimeout.ms).toBe(1);
+        expect(baseline.limits.softTimeout.exceeded).toBe(true);
+        expect(baseline.limits.skipped.timeout).toBeGreaterThanOrEqual(1);
+    });
+
+    it('非法 IAGENT_SCAN_SOFT_TIMEOUT_MS 被忽略并 WARN（沿用默认预算）', () => {
+        const root = makeProject('init-env-invalid');
+        write(root, 'README.md', '# x\n');
+        const binPath = fileURLToPath(new URL('../bin/iagent.js', import.meta.url));
+
+        const stdout = execInit(binPath, root, ['--tools', 'claude', '--no-deps'], {
+            IAGENT_SCAN_SOFT_TIMEOUT_MS: 'abc',
+        });
+
+        expect(stdout).toContain('忽略非法环境变量');
+        const baseline = JSON.parse(
+            fs.readFileSync(path.join(root, SCAN_BASELINE_PATH), 'utf8')
+        ) as { limits: { softTimeout: { ms: number } } };
+        expect(baseline.limits.softTimeout.ms).toBe(30000);
+    });
+
+    it('--no-scan-ignore 关闭忽略规则解析（.gitignore 不参与过滤）', () => {
+        const root = makeProject('init-no-scan-ignore');
+        write(root, '.gitignore', 'generated/\n');
+        write(root, 'generated/db.properties', 'K=1\n');
+        const binPath = fileURLToPath(new URL('../bin/iagent.js', import.meta.url));
+
+        const stdout = execInit(binPath, root, [
+            '--tools',
+            'claude',
+            '--no-deps',
+            '--no-scan-ignore',
+        ]);
+        expect(stdout).toContain('项目预扫描');
+        // .gitignore 不生效时，generated/ 下的配置被正常归类（以扫描报告文本为证）
+        expect(stdout).toContain('generated/db.properties');
+    });
+
+    it('--help 列出 --no-scan-ignore', () => {
+        const binPath = fileURLToPath(new URL('../bin/iagent.js', import.meta.url));
+        const stdout = execFileSync(process.execPath, [binPath, 'init', '--help'], {
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'pipe'],
+        });
+        expect(stdout).toContain('--no-scan-ignore');
     });
 });

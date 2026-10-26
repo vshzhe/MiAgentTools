@@ -137,18 +137,32 @@ iagent update --no-migrate
 | `旧名规则文件 .iagent/rules/impl.md 已整体删除：…删除存在丢失风险` | 8.0.0 起 `impl.md` / `test.md` 整体删除、不做兼容读取。升级前手写内容请先迁入 `coding-rules.md` / `testing-rules.md` 的人工域区间（见上文「规则文件：旧名删除与人工域」） |
 | `规则文件 … 未检出人工域标记，已整块重写为常量内容` | 该规则文件没有 `<!-- 人工域:开始 -->` / `<!-- 人工域:结束 -->` 区间，常量对齐把区间外内容视为旧版常量。手写规则请放入人工域区间 |
 | `补全标记块不成对：~/.bashrc 未被修改…` | rc/profile 里只有 `START` 没有 `END`（或反之）。迁移**不会**改动该文件，请手工检查并把旧标记块整段删掉 |
-| `i 旧索引库已删除，可用 iagent spec reindex 重建` | 跨变更索引是可由 `openspec` 归档过程重建的本地缓存，需要时重跑 `iagent spec reindex` |
+| `i 旧跨变更索引已删除（索引能力已退役）` | 旧品牌索引目录随迁移清理；跨变更索引能力已整体退役（`iagent spec reindex` 已删除）。用户目录中的历史 `index.db` 不由本工具删除，清理指引见下文「索引退役」小节 |
 
 ## 边界场景
 
 | 场景 | 行为 |
 |---|---|
-| 全新项目 / 已升级过的项目 | 无旧物 → 静默跳过，输出中不出现迁移段落 |
-| 重复执行 `init` / `update` | 幂等：无任何副作用，也不重复输出报告 |
+| 全新项目 / 已升级过的项目 | 无旧物 → 静默跳过，输出中不出现迁移段落 || 重复执行 `init` / `update` | 幂等：无任何副作用，也不重复输出报告 |
 | 只有部分旧物（如只剩旧技能） | 只处理存在的那部分，其余不报错 |
 | 上次迁移中断（配置已搬、旧技能仍在） | 续做：只补齐清理，不重复搬运配置 |
 | `.venus/` 不存在但存在旧产物 | 跳过配置搬运，只做产物清理 |
 | 迁移过程发生异常 | 降级为告警，`init` / `update` 主流程照常完成 |
+
+## 索引退役（2.0.0）
+
+2.0.0 起跨变更 SQLite 索引能力**整体退役**：
+
+- `iagent spec reindex` 子命令、索引模块（`sqlite-index.ts` / `markdown-index.ts` / `index-cache.ts` /
+  `sqlite-memory-backend.ts`）、`iagent init` 的建库段与归档时的索引重建步骤全部删除，
+  `sql.js` 依赖一并移除
+- **历史 `index.db` 不删除**：它属于用户目录中的既有文件，本工具既不读取也不写入，`init` / `update`
+  都保持原样。确认不再需要时可自行清理：
+  - 旧品牌目录：`openspec/changes/archive/.venus/`（旧装机迁移会清理该目录）
+  - 自建索引库：可用外部 `sqlite3` 打开后导出所需数据，再手工删除文件
+- **替代检索方式**：跨变更检索改用 Glob / Grep（`openspec/changes/**` 的 Markdown 制品已纳入版本控制），
+  能力级历史记忆读取 `openspec/specs/<capability>/explorations.md`
+- 归档流程不再包含任何索引重建步骤；`spec-archive` / `spec-bulk-archive` 正文零 `reindex` 引用
 
 ## 相关文档
 

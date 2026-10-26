@@ -27,7 +27,7 @@ export interface SpawnCommandOptions {
     timeout?: number;
     /** `ignore` 丢弃全部输出；缺省捕获到 stdout / stderr */
     stdio?: 'ignore' | 'pipe';
-    /** 写入子进程 stdin 的内容（sqlite3 等需要） */
+    /** 写入子进程 stdin 的内容（需要从 stdin 传参的命令） */
     input?: string;
 }
 

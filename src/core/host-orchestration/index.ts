@@ -6,15 +6,20 @@ export {
     CAPABILITY_ORDER,
     DEFAULT_RECEIPT_FIELDS,
     GATE_CONDITION_IDS,
+    GATE_WHITELIST,
+    GATE_WHITELIST_ANCHORS,
     PERSISTED_REQUIREMENT_DOC_STATUSES,
     REQUIREMENT_DOC_STATUS_FIELD,
     REQUIREMENT_DOC_STATUS_IO_ATTEMPTS,
+    isWhitelistedGate,
     normalizeRequirementDocStatus,
     protocolDeclaresCapabilities,
     validateReceipt,
     type CapabilityId,
     type GateConditionId,
     type GateSpec,
+    type GateWhitelistEntry,
+    type GateWhitelistId,
     type PhaseInput,
     type PhaseSpec,
     type Receipt,
@@ -27,7 +32,9 @@ export {
 } from './protocol.js';
 
 export {
+    PHASE_GATE_CATEGORY,
     WORKFLOW_PROTOCOLS,
+    auditGateWhitelistAlignment,
     getWorkflowProtocol,
 } from './workflows.js';
 

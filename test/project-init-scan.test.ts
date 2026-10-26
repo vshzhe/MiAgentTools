@@ -27,6 +27,23 @@ describe('project-init 技能正文：扫描基线', () => {
         // 降级路径：自行机械探测，且不得终止
         expect(body).toContain('Glob / Grep / Read');
         expect(body).toContain('MUST NOT 因此终止');
+        // 降级事实必须在报告中标注（不得静默降级）
+        expect(body).toContain('基线缺失');
+    });
+
+    it('硬性要求呈现 limits.skipped 三类计数与 failures（跳过所致 ≠ 项目无该内容）', () => {
+        expect(body).toContain('limits.skipped');
+        expect(body).toContain('ignored');
+        expect(body).toContain('timeout');
+        expect(body).toContain('unreadable');
+        expect(body).toContain('跳过所致 ≠ 项目无该内容');
+        expect(body).toContain('MUST 逐条呈现');
+        expect(body).toContain('limits.softTimeout.exceeded');
+    });
+
+    it('历史 v1 基线仍可读（版本分支而非报错）', () => {
+        expect(body).toContain('历史基线（v1）仍可读');
+        expect(body).toContain('MUST NOT 因缺少 `skipped` 而报错');
     });
 });
 

@@ -101,9 +101,6 @@ export function renderHostOrchestrationSection(
         lines.push(`- 确认门：${negotiation.native.gate}`);
         lines.push('- 回执契约：阶段 MUST 返回 `phase` / `status` / 产物位置 / 下一步允许动作 / 失败原因');
         lines.push('- 回执缺失或不通过校验时 MUST NOT 自动推进下一阶段');
-        lines.push(
-            '- 入口意图或已确认业务门指定的唯一 `nextAllowed` 技能 SHALL 直接委派，不追加"是否调用该技能"的业务确认；宿主工具权限、strict/degraded 能力协商与回执校验仍然独立生效'
-        );
     } else {
         lines.push('本次产物为 **degraded 单 agent 模式**（宿主严格编排能力不可用）。');
         lines.push('');
@@ -117,6 +114,11 @@ export function renderHostOrchestrationSection(
     for (const note of negotiation.notes) {
         lines.push(`- ${note}`);
     }
+    // 模板正文通则（strict / degraded 均适用）：已授权技能直接推进，不追加业务确认
+    lines.push('');
+    lines.push(
+        '- 已授权技能直接推进：入口意图或已确认业务门指定的唯一 `nextAllowed` 技能 SHALL 直接委派，不追加"是否调用该技能"的业务确认；宿主工具权限、strict/degraded 能力协商与回执校验仍然独立生效'
+    );
     if (workflowId) {
         const delegations = ORCHESTRATION_DELEGATIONS[workflowId] ?? [];
         const list = renderDelegationList(negotiation.host, negotiation.mode, delegations);

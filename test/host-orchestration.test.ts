@@ -9,12 +9,17 @@ import {
     CONDITIONAL_DELEGATIONS,
     DEFAULT_RECEIPT_FIELDS,
     GATE_CONDITION_IDS,
+    GATE_WHITELIST,
+    GATE_WHITELIST_ANCHORS,
     ORCHESTRATION_DELEGATIONS,
     ORCHESTRATING_WORKFLOW_IDS,
+    PHASE_GATE_CATEGORY,
     PERSISTED_REQUIREMENT_DOC_STATUSES,
     REQUIREMENT_DOC_STATUS_FIELD,
     REQUIREMENT_DOC_STATUS_IO_ATTEMPTS,
     TRANSITION_BLOCKERS,
+    WORKFLOW_PROTOCOLS,
+    auditGateWhitelistAlignment,
     getWorkflowProtocol,
     normalizeRequirementDocStatus,
     protocolDeclaresCapabilities,
@@ -581,5 +586,56 @@ describe('已授权技能直接推进与宿主委派同步（4.4）', () => {
             const dead = conditional.filter((target) => !declared.includes(target));
             expect(dead, `${workflowId} 的条件委派不在委派清单中：${dead.join(', ')}`).toEqual([]);
         }
+    });
+});
+
+// 任务 4.7：门白名单与协议门清单对齐（DEC-5）。
+describe('4.7 确认门白名单与协议门清单对齐', () => {
+    it('白名单为 5 类且破坏性改动确认不可豁免、无阶段门锚点', () => {
+        expect(GATE_WHITELIST.length).toBe(5);
+        const destructive = GATE_WHITELIST.find((entry) => entry.id === 'destructive-change');
+        expect(destructive).toBeDefined();
+        expect(destructive?.conditional).toBe(false);
+        expect(destructive?.anchors).toEqual([]);
+    });
+
+    it('协议门全部落在白名单锚点集合内（含一对多映射）', () => {
+        expect(auditGateWhitelistAlignment()).toEqual([]);
+        const gateIds = Object.values(WORKFLOW_PROTOCOLS)
+            .flatMap((protocol) => protocol.phases)
+            .flatMap((phase) => (phase.gate === undefined ? [] : [phase.gate.id]));
+        expect(gateIds.length).toBeGreaterThan(0);
+        for (const gateId of gateIds) {
+            expect(GATE_WHITELIST_ANCHORS, `门 ${gateId} 不在白名单锚点内`).toContain(gateId);
+        }
+        // 诊断确认 / 修复方案选择挂在「需求澄清」类别下（一对多，不得因名称不同判为白名单外）
+        expect(PHASE_GATE_CATEGORY['diagnostic-confirmation']).toBe('requirement-clarification');
+        expect(PHASE_GATE_CATEGORY['fix-option-confirmation']).toBe('requirement-clarification');
+        const clarification = GATE_WHITELIST.find((entry) => entry.id === 'requirement-clarification');
+        expect(clarification?.anchors).toContain('diagnostic-confirmation');
+        expect(clarification?.anchors).toContain('fix-option-confirmation');
+        // 五类锚点覆盖全部现有阶段门
+        expect(new Set(gateIds).size).toBeLessThanOrEqual(GATE_WHITELIST_ANCHORS.length);
+    });
+
+    it('对齐不新增阶段门：每阶段仍至多一个阻塞门', () => {
+        for (const [workflowId, protocol] of Object.entries(WORKFLOW_PROTOCOLS)) {
+            for (const phase of protocol.phases) {
+                const gates = phase.gate === undefined ? [] : [phase.gate.id];
+                expect(gates.length, `${workflowId}/${phase.id} 超过单门预算`).toBeLessThanOrEqual(1);
+            }
+        }
+    });
+
+    it('条件门语义不变（条件声明与既有 gateConditions 三态用例均为原样）', () => {
+        // 对齐只增加白名单映射，不改 GateSpec 与 evaluatePhaseTransition：
+        // 条件门仍以 `multiple-fix-options` 声明，既有 false / true / 缺失 三态用例未改动。
+        const fixPhase = getWorkflowProtocol('debug')?.phases.find((phase) => phase.id === 'fix');
+        expect(fixPhase?.gate).toEqual({
+            id: 'fix-option-confirmation',
+            blocking: true,
+            condition: 'multiple-fix-options',
+        });
+        expect(GATE_CONDITION_IDS).toContain('multiple-fix-options');
     });
 });

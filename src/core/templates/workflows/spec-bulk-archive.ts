@@ -3,19 +3,23 @@
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
-import { CODEGRAPH_MCP, SUBAGENT_DISPATCH, skillDelegation } from '../tool-whitelist.js';
+import { CODEGRAPH_CLI, CODEGRAPH_MCP, SUBAGENT_DISPATCH, skillDelegation } from '../tool-whitelist.js';
+import { CODEGRAPH_LOCK_LADDER, renderCodegraphProbeOrder } from '../codegraph-protocol.js';
+import { renderGateWhitelistSection } from '../prompt-gate.js';
 
 export function getSpecBulkArchiveSkillTemplate(): SkillTemplate {
     return {
         name: 'iagent_spec_bulk_archive',
         description: '批量归档变更。当用户要一次归档多个已完成变更时使用；触发词"批量归档 / bulk archive / 归档多个"；NOT for 单个变更归档（改用 iagent_spec_archive）。',
-        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), ${CODEGRAPH_MCP}, ${skillDelegation(['requirement_doc'])}, ${SUBAGENT_DISPATCH}`,
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), ${CODEGRAPH_CLI}, ${CODEGRAPH_MCP}, ${skillDelegation(['requirement_doc'])}, ${SUBAGENT_DISPATCH}`,
         type: 'spec',
         instructions: `**适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
 
 在单次操作中归档多个已完成变更。
 
 本技能支持批量归档变更，并通过检查代码库判断实际已实现的内容，从而智能处理规格冲突。
+
+${renderGateWhitelistSection()}
 
 **Input**: 无需参数（会提示选择）
 
@@ -29,7 +33,7 @@ export function getSpecBulkArchiveSkillTemplate(): SkillTemplate {
 
    **CLI 可用性检测（首次调用失败特征）**：若 \`iagent spec status --json\` 调用（或 Step 3 中的 \`iagent spec status --change\` 调用）以"命令未找到"类错误失败（如 "command not found"、"不是内部或外部命令"、"not recognized"），判定 iagent CLI 未安装。用一行告知用户 ——"未在 PATH 中找到 iagent CLI，以 CLI 降级模式继续"—— 并以 CLI 降级模式继续（流程中不再重复该提示）：
    - **降级变更发现**：用 Glob 扫描 \`openspec/changes/*/\`（排除 \`archive/\`）发现候选变更；仍让用户通过 **AskUserQuestion tool** 选择
-   - **降级制品状态推断**：按 \`proposal.md\` / \`design.md\` / \`specs/**/*.md\` / \`tasks.md\` 文件是否存在推断制品完成度 —— 不做 CLI 校验；批量归档本身（目录移动、规格同步、索引更新）照常进行
+   - **降级制品状态推断**：按 \`proposal.md\` / \`design.md\` / \`specs/**/*.md\` / \`tasks.md\` 文件是否存在推断制品完成度 —— 不做 CLI 校验；批量归档本身（目录移动、规格同步、归档索引更新）照常进行
    - 其他错误（如 JSON 解析失败）：报告错误并停止 —— 不得进入降级模式
    - 流程结束时，恰好提醒用户一次：本次运行使用了 CLI 降级模式，建议安装 iagent CLI 以获得校验与构建顺序保证
 
@@ -42,15 +46,20 @@ export function getSpecBulkArchiveSkillTemplate(): SkillTemplate {
 
    **IMPORTANT**：不得自动选择。始终让用户选择。
 
-2.5 **批量归档前的 CodeGraph 状态检查**
+2.5 **批量归档前的 CodeGraph 能力探测**
 
-   批量校验前，用「状态优先」的方式检测项目是否启用了 CodeGraph：
+   批量校验前按能力探测顺序判定 CodeGraph 是否可用（任一通道成功即视为可用）：
 
-   1. **运行 \`codegraph status\`（经 Bash）作为唯一检测步骤** —— 不得用 Glob 预先检查 \`.codegraph/\` 目录是否存在（点号开头的目录会返回假阴性，导致 CodeGraph 被误判为未初始化）
-   2. **若调用成功**：CodeGraph 已初始化且索引健康 —— 记录该调用报告的当前索引统计（文件/节点数）以备后续对比，继续批量校验
-   3. **若调用失败**（codegraph CLI 不在 PATH —— 命令未找到类错误 —— 或其他任何错误，含 CodeGraph 未初始化）：为整批自动跳过**全部** CodeGraph 步骤（本 2.5 检查与 Step 11 同步），记录 WARN 说明 codegraph CLI 不可用且已跳过批量同步，继续批量归档 —— 不得询问用户是否重试或继续
+   ${renderCodegraphProbeOrder({ withCli: true })}
 
-   **注意**：CodeGraph 同步是项目粒度的，不是按变更的。整批在所有变更归档后只运行一次同步（Step 11）。
+   ${CODEGRAPH_LOCK_LADDER}
+
+   **注意**：CodeGraph 同步是项目粒度的，不是按变更的。整批在所有变更归档后只运行一次同步（Step 11）；daemon 活跃时只读复用、不显式同步。
+
+   **探测结论分支**：
+   - 任一通道成功 → 记录该调用报告的当前索引统计（文件/节点数）以备后续对比，继续批量校验
+   - 三条通道全部失败 → 为整批自动跳过**全部** CodeGraph 步骤（本 2.5 检查与 Step 11 同步），记录 WARN 说明当前不可用且已跳过，继续批量归档 —— 不得询问用户是否重试或继续
+   - 锁冲突 / 状态读取失败：按上面的锁阶梯处置（存活只读复用；不存活 unlock 一次 + 重试一次；仍失败降级 Glob/Grep + WARN），MUST NOT 因单次探测失败而放弃整批能力
 
 3. **批量校验 —— 收集所有已选变更的状态**
 
@@ -341,16 +350,15 @@ export function getSpecBulkArchiveSkillTemplate(): SkillTemplate {
 
    **跨平台说明**：Windows 上用 \`path.join()\` 构建路径。检查文件是否存在时注意大小写敏感性差异。
 
-11. **批量 CodeGraph 同步 + 验证（条件执行）**
+11. **批量 CodeGraph 同步 + 验证（条件执行，daemon 感知）**
 
-   **仅当 Step 2.5 确认 CodeGraph 已启用且至少有一个变更成功归档时才执行。** 若 Step 2.5 被跳过（CodeGraph 未初始化），整体跳过本步骤。本步骤在 Step 10（批量索引更新）之后运行，使所有归档先最终定稿。只由主代理执行 —— 绝不在归档子代理内执行（项目级单次同步可避免知识图谱 DB 的并发写入）。
+   **仅当 Step 2.5 任一探测通道成功、且至少有一个变更成功归档时才执行。** 若 Step 2.5 三通道全部失败，整体跳过本步骤。本步骤在 Step 10（批量归档索引更新）之后运行，使所有归档先最终定稿。只由主代理执行 —— 绝不在归档子代理内执行（项目级单次同步可避免知识图谱 DB 的并发写入）。
 
-   1. **项目级单次同步**（不是按变更 —— CodeGraph 同步是项目粒度的）：
-      - 运行 \`codegraph sync\` 且**恰好一次**（经 Bash），增量索引已归档变更中新实现的全部代码
-      - 运行前展示 "CodeGraph：正在同步 N 个已归档变更的已实现代码..."
-      - 完成后记录同步结果
+   1. **先判 daemon 存活**（读取 \`.codegraph/writer.pid\`，判据同 Step 2.5 的锁阶梯）：
+      - **daemon 存活（含 \`ready:false\` / 解析失败等不可判定态）** → MUST NOT 执行 \`codegraph sync\`、MUST NOT 执行 \`codegraph unlock\`；只读复用既有索引，直接进入第 2 步验证
+      - **确认无 daemon（纯 CLI 用户）** → 项目级单次同步（不是按变更）：经 Bash 执行 \`codegraph sync\` 且**恰好一次**，增量索引已归档变更中新实现的全部代码；运行前展示 "CodeGraph：正在同步 N 个已归档变更的已实现代码..."
 
-   2. 同步成功后**单次验证**：
+   2. 同步（或只读复用）后**单次验证**：
       - 用 MCP \`codegraph_search\` 查询**一次**，查询成功归档变更中的关键词（变更名 + 每个变更 \`tasks.md\` 与 \`design.md\` 中的关键符号）
       - 展示 "CodeGraph：✓ 索引中已校验符号数"，并给出匹配数量
       - 无匹配时告警（非代码变更可能属预期）
@@ -358,16 +366,11 @@ export function getSpecBulkArchiveSkillTemplate(): SkillTemplate {
 
    3. **失败处理**（非阻塞）：
       - 若批量 \`codegraph sync\` 失败（CLI 错误、超时或 CLI 不在 PATH）：记录告警，不阻塞批量归档
+      - 锁冲突按 Step 2.5 的锁阶梯处置：存活只读复用；不存活 \`unlock\` 一次 + 重试读取一次；仍失败降级 Glob / Grep 并记 WARN
       - 仍继续展示批量归档摘要（Step 9）与批量索引更新（Step 10）—— 同步在这些之后运行
       - 部分成功（部分变更失败/跳过）时，只要有 ≥1 个变更归档成功仍触发同步
 
-12. **批量 SQLite 重建索引（自动，在 CodeGraph 同步之后）**
-
-   Step 11（CodeGraph 同步）之后，自动运行 SQLite 索引重建：
-   - **MUST 运行**：\`iagent spec reindex --force\`（经 Bash）—— 从所有已归档变更重建完整索引
-   - 成功时：记录日志 "SQLite 索引已重建 —— 已索引 N 个变更"
-   - 失败时（sqlite3 CLI 不可用）：记录 WARN 并继续（非阻塞）
-   - 仅当 ≥1 个变更成功归档时才执行
+   **批量归档不含任何索引重建**：跨变更 SQLite 索引能力已退役，MUST NOT 出现索引重建类步骤。
 
 **冲突解决示例**
 

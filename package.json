@@ -1,6 +1,6 @@
 {
   "name": "mi-agent-tools",
-  "version": "1.0.2",
+  "version": "2.0.0",
   "description": "AI Agent 技能生成与管理 CLI —— 按技能类型（init/impl/test/commit/review/release/tools/docs/spec）生成 iagent_ 前缀的 SKILL 与指令",
   "keywords": [
     "iagent",
@@ -54,8 +54,7 @@
   },
   "dependencies": {
     "@inquirer/prompts": "^7.0.0",
-    "commander": "^14.0.0",
-    "sql.js": "^1.14.2"
+    "commander": "^14.0.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

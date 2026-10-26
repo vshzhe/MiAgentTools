@@ -199,7 +199,7 @@ function ruleRelPath(type: SkillType): string {
 const RULE_CONSTANT_LINES: Readonly<Partial<Record<SkillType, readonly string[]>>> = {
     impl: [
         '零猜测：未明确的字段、参数与业务规则一律标 [待确认] 并询问用户，禁止猜测或推迟为 todo',
-        '设计先行：实现前先给设计与影响面，过确认门后再改码',
+        '设计先行：实现前先给设计与影响面，过确认门后再改码；父编排已完成实现桥（implementation-bridge）时子技能不再重复设计确认，仅在无父流程授权时独立执行确认',
         '数据变更须明确字段 / 类型 / 约束；Schema 变更单独确认',
         '严格分层，禁止跨层调用；异常统一走 ErrorCode',
         'UI 组件须显式覆盖四状态：Loading → Empty → Error → Data',
@@ -213,7 +213,7 @@ const RULE_CONSTANT_LINES: Readonly<Partial<Record<SkillType, readonly string[]>
         '不创建 change.json / tasks.json（JSON 制品已弃用，MUST NOT 重新引入）',
         '提案实现前须通过评分门（阈值 90%）',
         '变更目录不存在时先 `iagent spec new`；已存在则询问复用或改名',
-        '批次含 ≥2 派发单元时一次性产出 context-pack，MUST NOT 逐单元重复蒸馏',
+        '变更级 handoff 包：propose 一次性产出、跨阶段只读并只追加阶段结论，MUST NOT 逐阶段重复蒸馏（`.openspec-tmp/pipeline-<change>/handoff-pack.md`）',
     ],
     review: ['（待补充）审查/检查类技能的项目约束：评审与检查走只读，不在审查阶段改码'],
 };

@@ -58,6 +58,88 @@ export interface GateSpec {
 }
 
 /**
+ * 确认门白名单类别（正向枚举，5 类）。
+ *
+ * 白名单按**语义类别**枚举，一个类别可含多个锚点（5 类 ≠ 5 个阶段门 id）。
+ */
+export type GateWhitelistId =
+    | 'requirement-clarification'
+    | 'flow-final-confirmation'
+    | 'implementation-bridge'
+    | 'archive-confirmation'
+    | 'destructive-change';
+
+/** 白名单条目：类别标识 + 锚点集合 + 是否可条件豁免 */
+export interface GateWhitelistEntry {
+    /** 类别标识 */
+    id: GateWhitelistId;
+    /** 人读类别名（供模板渲染） */
+    label: string;
+    /**
+     * 锚点集合：该类别覆盖的阶段门 id 或技能内动作（一对多）。
+     *
+     * 对齐规则：`WORKFLOW_PROTOCOLS` 中每个 `PhaseSpec.gate.id` MUST 出现在某个条目的
+     * `anchors` 内；MUST NOT 通过新增/删改既有阶段门来凑对齐。
+     */
+    anchors: readonly string[];
+    /** 是否可条件豁免（`destructive-change` 为不可豁免的独立安全条） */
+    conditional: boolean;
+}
+
+/**
+ * 必留确认门白名单（正向枚举；写漏只会多留门，属 fail-safe 方向）。
+ *
+ * 「破坏性改动确认」为**动作级安全条**：不占用任何阶段的阶段门预算。
+ */
+export const GATE_WHITELIST: readonly GateWhitelistEntry[] = [
+    {
+        id: 'requirement-clarification',
+        label: '需求澄清（需求 / 方案歧义）',
+        anchors: [
+            'prompt-gate',
+            'grill-batch-confirmation',
+            'diagnostic-confirmation',
+            'fix-option-confirmation',
+        ],
+        conditional: true,
+    },
+    {
+        id: 'flow-final-confirmation',
+        label: '功能流程图门（流程基准确认）',
+        anchors: ['flow-final-confirmation'],
+        conditional: false,
+    },
+    {
+        id: 'implementation-bridge',
+        label: '实现 + 测试桥',
+        anchors: ['implementation-bridge'],
+        conditional: false,
+    },
+    {
+        id: 'archive-confirmation',
+        label: '归档桥',
+        anchors: ['archive-confirmation'],
+        conditional: false,
+    },
+    {
+        id: 'destructive-change',
+        label: '破坏性改动确认（动作级，不可豁免：删除目录 / 覆盖既有制品 / 改写版本库跟踪 / 不可逆命令）',
+        anchors: [],
+        conditional: false,
+    },
+];
+
+/** 全部白名单锚点（阶段门 id 或技能内动作的并集） */
+export const GATE_WHITELIST_ANCHORS: readonly string[] = GATE_WHITELIST.flatMap((entry) => [
+    ...entry.anchors,
+]);
+
+/** 给定阶段门 id 是否在白名单锚点集合内 */
+export function isWhitelistedGate(gateId: string): boolean {
+    return GATE_WHITELIST_ANCHORS.includes(gateId);
+}
+
+/**
  * 需求文档状态（持久于变更 `exploration.md` 的 `## 需求文档状态` 段，字段
  * `requirementDocStatus`）。
  *

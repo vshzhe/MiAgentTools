@@ -3,6 +3,7 @@
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
+import { renderGateWhitelistSection } from '../prompt-gate.js';
 
 const CONDITIONAL_DIMENSIONS_FULL = `### Dimension 6: 交互细节完整性 [由前端关键词自动触发]
 
@@ -176,6 +177,8 @@ export function getSpecVerifyProposalSkillTemplate(): SkillTemplate {
 
 本技能执行增强的 10 维度验证，含量化评分与技术栈检测。
 
+${renderGateWhitelistSection()}
+
 **只读验证步骤无需确认即可执行**：读取制品、扫描文件、CodeGraph 查询与 D1-D10 评分分析直接运行，无需中途确认提示。仅验证报告（以及真正属于用户决策的选择，例如 FAIL 判定后选择修复路径）呈现给用户。
 
 ---
@@ -223,9 +226,8 @@ export function getSpecVerifyProposalSkillTemplate(): SkillTemplate {
 
 ### 技术栈提示
 
-若检测到技术栈：
-> "检测到技术栈：[TypeScript]。是否运行技术栈专项校验？"
-> [是 - 应用技术规则] [否 - 仅基础检查]
+若检测到技术栈 → **直接执行技术栈专项校验**（MUST NOT 就只读校验向用户提问），并在报告中说明校验项：
+> 例：「技术栈专项校验：已执行（TypeScript）」
 
 ### 技术栈专项检查
 

@@ -8,7 +8,6 @@ import * as os from 'os';
 import * as path from 'path';
 import { createChange } from '../src/core/spec/new-change.js';
 import { executeArchive, previewArchive } from '../src/core/spec/archive.js';
-import { MemoryBackend } from '../src/core/spec/sqlite-memory-backend.js';
 
 /** 创建临时项目根目录 */
 function makeTempProject(): string {
@@ -141,54 +140,3 @@ describe('iagent spec archive（previewArchive / executeArchive）', () => {
         expect(() => previewArchive(projectRoot, 'ghost-change')).toThrowError(/不存在/);
     });
 });
-
-describe('iagent spec reindex（内存后端，不依赖外部 sqlite3）', () => {
-    it('空 archive 目录 → 0 个变更被索引', () => {
-        const backend = new MemoryBackend();
-        expect(backend.indexedCount).toBe(0);
-        expect(backend.capabilityCount).toBe(0);
-    });
-
-    it('带 proposal.md 的变更目录 → 提取摘要索引', () => {
-        const backend = new MemoryBackend();
-        backend.insertChange({ name: 'add-test', archiveDate: '2026-01-01', module: 'test', summary: '测试变更' });
-        expect(backend.isIndexed('add-test')).toBe(true);
-        expect(backend.indexedCount).toBe(1);
-    });
-
-    it('能力冲突检测：同一 capability 被 2 个 active 变更引用', () => {
-        const backend = new MemoryBackend();
-        backend.insertChange({ name: 'add-oauth', module: 'auth', summary: 'OAuth', status: 'active' });
-        backend.insertChange({ name: 'add-jwt', module: 'auth', summary: 'JWT', status: 'active' });
-        backend.insertCapability({ name: 'auth', changeName: 'add-oauth', operation: 'ADDED' });
-        backend.insertCapability({ name: 'auth', changeName: 'add-jwt', operation: 'ADDED' });
-        const conflicts = backend.queryCapabilityConflicts(['auth']);
-        expect(conflicts.length).toBe(2);
-        expect(conflicts).toContain('add-oauth');
-        expect(conflicts).toContain('add-jwt');
-    });
-
-    it('决策全文搜索命中与未命中', () => {
-        const backend = new MemoryBackend();
-        backend.insertDecision({ title: '使用 Redis 缓存', choice: 'Redis 6.x', rationale: '分布式', changeName: 'add-cache' });
-        expect(backend.searchDecisions('Redis').length).toBeGreaterThanOrEqual(1);
-        expect(backend.searchDecisions('PostgreSQL').length).toBe(0);
-    });
-
-    it('探索记忆按 capability 查询并按时间降序排列', () => {
-        const backend = new MemoryBackend();
-        backend.insertExplorationMemory({ capability: 'export', changeName: 'add-export', memoryType: 'decision', content: 'Apache POI', archivedAt: '2026-03-01' });
-        backend.insertExplorationMemory({ capability: 'export', changeName: 'improve-export', memoryType: 'decision', content: 'EasyExcel', archivedAt: '2026-06-01' });
-        const memories = backend.queryExplorationByCapability('export');
-        expect(memories.length).toBe(2);
-        expect(memories[0].content).toContain('EasyExcel');
-    });
-
-    it('clear 后全部数据清空', () => {
-        const backend = new MemoryBackend();
-        backend.insertChange({ name: 'test', module: 'test', summary: 'test' });
-        backend.clear();
-        expect(backend.indexedCount).toBe(0);
-    });
-});
-

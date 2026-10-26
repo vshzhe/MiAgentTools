@@ -11,7 +11,7 @@
  *   iagent config     配置要安装的 workflow 集
  *   iagent uninstall  移除 iagent 技能与指令
  *   iagent completion 安装/卸载 shell 补全
- *   iagent spec       规格驱动工作流子命令组（new / status / instructions / archive / reindex / render / sidecar）
+ *   iagent spec       规格驱动工作流子命令组（new / status / instructions / archive / validate / migrate / render / sidecar）
  */
 
 import { Argument, Command, Option } from 'commander';
@@ -113,10 +113,11 @@ export function buildProgram(): Command {
         .option('--force', '覆盖已存在的文件')
         .option('--no-deps', '跳过依赖检测与安装（codegraph）')
         .option('--no-scan', '跳过项目预扫描（不写 .iagent/scan-baseline.json）')
+        .option('--no-scan-ignore', '预扫描不解析 .gitignore / 自定义 ignore 文件（只用内置固定忽略清单）')
         .option('--no-migrate', '跳过旧装机迁移（不搬运旧配置目录、不删除旧技能与指令）')
         .option('--onboarding', '完成后显示下一步使用引导')
         .action((options: {
-            tools?: string; force?: boolean; deps?: boolean; scan?: boolean;
+            tools?: string; force?: boolean; deps?: boolean; scan?: boolean; scanIgnore?: boolean;
             migrate?: boolean; onboarding?: boolean;
         }) => {
             const result = runInit(process.cwd(), { ...options, piRuntimeRunner: defaultPiCommandRunner });
@@ -201,6 +202,14 @@ export function buildProgram(): Command {
             // 项目预扫描报告（与依赖报告并列；--no-scan 时无扫描输出）
             if (options.scan !== false) {
                 console.log(renderScanReport(result.scanReport));
+            }
+            // 扫描配置告警（如非法 IAGENT_SCAN_SOFT_TIMEOUT_MS 被忽略）
+            for (const warning of result.scanWarnings) {
+                console.log(`  ! ${warning}`);
+            }
+            // 提案制品纳管策略提示（只提示不改写 .gitignore）
+            if (result.changeArtifactsHint) {
+                console.log(`  ${result.changeArtifactsHint}`);
             }
             // 首次初始化（配置刚创建）或显式 --onboarding 时显示引导
             if (result.configState === 'created' || options.onboarding) {
