@@ -7,6 +7,15 @@
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-10-26
+
+### Fixed
+
+- 修复 Windows 下执行外部命令时出现 Node DEP0190 弃用告警（`Passing args to a child process with
+  shell option true ...`）：`init` 的依赖自检与 Pi 运行时安装原先以 `spawnSync(cmd, args, { shell: true })`
+  调用 npm / claude / pi 等 `.cmd` shim，现统一走 `src/core/child-process.ts` 的 `spawnCommand`
+  ——Windows 上自行拼装并按 cmd.exe 规则转义命令行，其它平台不启用 shell，语义不变且不再触发告警
+
 ## [1.0.1] - 2026-10-25
 
 ### Changed
@@ -1325,7 +1334,8 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.0.0]: https://github.com/mi-agent-tools/compare/v1.18.1...v2.0.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/mi-agent-tools/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/mi-agent-tools/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/mi-agent-tools/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/mi-agent-tools/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/mi-agent-tools/releases/tag/v1.0.0
 [8.1.1]: https://github.com/mi-agent-tools/compare/v8.1.0...v8.1.1

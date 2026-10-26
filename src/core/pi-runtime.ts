@@ -11,9 +11,9 @@
  * 继续生成 degraded 产物并输出告警。
  */
 
-import { spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { spawnCommand } from './child-process.js';
 import { scanPiAgentDefinitions, type PiAgentDefinitionScan } from './pi-native.js';
 
 /** 默认运行时包名 */
@@ -38,15 +38,13 @@ export type PiCommandRunner = (
     options: { cwd?: string }
 ) => PiCommandResult;
 
-/** 真实执行器：spawnSync，捕获 stdout。仅由 CLI 显式注入（测试环境不触发真实安装）。 */
+/** 真实执行器：spawnCommand，捕获 stdout。仅由 CLI 显式注入（测试环境不触发真实安装）。 */
 export const defaultPiCommandRunner: PiCommandRunner = (cmd, args, options) => {
-    const result = spawnSync(cmd, args, {
-        shell: process.platform === 'win32',
-        encoding: 'utf8',
+    const result = spawnCommand(cmd, args, {
         timeout: 120_000,
         cwd: options.cwd,
     });
-    return { status: result.status, stdout: result.stdout ?? undefined };
+    return { status: result.status, stdout: result.stdout };
 };
 
 /** 未注入执行器时的安全默认：视为 Pi 不可用（degraded），不产生任何进程与网络副作用 */

@@ -15,14 +15,14 @@ npm install -g mi-agent-tools
 验证安装：
 
 ```bash
-iagent --version    # 输出 1.0.1
+iagent --version    # 输出 1.0.2
 iagent --help       # 查看全部命令
 ```
 
 免全局安装、临时试用（版本号亦可省略，默认取 `latest`）：
 
 ```bash
-npx mi-agent-tools@1.0.1 --version
+npx mi-agent-tools@1.0.2 --version
 npx mi-agent-tools init
 ```
 
@@ -73,7 +73,7 @@ node bin/iagent.js <command>     # 效果与 iagent <command> 完全一致
 
 ```bash
 # 从 npm 安装固定版本
-npm install --save-dev mi-agent-tools@1.0.1
+npm install --save-dev mi-agent-tools@1.0.2
 npx iagent init
 
 # 或从本地仓库路径安装（开发联调用）

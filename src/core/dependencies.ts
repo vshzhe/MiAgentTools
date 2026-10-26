@@ -18,7 +18,7 @@
 
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawnCommand } from './child-process.js';
 import { readFileIfExists } from '../utils/file-system.js';
 
 /** codegraph 的 npm 包名 */
@@ -34,10 +34,9 @@ export type CommandRunner = (
     options: { cwd?: string }
 ) => { status: number | null };
 
-/** 默认执行器：spawnSync，Windows 下需 shell 解析 .cmd shim */
+/** 默认执行器：spawnCommand（Windows 下经 cmd 解析 .cmd shim，且不触发 DEP0190 告警） */
 const defaultRunner: CommandRunner = (cmd, args, options) => {
-    return spawnSync(cmd, args, {
-        shell: process.platform === 'win32',
+    return spawnCommand(cmd, args, {
         stdio: 'ignore',
         timeout: COMMAND_TIMEOUT_MS,
         cwd: options.cwd,

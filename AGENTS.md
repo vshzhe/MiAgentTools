@@ -64,6 +64,7 @@ src/
 │   │   └── templates/index.ts      规格模板
 │   ├── profiles.ts                  框架档案
 │   ├── dependencies.ts              依赖检测（codegraph / openspec）
+│   ├── child-process.ts             子进程执行（Windows shell 兼容 + Node DEP0190 规避）
 │   ├── project-scan.ts              项目预扫描（scan-baseline.json）
 │   ├── reconcile.ts                 孤立产物协调
 │   ├── shell-completion.ts          shell rc/profile 路径解析与标记块增删（补全与迁移共用）
