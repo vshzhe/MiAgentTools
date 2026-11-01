@@ -7,6 +7,11 @@
  *
  * 产物均为**纯生成物**：每轮按最新模板重建，不写手改保护指纹；清理只认
  * canonical `iagent-` 前缀，用户自建 agent 不受影响。
+ *
+ * 能力声明对齐（变更 fix-mode-delegation-host-parity）：Pi strict 的 `gate` 为
+ * **阻塞回执形态（非交互式门工具）** —— 阶段以 `status=blocked` 回执上报未满足的门，
+ * 由父级 / 用户在下一次交互中确认；`tools` 保持 7 个上游内置名不变，
+ * MUST NOT 通过注入扩展工具名伪造交互式门能力。
  */
 
 import * as fs from 'node:fs';
@@ -16,8 +21,8 @@ import { escapeYamlValue } from './command-generation/yaml.js';
 import { SKILL_ID_PREFIX } from './skill-id.js';
 import {
     CONDITIONAL_DELEGATIONS,
-    ORCHESTRATING_WORKFLOW_IDS,
-    ORCHESTRATION_DELEGATIONS,
+    defaultOrchestrationDelegations,
+    type OrchestrationDelegations,
 } from './host-orchestration/render.js';
 
 /** 项目级 Pi agent 目录（项目相对，posix 展示） */
@@ -84,20 +89,23 @@ export interface PiNestingResolution {
 /**
  * 解析某阶段 agent 的嵌套委派授予。
  *
- * 仅编排类阶段生成 `allowed_subagents`：取值 = 该 workflow 的委派清单 ∩ 已安装阶段。
- * 声明但未安装的目标记入缺口诊断（不授予 → 不伪装严格可用）。
+ * 仅编排类阶段生成 `allowed_subagents`：取值 = 该 workflow 的**派生委派清单**
+ * （模板 `Skill(...)` 条目）∩ 已安装阶段。声明但未安装的目标记入缺口诊断
+ * （不授予 → 不伪装严格可用）。
  *
  * @param workflowId - 阶段（canonical workflowId）
  * @param installedWorkflowIds - 本次安装的阶段集合
+ * @param orchestration - 派生委派清单（缺省按全部内置技能模板派生；既有 2 参调用保持可用）
  */
 export function resolvePiNestingDelegations(
     workflowId: string,
-    installedWorkflowIds: readonly string[]
+    installedWorkflowIds: readonly string[],
+    orchestration: OrchestrationDelegations = defaultOrchestrationDelegations()
 ): PiNestingResolution {
-    if (!ORCHESTRATING_WORKFLOW_IDS.includes(workflowId)) {
+    if (!orchestration.workflowIds.includes(workflowId)) {
         return { allowed: [] };
     }
-    const declared = ORCHESTRATION_DELEGATIONS[workflowId] ?? [];
+    const declared = orchestration.delegations[workflowId] ?? [];
     const conditional = new Set(CONDITIONAL_DELEGATIONS[workflowId] ?? []);
     const installed = new Set(installedWorkflowIds);
     const allowed: string[] = [];
@@ -186,10 +194,11 @@ export function renderPiOrchestratorAgent(stages: readonly PiNativeStage[]): str
 export function renderPiStageAgent(
     workflowId: string,
     description: string,
-    allowedSubagents?: readonly string[]
+    allowedSubagents?: readonly string[],
+    orchestration: OrchestrationDelegations = defaultOrchestrationDelegations()
 ): string {
     const agentId = piAgentId(workflowId);
-    const orchestrating = ORCHESTRATING_WORKFLOW_IDS.includes(workflowId);
+    const orchestrating = orchestration.workflowIds.includes(workflowId);
     const lines: string[] = [];
     lines.push('---');
     lines.push(`name: ${agentId}`);
@@ -239,11 +248,13 @@ function toProjectPath(projectRoot: string, target: string): string {
 /**
  * 写入 Pi 原生 agent 定义（orchestrator + 阶段），并清理不再需要的 orphan。
  *
+ * @param orchestration - 派生委派清单（缺省按全部内置技能模板派生）
  * @returns 写出与清理清单；单文件失败降级为告警，不抛出
  */
 export function writePiNativeAgents(
     projectRoot: string,
-    stages: readonly PiNativeStage[]
+    stages: readonly PiNativeStage[],
+    orchestration: OrchestrationDelegations = defaultOrchestrationDelegations()
 ): PiNativeWriteResult {
     const agentsDir = path.join(projectRoot, PI_AGENTS_DIR);
     const result: PiNativeWriteResult = {
@@ -264,14 +275,14 @@ export function writePiNativeAgents(
             continue;
         }
         seen.add(agentId);
-        const nesting = resolvePiNestingDelegations(stage.workflowId, installed);
+        const nesting = resolvePiNestingDelegations(stage.workflowId, installed, orchestration);
         if (nesting.gap) {
             result.nestingGaps.push(nesting.gap);
             result.warnings.push(...nestingGapWarnings(nesting.gap));
         }
         desired.set(
             agentId,
-            renderPiStageAgent(stage.workflowId, stage.description, nesting.allowed)
+            renderPiStageAgent(stage.workflowId, stage.description, nesting.allowed, orchestration)
         );
     }
 

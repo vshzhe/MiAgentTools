@@ -46,6 +46,7 @@
 | 2026-10-25 | integrate-init-rules | config | `openspec/rules` 护栏/协议要点蒸馏进 `.iagent/rules/` 模板常量（目标项目无需 openspec 目录即得基线），init 生成三份语义名规则文件、update 与重复 init 走确定性重建/修复（常量对齐 + 人工域逐字保留 + 本轮迁移产出 `preservePaths` 跳过）；`impl.md`/`test.md` 改语义名 `coding-rules.md`/`testing-rules.md` 且旧名整体删除不兼容（BREAKING→8.0.0）；project-init 新增第 10 步规则蒸馏（扫描测试代码，零猜测/占位兜底）、预扫描新增 `signals.tests` 测试探针；15 模板 25 处源仓路径引用改写为项目侧规则文件；8 份 delta（2 ADDED + 6 MODIFIED）回写主规格。[含测试/使用说明] |
 | 2026-10-25 | improve-workflow-debug-bridges | workflow | 父流程需求文档桥 + 四值文档状态 + debug 修复方案门与 host 阶段拆分。[含测试/使用说明] |
 | 2026-10-26 | upgrade-workflow-efficiency | workflow | 六处效率/能力瓶颈一次性收口：扫描去深度与文件数上限（改忽略清单 + 30s 软超时 + skipped 计数，基线 v2）、跨变更 SQLite 索引整体退役（删 `spec reindex` / `sql.js` / 能力 6 条需求）、提案制品纳管且 apply 后精确暂存不自动 commit、CodeGraph 改能力探测 + 锁阶梯（去无条件 sync）、确认门白名单化 + 直通句、跨阶段 handoff 包（原 context-pack）。**BREAKING** → 2.0.0。[含测试/使用说明] |
+| 2026-11-01 | fix-mode-delegation-host-parity | orchestration | 修复技能间委派权限弹窗与委托模式语义：白名单全名化 + mode/gate-skip 双轴 + 四宿主×表面一致。[含测试/使用说明] |
 
 ## 模块统计
 
@@ -58,7 +59,7 @@
 | test | 2 | enhance-test-generate (2026-09-16), improve-tr-test-generate-case-rationalize (2026-09-28) |
 | workflow | 4 | refactor-orchestrator-propose-delegation (2026-10-16), refactor-orchestrator-explore-delegation (2026-10-16), improve-workflow-debug-bridges (2026-10-25), upgrade-workflow-efficiency (2026-10-26) |
 | artifacts | 1 | markdown-first-artifacts (2026-10-16) |
-| orchestration | 2 | add-host-orchestration-adapters (2026-10-18), fix-pi-native-orchestration (2026-10-18) |
+| orchestration | 3 | add-host-orchestration-adapters (2026-10-18), fix-pi-native-orchestration (2026-10-18), fix-mode-delegation-host-parity (2026-11-01) |
 
 ---
 
@@ -67,4 +68,4 @@
 
 ---
 
-*更新时间: 2026-10-26*
+*更新时间: 2026-11-01*

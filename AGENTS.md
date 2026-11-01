@@ -116,16 +116,16 @@ node bin/iagent.js <cmd> # 直接运行 CLI
    | 层 | 内容 | 约束 |
    |---|---|---|
    | 只读检索 | `Read` / `Glob` / `Grep` | 按正文实际使用，不无差别补齐 |
-   | 调用类 | CodeGraph MCP、CodeGraph CLI（`Bash(codegraph:*)`）、`Skill(<裸名>)`、`Agent, Task` | 见下列四条规则 |
+   | 调用类 | CodeGraph MCP、CodeGraph CLI（`Bash(codegraph:*)`）、`Skill(iagent-<workflowId>)`、`Agent, Task` | 见下列四条规则 |
    | 技能专有 | `Bash(...)` / `Write` / `Edit` | 只增不减地维持现状，MUST NOT 扩大 |
 
    - **MCP 双写**：用 CodeGraph 的技能同时写 `${CODEGRAPH_MCP}`（裸服务器形式 + 9 个具名工具）——
      服务器级形式有失效报告，双写使任一路径生效；CLI 形态条目经 `${CODEGRAPH_CLI}`
      （`Bash(codegraph:*)`，仅放行 `codegraph` 子命令）构造，与 MCP 工具名是**两套命名**，互不覆盖；
      正文确有 CLI 调用的技能 MUST 同时持两者，MUST NOT 手写字面量
-   - **委派逐技能枚举**：写 `${skillDelegation([...])}` 产出 `Skill(<裸名>)` 精确条目
-     （裸名 = 技能名去掉 `iagent_` 前缀，如 `spec_apply`、`requirement_doc`；写成全名
-     `Skill(iagent_spec_apply)` 会产出永不放行的死条目），**禁用** `Skill(*)`；
+   - **委派逐技能枚举**：写 `${skillDelegation([...])}` 产出 `Skill(iagent-<workflowId>)` 精确条目
+     （入参为裸名 `spec_apply` / `spec-apply` 等价，函数内部统一归一化为 canonical 宿主技能 ID；
+     裸名 `Skill(spec_apply)` 与下划线 `Skill(iagent_spec_apply)` 都是永不放行的死条目），**禁用** `Skill(*)`；
      清单须逐条读正文核准，**MUST NOT 采信 grep 结果**（散文提及他技能名不构成委派）
    - **派发按实放行**：仅正文**确有派发动作**的技能写 `${SUBAGENT_DISPATCH}`（`Agent, Task` 新旧名双写）
      ——授权面向子代理传递，不整类放行；仅错误处理段落提及「子代理失败」不构成派发

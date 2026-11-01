@@ -208,7 +208,10 @@ describe('allowed-tools 白名单覆盖', () => {
 
 describe('调用类白名单条目（MCP / Skill 委派 / 子代理派发）', () => {
     const skills = getSkillTemplates();
-    const registeredSkillNames = new Set(skills.map((s) => s.template.name));
+    // canonical 宿主技能 ID（`iagent-<workflowId>`）—— 与 Skill(...) 条目同形态
+    const registeredSkillNames = new Set(
+        skills.map((s) => s.template.name.replace(/^iagent_/, 'iagent-').replaceAll('_', '-'))
+    );
 
     /** CodeGraph MCP 期望条目：裸服务器形式 + 9 个具名工具（共 10 条） */
     const CODEGRAPH_MCP_ENTRIES = [
@@ -280,7 +283,7 @@ describe('调用类白名单条目（MCP / Skill 委派 / 子代理派发）', (
         ).toThrow();
     });
 
-    it('经 Skill 工具委派的技能，白名单含对应 Skill(iagent_xxx) 条目且正文确有提及', () => {
+    it('经 Skill 工具委派的技能，白名单含对应 canonical Skill(iagent-xxx) 条目且正文确有提及', () => {
         const delegating = skills.filter(({ template }) =>
             parseEntries(template.allowedTools).some((entry) => entry.startsWith('Skill('))
         );
@@ -303,13 +306,15 @@ describe('调用类白名单条目（MCP / Skill 委派 / 子代理派发）', (
                 .map((entry) => entry.slice('Skill('.length, -1));
             expect(delegated.length).toBeGreaterThan(0);
             for (const name of delegated) {
-                // 委派目标必须是已注册技能（拼错技能名会产生永不放行的死条目）
-                expect(registeredSkillNames, `${template.name} 委派了未注册技能 ${name}`).toContain(
-                    `iagent_${name}`
+                // 委派目标必须是 canonical 宿主技能 ID（裸名 / 下划线形态均为永不放行的死条目）
+                expect(name, `${template.name} 委派条目 ${name} 不是 canonical 形态`).toMatch(
+                    /^iagent-[a-z0-9]+(?:-[a-z0-9]+)*$/
                 );
-                // 且正文必须提及该技能，避免幽灵授权（授权面过宽属安全问题）
-                expect(template.instructions, `${template.name} 正文未提及被委派技能 ${name}`).toContain(
-                    `iagent_${name}`
+                expect(registeredSkillNames, `${template.name} 委派了未注册技能 ${name}`).toContain(name);
+                // 且正文必须提及该技能（模板源用内部下划线名），避免幽灵授权
+                const internalName = `iagent_${name.slice('iagent-'.length).replaceAll('-', '_')}`;
+                expect(template.instructions, `${template.name} 正文未提及被委派技能 ${internalName}`).toContain(
+                    internalName
                 );
             }
             // 不得使用星号通配——授权面过宽
@@ -396,11 +401,12 @@ describe('debug 授权与宿主委派表一致（4.5）', () => {
             .filter((entry) => entry.length > 0);
     }
 
-    /** 白名单裸名 → canonical workflowId（下划线转连字符） */
+    /** 白名单 canonical 条目 → canonical workflowId（`iagent-<workflowId>` 去前缀） */
     function delegatedTargets(): string[] {
         return parseEntries(debug.template.allowedTools)
             .filter((entry) => entry.startsWith('Skill('))
-            .map((entry) => entry.slice('Skill('.length, -1).replaceAll('_', '-'));
+            .map((entry) => entry.slice('Skill('.length, -1))
+            .map((id) => id.replace(/^iagent-/, ''));
     }
 
     it('白名单与宿主委派表一一对应（无漏项、无幽灵项）', () => {
@@ -521,5 +527,87 @@ describe('4.8 CodeGraph CLI 条目与 commit 提案制品', () => {
         );
         // 0 个活跃变更时不得附加空溯源尾行
         expect(body).toContain('MUST NOT 附加 `提案:` 尾行');
+    });
+});
+
+// 变更 fix-mode-delegation-host-parity / 任务 2.4：canonical 白名单全量断言。
+describe('2.4 白名单 canonical 形态全量断言', () => {
+    const skills = getSkillTemplates();
+    const registered = new Set(
+        skills.map(({ template }) => template.name.replace(/^iagent_/, 'iagent-').replaceAll('_', '-'))
+    );
+
+    function templatesOf(name: string) {
+        const entry = skills.find(({ template }) => template.name === name);
+        if (!entry) {
+            throw new Error(`技能模板缺失：${name}`);
+        }
+        return entry.template;
+    }
+
+    it('归档技能具备需求文档委派条目（canonical）', () => {
+        for (const name of ['iagent_spec_archive', 'iagent_spec_bulk_archive']) {
+            expect(templatesOf(name).allowedTools, `${name} 缺需求文档委派`).toContain(
+                'Skill(iagent-requirement-doc)'
+            );
+        }
+    });
+
+    it('debug 具备文档与回归测试委派条目（canonical，无通配）', () => {
+        const debug = templatesOf('iagent_debug');
+        expect(debug.allowedTools).toContain('Skill(iagent-requirement-doc)');
+        expect(debug.allowedTools).toContain('Skill(iagent-test)');
+        expect(debug.allowedTools).not.toContain('Skill(*)');
+    });
+
+    it('嵌套委派不使外层白名单虚增（migration 不委派需求文档）', () => {
+        // archive 的内层委派由会话级 permissions.allow 放行；外层不因嵌套链路写条目
+        expect(templatesOf('iagent_migration').allowedTools).not.toContain(
+            'Skill(iagent-requirement-doc)'
+        );
+        // workflow 的条目来自其 Phase 3 文档桥的真实委派（正文确有提及），且只出现一次
+        const workflowTools = templatesOf('iagent_workflow').allowedTools;
+        expect(workflowTools.split('Skill(iagent-requirement-doc)').length - 1).toBe(1);
+        expect(templatesOf('iagent_workflow').instructions).toContain('iagent_requirement_doc');
+    });
+
+    it('全部 Skill(...) 条目为 canonical kebab-case 且对应已注册技能', () => {
+        const offenders: string[] = [];
+        for (const { template } of skills) {
+            for (const match of template.allowedTools.matchAll(/Skill\(([^)]*)\)/g)) {
+                const raw = match[1];
+                if (!/^iagent-[a-z0-9]+(?:-[a-z0-9]+)*$/.test(raw)) {
+                    offenders.push(`${template.name}: Skill(${raw}) 非 canonical`);
+                    continue;
+                }
+                if (!registered.has(raw)) {
+                    offenders.push(`${template.name}: Skill(${raw}) 未注册`);
+                }
+            }
+        }
+        expect(offenders).toEqual([]);
+    });
+
+    it('不存在裸名条目（无 iagent- 前缀的 Skill(...)）', () => {
+        const offenders: string[] = [];
+        for (const { template } of skills) {
+            for (const match of template.allowedTools.matchAll(/Skill\(([^)]*)\)/g)) {
+                if (!match[1].startsWith('iagent-')) {
+                    offenders.push(`${template.name}: Skill(${match[1]})`);
+                }
+            }
+        }
+        expect(offenders).toEqual([]);
+    });
+
+    it('未使用条目被剔除：每个委派条目在正文均有对应提及', () => {
+        for (const { template, commandId } of skills) {
+            for (const match of template.allowedTools.matchAll(/Skill\((iagent-[a-z0-9-]+)\)/g)) {
+                const internal = `iagent_${match[1].slice('iagent-'.length).replaceAll('-', '_')}`;
+                expect(template.instructions, `${commandId} 正文未提及 ${internal}`).toContain(
+                    internal
+                );
+            }
+        }
     });
 });

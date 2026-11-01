@@ -65,7 +65,7 @@
 - **description**：一站式自动功能迁移——源项目蒸馏（feature_doc + 用户确认的核心功能清单）、
   加载目标项目编码规范、创建标准 OpenSpec 变更提案、实现门后按规范实现、独立评审子代理
   跨检查源/目标功能并生成带 P0/P1 修复循环的报告
-- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(feature_doc), Skill(migration_check), Agent, Task`
+- **allowed-tools**：`Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(iagent-feature-doc), Skill(iagent-migration-check), Agent, Task`
 - **依赖**：iagent CLI（spec 命令组）；CLI 缺失时降级为 AI 内联生成（CLI-degraded generation）
 
 ## 2.2 四阶段流程

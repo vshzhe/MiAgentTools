@@ -50,7 +50,7 @@ import {
     writeOpenCodeProjectArtifacts,
     type OpenCodeProjectArtifactsResult,
 } from '../core/opencode-v2.js';
-import { adaptSkillContentForHost, negotiationForHost } from '../core/host-orchestration/index.js';
+import { adaptSkillContentForHost, deriveOrchestrationDelegations, negotiationForHost } from '../core/host-orchestration/index.js';
 import {
     detectPiRuntime,
     renderPiRuntimeMetadata,
@@ -119,6 +119,8 @@ export interface UpdateResult {
     piRuntime: PiRuntimeStatus | null;
     /** Pi 原生 agent 定义写入结果（未纳入 pi 时为 null） */
     piNative: PiNativeWriteResult | null;
+    /** 宿主能力诊断（含 Codex degraded 结论；未纳入对应工具时为空） */
+    hostDiagnostics: string[];
 }
 
 /** 读取当前包版本 */
@@ -173,6 +175,23 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
     // 解析生效工具列表（CLI --tools > config tools > 全部 AI_TOOLS）
     const tools = resolveActiveTools(options.tools, projectConfig?.tools, AI_TOOLS);
 
+    // 生效技能模板（一次取得，供权限聚合 / Pi / OpenCode 派生共用同一真源）
+    const activeSkillTemplates = getSkillTemplates(undefined, resolved.workflows);
+    const orchestration = deriveOrchestrationDelegations(
+        activeSkillTemplates.map(({ template, commandId }) => ({
+            commandId,
+            allowedTools: template.allowedTools,
+        }))
+    );
+    // Codex 为 skills-only：显式 degraded 诊断（非 null 协商，MUST NOT 静默跳过）
+    const hostDiagnostics: string[] = [];
+    const codexNegotiation = negotiationForHost('codex');
+    if (tools.some((tool) => tool.value === 'codex') && codexNegotiation) {
+        hostDiagnostics.push(
+            `Codex 编排：${codexNegotiation.mode}（缺失能力：${codexNegotiation.missing.join(', ')}）—— skills-only，阶段由当前 agent 本地执行，不构成委派`
+        );
+    }
+
     // 仅当显式传入 --tools 时回写持久选择，避免常规刷新意外改动配置
     if (options.tools) {
         writeToolsToConfig(projectRoot, tools.map((t) => t.value));
@@ -189,11 +208,11 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
     let piStatus: PiRuntimeStatus | null = null;
     let piNative: PiNativeWriteResult | null = null;
     if (tools.some((t) => t.value === 'pi')) {
-        const stages = getSkillTemplates(undefined, resolved.workflows).map((entry) => ({
+        const stages = activeSkillTemplates.map((entry) => ({
             workflowId: entry.commandId,
             description: entry.template.description,
         }));
-        piNative = writePiNativeAgents(projectRoot, stages);
+        piNative = writePiNativeAgents(projectRoot, stages, orchestration);
         piStatus = detectPiRuntime({
             projectRoot,
             runner: options.piRuntimeRunner,
@@ -341,11 +360,12 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
     // OpenCode V2 项目级编排产物（agents + permissions），仅显式纳入时生成/刷新
     let openCodeProject: OpenCodeProjectArtifactsResult | null = null;
     if (tools.some((t) => t.value === 'opencode')) {
-        const stages = getSkillTemplates(undefined, resolved.workflows).map((entry) => ({
+        const stages = activeSkillTemplates.map((entry) => ({
             workflowId: entry.commandId,
             description: entry.template.description,
+            allowedTools: entry.template.allowedTools,
         }));
-        openCodeProject = writeOpenCodeProjectArtifacts(projectRoot, stages);
+        openCodeProject = writeOpenCodeProjectArtifacts(projectRoot, stages, orchestration);
     }
 
     // reconcile 扫描：已装但不在生效集内的 iagent 产物（保留不删，供输出提示）
@@ -370,6 +390,7 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
         openCodeProject,
         piRuntime: piStatus,
         piNative,
+        hostDiagnostics,
     };
 }
 

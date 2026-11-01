@@ -1,14 +1,14 @@
 ---
 name: iagent-debug
 description: "一站式调试工作流：复现→用 CodeGraph 与能力记忆调查根因→变更关联→带强制回归测试的修复→编译检查→同步提案→验证；触发词\"调试 / debug / 修复 bug / bug 报告 / 复现 / 根因\"；NOT for：新功能开发用 iagent_workflow、单一阶段探索用 iagent_spec_explore"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_verify_proposal), Skill(proposal_review), Skill(requirement_doc), Skill(test), Agent, Task
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(iagent-spec-verify-proposal), Skill(iagent-proposal-review), Skill(iagent-requirement-doc), Skill(iagent-test), Agent, Task
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）与 iagent_spec_verify_proposal / iagent_proposal_review / iagent_requirement_doc / iagent_test 技能（test 为条件委派）；CodeGraph MCP 可选（不可用时降级 Glob/Grep）。
 metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:8066475200ee0e4acce6f111cd73eedd48d23de3792359626a8b9d6372e21edb"
+  generatedFingerprint: "sha256:88d24f31d099cd2c8e06111db6d6cea4224a28b24c377c26698caf59f2f8d5f4"
 ---
 
 
@@ -41,7 +41,7 @@ metadata:
 ## 门白名单与 MUST NOT 确认清单
 
 **必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
-- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation / requirement-doc-bridge（可按条件豁免）
 - **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
 - **实现 + 测试桥**：implementation-bridge（不可豁免）
 - **归档桥**：archive-confirmation（不可豁免）

@@ -7,6 +7,12 @@ import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
 import { GATE_PROTOCOL_PREAMBLE, renderGateWhitelistSection } from '../prompt-gate.js';
 import { CODEGRAPH_MCP, SUBAGENT_DISPATCH, skillDelegation } from '../tool-whitelist.js';
+import {
+    GATE_SKIP_IDS,
+    LEGACY_AUTO_MODE_PARAM,
+    renderDelegationModeOption,
+    renderGateSkipOption,
+} from '../../host-orchestration/delegation-contract.js';
 
 const VERIFICATION_PROTOCOL_FULL = `### 3.1 自动执行验证（无用户询问）
 
@@ -182,7 +188,7 @@ ${renderGateWhitelistSection()}
 ---
 ## Phase 1: 探索（委派 iagent_spec_explore）
 
-Phase 1 SHALL 委派阶段 \`iagent_spec_explore\`（传 \`mode=delegated\`）执行强制检查点体系探索（强制建探索文件、提示词校验门、CONTEXT.md 检查、CodeGraph 基础扫描含多项目派发与深度分析、L1-L5 grill 追问、功能流程图与流程最终确认门、聚合一致性门、探索完成检测），MUST NOT 内联执行探索逻辑。
+Phase 1 SHALL 委派阶段 \`iagent_spec_explore\`（传 \`${renderDelegationModeOption('delegated')}\`）执行强制检查点体系探索（强制建探索文件、提示词校验门、CONTEXT.md 检查、CodeGraph 基础扫描含多项目派发与深度分析、L1-L5 grill 追问、功能流程图与流程最终确认门、聚合一致性门、探索完成检测），MUST NOT 内联执行探索逻辑。
 
 委派完成后 SHALL 消费 \`iagent_spec_explore\` 输出的**结构化 handoff**（探索文件路径、提示词基线、流程基准确认状态、Pending 影响符号）并据此推进 Phase 2。
 
@@ -308,7 +314,7 @@ mcp__codegraph__codegraph_impact --symbol <symbol> --direction upstream --maxDep
 **⚠️ 复杂度评估与生成方式选择已从 Phase 2 移除。**
 
 Phase 2.0 影响面分析完成（或跳过）后：
-- 直接进入 Phase 2.3：委派 iagent_spec_propose（mode=delegated + exploration-file）完成迁移与制品生成
+- 直接进入 Phase 2.3：委派 iagent_spec_propose（\`${renderDelegationModeOption('delegated')}\` + exploration-file）完成迁移与制品生成
 - 不要计算复杂度评分，也不要展示生成方式选项
 - 逐步式创建在本工作流之外仍可用（通过 iagent spec new）
 
@@ -319,7 +325,7 @@ Phase 2.0 影响面分析完成（或跳过）后：
 
 ### 2.3 提案生成（委派 iagent_spec_propose）
 
-Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部制品生成（proposal.md / specs/**/*.md / design.md / tasks.md）SHALL 委派阶段 \`iagent_spec_propose\`（传 \`mode=delegated\` + \`exploration-file=<Phase 1 探索文件路径>\`）完成，MUST NOT 内联生成提案制品。制品生成遵循**项目规范** \`.iagent/rules/spec.md\` 的制品协议要点（Markdown-first 共享协议；该文件缺失时以 spec_propose 的内联要点为准并记 WARN，MUST NOT 阻断）。规则注入、schema 验证与 CLI 降级由 \`spec_propose\` 承担。
+Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部制品生成（proposal.md / specs/**/*.md / design.md / tasks.md）SHALL 委派阶段 \`iagent_spec_propose\`（传 \`${renderDelegationModeOption('delegated')}\` + \`exploration-file=<Phase 1 探索文件路径>\`）完成，MUST NOT 内联生成提案制品。制品生成遵循**项目规范** \`.iagent/rules/spec.md\` 的制品协议要点（Markdown-first 共享协议；该文件缺失时以 spec_propose 的内联要点为准并记 WARN，MUST NOT 阻断）。规则注入、schema 验证与 CLI 降级由 \`spec_propose\` 承担。
 
 **退出守卫**：被委派的 \`iagent_spec_propose\` 完成后 MUST NOT 自行进入实现或推进阶段；阶段推进主权归 \`iagent_workflow\`。其结构化回执（change-name / 制品清单 / apply-ready）用于进入 Phase 3 与后续确认桥。
 
@@ -358,7 +364,8 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 **⚠️ Phase 3.7 实现桥确认后本阶段立即开始 —— 不停顿、不宣告、不向用户提问。** MUST NOT 再输出对该技能的调用确认询问（确认已由 3.7 桥承载）。
 
 **委派 \`iagent_spec_apply\` 技能**执行实现：
-- 传入 change-name + \`auto-mode=true\`（跳过 apply 内部的设计确认门——确认已由 Phase 3.7 实现桥承载，避免重复确认）
+- 传入 change-name + \`${renderGateSkipOption(GATE_SKIP_IDS)}\`（门承载参数：跳过 apply 内部的设计确认门——确认已由 Phase 3.7 实现桥承载，避免重复确认；\`${LEGACY_AUTO_MODE_PARAM}=true\` 为兼容等价写法）
+- 该参数**仅**跳过设计确认门；测试执行门、范围蔓延确认与共享资源协议照常生效
 - apply 内部完成：分层代码生成（Entity/DTO → Mapper/DAO → Service → Controller）、tasks.md 勾选更新、编译检查
 - 后端架构规则由 apply 按 \`.iagent/rules/coding-rules.md\` 自行处理，workflow 不干预
 
@@ -440,7 +447,7 @@ Checks passed — generating proposal directly
 **检查点：委派提案生成（Phase 2.3）**
 ✓ Skipped complexity evaluation (removed)
 ✓ Skipped method selection (removed)
-✓ Delegating iagent_spec_propose (mode=delegated + exploration-file)
+✓ Delegating iagent_spec_propose (${renderDelegationModeOption('delegated')} + exploration-file)
 
 **检查点：制品生成（委派 spec_propose）**
 ✓ Created change directory: openspec/changes/add-user-auth/
@@ -579,7 +586,7 @@ All artifacts ready! Proceeding to the Phase 4 implementation bridge...
 - **MUST 先校验文件再迁移** - Phase 2 检查点为强制项
 - **MUST 在迁移失败时保留源文件** - 绝不丢失用户数据
 - **MUST NOT 提供生成方式选择** - Phase 2 直接进入委派的 spec_propose 生成（复杂度评估与方式选择已移除）
-- **MUST 委派制品生成** - Phase 2.3 委派 \`iagent_spec_propose\`（mode=delegated + exploration-file）生成制品；MUST NOT 内联生成提案制品
+- **MUST 委派制品生成** - Phase 2.3 委派 \`iagent_spec_propose\`（\`${renderDelegationModeOption('delegated')}\` + exploration-file）生成制品；MUST NOT 内联生成提案制品
 - **先探索代码库** - 提问前先确认代码库是否已能回答该问题
 - **必须给出建议** - 每个问题都附带 AI 的建议
 - **实时更新文件** - 每轮交流后写入探索文件
@@ -593,7 +600,7 @@ All artifacts ready! Proceeding to the Phase 4 implementation bridge...
 - **FAIL 不出文档桥** - 验证失败或重验循环中 MUST NOT 生成需求文档、MUST NOT 展示生成/跳过桥
 - **文档状态跨阶段传递** - 桥结果（\`generated\` / \`skipped-by-user\` / \`generation-failed\` / \`absent\`）持久化于变更探索文件并经 apply 传至 archive；archive 以文件存在优先、状态裁决缺失分支，不因新会话退回兼容生成
 - **对委派执行退出守卫** - 委派的阶段子技能（spec_apply / spec_archive / test）完成后 MUST NOT 自行进入 plan 模式 / 设计模式或推进阶段；workflow 是唯一有权判定阶段完成并推进下一阶段（桥梁）的角色
-- **向 apply 传 auto-mode** - Phase 4 向 spec_apply 传 auto-mode=true，由 Phase 3.7 实现桥承载确认，避免 apply 内部设计确认门重复
+- **向 apply 传门承载参数** - Phase 4 向 spec_apply 传 \`${renderGateSkipOption(GATE_SKIP_IDS)}\`（兼容写法 \`${LEGACY_AUTO_MODE_PARAM}=true\`），由 Phase 3.7 实现桥承载确认；仅跳过设计确认门，其余门与停点照常生效
 - **向 archive 传 change-name** - Phase 5 向 spec_archive 传 change-name 跳过选择
 - **条件委派测试** - tasks.md 含 \`[测试]\` 任务时委派 iagent_test；测试计划已在 Phase 3.7 实现 + 测试桥一次确认，MUST NOT 再设独立门
 `,

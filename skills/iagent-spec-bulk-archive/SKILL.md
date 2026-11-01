@@ -1,14 +1,14 @@
 ---
 name: iagent-spec-bulk-archive
 description: "批量归档变更。当用户要一次归档多个已完成变更时使用；触发词\"批量归档 / bulk archive / 归档多个\"；NOT for 单个变更归档（改用 iagent_spec_archive）。"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(requirement_doc), Agent, Task
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(iagent-requirement-doc), Agent, Task
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）与 CodeGraph CLI（可选）。
 metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:62d1c392145cdd06ad47cc0a5decc2fab9ed3f5b3c913fa75e0f779bd04c8cfc"
+  generatedFingerprint: "sha256:1d02d7eb70268ad78c59ec1bbc3d4c27c20ec9d19c9cf9fb59a1d61be3bc9f16"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
@@ -20,7 +20,7 @@ metadata:
 ## 门白名单与 MUST NOT 确认清单
 
 **必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
-- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation / requirement-doc-bridge（可按条件豁免）
 - **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
 - **实现 + 测试桥**：implementation-bridge（不可豁免）
 - **归档桥**：archive-confirmation（不可豁免）

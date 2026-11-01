@@ -210,9 +210,9 @@ describe('project-init 参考文件与白名单', () => {
         const entries = parseEntries(template.allowedTools);
         expect(entries).toContain('mcp__codegraph');
         expect(entries).toContain('mcp__codegraph__codegraph_status');
-        // 委派条目用**裸名**（不含 iagent_ 前缀）——与既有 10 处 skillDelegation 调用一致，
-        // 传全名会产出 Skill(iagent_feature_doc) 这一永不放行的死条目
-        expect(entries).toContain('Skill(feature_doc)');
+        // 委派条目为 canonical 宿主技能 ID（入参裸名由 skillDelegation 归一化）；
+        // 裸名 / 下划线形态是永不放行的死条目
+        expect(entries).toContain('Skill(iagent-feature-doc)');
         expect(template.allowedTools).not.toContain('Skill(*)');
         // 正文无派发动作 → 不得写入子代理派发条目
         expect(entries).not.toContain('Agent');

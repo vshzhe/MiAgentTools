@@ -30,10 +30,11 @@ describe('调用类白名单与委派齐备', () => {
     it('每个 Skill(...) 条目在正文中被提及（无幽灵条目）', () => {
         const offenders: string[] = [];
         for (const { template } of skills) {
-            for (const m of template.allowedTools.matchAll(/Skill\(([a-z_]+)\)/g)) {
-                const bare = m[1];
-                if (!template.instructions.includes(`iagent_${bare}`)) {
-                    offenders.push(`${template.name}: Skill(${bare}) 未在正文提及`);
+            for (const m of template.allowedTools.matchAll(/Skill\(([a-zA-Z0-9:-]+)\)/g)) {
+                const canonical = m[1];
+                const internal = `iagent_${canonical.replace(/^iagent-/, '').replaceAll('-', '_')}`;
+                if (!template.instructions.includes(internal)) {
+                    offenders.push(`${template.name}: Skill(${canonical}) 未在正文提及（${internal}）`);
                 }
             }
         }
@@ -43,8 +44,13 @@ describe('调用类白名单与委派齐备', () => {
     it('auto-workflow 白名单含委派 apply/archive/verify/test', () => {
         const aw = skills.find((s) => s.template.name === 'iagent_auto_workflow');
         expect(aw).toBeDefined();
-        for (const bare of ['spec_apply', 'spec_archive', 'spec_verify', 'test']) {
-            expect(aw?.template.allowedTools, `缺 Skill(${bare})`).toContain(`Skill(${bare})`);
+        for (const [bare, canonical] of [
+            ['spec_apply', 'iagent-spec-apply'],
+            ['spec_archive', 'iagent-spec-archive'],
+            ['spec_verify', 'iagent-spec-verify'],
+            ['test', 'iagent-test'],
+        ] as const) {
+            expect(aw?.template.allowedTools, `缺 Skill(${canonical})`).toContain(`Skill(${canonical})`);
             expect(aw?.template.instructions, `正文未提及 iagent_${bare}`).toContain(`iagent_${bare}`);
         }
     });

@@ -100,6 +100,7 @@ export const GATE_WHITELIST: readonly GateWhitelistEntry[] = [
             'grill-batch-confirmation',
             'diagnostic-confirmation',
             'fix-option-confirmation',
+            'requirement-doc-bridge',
         ],
         conditional: true,
     },

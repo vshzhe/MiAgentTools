@@ -5,6 +5,13 @@ import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
 import { GATE_PROTOCOL_PREAMBLE, renderGateWhitelistSection } from '../prompt-gate.js';
 import { SUBAGENT_DISPATCH, skillDelegation } from '../tool-whitelist.js';
+import {
+    GATE_SKIP_IDS,
+    LEGACY_AUTO_MODE_PARAM,
+    renderDelegationModeOption,
+    renderDelegationModeContract,
+    renderGateSkipOption,
+} from '../../host-orchestration/delegation-contract.js';
 
 export function getSpecProposeSkillTemplate(): SkillTemplate {
     return {
@@ -28,7 +35,9 @@ export function getSpecProposeSkillTemplate(): SkillTemplate {
 
 ---
 
-**Input**: 用户请求应包含变更名（kebab-case）或对想构建内容的描述。编排器可传 \`mode=delegated\`（委派执行模式）与 \`exploration-file=<path>\`：delegated 模式下**跳过 Step 0 的用户选择提示**（直接迁移 \`exploration-file\`）、**抑制结尾规划边界停点**、**抑制自身 Phase 3 验证**（由编排器的验证超集承担），并输出**结构化回执**。默认 \`mode=interactive\` 行为与既有完全一致（保留 Step 0 提示、自身 Phase 3、结尾停点）。\`iagent_spec_apply\` 既有的 \`auto-mode=true\` 为 \`mode=delegated\` 的等价别名。
+**Input**: 用户请求应包含变更名（kebab-case）或对想构建内容的描述。编排器可传 \`${renderDelegationModeOption('delegated')}\`（委派执行模式）与 \`exploration-file=<path>\`：delegated 模式下**跳过 Step 0 的用户选择提示**（直接迁移 \`exploration-file\`）、**抑制结尾规划边界停点**、**抑制自身 Phase 3 验证**（由编排器的验证超集承担），并输出**结构化回执**。默认 \`${renderDelegationModeOption('interactive')}\` 行为与既有完全一致（保留 Step 0 提示、自身 Phase 3、结尾停点）。\`iagent_spec_apply\` 的 \`${LEGACY_AUTO_MODE_PARAM}=true\` **仅**等价于门承载轴的 \`${renderGateSkipOption(GATE_SKIP_IDS)}\`，**不是** \`${renderDelegationModeOption('delegated')}\` 的等价别名（两轴不可互换）。
+
+${renderDelegationModeContract()}
 
 ${GATE_PROTOCOL_PREAMBLE}
 
@@ -38,7 +47,7 @@ ${renderGateWhitelistSection()}
 
 **Step 0: 探索文件检测**
 
-> **delegated 模式分支**：若以 \`mode=delegated\` + \`exploration-file=<path>\` 被编排器委派，**跳过下面的用户选择提示**，直接对该文件执行迁移语义（移入变更目录为 \`exploration.md\`，成功后删除源文件），并在回执中报告迁移结果；\`interactive\` 模式保留下面的提示流程。
+> **delegated 模式分支**：若以 \`${renderDelegationModeOption('delegated')}\` + \`exploration-file=<path>\` 被编排器委派，**跳过下面的用户选择提示**，直接对该文件执行迁移语义（移入变更目录为 \`exploration.md\`，成功后删除源文件），并在回执中报告迁移结果；\`interactive\` 模式保留下面的提示流程。
 
 在创建变更前，MUST 扫描并关联探索文件：
 
@@ -217,7 +226,7 @@ ${renderGateWhitelistSection()}
    - **产出失败只记 WARN 并继续**（不阻断提案）：下游包缺失时按同一六节协议自行产出一次，或降级为内联注入
 
 6. **Phase 3 验证（自动 —— 强制，不可跳过）**
-   > **delegated 模式分支**：若 \`mode=delegated\`，**抑制本节**——不调用 \`iagent_spec_verify_proposal\`、不生成需求文档（编排器的 Phase 3 为其超集，含 \`proposal_review\` 深度复查），直接输出结构化回执交回编排器。\`interactive\` 模式照常执行本节。
+   > **delegated 模式分支**：若 \`${renderDelegationModeOption('delegated')}\`，**抑制本节**——不调用 \`iagent_spec_verify_proposal\`、不生成需求文档（编排器的 Phase 3 为其超集，含 \`proposal_review\` 深度复查），直接输出结构化回执交回编排器。\`interactive\` 模式照常执行本节。
    全部 \`applyRequires\` 制品完成后，自动进入 Phase 3 验证（不得在验证前以 "准备就绪，可进入实现" 结束工作流）：
    - 调用 \`iagent_spec_verify_proposal\` **skill** 执行 D1-D5 评分。（\`iagent_spec_verify_proposal\` 是技能名，而非合法的 \`iagent spec instructions\` 制品 ID —— 不得把它当作 CLI 指令运行。）
    - **验证复查子代理**：派发一个独立的只读复查子代理（Task 工具，subagent_type: "general-purpose"）执行 D1-D5 评分 —— 该子代理读取变更制品但不修改。子代理派发失败时：降级（回退）到主工作流内联评分并记录 WARN 日志（绝不静默跳过验证）。
@@ -228,7 +237,7 @@ ${renderGateWhitelistSection()}
 
 **Output**
 
-> **delegated 模式分支**：若 \`mode=delegated\`，输出**结构化回执**（change-name、生成制品清单、apply-ready 状态、探索文件迁移结果），MUST NOT 输出"等待用户确认"停点——阶段推进主权归编排器。下述 interactive 输出仅适用于默认模式。
+> **delegated 模式分支**：若 \`${renderDelegationModeOption('delegated')}\`，输出**结构化回执**（change-name、生成制品清单、apply-ready 状态、探索文件迁移结果），MUST NOT 输出"等待用户确认"停点——阶段推进主权归编排器。下述 interactive 输出仅适用于默认模式。
 
 全部制品完成且 Phase 3 验证通过后（规划边界：到此停止，等待用户发起新请求）：
 - 变更名与位置

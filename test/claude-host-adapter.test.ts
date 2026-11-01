@@ -72,10 +72,10 @@ describe('Claude 产物契约（init 端到端）', () => {
         expect(debug).toContain('- `verify-close`：能力');
         // nextAllowed 直接委派契约
         expect(debug).toContain('唯一 `nextAllowed` 技能 SHALL 直接委派');
-        // 文档与测试委派获得精确白名单条目（裸名，无通配）
+        // 文档与测试委派获得精确 canonical 白名单条目（无通配）
         expect(debug).toMatch(/^allowed-tools: .*/m);
-        expect(debug).toContain('Skill(requirement_doc)');
-        expect(debug).toContain('Skill(test)');
+        expect(debug).toContain('Skill(iagent-requirement-doc)');
+        expect(debug).toContain('Skill(iagent-test)');
         expect(debug).not.toContain('Skill(*)');
     });
 
@@ -85,7 +85,55 @@ describe('Claude 产物契约（init 端到端）', () => {
             permissions?: { allow?: string[] };
         };
         const allow = parsed.permissions?.allow ?? [];
-        expect(allow).toContain('Skill(requirement_doc)');
-        expect(allow).toContain('Skill(test)');
+        expect(allow).toContain('Skill(iagent-requirement-doc)');
+        expect(allow).toContain('Skill(iagent-test)');
+    });
+});
+
+// 变更 fix-mode-delegation-host-parity / 任务 3.6：Claude 产物 canonical 白名单与委派清单。
+describe('3.6 Claude 产物 canonical 委派条目', () => {
+    let root: string;
+
+    beforeAll(() => {
+        root = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-claude-parity-'));
+        ensureProjectConfig(root);
+        writeWorkflowsToConfig(root, ['workflow', 'spec-apply', 'debug']);
+        runInit(root, { tools: 'claude' });
+    });
+
+    afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
+
+    it('workflow SKILL.md 的白名单为 canonical 形态，且无裸名死条目', () => {
+        const skill = fs.readFileSync(
+            path.join(root, '.claude', 'skills', 'iagent-workflow', 'SKILL.md'),
+            'utf8'
+        );
+        const allowedToolsLine = skill.split('\n').find((line) => line.startsWith('allowed-tools:')) ?? '';
+        expect(allowedToolsLine).toContain('Skill(iagent-spec-apply)');
+        expect(allowedToolsLine).not.toMatch(/Skill\((?!iagent-)[^)]*\)/);
+        expect(skill).not.toContain('Skill(*)');
+    });
+
+    it('spec-apply 产物注入派生委派清单并携带参数', () => {
+        const skill = fs.readFileSync(
+            path.join(root, '.claude', 'skills', 'iagent-spec-apply', 'SKILL.md'),
+            'utf8'
+        );
+        expect(skill).toContain('宿主编排适配（生成期注入）');
+        expect(skill).toContain('阶段委派（宿主原生）');
+        expect(skill).toContain('iagent-test');
+    });
+
+    it('会话级 permissions.allow 聚合 canonical 条目', () => {
+        const settings = JSON.parse(
+            fs.readFileSync(path.join(root, '.claude', 'settings.json'), 'utf8')
+        ) as { permissions?: { allow?: string[] } };
+        const allow = settings.permissions?.allow ?? [];
+        const skillEntries = allow.filter((entry) => entry.startsWith('Skill('));
+        expect(skillEntries.length).toBeGreaterThan(0);
+        for (const entry of skillEntries) {
+            expect(entry).toMatch(/^Skill\(iagent-[a-z0-9-]+\)$/);
+        }
+        expect(allow).not.toContain('Skill(spec_apply)');
     });
 });

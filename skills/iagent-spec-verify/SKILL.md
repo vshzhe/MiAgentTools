@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:59b3231ee7042fce0a15bd7f21ca10008d38b9c4ab1f99fa1f75b5fbee38f994"
+  generatedFingerprint: "sha256:186a19e7ba503c8737460b6b3872f80c61a3eb7b33438fbbbd1f71ca8caf113d"
 ---
 
 **验证前先阅读 .iagent/rules/coding-rules.md 中的验证标准。** 重点检查未定义数据字段、架构分层违规、前端 UI 状态覆盖。
@@ -20,7 +20,7 @@ metadata:
 ## 门白名单与 MUST NOT 确认清单
 
 **必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
-- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation / requirement-doc-bridge（可按条件豁免）
 - **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
 - **实现 + 测试桥**：implementation-bridge（不可豁免）
 - **归档桥**：archive-confirmation（不可豁免）

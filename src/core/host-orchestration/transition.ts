@@ -7,7 +7,8 @@
 
 import type { CapabilityNegotiation } from './hosts.js';
 import { phaseCapabilitiesSatisfied } from './hosts.js';
-import { validateReceipt, type CapabilityId, type PhaseSpec, type Receipt } from './protocol.js';
+import { GATE_WHITELIST, validateReceipt, type CapabilityId, type PhaseSpec, type Receipt } from './protocol.js';
+import { PHASE_GATE_CATEGORY } from './workflows.js';
 
 /** 阶段推进输入 */
 export interface PhaseTransitionInput {
@@ -36,6 +37,8 @@ export interface PhaseTransitionResult {
     blockedBy: string[];
     /** 缺失的能力 */
     missingCapabilities: CapabilityId[];
+    /** 非阻断告警（headless 下条件门放行 / 记录决策等） */
+    warnings: string[];
 }
 
 /** 阻止推进的原因归类 */
@@ -55,9 +58,16 @@ export const TRANSITION_BLOCKERS = {
  *   - `gateConditions[condition] === false` → 该门不适用，跳过门确认要求
  *     （即使 `gateConfirmed` 为 false 也不以 `gate-unconfirmed` 阻塞）；
  *   - `=== true` 或该键未提供 → 门适用，仍按 `gateConfirmed` 要求确认（fail-safe）。
+ *
+ * surface / 能力兜底（变更 fix-mode-delegation-host-parity）：协商结果缺失 `gate` 能力
+ * （headless）时，`conditional: true` 的白名单类别门（经 `PHASE_GATE_CATEGORY` 映射）
+ * 记录决策与 WARN 并继续；不可豁免门保持阻塞并报告缺少交互式确认能力。
+ * 「条件 / 不可豁免」判定取自 `GATE_WHITELIST` 条目的 `conditional`，
+ * MUST NOT 以 `GateSpec.condition`（门是否适用的业务条件）代替。
  */
 export function evaluatePhaseTransition(input: PhaseTransitionInput): PhaseTransitionResult {
     const blockedBy: string[] = [];
+    const warnings: string[] = [];
 
     // 1. 必需能力（strict 缺能阻断；degraded 已在协商层标记）
     const capability = phaseCapabilitiesSatisfied(input.negotiation, input.phase.requiredCapabilities);
@@ -71,7 +81,23 @@ export function evaluatePhaseTransition(input: PhaseTransitionInput): PhaseTrans
         gate !== undefined &&
         (gate.condition === undefined || input.gateConditions?.[gate.condition] !== false);
     if (gate && gateApplicable && (gate.blocking ?? true) && !input.gateConfirmed) {
-        blockedBy.push(TRANSITION_BLOCKERS.gate);
+        const gateCapable = input.negotiation.available.includes('gate');
+        const category = PHASE_GATE_CATEGORY[gate.id];
+        const whitelistEntry =
+            category === undefined ? undefined : GATE_WHITELIST.find((entry) => entry.id === category);
+        if (!gateCapable && whitelistEntry?.conditional === true) {
+            // headless 条件门：记录决策并继续（不因 gate-unconfirmed 阻塞）
+            warnings.push(
+                `WARN: 运行表面缺少交互式 gate 能力，条件门 ${gate.id}（类别 ${category}）记录决策并继续`
+            );
+        } else {
+            blockedBy.push(TRANSITION_BLOCKERS.gate);
+            if (!gateCapable) {
+                warnings.push(
+                    `缺少交互式确认能力：不可豁免门 ${gate.id} 必须以 status=blocked 回执中止（MUST NOT 静默跳过）`
+                );
+            }
+        }
     }
 
     // 3. 回执校验（缺失或不通过即阻塞）
@@ -84,5 +110,6 @@ export function evaluatePhaseTransition(input: PhaseTransitionInput): PhaseTrans
         advance: blockedBy.length === 0,
         blockedBy,
         missingCapabilities: capability.missing,
+        warnings,
     };
 }

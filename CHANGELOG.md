@@ -7,6 +7,63 @@
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-11-01
+
+### Added
+
+- **技能委派条目 canonical 化（M1，P0）**：`skillDelegation()` 输出由裸名
+  `Skill(<name>)` 改为 `Skill(iagent-<workflowId>)`（与技能目录名 / frontmatter `name`
+  逐字一致）；入参仍接受裸名（`spec_apply` / `spec-apply` 等价），内置归一化。修复
+  「技能间每次委派都触发宿主权限审批」的权限层主因；不双写、不通配。
+- **委托模式双轴词汇单一源（M2，P0）**：新增 `src/core/host-orchestration/delegation-contract.ts`
+  （叶依赖）——轴一 `mode=interactive|delegated`（执行归属），轴二 `gate-skip=<gate-id>`
+  （门承载，当前唯一 `design-confirmation`）。`auto-mode=true` **仅**映射门承载轴
+  （≡ `gate-skip=design-confirmation`），不再被声明为 `mode=delegated` 的等价别名；
+  未知 gate id / 未知参数键（含 `gate-policy=`）忽略并记 WARN。
+- **运行表面（surface）维度（M3，P1）**：`negotiateCapabilities` 支持
+  `interactive-ui` / `interactive-cli` / `headless`；headless 下 `gate` 不可用并写 notes。
+  `evaluatePhaseTransition` 消费缺失 `gate` 能力：条件门记录决策并继续并记 WARN，
+  不可豁免门以 `status=blocked` 回执中止。第三形参保持「能力数组或选项对象」联合，
+  既有位置化调用不变。
+- **Codex 显式 degraded 档案（M4，P0）**：`HostId` 增 `codex`；
+  `negotiationForHost('codex')` 返回 degraded 协商结果（不再 `null`），产物显式声明
+  「本地执行，不构成委派」；`init` / `update` 输出 codex degraded 诊断。
+- **OpenCode 权限翻译完整性（M5，P1）**：`permissions` 补齐 `shell`（按
+  `Bash(<cmd>:*)` 前缀派生，动作名与资源语法以 OpenCode V2 Permissions 文档核实）、
+  worker 的 `skill`（自身 + 实际委派目标）与条件 `subagent`（仅派发型阶段）；
+  MCP 缺口进入诊断 WARN；规则合并保持幂等且保留用户规则。
+- **Pi 门声明收窄（M6，P1）**：Pi strict 的 `gate` 显式限定为**阻塞回执形态**
+  （非交互式门工具），notes 与 `pi-native.ts` 诊断措辞对齐；`tools` 保持 7 个内置名不变。
+- **编排注入面按模板派生（D9）**：新增纯函数 `deriveOrchestrationDelegations()`；
+  `ORCHESTRATING_WORKFLOW_IDS` / `ORCHESTRATION_DELEGATIONS` 改由模板 `Skill(...)`
+  派生（覆盖 9 个委派技能），`DELEGATION_PARAMETERS` 显式声明委派参数；
+  `CONDITIONAL_DELEGATIONS` 增列 `project-init → feature-doc`。
+- **协议与模板对齐（D8）**：`auto-workflow` 的 APPLY / ARCHIVE 阶段不再声明阻塞门，
+  VERIFY 阶段显式声明 `requirement-doc-bridge`；`workflow` 的 verify 与 `debug` 的
+  `verify-close` 同声明该门；白名单仍为 5 类（`requirement-doc-bridge` 挂在
+  `requirement-clarification` 锚点下）。
+- `docs/host-permission-verification.md`：Claude UI / CLI / headless 手工验证清单
+  （含权限姿态记录规则与「bypassPermissions 下无弹窗不构成证据」判定准则）。
+
+### Changed
+
+- `spec-propose` / `spec-apply` / `spec-explore` / `workflow` / `auto-workflow`
+  模板正文插值引用双轴词汇；编排器委派 apply 改传 `gate-skip=design-confirmation`
+  （`auto-mode=true` 为兼容等价写法）；`spec-explore` 的 `Input` 补齐模式与回执契约。
+- 回归锁同步 canonical 形态（`allowed-tools` / `command-reference-refs` /
+  `template-consistency` / `tool-whitelist-constants` / `host-orchestration` /
+  `artifact-dataflow` / `project-init-scan` 等）。
+- 文档与能力记忆同步：`AGENTS.md` 守则 2、`openspec/CONTEXT.md` 术语、
+  `docs/skills-manual.md`、`docs/migration-guide.md`；旧裸名结论标注
+  「已过时（由本变更取代）」并保留历史。
+
+### Fixed
+
+- 修复「`auto-mode` 仍要求二次确认 / `delegated` 可跳过」的语义根因：权限层
+  （canonical 条目）与语义层（双轴词汇）分开修复，验收可区分两类停止点。
+- 修复 Codex 静默伪 strict（`negotiationForHost → null`）与 headless 伪可交互 gate。
+- 修复 OpenCode 权限只翻译 `skill` / `subagent` 导致 worker 委派面与命令面缺失。
+
 ## [2.0.0] - 2026-10-26
 
 ### BREAKING
@@ -1374,7 +1431,7 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/mi-agent-tools/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/mi-agent-tools/compare/v2.1.0...HEAD
 [2.0.0]: https://github.com/mi-agent-tools/compare/v1.0.2...v2.0.0
 [1.0.2]: https://github.com/mi-agent-tools/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/mi-agent-tools/compare/v1.0.0...v1.0.1

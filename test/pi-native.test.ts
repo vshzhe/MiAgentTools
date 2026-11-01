@@ -25,6 +25,10 @@ import { runUpdate } from '../src/commands/update.js';
 import { detectPiRuntime, type PiCommandRunner } from '../src/core/pi-runtime.js';
 import { ensureProjectConfig, writeWorkflowsToConfig } from '../src/core/project-config.js';
 import { scanReconcileOrphans } from '../src/core/reconcile.js';
+import {
+    negotiateCapabilities,
+    renderHostOrchestrationSection,
+} from '../src/core/host-orchestration/index.js';
 
 const STAGES = [
     { workflowId: 'spec-explore', description: '探索阶段：结构化调研与澄清' },
@@ -423,5 +427,100 @@ describe('编排阶段 agent 的嵌套委派授予（4.4 / 4.5）', () => {
         } finally {
             fs.rmSync(root, { recursive: true, force: true });
         }
+    });
+});
+
+// 变更 fix-mode-delegation-host-parity / 任务 5.2：派生委派清单、条件缺口、degraded 不伪装。
+describe('5.2 Pi 派生清单与门声明对齐', () => {
+    it('spec-apply 的 allowed_subagents 来自派生清单（iagent-test）', () => {
+        const result = resolvePiNestingDelegations('spec-apply', ['spec-apply', 'test', 'workflow']);
+        expect(result.allowed).toEqual(['iagent-test']);
+        expect(result.gap).toBeUndefined();
+
+        const md = renderPiStageAgent('spec-apply', '实现变更', result.allowed);
+        expect(md).toContain(`tools: ${PI_AGENT_TOOLS.join(', ')}`);
+        expect(md).toContain('allowed_subagents: iagent-test');
+        // tools 不注入扩展工具名
+        expect(md).not.toMatch(/tools:.*\bAgent\b/);
+        expect(md).not.toContain('get_subagent_result');
+    });
+
+    it('project-init 的 feature-doc 缺口属条件委派（默认安装集不产生必需缺口）', () => {
+        const result = resolvePiNestingDelegations('project-init', ['project-init']);
+        expect(result.allowed).toEqual([]);
+        expect(result.gap).toBeDefined();
+        expect(result.gap?.missing).toEqual(['feature-doc']);
+        // 正文已声明自行扫描的降级路径 → 条件委派，MUST NOT 判为无条件必需
+        expect(result.gap?.conditional).toEqual(['feature-doc']);
+        expect(result.gap?.required).toEqual([]);
+    });
+
+    it('writePiNativeAgents 对 project-init 的 feature-doc 缺口只输出条件委派 WARN', () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-pi-project-init-'));
+        try {
+            const result = writePiNativeAgents(root, [
+                { workflowId: 'project-init', description: '项目初始化' },
+                { workflowId: 'spec-explore', description: '探索' },
+            ]);
+            const gap = result.nestingGaps.find((item) => item.workflowId === 'project-init');
+            expect(gap?.conditional).toEqual(['feature-doc']);
+            expect(gap?.required).toEqual([]);
+            expect(
+                result.warnings.some(
+                    (warning) => warning.includes('条件委派未安装') && warning.includes('feature-doc')
+                )
+            ).toBe(true);
+            expect(
+                result.warnings.some(
+                    (warning) => warning.includes('无条件必需委派未安装') && warning.includes('feature-doc')
+                )
+            ).toBe(false);
+
+            const content = fs.readFileSync(
+                path.join(root, '.pi/agents/iagent-project-init.md'),
+                'utf8'
+            );
+            const frontmatter = content.split('---')[1] ?? '';
+            expect(frontmatter).not.toMatch(/^allowed_subagents:/m);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('默认安装集下 init 不为 project-init 产生无条件必需缺口', () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-pi-default-'));
+        try {
+            ensureProjectConfig(root);
+            const result = runInit(root, { tools: 'pi', piRuntimeRunner: strictRunner });
+            const gaps = result.piNative?.nestingGaps ?? [];
+            for (const gap of gaps) {
+                expect(gap.required, `${gap.workflowId} 出现伪必需缺口`).not.toContain('feature-doc');
+            }
+            expect(
+                (result.piNative?.warnings ?? []).some(
+                    (warning) =>
+                        warning.includes('无条件必需委派未安装') && warning.includes('feature-doc')
+                )
+            ).toBe(false);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('Pi strict 的 gate 声明限定为阻塞回执形态，tools 保持内置名', () => {
+        const strict = negotiateCapabilities('pi', 'strict');
+        expect(strict.native.gate).toContain('阻塞回执形态');
+        expect(strict.notes.join('\n')).toContain('阻塞回执形态');
+        expect(PI_AGENT_TOOLS).toEqual(['read', 'write', 'edit', 'bash', 'grep', 'find', 'ls']);
+    });
+
+    it('Pi degraded 产物显式声明本地执行、不伪装委派完成', () => {
+        const section = renderHostOrchestrationSection(
+            negotiateCapabilities('pi', 'degraded', ['skill-load', 'argument-passing']),
+            'workflow'
+        );
+        expect(section).toContain('degraded');
+        expect(section).toContain('MUST NOT 把本地串行执行标记为委派完成');
+        expect(section).not.toContain('经 Skill 工具委派');
     });
 });

@@ -189,11 +189,11 @@ describe('A4 白名单委派面与正文一致', () => {
     /** 独立调用不生成 / 不委派该技能 */
     const WITHOUT_REQUIREMENT_DOC = ['iagent_spec_propose', 'iagent_spec_verify_proposal'];
 
-    it('验证阶段、归档侧与 debug 桥含 Skill(requirement_doc) 且正文确提及', () => {
+    it('验证阶段、归档侧与 debug 桥含 canonical Skill(iagent-requirement-doc) 且正文确提及', () => {
         for (const name of WITH_REQUIREMENT_DOC) {
-            // 白名单条目取自 skillDelegation() 的本地技能名（裸名，不含 iagent_ 前缀）
+            // 白名单条目为 canonical 宿主技能 ID（入参裸名由 skillDelegation() 归一化）
             expect(entries(name), `${name} 白名单缺少需求文档委派条目`).toContain(
-                'Skill(requirement_doc)'
+                'Skill(iagent-requirement-doc)'
             );
             // 授权委派的前提是正文确有委派动作，避免幽灵授权
             expect(instructions(name), `${name} 正文未提及被委派技能`).toContain(
@@ -205,23 +205,24 @@ describe('A4 白名单委派面与正文一致', () => {
     it('spec-propose 与独立 verifier 不含该委派条目', () => {
         for (const name of WITHOUT_REQUIREMENT_DOC) {
             expect(entries(name), `${name} 白名单残留需求文档委派条目`).not.toContain(
-                'Skill(requirement_doc)'
+                'Skill(iagent-requirement-doc)'
             );
         }
     });
 
     it('全部技能的 Skill(...) 条目均在正文有对应提及（无死条目）', () => {
-        const registeredNames = new Set(skills.map((s) => s.template.name));
+        const registeredNames = new Set(
+            skills.map((s) => s.template.name.replace(/^iagent_/, 'iagent-').replaceAll('_', '-'))
+        );
         for (const { template, commandId } of skills) {
             const delegated = entries(template.name)
                 .filter((entry) => entry.startsWith('Skill('))
                 .map((entry) => entry.slice('Skill('.length, -1));
             for (const name of delegated) {
-                expect(registeredNames, `${commandId} 委派了未注册技能 iagent_${name}`).toContain(
-                    `iagent_${name}`
-                );
-                expect(template.instructions, `${commandId} 正文未提及被委派技能 iagent_${name}`).toContain(
-                    `iagent_${name}`
+                expect(registeredNames, `${commandId} 委派了未注册技能 ${name}`).toContain(name);
+                const internalName = `iagent_${name.slice('iagent-'.length).replaceAll('-', '_')}`;
+                expect(template.instructions, `${commandId} 正文未提及被委派技能 ${internalName}`).toContain(
+                    internalName
                 );
             }
         }
@@ -394,8 +395,8 @@ describe('A9 spec-propose 独立调用不生成需求文档', () => {
         expect(body).not.toMatch(/收束 —— 需求文档桥/);
     });
 
-    it('白名单与派生指令均无 Skill(requirement_doc)', () => {
-        expect(entries('iagent_spec_propose')).not.toContain('Skill(requirement_doc)');
+    it('白名单与派生指令均无 Skill(iagent-requirement-doc)', () => {
+        expect(entries('iagent_spec_propose')).not.toContain('Skill(iagent-requirement-doc)');
         const derived = commandContent('spec-propose');
         expect(derived).toContain('独立调用在验证 PASS 后停止');
         expect(derived).not.toMatch(/生成\s*\/\s*跳过桥（⚠️/);

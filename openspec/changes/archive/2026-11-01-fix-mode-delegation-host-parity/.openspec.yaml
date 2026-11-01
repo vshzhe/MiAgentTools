@@ -1,0 +1,3 @@
+schema: spec-driven
+created: 2026-11-01
+goal: "审计并优化技能间委托 mode 在四宿主 x UI/CLI/headless 表面的调用与确认逻辑"

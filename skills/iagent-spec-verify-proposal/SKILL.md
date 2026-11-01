@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:4f98b0da7b8d1ecb4a4fce02c959bd0b77e193edb1c4e5828c343b645959040d"
+  generatedFingerprint: "sha256:97fe14ef0f56bc01d084258308edf62e2a86f3f2e053c21fa0d9256278ef4554"
 ---
 
 **验证前先阅读 .iagent/rules/coding-rules.md 中的验证标准。**
@@ -20,7 +20,7 @@ metadata:
 ## 门白名单与 MUST NOT 确认清单
 
 **必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
-- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation / requirement-doc-bridge（可按条件豁免）
 - **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
 - **实现 + 测试桥**：implementation-bridge（不可豁免）
 - **归档桥**：archive-confirmation（不可豁免）

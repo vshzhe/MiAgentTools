@@ -1,14 +1,14 @@
 ---
 name: iagent-migration
 description: "一站式自动化功能迁移（auto migration / 功能迁移）：经 feature_doc 蒸馏源项目 + 用户确认核心功能清单 → 加载目标项目编码规范 → 生成标准 OpenSpec 变更提案 → 实现门后按规范实现 → 独立复查代理交叉核对源/目标功能并产出报告 + P0/P1 修复循环（via iagent_migration_check）。当用户要把源项目的功能或模块自动迁移到当前（目标）项目时使用；触发词\"功能迁移 / auto migration / 迁移功能 / 源项目迁移\"；NOT for 单独的源项目扫描（用 iagent_feature_doc）或单独迁移后对比（用 iagent_migration_check）。"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(feature_doc), Skill(migration_check), Agent, Task
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(iagent-feature-doc), Skill(iagent-migration-check), Agent, Task
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）；CLI 缺失时降级为 AI 内联生成（CLI-degraded generation）。
 metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:9e6c33789f701a47cd222162c693f2356d5b3f0d021827f5c0b660dfdd55d814"
+  generatedFingerprint: "sha256:8dce3cfb3fb69032c0de08c69f428fbe52d9a6ad04dda72198032e1cfb0a9b1d"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
@@ -30,7 +30,7 @@ metadata:
 ## 门白名单与 MUST NOT 确认清单
 
 **必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
-- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation / requirement-doc-bridge（可按条件豁免）
 - **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
 - **实现 + 测试桥**：implementation-bridge（不可豁免）
 - **归档桥**：archive-confirmation（不可豁免）

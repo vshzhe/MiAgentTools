@@ -145,6 +145,11 @@ export function buildProgram(): Command {
                     console.log(`    ! ${warning}`);
                 }
             }
+            if (result.hostDiagnostics.length > 0) {
+                for (const diagnostic of result.hostDiagnostics) {
+                    console.log(`  ${diagnostic}`);
+                }
+            }
             if (result.openCodeProject?.warnings.length) {
                 for (const warning of result.openCodeProject.warnings) {
                     console.log(`  ! ${warning}`);
@@ -273,6 +278,11 @@ export function buildProgram(): Command {
                 }
                 for (const warning of result.piNative.warnings) {
                     console.log(`    ! ${warning}`);
+                }
+            }
+            if (result.hostDiagnostics.length > 0) {
+                for (const diagnostic of result.hostDiagnostics) {
+                    console.log(`  ${diagnostic}`);
                 }
             }
             if (result.openCodeProject?.warnings.length) {

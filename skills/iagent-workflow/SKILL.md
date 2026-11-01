@@ -1,14 +1,14 @@
 ---
 name: iagent-workflow
 description: "一站式引导工作流：从探索到归档。创建持久化探索文件，追问澄清直至明确（grill-with-docs、L1-L5 逐级门），委派制品生成（iagent_spec_propose），自动验证，再委派实现（iagent_spec_apply）与归档（iagent_spec_archive），阶段间以确认桥衔接。当用户需要带追问（grill-with-docs）问答与自动质量验证的引导式端到端管道时使用；触发词\"一站式引导工作流 / guided workflow / workflow from exploration / 引导式全流程\"；NOT for 全自动无门管道（改用 iagent_auto_workflow）、单一阶段探索（改用 iagent_spec_explore）或调试（改用 iagent_debug）。"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(git:*), Bash(ls:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_explore), Skill(spec_propose), Skill(spec_verify_proposal), Skill(proposal_review), Skill(requirement_doc), Skill(spec_apply), Skill(spec_verify), Skill(test), Skill(spec_archive), Agent, Task
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(git:*), Bash(ls:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(iagent-spec-explore), Skill(iagent-spec-propose), Skill(iagent-spec-verify-proposal), Skill(iagent-proposal-review), Skill(iagent-requirement-doc), Skill(iagent-spec-apply), Skill(iagent-spec-verify), Skill(iagent-test), Skill(iagent-spec-archive), Agent, Task
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）与阶段技能（iagent_spec_apply / iagent_spec_archive，条件 iagent_test）；CLI 缺失时探索/提案降级为 AI 内联生成（CLI-degraded generation）。
 metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:efe89781acec2cf2754bdaf9780ab2488be7769af60cb876f897eae8324a104b"
+  generatedFingerprint: "sha256:0ad0e2b4c40488d13b1bf5e0ff65e4e6a4a13dbbca9dd26ab16f34f62b791dcd"
 ---
 
 
@@ -40,7 +40,7 @@ metadata:
 ## 门白名单与 MUST NOT 确认清单
 
 **必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
-- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation / requirement-doc-bridge（可按条件豁免）
 - **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
 - **实现 + 测试桥**：implementation-bridge（不可豁免）
 - **归档桥**：archive-confirmation（不可豁免）
@@ -187,7 +187,7 @@ mcp__codegraph__codegraph_impact --symbol <symbol> --direction upstream --maxDep
 **⚠️ 复杂度评估与生成方式选择已从 Phase 2 移除。**
 
 Phase 2.0 影响面分析完成（或跳过）后：
-- 直接进入 Phase 2.3：委派 iagent_spec_propose（mode=delegated + exploration-file）完成迁移与制品生成
+- 直接进入 Phase 2.3：委派 iagent_spec_propose（`mode=delegated` + exploration-file）完成迁移与制品生成
 - 不要计算复杂度评分，也不要展示生成方式选项
 - 逐步式创建在本工作流之外仍可用（通过 iagent spec new）
 
@@ -237,7 +237,8 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 **⚠️ Phase 3.7 实现桥确认后本阶段立即开始 —— 不停顿、不宣告、不向用户提问。** MUST NOT 再输出对该技能的调用确认询问（确认已由 3.7 桥承载）。
 
 **委派 `iagent_spec_apply` 技能**执行实现：
-- 传入 change-name + `auto-mode=true`（跳过 apply 内部的设计确认门——确认已由 Phase 3.7 实现桥承载，避免重复确认）
+- 传入 change-name + `gate-skip=design-confirmation`（门承载参数：跳过 apply 内部的设计确认门——确认已由 Phase 3.7 实现桥承载，避免重复确认；`auto-mode=true` 为兼容等价写法）
+- 该参数**仅**跳过设计确认门；测试执行门、范围蔓延确认与共享资源协议照常生效
 - apply 内部完成：分层代码生成（Entity/DTO → Mapper/DAO → Service → Controller）、tasks.md 勾选更新、编译检查
 - 后端架构规则由 apply 按 `.iagent/rules/coding-rules.md` 自行处理，workflow 不干预
 
@@ -458,7 +459,7 @@ All artifacts ready! Proceeding to the Phase 4 implementation bridge...
 - **MUST 先校验文件再迁移** - Phase 2 检查点为强制项
 - **MUST 在迁移失败时保留源文件** - 绝不丢失用户数据
 - **MUST NOT 提供生成方式选择** - Phase 2 直接进入委派的 spec_propose 生成（复杂度评估与方式选择已移除）
-- **MUST 委派制品生成** - Phase 2.3 委派 `iagent_spec_propose`（mode=delegated + exploration-file）生成制品；MUST NOT 内联生成提案制品
+- **MUST 委派制品生成** - Phase 2.3 委派 `iagent_spec_propose`（`mode=delegated` + exploration-file）生成制品；MUST NOT 内联生成提案制品
 - **先探索代码库** - 提问前先确认代码库是否已能回答该问题
 - **必须给出建议** - 每个问题都附带 AI 的建议
 - **实时更新文件** - 每轮交流后写入探索文件
@@ -472,7 +473,7 @@ All artifacts ready! Proceeding to the Phase 4 implementation bridge...
 - **FAIL 不出文档桥** - 验证失败或重验循环中 MUST NOT 生成需求文档、MUST NOT 展示生成/跳过桥
 - **文档状态跨阶段传递** - 桥结果（`generated` / `skipped-by-user` / `generation-failed` / `absent`）持久化于变更探索文件并经 apply 传至 archive；archive 以文件存在优先、状态裁决缺失分支，不因新会话退回兼容生成
 - **对委派执行退出守卫** - 委派的阶段子技能（spec_apply / spec_archive / test）完成后 MUST NOT 自行进入 plan 模式 / 设计模式或推进阶段；workflow 是唯一有权判定阶段完成并推进下一阶段（桥梁）的角色
-- **向 apply 传 auto-mode** - Phase 4 向 spec_apply 传 auto-mode=true，由 Phase 3.7 实现桥承载确认，避免 apply 内部设计确认门重复
+- **向 apply 传门承载参数** - Phase 4 向 spec_apply 传 `gate-skip=design-confirmation`（兼容写法 `auto-mode=true`），由 Phase 3.7 实现桥承载确认；仅跳过设计确认门，其余门与停点照常生效
 - **向 archive 传 change-name** - Phase 5 向 spec_archive 传 change-name 跳过选择
 - **条件委派测试** - tasks.md 含 `[测试]` 任务时委派 iagent_test；测试计划已在 Phase 3.7 实现 + 测试桥一次确认，MUST NOT 再设独立门
 

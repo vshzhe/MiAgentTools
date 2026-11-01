@@ -1,14 +1,14 @@
 ---
 name: iagent-project-init
 description: "初始化项目。当用户要创建新项目、搭建目录结构、生成配置文件、初始化知识文档或准备开发环境时使用；触发词\"初始化项目 / project init / 搭建项目 / 生成配置\"；NOT for 扫描源项目功能模块（改用 iagent_feature_doc）。"
-allowed-tools: Bash(ls:*), Bash(pwd:*), Read, Write, Glob, Grep, Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(feature_doc)
+allowed-tools: Bash(ls:*), Bash(pwd:*), Read, Write, Glob, Grep, Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(iagent-feature-doc)
 license: MIT
 compatibility: 无特殊依赖，通用环境可用。CodeGraph 索引与文档能力技能均为可选增强，缺失时自动降级。
 metadata:
   author: mi-agent-tools
   type: init
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:ad1d85c145f82d92d20b4c3272f59ed260cfa767543f7165e3d91c5074f231d0"
+  generatedFingerprint: "sha256:326e348ca62af8e75a331d368dfee9027c90686adef8a7d76ff8d7dd38590dfc"
 ---
 
 初始化项目 —— 读扫描基线 → 五类语义扫描 → 逐份确认 → 落盘 → 回写 context → 蒸馏规则。

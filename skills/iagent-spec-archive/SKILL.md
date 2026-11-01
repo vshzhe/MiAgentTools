@@ -1,14 +1,14 @@
 ---
 name: iagent-spec-archive
 description: "归档变更。当用户要归档已实现完成的变更、结束变更工作流时使用；触发词\"归档 / archive / 结束变更\"；NOT for 一次归档多个变更（改用 iagent_spec_bulk_archive）。"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(ls:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(requirement_doc)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(ls:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(iagent-requirement-doc)
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）与 CodeGraph CLI（可选）。
 metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:6cf0c2b743745afd8a3fcf90f245c7f036de9d314ffc133a5db5e225132d3837"
+  generatedFingerprint: "sha256:a03b7075fe22caea52a8f2dcce9af6df87245799139880b2644c6cf2c972d684"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
@@ -20,7 +20,7 @@ metadata:
 ## 门白名单与 MUST NOT 确认清单
 
 **必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
-- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation / requirement-doc-bridge（可按条件豁免）
 - **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
 - **实现 + 测试桥**：implementation-bridge（不可豁免）
 - **归档桥**：archive-confirmation（不可豁免）

@@ -5,6 +5,12 @@ import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
 import { SUBAGENT_DISPATCH, skillDelegation } from '../tool-whitelist.js';
 import { renderGateWhitelistSection } from '../prompt-gate.js';
+import {
+    GATE_SKIP_IDS,
+    LEGACY_AUTO_MODE_PARAM,
+    renderDelegationModeContract,
+    renderGateSkipOption,
+} from '../../host-orchestration/delegation-contract.js';
 
 const BATCH_SCHEDULING_FULL = `6. **实现任务（批调度循环，直至完成或被阻塞）**
 
@@ -77,7 +83,7 @@ const BATCH_SCHEDULING_FULL = `6. **实现任务（批调度循环，直至完�
 
    - 临时工作区不可写时：先降级到系统临时目录（\`iagent-pipeline-<change-name>/\`，既有的降级位置）；若仍失败，按下方降级
    - handoff 包无法产出，或项目没有 \`.iagent/rules/coding-rules.md\` 时：降级为既有内联注入行为并记录 WARN —— MUST NOT 阻塞实现。降级只会让指令更长，绝不会丢弃护栏
-   - \`auto-mode=true\` 只跳过 Step 5.5 设计确认门 —— 共享资源协议 MUST NOT 因 auto-mode 而豁免，仍然适用
+   - \`${renderGateSkipOption(GATE_SKIP_IDS)}\`（门承载参数；\`${LEGACY_AUTO_MODE_PARAM}=true\` 为兼容等价写法）只跳过 Step 5.5 设计确认门 —— 共享资源协议 MUST NOT 因该参数而豁免，仍然适用
 
    **环境降级（无子代理能力）：**
    - 若运行时未提供子代理派发工具（Task/Agent 一类工具），降级为由你串行实现全部任务，并告知用户已降级
@@ -140,7 +146,9 @@ export function getSpecApplyChangeSkillTemplate(): SkillTemplate {
 
 ${renderGateWhitelistSection()}
 
-**Input**: 可选指定变更名；省略时检查能否从对话上下文推断。若含糊或有歧义，MUST 提示可用变更供用户选择。工作流也可能传入 \`auto-mode=true\` 以跳过设计确认门，实现自动执行。
+**Input**: 可选指定变更名；省略时检查能否从对话上下文推断。若含糊或有歧义，MUST 提示可用变更供用户选择。工作流可传入 \`${renderGateSkipOption(GATE_SKIP_IDS)}\` 以跳过设计确认门，实现自动执行（\`${LEGACY_AUTO_MODE_PARAM}=true\` 为同语义的兼容写法；两者都**只**跳过设计确认门）。
+
+${renderDelegationModeContract()}
 
 **Steps**
 
@@ -218,7 +226,7 @@ ${renderGateWhitelistSection()}
 
    读完上下文文件后、实现任何任务前，先构建统一并发批计划、展示设计方案摘要，并等待用户确认：
 
-   **auto-mode 检查**：若 apply 以 \`auto-mode=true\` 调用（来自 workflow 自动 apply 上下文），跳过整个 Step 5.5 确认门 —— 直接进入 Step 6（批调度）。批计划仍在内部构建用于执行，但不向用户展示。
+   **门承载参数检查**：若 apply 以 \`${renderGateSkipOption(GATE_SKIP_IDS)}\` 调用（兼容写法 \`${LEGACY_AUTO_MODE_PARAM}=true\`；来自 workflow / auto-workflow 自动 apply 上下文），跳过整个 Step 5.5 确认门 —— 直接进入 Step 6（批调度）。批计划仍在内部构建用于执行，但不向用户展示。该参数**仅**作用于本门，其余门与停点照常生效。
 
    **先构建统一并发批计划：**
    - iagent CLI 不返回 \`batchPlan\` —— 需从 design.md 推断所有任务的依赖（架构分层、模块依赖）；无依赖标注的任务视为同组内相互独立
@@ -263,11 +271,11 @@ ${renderGateWhitelistSection()}
 
    - 若用户回复 **"确认"**：一次确认覆盖**全部**批 —— 进入 Step 6 开始批调度
    - 若用户回复 **"修改设计"** 或 **"取消"**：STOP 并等待设计更新（不实现任何任务）
-   - **auto-mode 覆盖**：\`auto-mode=true\` 时整道门被跳过 —— 不展示蓝图，直接进入 Step 6。未设置 auto-mode 或其为 false 时**不能**跳过本门。
-   - 本门**不能**跳过 —— 未经显式确认不得继续（除非 auto-mode 生效）
+   - **门承载参数覆盖**：\`${renderGateSkipOption(GATE_SKIP_IDS)}\`（兼容写法 \`${LEGACY_AUTO_MODE_PARAM}=true\`）时整道门被跳过 —— 不展示蓝图，直接进入 Step 6。未设置该参数或其为 false 时**不能**跳过本门。
+   - 本门**不能**跳过 —— 未经显式确认不得继续（除非门承载参数生效）
 
    **临时工作区协议（流程级，由主代理管理）：**
-   - 用户确认设计后（或 auto-mode 生效时）、派发任何批**之前**，创建流程级临时工作区 —— **优先项目内**：项目根下的 \`.openspec-tmp/pipeline-<change-name>/\`（路径用 path.join 构建以保证跨平台）。若项目 \`.gitignore\` 中尚无 \`.openspec-tmp/\` 条目则补上，使该工作区不会污染 git status；清理后保留该条目供后续运行使用。若项目根不可写，降级到系统临时目录 \`iagent-pipeline-<change-name>/\` 并记录 WARN 说明降级位置
+   - 用户确认设计后（或门承载参数生效时）、派发任何批**之前**，创建流程级临时工作区 —— **优先项目内**：项目根下的 \`.openspec-tmp/pipeline-<change-name>/\`（路径用 path.join 构建以保证跨平台）。若项目 \`.gitignore\` 中尚无 \`.openspec-tmp/\` 条目则补上，使该工作区不会污染 git status；清理后保留该条目供后续运行使用。若项目根不可写，降级到系统临时目录 \`iagent-pipeline-<change-name>/\` 并记录 WARN 说明降级位置
    - 流程内产生的所有临时文件（handoff 包、编译校验脚本、临时配置、草稿输出）MUST 放在该工作区内 —— 不得把临时文件散落到项目目录各处
    - 工作区是**流程级**（不是 apply 级）：流程开始时创建一次、流程结束时清理一次 —— 不得按任务或按批创建/删除临时目录
 

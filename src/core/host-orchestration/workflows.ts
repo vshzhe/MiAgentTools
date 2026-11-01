@@ -10,6 +10,7 @@ import {
     DEFAULT_RECEIPT_FIELDS,
     GATE_WHITELIST,
     GATE_WHITELIST_ANCHORS,
+    type GateSpec,
     type GateWhitelistId,
     type PhaseSpec,
     type WorkflowProtocol,
@@ -59,6 +60,25 @@ const VERIFY_PHASE: PhaseSpec = {
     retry: { maxAttempts: 2, on: ['score-below-threshold'] },
 };
 
+/**
+ * 需求文档桥门（唯一取值锚定在 `requirement-clarification` 白名单类别内，5 类不变）。
+ *
+ * 属可条件豁免类别：阶段 MUST NOT 因此把 `gate` 加入 `requiredCapabilities`，
+ * 否则 headless 下会先以缺失能力阻断，与门兜底矩阵冲突。
+ */
+const DOC_BRIDGE_GATE: GateSpec = { id: 'requirement-doc-bridge', blocking: true };
+
+/**
+ * 带需求文档桥的验证阶段（workflow / auto-workflow 共用）。
+ *
+ * 两编排链的模板正文本就声明「验证阶段收束于需求文档桥」，协议此前缺失该门 →
+ * 协议与模板漂移；此处补齐，MUST NOT 改变 `GateSpec` 形状与条件门语义。
+ */
+const VERIFY_WITH_BRIDGE: PhaseSpec = {
+    ...VERIFY_PHASE,
+    gate: DOC_BRIDGE_GATE,
+};
+
 /** 实现阶段 */
 const APPLY_PHASE: PhaseSpec = {
     id: 'apply',
@@ -78,6 +98,29 @@ const ARCHIVE_PHASE: PhaseSpec = {
     handoff: ['archivePath', 'specsSynced', 'requirementDocAligned'],
     receipt: RECEIPT,
     gate: { id: 'archive-confirmation', blocking: true },
+    retry: { maxAttempts: 2, on: ['sync-failed'] },
+};
+
+/**
+ * auto-workflow 专用实现阶段：模板声明 Phase 4 除已完成的需求文档桥外无用户确认，
+ * 故 MUST NOT 声明阻塞门（与 `APPLY_PHASE` 的差异仅在于无门）。
+ */
+const AUTO_APPLY_PHASE: PhaseSpec = {
+    id: 'apply',
+    input: { required: ['changeName'], optional: ['autoMode', 'requirementDocStatus'] },
+    requiredCapabilities: ['delegate', 'receipt', 'state'],
+    handoff: ['tasksCompleted', 'compileResult', 'receipts', 'requirementDocStatus'],
+    receipt: RECEIPT,
+    retry: { maxAttempts: 3, on: ['compile-failed', 'test-failed'] },
+};
+
+/** auto-workflow 专用归档阶段：模板声明自动归档无用户确认，MUST NOT 声明阻塞门 */
+const AUTO_ARCHIVE_PHASE: PhaseSpec = {
+    id: 'archive',
+    input: { required: ['changeName'], optional: ['requirementDocStatus'] },
+    requiredCapabilities: ['delegate', 'receipt', 'state'],
+    handoff: ['archivePath', 'specsSynced', 'requirementDocAligned'],
+    receipt: RECEIPT,
     retry: { maxAttempts: 2, on: ['sync-failed'] },
 };
 
@@ -113,6 +156,8 @@ const DEBUG_VERIFY_CLOSE: PhaseSpec = {
     requiredCapabilities: ['skill-load', 'delegate', 'receipt', 'state'],
     handoff: ['verificationResult', 'deepReview', 'requirementDocStatus', 'archiveReady'],
     receipt: STATUS_RECEIPT,
+    // 模板 7.3 已含「需求文档桥（⛔ GATE 业务门，强制）」；协议补齐同一门（阶段门预算仍为 1）
+    gate: DOC_BRIDGE_GATE,
     retry: { maxAttempts: 2, on: ['score-below-threshold'] },
 };
 
@@ -141,11 +186,12 @@ const MIGRATION_CHECK: PhaseSpec = {
 export const WORKFLOW_PROTOCOLS: Readonly<Record<string, WorkflowProtocol>> = {
     workflow: {
         workflowId: 'workflow',
-        phases: [EXPLORE_PHASE, PROPOSE_PHASE, VERIFY_PHASE, APPLY_PHASE, ARCHIVE_PHASE],
+        phases: [EXPLORE_PHASE, PROPOSE_PHASE, VERIFY_WITH_BRIDGE, APPLY_PHASE, ARCHIVE_PHASE],
     },
     'auto-workflow': {
         workflowId: 'auto-workflow',
-        phases: [EXPLORE_PHASE, PROPOSE_PHASE, VERIFY_PHASE, APPLY_PHASE, ARCHIVE_PHASE],
+        // 自动管线：APPLY / ARCHIVE 无阻塞门；VERIFY 的唯一阻塞门是需求文档桥
+        phases: [EXPLORE_PHASE, PROPOSE_PHASE, VERIFY_WITH_BRIDGE, AUTO_APPLY_PHASE, AUTO_ARCHIVE_PHASE],
     },
     debug: {
         workflowId: 'debug',
@@ -165,8 +211,9 @@ export function getWorkflowProtocol(workflowId: string): WorkflowProtocol | unde
 /**
  * 阶段门 id → 白名单类别（锚点映射）。
  *
- * `diagnostic-confirmation` / `fix-option-confirmation` 挂在**需求澄清**类别下
- * （调试的诊断结论与修复方案选择都属「需求 / 方案歧义」），其余阶段门各自挂同名类别。
+ * `diagnostic-confirmation` / `fix-option-confirmation` / `requirement-doc-bridge`
+ * 挂在**需求澄清**类别下（调试的诊断结论与修复方案选择、以及「是否生成评审用需求文档」
+ * 的交付范围选择都属「需求 / 方案歧义」），其余阶段门各自挂同名类别。
  * 该映射只用于可校验对齐，MUST NOT 被理解为新增阶段门。
  */
 export const PHASE_GATE_CATEGORY: Readonly<Record<string, GateWhitelistId>> = {
@@ -175,6 +222,7 @@ export const PHASE_GATE_CATEGORY: Readonly<Record<string, GateWhitelistId>> = {
     'archive-confirmation': 'archive-confirmation',
     'diagnostic-confirmation': 'requirement-clarification',
     'fix-option-confirmation': 'requirement-clarification',
+    'requirement-doc-bridge': 'requirement-clarification',
 };
 
 /**

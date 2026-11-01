@@ -7,6 +7,14 @@ import { buildPromptGateBlock, buildPromptGateCompact, GATE_PROTOCOL_PREAMBLE, r
 import { buildFlowchartBlock, buildFlowchartCompact, REQUIREMENT_FLOW_COLUMNS } from '../flowchart-gate.js';
 import { CODEGRAPH_CLI, CODEGRAPH_MCP } from '../tool-whitelist.js';
 import { renderCodegraphProbeOrder } from '../codegraph-protocol.js';
+import {
+    LEGACY_AUTO_MODE_PARAM,
+    renderDelegationModeContract,
+    renderDelegationModeOption,
+    renderDelegationModeOptions,
+    renderGateSkipOption,
+    GATE_SKIP_IDS,
+} from '../../host-orchestration/delegation-contract.js';
 
 /** 需求维度的提示词校验门紧凑版（技能正文内联）；全文细则见 references/prompt-gate.md */
 const PROMPT_GATE = buildPromptGateCompact(REQUIREMENT_DIMENSIONS);
@@ -1215,6 +1223,10 @@ export function getSpecExploreSkillTemplate(): SkillTemplate {
 - 对比："这个场景用 postgres 还是 sqlite"
 - 什么都不带（仅进入探索模式）
 
+**委托模式（delegation mode）**：编排器可传 \`${renderDelegationModeOptions()}\` 与 \`${renderGateSkipOption(GATE_SKIP_IDS)}\`。\`delegated\` 模式执行强制检查点体系并输出**结构化回执**（\`phase\` / \`status\` / 产物位置 / 下一步允许动作 / 失败原因），MUST NOT 自行进入提案或实现；\`interactive\`（默认）保持下方立场式设计不变。\`${LEGACY_AUTO_MODE_PARAM}=true\` 仅等价于门承载轴，MUST NOT 视为 \`${renderDelegationModeOption('delegated')}\` 的别名。
+
+${renderDelegationModeContract()}
+
 ${GATE_PROTOCOL_PREAMBLE}
 
 ${renderGateWhitelistSection()}
@@ -1269,7 +1281,7 @@ ${FLOWCHART}
 
 ## 强制检查点体系（delegated 模式）
 
-**delegated 模式**（编排器传入 \`mode=delegated\`）SHALL 执行强制检查点体系（不可跳过）：调用即强制创建探索文件 → 提示词校验门 → CONTEXT.md 检查 → CodeGraph 基础扫描（含多项目派发与深度分析）→ L1-L5 grill 追问 → 功能流程图与流程最终确认门 → 聚合一致性门 → 探索完成检测。**完整协议见 \`references/exploration-protocol.md\`——执行 delegated 探索前 MUST 先 \`Read\` 该文件并逐步执行。**
+**delegated 模式**（编排器传入 \`${renderDelegationModeOption('delegated')}\`）SHALL 执行强制检查点体系（不可跳过）：调用即强制创建探索文件 → 提示词校验门 → CONTEXT.md 检查 → CodeGraph 基础扫描（含多项目派发与深度分析）→ L1-L5 grill 追问 → 功能流程图与流程最终确认门 → 聚合一致性门 → 探索完成检测。**完整协议见 \`references/exploration-protocol.md\`——执行 delegated 探索前 MUST 先 \`Read\` 该文件并逐步执行。**
 
 （interactive 模式保持立场式，不强制上述序列。）
 

@@ -83,13 +83,13 @@ MiAgentTools 是 AI Agent 技能生成与管理 CLI，按技能类型生成 `iag
 | 层 | 内容 | 约束 |
 | :--- | :--- | :--- |
 | 只读检索 | `Read` / `Glob` / `Grep` | 按正文实际使用，不无差别补齐 |
-| 调用类 | CodeGraph MCP、`Skill(<裸名>)`、`Agent, Task` | 见四条硬规则 |
+| 调用类 | CodeGraph MCP、`Skill(iagent-<workflowId>)`、`Agent, Task` | 见四条硬规则 |
 | 技能专有 | `Bash(...)` / `Write` / `Edit` | 只增不减地维持现状，不扩大 |
 
 四条硬规则：
 
 1. **MCP 双写**：使用 CodeGraph 的技能同时写入裸服务器形式 `mcp__codegraph` 与 9 个具名工具条目。
-2. **委派逐技能枚举**：技能间委派写 `Skill(<裸名>)` 精确条目（裸名 = 技能名去掉 `iagent_` 前缀），**禁用** `Skill(*)`。
+2. **委派逐技能枚举**：技能间委派写 `Skill(iagent-<workflowId>)` 精确条目（入参为裸名 `spec_apply` / `spec-apply`，由 `skillDelegation()` 统一归一化为 canonical 宿主技能 ID；裸名与下划线形态都是永不放行的死条目），**禁用** `Skill(*)`。
 3. **派发按实放行**：仅正文确有派发子代理的技能写 `Agent, Task`（新旧工具名双写）。
 4. **指令白名单派生自配对技能**：斜杠指令的白名单与其配对技能**完全一致**，不硬编码。
 

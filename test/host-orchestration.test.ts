@@ -8,6 +8,7 @@ import {
     CAPABILITY_ORDER,
     CONDITIONAL_DELEGATIONS,
     DEFAULT_RECEIPT_FIELDS,
+    DELEGATION_PARAMETERS,
     GATE_CONDITION_IDS,
     GATE_WHITELIST,
     GATE_WHITELIST_ANCHORS,
@@ -17,17 +18,21 @@ import {
     PERSISTED_REQUIREMENT_DOC_STATUSES,
     REQUIREMENT_DOC_STATUS_FIELD,
     REQUIREMENT_DOC_STATUS_IO_ATTEMPTS,
+    SURFACE_IDS,
     TRANSITION_BLOCKERS,
     WORKFLOW_PROTOCOLS,
-    auditGateWhitelistAlignment,
-    getWorkflowProtocol,
-    normalizeRequirementDocStatus,
-    protocolDeclaresCapabilities,
     adaptSkillContentForHost,
+    auditGateWhitelistAlignment,
+    deriveOrchestrationDelegations,
     evaluatePhaseTransition,
+    getWorkflowProtocol,
     isOrchestratingWorkflow,
     negotiateCapabilities,
+    negotiationForHost,
+    normalizeRequirementDocStatus,
+    parseDelegationTargets,
     phaseCapabilitiesSatisfied,
+    protocolDeclaresCapabilities,
     renderDelegate,
     renderDelegationList,
     renderHostOrchestrationSection,
@@ -104,8 +109,13 @@ describe('宿主能力协商', () => {
 });
 
 describe('工作流协议实例声明阶段能力', () => {
-    it('每个编排工作流都有协议实例且阶段声明了必需能力、输入与回执', () => {
-        for (const workflowId of ORCHESTRATING_WORKFLOW_IDS) {
+    it('每个声明协议的编排工作流都有协议实例且阶段声明了必需能力、输入与回执', () => {
+        const withProtocol = ORCHESTRATING_WORKFLOW_IDS.filter(
+            (workflowId) => getWorkflowProtocol(workflowId) !== undefined
+        );
+        // 派生注入面覆盖 9 个委派技能，其中 4 个是编排工作流（其余是阶段技能）
+        expect(withProtocol.sort()).toEqual(['auto-workflow', 'debug', 'migration', 'workflow']);
+        for (const workflowId of withProtocol) {
             const protocol = getWorkflowProtocol(workflowId);
             expect(protocol, `缺少协议实例：${workflowId}`).toBeDefined();
             expect(protocol!.phases.length).toBeGreaterThan(0);
@@ -568,10 +578,10 @@ describe('已授权技能直接推进与宿主委派同步（4.4）', () => {
             ]) {
                 expect(delegations, `${workflowId} 委派清单缺少 ${target}`).toContain(target);
             }
-            // 委派清单与白名单同一真源（模板 allowedTools 的 Skill(...) 条目）
+            // 委派清单与白名单同一真源（模板 allowedTools 的 canonical Skill(...) 条目）
             const { template } = getSkillTemplates(undefined, [workflowId])[0];
-            const allowedTargets = [...template.allowedTools.matchAll(/Skill\(([a-z_]+)\)/g)]
-                .map((match) => match[1].replaceAll('_', '-'))
+            const allowedTargets = [...template.allowedTools.matchAll(/Skill\(([a-z0-9-]+)\)/g)]
+                .map((match) => match[1].replace(/^iagent-/, ''))
                 .sort();
             expect([...delegations].sort(), `${workflowId} 委派清单与白名单不一致`).toEqual(
                 allowedTargets
@@ -637,5 +647,304 @@ describe('4.7 确认门白名单与协议门清单对齐', () => {
             condition: 'multiple-fix-options',
         });
         expect(GATE_CONDITION_IDS).toContain('multiple-fix-options');
+    });
+});
+
+// 变更 fix-mode-delegation-host-parity / 任务 3.6：派生注入、codex、委派参数、surface 协商。
+describe('3.6 编排注入面派生与四宿主产物', () => {
+    const skills = getSkillTemplates();
+
+    it('派生结果覆盖既有 9 个委派技能，且与模板 Skill(...) 一一对应', () => {
+        const derived = deriveOrchestrationDelegations(
+            skills.map(({ template, commandId }) => ({
+                commandId,
+                allowedTools: template.allowedTools,
+            }))
+        );
+        expect(derived.workflowIds.sort()).toEqual([
+            'auto-workflow',
+            'debug',
+            'migration',
+            'project-init',
+            'spec-apply',
+            'spec-archive',
+            'spec-bulk-archive',
+            'spec-propose',
+            'workflow',
+        ]);
+        for (const { template, commandId } of skills) {
+            const targets = parseDelegationTargets(template.allowedTools);
+            if (targets.length === 0) {
+                continue;
+            }
+            expect(derived.delegations[commandId], `${commandId} 派生目标不一致`).toEqual(targets);
+        }
+        // project-init 派生后成为编排技能（委派 feature-doc）
+        expect(derived.delegations['project-init']).toEqual(['feature-doc']);
+    });
+
+    it('有委派即注入、无委派不注入', () => {
+        const negotiation = negotiateCapabilities('claude', 'strict');
+        const injected = adaptSkillContentForHost('# body', negotiation, 'spec-apply');
+        expect(injected).toContain('宿主编排适配（生成期注入）');
+        expect(injected).toContain('阶段委派（宿主原生）');
+        expect(injected).toContain('iagent-test');
+
+        const notInjected = adaptSkillContentForHost('# body', negotiation, 'commit');
+        expect(notInjected).not.toContain('宿主编排适配');
+        expect(isOrchestratingWorkflow('project-init')).toBe(true);
+        expect(isOrchestratingWorkflow('commit')).toBe(false);
+    });
+
+    it('委派清单携带参数且取值来自显式参数表（未声明不填充）', () => {
+        const list = renderDelegationList(
+            'claude',
+            'strict',
+            ['spec-explore', 'spec-propose', 'spec-apply', 'spec-verify'],
+            DELEGATION_PARAMETERS.workflow
+        );
+        expect(list).toContain('iagent-spec-explore`（mode=delegated）');
+        expect(list).toContain('iagent-spec-propose`（mode=delegated）');
+        expect(list).toContain('iagent-spec-apply`（gate-skip=design-confirmation）');
+        // 参数表未声明的目标不凭空填充
+        expect(list).toContain('- 经 Skill 工具委派 `iagent-spec-verify`');
+        expect(list).not.toContain('iagent-spec-verify`（');
+
+        const noParams = renderDelegationList('claude', 'strict', ['spec-apply']);
+        expect(noParams).not.toContain('mode=');
+        expect(noParams).not.toContain('gate-skip=');
+    });
+
+    it('codex 协商返回 degraded 且不返回 null', () => {
+        const codex = negotiationForHost('codex');
+        expect(codex).not.toBeNull();
+        expect(codex!.mode).toBe('degraded');
+        expect(codex!.missing).toContain('delegate');
+        expect(codex!.missing).toContain('gate');
+        expect(codex!.native.delegation).toContain('无');
+    });
+
+    it('codex 产物显式声明本地执行、不构成委派', () => {
+        const section = adaptSkillContentForHost('# wf', negotiationForHost('codex')!, 'workflow');
+        expect(section).toContain('不构成委派');
+        expect(section).toContain('skills-only');
+        expect(section).not.toContain('经 Skill 工具委派');
+
+        const delegate = renderDelegate('codex', 'degraded', { workflowId: 'spec-apply' });
+        expect(delegate).toContain('不构成委派');
+        expect(delegate).not.toContain('经 Skill 工具委派');
+        expect(delegate).not.toContain('subagent_type');
+    });
+
+    it('surface 维度区分 gate 可用性，其余能力不受影响', () => {
+        for (const host of ['claude', 'opencode', 'pi'] as const) {
+            const ui = negotiateCapabilities(host, host === 'pi' ? 'degraded' : 'strict', {
+                surface: 'interactive-ui',
+            });
+            const cli = negotiateCapabilities(host, host === 'pi' ? 'degraded' : 'strict', {
+                surface: 'interactive-cli',
+            });
+            const headless = negotiateCapabilities(host, host === 'pi' ? 'degraded' : 'strict', {
+                surface: 'headless',
+            });
+            expect(cli.available).toEqual(ui.available);
+            expect(headless.available).not.toContain('gate');
+            expect(headless.missing).toContain('gate');
+            expect(headless.notes.join('\n')).toContain('headless');
+            // 其余能力（此处以 skill-load 为代表）不受 surface 影响
+            expect(headless.available.includes('skill-load')).toBe(
+                ui.available.includes('skill-load')
+            );
+        }
+        expect(SURFACE_IDS).toEqual(['interactive-ui', 'interactive-cli', 'headless']);
+    });
+
+    it('OpenCode V2 委派措辞使用 subagent，不使用 Claude 专属机制', () => {
+        const delegate = renderDelegate('opencode', 'strict', { workflowId: 'spec-apply' });
+        expect(delegate).toContain('subagent');
+        expect(delegate).toContain('iagent-spec-apply');
+        expect(delegate).not.toContain('经 Skill 工具');
+    });
+});
+
+// 变更 fix-mode-delegation-host-parity / 任务 3.7：协议门对齐 + 交互表面回归。
+describe('3.7 协议门与白名单对齐 + surface 门兜底', () => {
+    const receipt = (phase: string) => ({
+        phase,
+        status: 'ok',
+        artifact: 'artifact.md',
+        nextAllowed: 'next',
+    });
+
+    it('auto-workflow 的 APPLY / ARCHIVE 无阻塞门，VERIFY 声明文档桥门', () => {
+        const auto = getWorkflowProtocol('auto-workflow')!;
+        for (const phaseId of ['apply', 'archive']) {
+            const phase = auto.phases.find((item) => item.id === phaseId)!;
+            expect(phase.gate, `auto-workflow/${phaseId} 不应声明阻塞门`).toBeUndefined();
+        }
+        const verify = auto.phases.find((phase) => phase.id === 'verify')!;
+        expect(verify.gate?.id).toBe('requirement-doc-bridge');
+        expect(verify.gate?.blocking).toBe(true);
+        // 新增门不把 gate 加入 requiredCapabilities（headless 兜底的前提）
+        expect(verify.requiredCapabilities).not.toContain('gate');
+    });
+
+    it('workflow verify 与 debug verify-close 同声明文档桥门', () => {
+        for (const [workflowId, phaseId] of [
+            ['workflow', 'verify'],
+            ['debug', 'verify-close'],
+        ] as const) {
+            const phase = getWorkflowProtocol(workflowId)!.phases.find((item) => item.id === phaseId)!;
+            expect(phase.gate?.id).toBe('requirement-doc-bridge');
+            expect(phase.requiredCapabilities).not.toContain('gate');
+        }
+        // debug verify-close 阻塞门数量仍为 1
+        const close = getWorkflowProtocol('debug')!.phases.find((phase) => phase.id === 'verify-close')!;
+        expect([close.gate].filter(Boolean)).toHaveLength(1);
+    });
+
+    it('白名单仍为 5 类，且 requirement-doc-bridge 挂在需求澄清类别下', () => {
+        expect(GATE_WHITELIST).toHaveLength(5);
+        const clarification = GATE_WHITELIST.find((entry) => entry.id === 'requirement-clarification')!;
+        expect(clarification.anchors).toContain('requirement-doc-bridge');
+        expect(PHASE_GATE_CATEGORY['requirement-doc-bridge']).toBe('requirement-clarification');
+        expect(auditGateWhitelistAlignment()).toEqual([]);
+    });
+
+    it('每个阶段门均有类别映射且类别锚点包含该门', () => {
+        for (const [workflowId, protocol] of Object.entries(WORKFLOW_PROTOCOLS)) {
+            for (const phase of protocol.phases) {
+                if (!phase.gate) {
+                    continue;
+                }
+                const category = PHASE_GATE_CATEGORY[phase.gate.id];
+                expect(category, `${workflowId}/${phase.id} 缺类别映射`).toBeDefined();
+                const entry = GATE_WHITELIST.find((item) => item.id === category)!;
+                expect(entry.anchors, `${workflowId}/${phase.id} 门未挂在其类别锚点`).toContain(
+                    phase.gate.id
+                );
+            }
+        }
+    });
+
+    it('每阶段至多 1 个阻塞门（门预算不变）', () => {
+        for (const [workflowId, protocol] of Object.entries(WORKFLOW_PROTOCOLS)) {
+            for (const phase of protocol.phases) {
+                const blocking = [phase.gate].filter(
+                    (gate) => gate !== undefined && (gate.blocking ?? true)
+                );
+                expect(blocking.length, `${workflowId}/${phase.id} 超过门预算`).toBeLessThanOrEqual(1);
+            }
+        }
+    });
+
+    it('headless 条件门记录决策并继续并记 WARN', () => {
+        const phase = {
+            id: 'clarify',
+            requiredCapabilities: [] as const,
+            handoff: ['x'],
+            receipt: { fields: DEFAULT_RECEIPT_FIELDS },
+            gate: { id: 'diagnostic-confirmation', blocking: true },
+        };
+        const result = evaluatePhaseTransition({
+            phase,
+            receipt: receipt('clarify'),
+            gateConfirmed: false,
+            negotiation: negotiateCapabilities('claude', 'strict', { surface: 'headless' }),
+        });
+        expect(result.advance).toBe(true);
+        expect(result.blockedBy).not.toContain(TRANSITION_BLOCKERS.gate);
+        expect(result.warnings.join('\n')).toContain('条件门');
+        expect(result.warnings.join('\n')).toContain('WARN');
+    });
+
+    it('headless 不可豁免门以 blocked 回执中止并报告缺少交互式确认', () => {
+        const phase = {
+            id: 'implement',
+            requiredCapabilities: [] as const,
+            handoff: ['x'],
+            receipt: { fields: DEFAULT_RECEIPT_FIELDS },
+            gate: { id: 'implementation-bridge', blocking: true },
+        };
+        const result = evaluatePhaseTransition({
+            phase,
+            receipt: receipt('implement'),
+            gateConfirmed: false,
+            negotiation: negotiateCapabilities('claude', 'strict', { surface: 'headless' }),
+        });
+        expect(result.advance).toBe(false);
+        expect(result.blockedBy).toContain(TRANSITION_BLOCKERS.gate);
+        expect(result.warnings.join('\n')).toContain('缺少交互式确认能力');
+    });
+
+    it('交互表面保持既有判定（未确认即阻塞）', () => {
+        for (const surface of ['interactive-ui', 'interactive-cli'] as const) {
+            const phase = {
+                id: 'clarify',
+                requiredCapabilities: [] as const,
+                handoff: ['x'],
+                receipt: { fields: DEFAULT_RECEIPT_FIELDS },
+                gate: { id: 'diagnostic-confirmation', blocking: true },
+            };
+            const result = evaluatePhaseTransition({
+                phase,
+                receipt: receipt('clarify'),
+                gateConfirmed: false,
+                negotiation: negotiateCapabilities('claude', 'strict', { surface }),
+            });
+            expect(result.advance, `${surface} 不应放行未确认门`).toBe(false);
+            expect(result.blockedBy).toContain(TRANSITION_BLOCKERS.gate);
+        }
+    });
+});
+
+// 修复轮（verify residual）：degraded 产物不得自相矛盾（委派语句按本地执行覆盖）。
+describe('degraded 产物的委派语句覆盖声明', () => {
+    const degradedNegotiations = () => [
+        negotiationForHost('codex')!,
+        negotiateCapabilities('pi', 'degraded', ['skill-load', 'argument-passing']),
+    ];
+
+    it('degraded 段追加覆盖声明，且直接推进句改为本地执行', () => {
+        for (const negotiation of degradedNegotiations()) {
+            const section = renderHostOrchestrationSection(negotiation, 'workflow');
+            expect(section).toContain('degraded 覆盖声明');
+            expect(section).toContain('不构成委派');
+            expect(section).toContain('本地执行');
+            // 不得再宣称「SHALL 直接委派」（与不存在委派机制的宿主矛盾）
+            expect(section).not.toContain('SHALL 直接委派');
+        }
+    });
+
+    it('strict 段保持直接委派且无覆盖声明', () => {
+        const section = renderHostOrchestrationSection(
+            negotiateCapabilities('claude', 'strict'),
+            'workflow'
+        );
+        expect(section).toContain('SHALL 直接委派');
+        expect(section).not.toContain('degraded 覆盖声明');
+    });
+
+    it('codex 生成产物（adapt）含覆盖声明且不含 Claude 专属委派指令', () => {
+        const content = adaptSkillContentForHost('# wf', negotiationForHost('codex')!, 'workflow');
+        expect(content).toContain('degraded 覆盖声明');
+        expect(content).toContain('不构成委派');
+        expect(content).not.toContain('经 Skill 工具委派');
+    });
+});
+
+// 修复轮：参数表与模板正文同源同值（无第三处取值）。
+describe('DELEGATION_PARAMETERS 与模板正文一致', () => {
+    it('workflow / auto-workflow 的委派参数来自正文插值常量', () => {
+        for (const workflowId of ['workflow', 'auto-workflow']) {
+            const body = getSkillTemplates(undefined, [workflowId])[0].template.instructions;
+            expect(body).toContain('mode=delegated');
+            expect(body).toContain('gate-skip=design-confirmation');
+            // 参数表取值与正文取值一致
+            const params = DELEGATION_PARAMETERS[workflowId];
+            expect(params['spec-explore']).toEqual({ mode: 'delegated' });
+            expect(params['spec-propose']).toEqual({ mode: 'delegated' });
+            expect(params['spec-apply']).toEqual({ 'gate-skip': 'design-confirmation' });
+        }
     });
 });

@@ -10,7 +10,13 @@
  *   ③ 子代理派发（多项目扫描、批调度）。
  *
  * 本模块把这三类条目收敛为单点真源，避免在各模板中重复硬编码而产生第二份真源与漂移。
+ *
+ * 技能委派条目形态（变更 fix-mode-delegation-host-parity）：`Skill(iagent-<workflowId>)`
+ * —— 与技能目录名 / frontmatter `name`（`deriveSkillId`）逐字一致；入参仍为裸名
+ * （`spec_apply` / `spec-apply` 等价），由 `skillDelegation()` 统一归一化。
  */
+
+import { SKILL_ID_PREFIX } from '../skill-id.js';
 
 /**
  * CodeGraph MCP 条目：裸服务器形式 + 9 个具名工具，逗号分隔，共 10 条。
@@ -46,17 +52,44 @@ export const CODEGRAPH_CLI: string = 'Bash(codegraph:*)';
 export const SUBAGENT_DISPATCH: string = 'Agent, Task';
 
 /**
- * 生成技能委派的精确条目，产出 `Skill(a), Skill(b)` 形式（逗号 + 空格分隔）。
+ * 归一化被委派技能名为 **canonical 宿主技能 ID**（`iagent-<workflowId>`）。
  *
- * 技能名取**去掉 `iagent_` 前缀的裸名**（如 `spec_apply`、`feature_doc`），
- * 也**不带** `plugin:` 前缀 —— 即传 `iagent_spec_apply` 是错误的，会产出
- * `Skill(iagent_spec_apply)` 这一永不放行的死条目（测试按「`Skill(X)` 对应已注册技能
- * `iagent_X`」校验，会判为委派了未注册技能）。调用方 MUST NOT 使用星号通配
- * （授权面过宽属安全问题），MUST 逐技能显式列举。
+ * 入参接受裸名（`spec_apply` / `spec-apply`）或已带内部前缀的写法
+ * （`iagent_spec_apply` / `iagent-spec-apply`），统一收敛为 kebab-case
+ * canonical 形态 —— 与技能目录名及 SKILL.md frontmatter `name`（`deriveSkillId`
+ * 的结果）逐字一致。宿主按完整技能名匹配授权，裸名条目永不放行。
  *
- * @param names 被委派技能的**裸名**列表（不含 `iagent_` 前缀）
- * @returns 逗号 + 空格分隔的 `Skill(...)` 条目串；空数组返回空串
+ * @throws 空名 / 星号通配 / 非法字符（授权面过宽或死条目均属安全缺陷）
+ */
+export function normalizeDelegationSkillId(name: string): string {
+    const trimmed = name.trim();
+    if (trimmed === '') {
+        throw new Error('技能委派条目 MUST NOT 为空');
+    }
+    if (trimmed.includes('*')) {
+        throw new Error(`技能委派条目 MUST NOT 使用星号通配：${name}`);
+    }
+    const withoutPlugin = trimmed.startsWith('plugin:') ? trimmed.slice('plugin:'.length) : trimmed;
+    const bare = withoutPlugin.replace(/^iagent[_-]/, '');
+    if (!/^[a-z0-9]+(?:[_-][a-z0-9]+)*$/.test(bare)) {
+        throw new Error(`技能委派条目名称非法（需小写字母 / 数字 / 连字符）：${name}`);
+    }
+    return `${SKILL_ID_PREFIX}${bare.replaceAll('_', '-')}`;
+}
+
+/**
+ * 生成技能委派的精确条目，产出 `Skill(iagent-a), Skill(iagent-b)` 形式
+ * （逗号 + 空格分隔）。
+ *
+ * 技能名入参为**裸名**（`spec_apply` / `spec-apply` 等价）或已带前缀的写法，
+ * 内部统一归一化为 canonical `iagent-<workflowId>` —— 与宿主技能 ID 逐字一致，
+ * 宿主按完整技能名匹配授权。MUST NOT 产出裸名条目（永不放行），MUST NOT 双写
+ * 裸名与 canonical 两种形态（授权面翻倍且残留死条目），MUST NOT 使用星号通配
+ * （授权面过宽属安全问题）；调用方 MUST 逐技能显式列举。
+ *
+ * @param names 被委派技能的裸名列表（`spec_apply` / `spec-apply` 等价）
+ * @returns 逗号 + 空格分隔的 `Skill(iagent-...)` 条目串；空数组返回空串
  */
 export function skillDelegation(names: readonly string[]): string {
-    return names.map((name) => `Skill(${name})`).join(', ');
+    return names.map((name) => `Skill(${normalizeDelegationSkillId(name)})`).join(', ');
 }

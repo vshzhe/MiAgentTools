@@ -44,7 +44,9 @@ describe('调用类白名单条目经共享常量构造', () => {
 
     it('Skill(...) 条目可由 skillDelegation(...) 产出（顺序连续）', () => {
         for (const { template } of skills) {
-            const names = [...template.allowedTools.matchAll(/Skill\(([a-z_]+)\)/g)].map((m) => m[1]);
+            const names = [...template.allowedTools.matchAll(/Skill\(([a-zA-Z0-9:-]+)\)/g)].map(
+                (m) => m[1]
+            );
             if (names.length === 0) {
                 continue;
             }
@@ -110,7 +112,7 @@ describe('debug 文档与回归测试委派授权（4.5）', () => {
             .filter((entry) => entry.length > 0);
     }
 
-    it('使用共享 skillDelegation 生成精确裸名条目（按正文委派顺序连续）', () => {
+    it('使用共享 skillDelegation 生成精确 canonical 条目（按正文委派顺序连续）', () => {
         const expected = skillDelegation([
             'spec_verify_proposal',
             'proposal_review',
@@ -118,26 +120,31 @@ describe('debug 文档与回归测试委派授权（4.5）', () => {
             'test',
         ]);
         expect(debug.template.allowedTools).toContain(expected);
+        expect(expected).toBe(
+            'Skill(iagent-spec-verify-proposal), Skill(iagent-proposal-review), Skill(iagent-requirement-doc), Skill(iagent-test)'
+        );
     });
 
-    it('无带 iagent_ 前缀的死条目、无通配、条目均对应已注册技能', () => {
-        const registered = new Set(getSkillTemplates().map(({ template }) => template.name));
+    it('无裸名 / 下划线死条目、无通配、条目均对应已注册技能', () => {
+        const registered = new Set(
+            getSkillTemplates().map(({ template }) =>
+                template.name.replace(/^iagent_/, 'iagent-').replaceAll('_', '-')
+            )
+        );
         const entries = parseEntries(debug.template.allowedTools);
         const skillEntries = entries.filter((entry) => entry.startsWith('Skill('));
         expect(skillEntries).toEqual([
-            'Skill(spec_verify_proposal)',
-            'Skill(proposal_review)',
-            'Skill(requirement_doc)',
-            'Skill(test)',
+            'Skill(iagent-spec-verify-proposal)',
+            'Skill(iagent-proposal-review)',
+            'Skill(iagent-requirement-doc)',
+            'Skill(iagent-test)',
         ]);
         for (const entry of skillEntries) {
-            const bare = entry.slice('Skill('.length, -1);
-            expect(bare.startsWith('iagent_'), `${debug.template.name} 使用带前缀死条目 ${entry}`).toBe(
-                false
+            const canonical = entry.slice('Skill('.length, -1);
+            expect(canonical, `${debug.template.name} 使用非 canonical 死条目 ${entry}`).toMatch(
+                /^iagent-[a-z0-9]+(?:-[a-z0-9]+)*$/
             );
-            expect(registered, `${debug.template.name} 委派未注册技能 ${entry}`).toContain(
-                `iagent_${bare}`
-            );
+            expect(registered, `${debug.template.name} 委派未注册技能 ${entry}`).toContain(canonical);
         }
         expect(debug.template.allowedTools).not.toContain('Skill(*)');
     });

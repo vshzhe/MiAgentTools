@@ -18,7 +18,6 @@ import {
     getKnownCommandIds,
 } from '../src/core/templates/index.js';
 import { extractCommandRefIds, rewriteCommandRefs } from '../src/core/templates/command-references.js';
-import { SKILL_PREFIX } from '../src/core/config.js';
 import { resolveWorkflows } from '../src/core/profiles.js';
 
 /** 条件委派（模板内含"委派不可得→自行降级"路径）：不要求 DEPS 覆盖 */
@@ -79,14 +78,20 @@ describe('模板正文指令引用单一源与死引用校验', () => {
         expect(all.includes('/iagent:review-code')).toBe(false);
     });
 
-    it('Skill(...) 条目均对应已注册技能', () => {
-        const registered = new Set(skills.map((s) => s.template.name));
+    it('Skill(...) 条目均对应已注册技能（canonical 形态）', () => {
+        const registered = new Set(
+            skills.map((s) => s.template.name.replace(/^iagent_/, 'iagent-').replaceAll('_', '-'))
+        );
         const offenders: string[] = [];
         for (const { template } of skills) {
-            for (const m of template.allowedTools.matchAll(/Skill\(([a-z_]+)\)/g)) {
-                const skillName = `${SKILL_PREFIX}${m[1]}`;
-                if (!registered.has(skillName)) {
-                    offenders.push(`${template.name}: Skill(${m[1]}) → ${skillName} 未注册`);
+            for (const m of template.allowedTools.matchAll(/Skill\(([a-zA-Z0-9:-]+)\)/g)) {
+                const raw = m[1];
+                if (!/^iagent-[a-z0-9]+(?:-[a-z0-9]+)*$/.test(raw)) {
+                    offenders.push(`${template.name}: Skill(${raw}) 不是 canonical 形态`);
+                    continue;
+                }
+                if (!registered.has(raw)) {
+                    offenders.push(`${template.name}: Skill(${raw}) → 未注册`);
                 }
             }
         }
@@ -97,8 +102,8 @@ describe('模板正文指令引用单一源与死引用校验', () => {
         const offenders: string[] = [];
         for (const { template, commandId } of skills) {
             const conditional = new Set(CONDITIONAL_DELEGATIONS[template.name] ?? []);
-            const delegated = [...template.allowedTools.matchAll(/Skill\(([a-z_]+)\)/g)]
-                .map((m) => m[1].replaceAll('_', '-'))
+            const delegated = [...template.allowedTools.matchAll(/Skill\(([a-zA-Z0-9:-]+)\)/g)]
+                .map((m) => m[1].replace(/^iagent-/, ''))
                 .filter((id) => !conditional.has(id));
             if (delegated.length === 0) {
                 continue;
@@ -117,15 +122,15 @@ describe('模板正文指令引用单一源与死引用校验', () => {
         const bySkillName = new Map(
             getSkillTemplates().map(({ template }) => [template.name, template])
         );
-        // debug 的正文确实条件委派 test 与 requirement_doc
+        // debug 的正文确实条件委派 test 与 requirement_doc（白名单为 canonical 形态）
         const debugTools = bySkillName.get('iagent_debug')?.allowedTools ?? '';
         expect(CONDITIONAL_DELEGATIONS.iagent_debug).toContain('test');
-        expect(debugTools).toContain('Skill(test)');
-        expect(debugTools).toContain('Skill(requirement_doc)');
+        expect(debugTools).toContain('Skill(iagent-test)');
+        expect(debugTools).toContain('Skill(iagent-requirement-doc)');
         // spec-propose 独立调用不再委派需求文档技能（非目标收窄）
         expect(CONDITIONAL_DELEGATIONS.iagent_spec_propose).toBeUndefined();
         const proposeTools = bySkillName.get('iagent_spec_propose')?.allowedTools ?? '';
-        expect(proposeTools).not.toContain('Skill(requirement_doc)');
+        expect(proposeTools).not.toContain('Skill(iagent-requirement-doc)');
     });
 });
 

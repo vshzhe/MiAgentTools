@@ -10,14 +10,18 @@ import {
     OPENCODE_AGENTS_DIR,
     OPENCODE_CONFIG_FILE,
     ORCHESTRATOR_AGENT_ID,
+    collectShellPrefixes,
+    hasDispatchEntry,
     mergeOpenCodeProjectConfig,
     openCodeAgentId,
     renderOrchestratorAgent,
     renderWorkerAgent,
+    writeOpenCodeProjectArtifacts,
 } from '../src/core/opencode-v2.js';
 import { generateCommand, opencodeAdapter } from '../src/core/command-generation/index.js';
 import { runInit } from '../src/commands/init.js';
 import { ensureProjectConfig, writeWorkflowsToConfig } from '../src/core/project-config.js';
+import { getSkillTemplates } from '../src/core/templates/index.js';
 
 describe('OpenCode V2 指令元数据', () => {
     it('指令 frontmatter 含 agent 与 subagent，且不含 Claude 专有字段', () => {
@@ -203,5 +207,146 @@ describe('OpenCode V2 项目产物写入（init 端到端）', () => {
         expect(skill).toContain('阶段委派（宿主原生）');
         expect(skill).toContain('门：fix-option-confirmation（条件 multiple-fix-options）');
         expect(skill).not.toContain('Skill 工具委派');
+    });
+});
+
+// 变更 fix-mode-delegation-host-parity / 任务 4.2：权限翻译完整性（bash / worker 委派面 / 幂等）。
+describe('4.2 OpenCode 权限翻译完整性', () => {
+    const skills = getSkillTemplates();
+
+    function stageOf(commandId: string) {
+        const entry = skills.find((item) => item.commandId === commandId);
+        if (!entry) {
+            throw new Error(`技能模板缺失：${commandId}`);
+        }
+        return {
+            workflowId: entry.commandId,
+            description: entry.template.description,
+            allowedTools: entry.template.allowedTools,
+        };
+    }
+
+    it('shell 前缀由 Bash(<cmd>:*) 派生（命令 + 空格），不含全量放行', () => {
+        const prefixes = collectShellPrefixes([
+            'Read, Bash(codegraph:*), Bash(git:*)',
+            'Read, Bash(git:*)',
+            'Read',
+        ]);
+        expect(prefixes).toEqual(['codegraph ', 'git ']);
+        expect(prefixes).not.toContain('*');
+        expect(prefixes.some((prefix) => prefix.includes('*'))).toBe(false);
+    });
+
+    it('worker 的 skill 面覆盖自身与实际委派目标（spec-apply → iagent-test）', () => {
+        const md = renderWorkerAgent('spec-apply', '实现变更', {
+            skillIds: ['iagent-test'],
+        });
+        expect(md).toContain('resource: "iagent-spec-apply"');
+        expect(md).toContain('resource: "iagent-test"');
+    });
+
+    it('派发型 worker 获得 subagent，非派发型不获得', () => {
+        expect(hasDispatchEntry(stageOf('spec-apply').allowedTools)).toBe(true);
+        const dispatching = renderWorkerAgent('spec-apply', '实现变更', { grantSubagent: true });
+        expect(dispatching).toContain('action: subagent');
+        expect(dispatching).toContain('"iagent-*"');
+
+        const nonDispatch = renderWorkerAgent('spec-explore', '探索阶段', { grantSubagent: false });
+        expect(nonDispatch).not.toContain('action: subagent');
+    });
+
+    it('项目产物含 shell / worker 委派面，MCP 缺口进入诊断', () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-oc-parity-'));
+        try {
+            const result = writeOpenCodeProjectArtifacts(root, [
+                stageOf('spec-apply'),
+                stageOf('spec-explore'),
+            ]);
+            // MCP 缺口诊断（不生成猜测性规则）
+            expect(result.warnings.join('\n')).toContain('MCP 权限缺口');
+            expect(result.warnings.join('\n')).toContain('codegraph');
+
+            const config = JSON.parse(fs.readFileSync(path.join(root, OPENCODE_CONFIG_FILE), 'utf8'));
+            const rules = config.permissions as Array<{ action: string; resource: string; effect: string }>;
+            // bash 面不再缺失：按命令前缀派生
+            expect(rules).toContainEqual({ action: 'shell', resource: 'codegraph ', effect: 'allow' });
+            expect(rules).toContainEqual({ action: 'shell', resource: 'git ', effect: 'allow' });
+            expect(rules.some((rule) => rule.action === 'shell' && rule.resource === '*')).toBe(false);
+            expect(rules.some((rule) => rule.resource === 'bash *')).toBe(false);
+            // 项目级 skill 覆盖委派目标
+            expect(rules).toContainEqual({
+                action: 'skill',
+                resource: 'iagent-test',
+                effect: 'allow',
+            });
+
+            const worker = fs.readFileSync(
+                path.join(root, OPENCODE_AGENTS_DIR, `${openCodeAgentId('spec-apply')}.md`),
+                'utf8'
+            );
+            expect(worker).toContain('resource: "iagent-test"');
+            expect(worker).toContain('action: subagent');
+            expect(worker).toContain('action: shell');
+            expect(worker).toContain('resource: "pnpm "');
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('连续两次生成规则集合一致（幂等）且用户规则保留', () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-oc-idem-'));
+        try {
+            fs.mkdirSync(path.join(root, '.opencode'), { recursive: true });
+            fs.writeFileSync(
+                path.join(root, OPENCODE_CONFIG_FILE),
+                JSON.stringify({
+                    model: 'anthropic/claude-sonnet-4-5',
+                    permissions: [
+                        { action: 'shell', resource: 'git push ', effect: 'deny' },
+                        { action: 'skill', resource: 'user-skill', effect: 'allow' },
+                    ],
+                }),
+                'utf8'
+            );
+            const stages = [stageOf('spec-apply')];
+            writeOpenCodeProjectArtifacts(root, stages);
+            const first = JSON.parse(
+                fs.readFileSync(path.join(root, OPENCODE_CONFIG_FILE), 'utf8')
+            ).permissions as unknown[];
+            writeOpenCodeProjectArtifacts(root, stages);
+            const second = JSON.parse(
+                fs.readFileSync(path.join(root, OPENCODE_CONFIG_FILE), 'utf8')
+            ).permissions as unknown[];
+
+            expect(second).toEqual(first);
+            expect(second).toContainEqual({ action: 'shell', resource: 'git push ', effect: 'deny' });
+            expect(second).toContainEqual({ action: 'skill', resource: 'user-skill', effect: 'allow' });
+            // 无重复 iagent 规则
+            const iagentRules = second.filter(
+                (rule) =>
+                    (rule as { action?: string }).action === 'skill' ||
+                    (rule as { action?: string }).action === 'subagent' ||
+                    (rule as { action?: string }).action === 'shell'
+            );
+            expect(new Set(iagentRules.map((rule) => JSON.stringify(rule))).size).toBe(
+                iagentRules.length
+            );
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('合并 shell 规则时保留用户 deny（仅替换 allow 形态的 iagent 规则）', () => {
+        const existing = JSON.stringify({
+            permissions: [{ action: 'shell', resource: 'codegraph ', effect: 'deny' }],
+        });
+        const merged = mergeOpenCodeProjectConfig(existing, {
+            skillIds: [],
+            agentIds: [],
+            shellPrefixes: ['codegraph '],
+        });
+        const rules = JSON.parse(merged.content).permissions as unknown[];
+        expect(rules).toContainEqual({ action: 'shell', resource: 'codegraph ', effect: 'deny' });
+        expect(rules).toContainEqual({ action: 'shell', resource: 'codegraph ', effect: 'allow' });
     });
 });

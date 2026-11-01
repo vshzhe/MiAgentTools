@@ -1,14 +1,14 @@
 ---
 name: iagent-auto-workflow
 description: "一站式全自动工作流：探索→提案→验证→需求文档桥→自动实现→自动归档，L1-L5 用户确认后除验证阶段的需求文档桥外全自动；触发词\"全自动工作流 / auto workflow / fully automated pipeline\"。当用户需要完全自动化、无需手工 apply/archive 步骤的管道时使用；NOT for 交互式引导工作流（改用 iagent_workflow）。"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(mvn:*), Bash(gradle:*), Bash(ant:*), Bash(go:*), Bash(cargo:*), Bash(git:*), Bash(ls:*), Bash(mv:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(spec_explore), Skill(spec_propose), Skill(spec_verify_proposal), Skill(proposal_review), Skill(requirement_doc), Skill(spec_apply), Skill(spec_verify), Skill(test), Skill(spec_archive), Agent, Task
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(mvn:*), Bash(gradle:*), Bash(ant:*), Bash(go:*), Bash(cargo:*), Bash(git:*), Bash(ls:*), Bash(mv:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(iagent-spec-explore), Skill(iagent-spec-propose), Skill(iagent-spec-verify-proposal), Skill(iagent-proposal-review), Skill(iagent-requirement-doc), Skill(iagent-spec-apply), Skill(iagent-spec-verify), Skill(iagent-test), Skill(iagent-spec-archive), Agent, Task
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）与 spec 系列技能（iagent_spec_apply / iagent_spec_archive）；CLI 缺失时降级为 AI 内联生成。
 metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:0a732fbcd8ed5907ae8a72fe3258c71dcaa94e34c7f300d81755dffa6f4438bc"
+  generatedFingerprint: "sha256:968e6fffc4cd65af349a581efa1b136a8197501e92d104b0dbf4b3030b4676d1"
 ---
 
 
@@ -38,7 +38,7 @@ metadata:
 ## 门白名单与 MUST NOT 确认清单
 
 **必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
-- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation / requirement-doc-bridge（可按条件豁免）
 - **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
 - **实现 + 测试桥**：implementation-bridge（不可豁免）
 - **归档桥**：archive-confirmation（不可豁免）
@@ -126,7 +126,7 @@ Phase 2 的探索文件迁移与全部制品生成 SHALL 委派阶段 `iagent_sp
 ---
 ## Phase 4: Auto-Apply
 
-**Phase 4 在 Phase 3 需求文档桥收束后自动执行。除已完成的需求文档桥外，Phase 4 无其他用户确认 —— 实现以 auto-mode=true 运行，跳过设计确认门。**
+**Phase 4 在 Phase 3 需求文档桥收束后自动执行。除已完成的需求文档桥外，Phase 4 无其他用户确认 —— 实现以 `gate-skip=design-confirmation`（兼容写法 `auto-mode=true`）运行，仅跳过设计确认门。**
 
 **handoff 包（阶段入口）**：Phase 4 起始只读复用 `.openspec-tmp/pipeline-<change-name>/handoff-pack.md`（MUST NOT 重新蒸馏 proposal/specs/design 重产整包）；指纹不一致 → 重建并记 WARN；收尾时只向 `## 阶段结论` 追加一行（phase=apply）；MUST NOT 另立包格式。
 
@@ -136,15 +136,15 @@ Phase 2 的探索文件迁移与全部制品生成 SHALL 委派阶段 `iagent_sp
 - 宣告：明确标题「## Auto-Apply Phase」
 - 展示：「验证通过 —— 自动进入实现阶段」
 - 构造实现上下文，包含：
-  - `auto-mode=true` —— 跳过设计确认门（与 iagent_spec_apply 一致：Input 传 auto-mode=true；auto-mode 下跳过 Step 5.5 确认门，直接进入 Step 6 批次调度）
+  - `gate-skip=design-confirmation` —— 门承载参数，跳过设计确认门（与 iagent_spec_apply 一致：Input 传该参数后跳过 Step 5.5 确认门，直接进入 Step 6 批次调度；`auto-mode=true` 为兼容等价写法）
   - `change-name` —— 来自工作流上下文的当前变更名
-- **委派阶段**：以 `auto-mode=true` + `change-name` 调用 `iagent_spec_apply` skill；被委派技能完整承载 apply 协议
+- **委派阶段**：以 `gate-skip=design-confirmation` + `change-name` 调用 `iagent_spec_apply` skill；被委派技能完整承载 apply 协议
   - **handoff 包** —— 唯一必读制品 `.openspec-tmp/pipeline-<change-name>/handoff-pack.md`（六节 + 可选 `## 阶段结论`），一次性产出、跨阶段只读复用、逐批追加
   - **产出登记表** —— 包内 `## 已产出（跨单元可见）` 段，由协调器在每批之后追加
   - **最小回执** —— 固定四列回执 `<task id> | <status> | <output file> | <public signature>`，不粘贴代码正文
   - **共享指令前缀** —— 固定顺序「共享前缀（包路径 / 规范要点引用 / 回执格式 / 禁止项）→ 单元增量（任务清单）」
 - Phase 4 **MUST NOT 重复声明或内联 apply 协议正文** —— 该协议的单一源留在 `iagent_spec_apply`；本技能只做委派（MUST NOT 内联执行 apply 工作流逻辑，也 MUST NOT 自定一套调度指令格式，二者都会与单一源规则矛盾）
-- `auto-mode=true` **仅**跳过设计确认门 —— 共享资源协议继续生效（全自动语义 MUST NOT 免除它）
+- `gate-skip=design-confirmation` **仅**跳过设计确认门（`auto-mode=true` 为兼容写法）—— 共享资源协议继续生效（全自动语义 MUST NOT 免除它）
 - 全部实现任务由被委派技能按其既有批次调度自动完成
 
 ### 4.2 自动实现错误处理
@@ -225,7 +225,7 @@ Phase 4 继承 `iagent_spec_apply` 的**测试执行门**并**自动**通过 —
 - **只读操作直接执行** —— 文件读取、CodeGraph 查询与分析步骤（影响分析）无需用户确认即可运行
 - **只读直通不覆盖澄清门** —— grill L1-L5 需求澄清门仍等待用户确认
 - **自动验证** —— 提案后无需用户提示即自动验证
-- **验证通过后自动实现** —— Phase 4 以 auto-mode=true 自动执行（跳过 iagent_spec_apply Step 5.5 门）
+- **验证通过后自动实现** —— Phase 4 以 `gate-skip=design-confirmation` 自动执行（跳过 iagent_spec_apply Step 5.5 门；`auto-mode=true` 为兼容写法）
 - **实现完成后自动归档** —— Phase 5 自动执行，变更名与需求文档状态由上下文传入（遵循 iagent_spec_archive 技能模板）
 - **继承并自动通过测试执行门** —— Phase 4 执行 iagent_spec_apply §9 且仅限变更范围内；范围内失败自动重试至多 3 次，随后暂停并报告；既有的变更范围外失败仅 WARN；项目无测试框架 → WARN 并跳过
 - **测试门失败时不得静默通过** —— 范围内的测试门失败 MUST 在归档前暂停；全自动语义绝不构成跳过该门或跳过归档阻断的理由
@@ -246,6 +246,6 @@ Phase 4 继承 `iagent_spec_apply` 的**测试执行门**并**自动**通过 —
 - **注入能力记忆** —— Phase 1 在存在时读取 specs/<capability>/explorations.md
 - **用 CodeGraph 扫描其他项目** —— 探索上下文含其他项目路径时，派发子代理用 CodeGraph 的 projectPath 参数扫描；失败时降级为 Glob/Grep
 - **不丢失探索内容** —— 即使放弃探索文件也保留（除非被删除）
-- **MUST NOT 进入 plan 模式** —— 子代理完成分配任务后 MUST NOT 进入 plan 模式 / 设计模式 / 提出后续步骤；Phase 4 auto-mode 仅跳过设计确认门，MUST NOT 免除退出守卫或共享资源协议
+- **MUST NOT 进入 plan 模式** —— 子代理完成分配任务后 MUST NOT 进入 plan 模式 / 设计模式 / 提出后续步骤；Phase 4 的门承载参数仅跳过设计确认门，MUST NOT 免除退出守卫或共享资源协议
 - **MUST FIRST 读取共享 handoff 包** —— 子代理 MUST 先读 `.openspec-tmp/pipeline-<change-name>/handoff-pack.md` 再做增量查询；MUST NOT 绕过包重读 proposal/specs/design 或重跑已覆盖的 CodeGraph 查询
 

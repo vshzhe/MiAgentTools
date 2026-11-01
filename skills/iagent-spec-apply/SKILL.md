@@ -1,14 +1,14 @@
 ---
 name: iagent-spec-apply
 description: "实现变更。当 openspec/changes/ 下已有变更制品（proposal/specs/design/tasks），需要基于规格驱动实现任务清单时使用；触发词\"实现变更 / apply / 执行任务 / 按规格实现\"；NOT for 无变更制品时直接描述需求（改用 iagent_workflow 引导生成制品后再实现）。"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(ant:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), Skill(test), Agent, Task
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(ant:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), Skill(iagent-test), Agent, Task
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）。
 metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:48946084eda8020e95cae330f9a4eea1c42672b61895432011bca33f887134be"
+  generatedFingerprint: "sha256:a3f573a561468ebb76e70789cc6b1510280a9cdbed4aaa610cd103ac89164365"
 ---
 
 **实现前先阅读 .iagent/rules/coding-rules.md 的 AI 编码护栏。** 禁止猜测数据库字段、API 参数或业务规则 —— 标 **[待确认]** 并询问用户。
@@ -18,7 +18,7 @@ metadata:
 ## 门白名单与 MUST NOT 确认清单
 
 **必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
-- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation / requirement-doc-bridge（可按条件豁免）
 - **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
 - **实现 + 测试桥**：implementation-bridge（不可豁免）
 - **归档桥**：archive-confirmation（不可豁免）
@@ -34,7 +34,14 @@ metadata:
 
 > 跨变更索引重建类动作已随索引能力退役（DEC-2），不构成任何门或动作。
 
-**Input**: 可选指定变更名；省略时检查能否从对话上下文推断。若含糊或有歧义，MUST 提示可用变更供用户选择。工作流也可能传入 `auto-mode=true` 以跳过设计确认门，实现自动执行。
+**Input**: 可选指定变更名；省略时检查能否从对话上下文推断。若含糊或有歧义，MUST 提示可用变更供用户选择。工作流可传入 `gate-skip=design-confirmation` 以跳过设计确认门，实现自动执行（`auto-mode=true` 为同语义的兼容写法；两者都**只**跳过设计确认门）。
+
+**委托模式契约（双轴正交，不可互换）**
+
+- 轴一 `mode`（执行归属；指“委托模式 delegation mode”，MUST NOT 与宿主原生 `mode` 字段混同）：`interactive` / `delegated`。`delegated` = 抑制结尾停点、抑制被委派技能自身验证、输出结构化回执、禁止「等待用户确认」停点；**不豁免任何业务确认门**。
+- 轴二 `gate-skip=<gate-id>`（门承载；概念轴名 `gate-policy` 不是参数键）：声明已由父级确认的门，当前取值 `design-confirmation`；未知 gate id 拒绝或忽略并记 WARN。
+- `auto-mode=true` **仅**映射到门承载轴（≡ `gate-skip=design-confirmation`），`mode` 保持调用方原值；MUST NOT 视为 `mode=delegated` 的等价别名。
+- 两轴正交：仅传 `mode=delegated` 时设计确认门等业务门照常触发；仅传 `gate-skip` 时停点与自验证照常生效。
 
 **Steps**
 
@@ -112,7 +119,7 @@ metadata:
 
    读完上下文文件后、实现任何任务前，先构建统一并发批计划、展示设计方案摘要，并等待用户确认：
 
-   **auto-mode 检查**：若 apply 以 `auto-mode=true` 调用（来自 workflow 自动 apply 上下文），跳过整个 Step 5.5 确认门 —— 直接进入 Step 6（批调度）。批计划仍在内部构建用于执行，但不向用户展示。
+   **门承载参数检查**：若 apply 以 `gate-skip=design-confirmation` 调用（兼容写法 `auto-mode=true`；来自 workflow / auto-workflow 自动 apply 上下文），跳过整个 Step 5.5 确认门 —— 直接进入 Step 6（批调度）。批计划仍在内部构建用于执行，但不向用户展示。该参数**仅**作用于本门，其余门与停点照常生效。
 
    **先构建统一并发批计划：**
    - iagent CLI 不返回 `batchPlan` —— 需从 design.md 推断所有任务的依赖（架构分层、模块依赖）；无依赖标注的任务视为同组内相互独立
@@ -157,11 +164,11 @@ metadata:
 
    - 若用户回复 **"确认"**：一次确认覆盖**全部**批 —— 进入 Step 6 开始批调度
    - 若用户回复 **"修改设计"** 或 **"取消"**：STOP 并等待设计更新（不实现任何任务）
-   - **auto-mode 覆盖**：`auto-mode=true` 时整道门被跳过 —— 不展示蓝图，直接进入 Step 6。未设置 auto-mode 或其为 false 时**不能**跳过本门。
-   - 本门**不能**跳过 —— 未经显式确认不得继续（除非 auto-mode 生效）
+   - **门承载参数覆盖**：`gate-skip=design-confirmation`（兼容写法 `auto-mode=true`）时整道门被跳过 —— 不展示蓝图，直接进入 Step 6。未设置该参数或其为 false 时**不能**跳过本门。
+   - 本门**不能**跳过 —— 未经显式确认不得继续（除非门承载参数生效）
 
    **临时工作区协议（流程级，由主代理管理）：**
-   - 用户确认设计后（或 auto-mode 生效时）、派发任何批**之前**，创建流程级临时工作区 —— **优先项目内**：项目根下的 `.openspec-tmp/pipeline-<change-name>/`（路径用 path.join 构建以保证跨平台）。若项目 `.gitignore` 中尚无 `.openspec-tmp/` 条目则补上，使该工作区不会污染 git status；清理后保留该条目供后续运行使用。若项目根不可写，降级到系统临时目录 `iagent-pipeline-<change-name>/` 并记录 WARN 说明降级位置
+   - 用户确认设计后（或门承载参数生效时）、派发任何批**之前**，创建流程级临时工作区 —— **优先项目内**：项目根下的 `.openspec-tmp/pipeline-<change-name>/`（路径用 path.join 构建以保证跨平台）。若项目 `.gitignore` 中尚无 `.openspec-tmp/` 条目则补上，使该工作区不会污染 git status；清理后保留该条目供后续运行使用。若项目根不可写，降级到系统临时目录 `iagent-pipeline-<change-name>/` 并记录 WARN 说明降级位置
    - 流程内产生的所有临时文件（handoff 包、编译校验脚本、临时配置、草稿输出）MUST 放在该工作区内 —— 不得把临时文件散落到项目目录各处
    - 工作区是**流程级**（不是 apply 级）：流程开始时创建一次、流程结束时清理一次 —— 不得按任务或按批创建/删除临时目录
 

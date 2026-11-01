@@ -41,6 +41,8 @@ export {
 export {
     HOST_PROFILES,
     PI_STRICT_PROFILE,
+    DEFAULT_SURFACE,
+    SURFACE_IDS,
     negotiateCapabilities,
     negotiationForHost,
     phaseCapabilitiesSatisfied,
@@ -48,17 +50,41 @@ export {
     type HostCapabilityProfile,
     type HostId,
     type NativeMechanisms,
+    type NegotiationOptions,
     type OrchestrationMode,
+    type SurfaceId,
 } from './hosts.js';
 
 export {
     CONDITIONAL_DELEGATIONS,
+    DELEGATION_PARAMETERS,
     ORCHESTRATING_WORKFLOW_IDS,
     ORCHESTRATION_DELEGATIONS,
     adaptSkillContentForHost,
+    defaultOrchestrationDelegations,
+    deriveOrchestrationDelegations,
     isOrchestratingWorkflow,
+    parseDelegationTargets,
     renderHostOrchestrationSection,
+    type OrchestrationDelegations,
+    type OrchestrationTemplateInput,
 } from './render.js';
+
+export {
+    DELEGATION_MODES,
+    DELEGATION_MODE_PARAM,
+    GATE_SKIP_IDS,
+    GATE_SKIP_PARAM,
+    LEGACY_AUTO_MODE_PARAM,
+    renderDelegationModeContract,
+    renderDelegationModeOption,
+    renderDelegationModeOptions,
+    renderGateSkipOption,
+    resolveDelegationContract,
+    type DelegationContract,
+    type DelegationMode,
+    type GateSkipId,
+} from './delegation-contract.js';
 
 export {
     renderDelegate,

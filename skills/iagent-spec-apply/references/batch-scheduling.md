@@ -69,7 +69,7 @@
 
    - 临时工作区不可写时：先降级到系统临时目录（`iagent-pipeline-<change-name>/`，既有的降级位置）；若仍失败，按下方降级
    - handoff 包无法产出，或项目没有 `.iagent/rules/coding-rules.md` 时：降级为既有内联注入行为并记录 WARN —— MUST NOT 阻塞实现。降级只会让指令更长，绝不会丢弃护栏
-   - `auto-mode=true` 只跳过 Step 5.5 设计确认门 —— 共享资源协议 MUST NOT 因 auto-mode 而豁免，仍然适用
+   - `gate-skip=design-confirmation`（门承载参数；`auto-mode=true` 为兼容等价写法）只跳过 Step 5.5 设计确认门 —— 共享资源协议 MUST NOT 因该参数而豁免，仍然适用
 
    **环境降级（无子代理能力）：**
    - 若运行时未提供子代理派发工具（Task/Agent 一类工具），降级为由你串行实现全部任务，并告知用户已降级

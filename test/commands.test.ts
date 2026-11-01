@@ -717,6 +717,26 @@ describe('工具选择持久化与旧位置清理', () => {
         }
     });
 
+    it('init/update 输出 codex degraded 诊断（skills-only，本地执行不构成委派）', () => {
+        const root = freshRoot();
+        try {
+            const initResult = runInit(root, { tools: 'codex' });
+            const initDiagnostics = initResult.hostDiagnostics.join('\n');
+            expect(initDiagnostics).toContain('Codex 编排：degraded');
+            expect(initDiagnostics).toContain('不构成委派');
+            expect(initDiagnostics).toContain('delegate');
+
+            const updateResult = runUpdate(root, { tools: 'codex' });
+            expect(updateResult.hostDiagnostics.join('\n')).toContain('Codex 编排：degraded');
+
+            // 未纳入 codex 时无该诊断
+            const claudeOnly = runInit(root, { tools: 'claude', force: true });
+            expect(claudeOnly.hostDiagnostics).toEqual([]);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
     it('init/update 清理早期错误位置 .pi/commands/iagent/ 且幂等', () => {
         const root = freshRoot();
         try {

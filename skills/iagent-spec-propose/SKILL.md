@@ -1,14 +1,14 @@
 ---
 name: iagent-spec-propose
 description: "创建变更提案。当用户要快速描述想构建的内容并一步生成包含设计、规格和任务的完整提案时使用；触发词\"提案 / propose / 创建变更 / 生成规格\"；NOT for 直接实现变更（改用 iagent_spec_apply）或一站式引导全流程（改用 iagent_workflow）。"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Skill(spec_verify_proposal), Agent, Task
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Skill(iagent-spec-verify-proposal), Agent, Task
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）与 CodeGraph MCP（可选）。
 metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:76a91ed4f90053983044ca24593002d73e1592cfd12d3983eb36ec331f49645d"
+  generatedFingerprint: "sha256:c9f45fd593f26ed6dfe80a9b1cf7118ddf7fef830b7b8fb2e43b77b3d16b2863"
 ---
 
 提出新变更 —— 一步创建变更并生成全部制品。
@@ -27,7 +27,14 @@ metadata:
 
 ---
 
-**Input**: 用户请求应包含变更名（kebab-case）或对想构建内容的描述。编排器可传 `mode=delegated`（委派执行模式）与 `exploration-file=<path>`：delegated 模式下**跳过 Step 0 的用户选择提示**（直接迁移 `exploration-file`）、**抑制结尾规划边界停点**、**抑制自身 Phase 3 验证**（由编排器的验证超集承担），并输出**结构化回执**。默认 `mode=interactive` 行为与既有完全一致（保留 Step 0 提示、自身 Phase 3、结尾停点）。`iagent_spec_apply` 既有的 `auto-mode=true` 为 `mode=delegated` 的等价别名。
+**Input**: 用户请求应包含变更名（kebab-case）或对想构建内容的描述。编排器可传 `mode=delegated`（委派执行模式）与 `exploration-file=<path>`：delegated 模式下**跳过 Step 0 的用户选择提示**（直接迁移 `exploration-file`）、**抑制结尾规划边界停点**、**抑制自身 Phase 3 验证**（由编排器的验证超集承担），并输出**结构化回执**。默认 `mode=interactive` 行为与既有完全一致（保留 Step 0 提示、自身 Phase 3、结尾停点）。`iagent_spec_apply` 的 `auto-mode=true` **仅**等价于门承载轴的 `gate-skip=design-confirmation`，**不是** `mode=delegated` 的等价别名（两轴不可互换）。
+
+**委托模式契约（双轴正交，不可互换）**
+
+- 轴一 `mode`（执行归属；指“委托模式 delegation mode”，MUST NOT 与宿主原生 `mode` 字段混同）：`interactive` / `delegated`。`delegated` = 抑制结尾停点、抑制被委派技能自身验证、输出结构化回执、禁止「等待用户确认」停点；**不豁免任何业务确认门**。
+- 轴二 `gate-skip=<gate-id>`（门承载；概念轴名 `gate-policy` 不是参数键）：声明已由父级确认的门，当前取值 `design-confirmation`；未知 gate id 拒绝或忽略并记 WARN。
+- `auto-mode=true` **仅**映射到门承载轴（≡ `gate-skip=design-confirmation`），`mode` 保持调用方原值；MUST NOT 视为 `mode=delegated` 的等价别名。
+- 两轴正交：仅传 `mode=delegated` 时设计确认门等业务门照常触发；仅传 `gate-skip` 时停点与自验证照常生效。
 
 ## ⛔ GATE PROTOCOL — ACTIVE
 
@@ -42,7 +49,7 @@ metadata:
 ## 门白名单与 MUST NOT 确认清单
 
 **必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
-- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation / requirement-doc-bridge（可按条件豁免）
 - **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
 - **实现 + 测试桥**：implementation-bridge（不可豁免）
 - **归档桥**：archive-confirmation（不可豁免）

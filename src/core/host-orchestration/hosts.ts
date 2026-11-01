@@ -11,10 +11,37 @@ import {
 } from './protocol.js';
 
 /** 宿主标识 */
-export type HostId = 'claude' | 'opencode' | 'pi';
+export type HostId = 'claude' | 'opencode' | 'pi' | 'codex';
 
 /** 编排运行模式 */
 export type OrchestrationMode = 'strict' | 'degraded';
+
+/**
+ * 运行表面（surface）：同一宿主在不同表面的 `gate` 可用性可不同。
+ *
+ * 生成期无法可靠判定运行表面（同一产物可能被 UI / CLI / `-p` 复用），
+ * 故 `iagent init` / `update` 以缺省 `interactive-cli` 协商，headless 由运行期
+ * 调用方（编排器 / 宿主运行时）传入（design D13）。
+ */
+export type SurfaceId = 'interactive-ui' | 'interactive-cli' | 'headless';
+
+/** 全部运行表面（展示与校验用） */
+export const SURFACE_IDS: readonly SurfaceId[] = [
+    'interactive-ui',
+    'interactive-cli',
+    'headless',
+];
+
+/** 缺省运行表面（生成期使用） */
+export const DEFAULT_SURFACE: SurfaceId = 'interactive-cli';
+
+/** 能力协商选项（第三形参的对象形态） */
+export interface NegotiationOptions {
+    /** 该运行时实际具备的能力（缺省用宿主档案） */
+    capabilitySet?: readonly CapabilityId[];
+    /** 运行表面（缺省 `interactive-cli`） */
+    surface?: SurfaceId;
+}
 
 /** 宿主原生机制映射（用于文档与适配器渲染） */
 export interface NativeMechanisms {
@@ -67,6 +94,16 @@ export const HOST_PROFILES: Readonly<Record<HostId, HostCapabilityProfile>> = {
         },
         precondition: '严格编排需安装 Pi Runtime Extension（默认 @tintinweb/pi-subagents）',
     },
+    codex: {
+        host: 'codex',
+        capabilities: ['skill-load', 'argument-passing'],
+        native: {
+            skillLoading: '读取 SKILL.md（skills-only，无宿主级技能调用工具）',
+            delegation: '无子代理 / 技能委派机制（skills-only）—— 阶段由当前 agent 本地执行，不构成委派',
+            gate: '无交互式确认门机制（skills-only）—— 门以阻塞回执形态上报',
+        },
+        precondition: 'Codex 为 skills-only 宿主；编排阶段按显式 degraded 路径本地执行',
+    },
 };
 
 /** Pi strict 档案：安装并通过能力检测后的完整能力 */
@@ -76,7 +113,8 @@ export const PI_STRICT_PROFILE: HostCapabilityProfile = {
     native: {
         skillLoading: '/skill:name 与 read SKILL.md',
         delegation: 'Runtime Extension 的 Agent / workflow 工具',
-        gate: 'Runtime Extension 的 workflow / gate 工具',
+        // 收窄声明：Pi 无与 Claude/OpenCode 等价的交互式门工具，门以阻塞回执形态上报
+        gate: '阻塞回执形态（非交互式门工具）：阶段以 status=blocked 回执上报未满足的门，由父级/用户在下一次交互中确认',
     },
     precondition: '已安装兼容的 Pi Runtime Extension',
 };
@@ -100,23 +138,43 @@ export interface CapabilityNegotiation {
  *
  * @param host - 宿主标识
  * @param mode - 期望模式（strict 缺能时由调用方决定是否降级）
- * @param capabilitySet - 该运行时实际具备的能力（Pi strict 由 Runtime 探测提供；缺省用基础档案）
+ * @param options - 该运行时实际具备的能力（位置化数组或选项对象）与运行表面
  */
 export function negotiateCapabilities(
     host: HostId,
     mode: OrchestrationMode,
-    capabilitySet?: readonly CapabilityId[]
+    options?: readonly CapabilityId[] | NegotiationOptions
 ): CapabilityNegotiation {
+    // 第三形参保持向后兼容：既有位置化能力数组调用不变；对象形态才携带 surface
+    const capabilitySet = Array.isArray(options)
+        ? options
+        : (options as NegotiationOptions | undefined)?.capabilitySet;
+    const surface =
+        options !== undefined && !Array.isArray(options)
+            ? ((options as NegotiationOptions).surface ?? DEFAULT_SURFACE)
+            : DEFAULT_SURFACE;
     const base = host === 'pi' && mode === 'strict' ? PI_STRICT_PROFILE : HOST_PROFILES[host];
     const available = new Set<CapabilityId>(capabilitySet ?? base.capabilities);
-    const missing = CAPABILITY_ORDER.filter((c) => !available.has(c));
     const notes: string[] = [];
+    // surface=headless：不可声称可交互 gate（条件门按门兜底矩阵记录并继续，不可豁免门以 blocked 回执中止）
+    if (surface === 'headless') {
+        available.delete('gate');
+        notes.push(
+            '运行表面为 headless：无法执行交互式确认门，`gate` 能力不可用（条件门记录决策并继续并记 WARN；不可豁免门 MUST 以 status=blocked 回执中止）'
+        );
+    }
+    const missing = CAPABILITY_ORDER.filter((c) => !available.has(c));
     if (mode === 'degraded' && missing.length > 0) {
         notes.push(`degraded 模式不提供：${missing.join(', ')}`);
         notes.push('本地执行 MUST NOT 被标记为委派完成、子代理回执或严格 gate 通过');
     }
     if (base.precondition) {
         notes.push(base.precondition);
+    }
+    if (host === 'pi' && mode === 'strict') {
+        notes.push(
+            'Pi strict 的 `gate` 为阻塞回执形态（非交互式门工具）：阶段以 status=blocked 回执上报未满足的门，MUST NOT 声称与 Claude/OpenCode 等价的交互式门'
+        );
     }
     return {
         host,
@@ -131,25 +189,34 @@ export function negotiateCapabilities(
 /**
  * 按目标工具解析编排能力协商。
  *
- * codex 为 skills-only 且无编排适配，返回 null（调用方跳过适配段注入）。
+ * codex 为 skills-only：返回**显式 degraded** 协商结果（非 null），调用方据此注入
+ * 「本地执行，不构成委派」的降级段 —— MUST NOT 静默跳过适配段。
  *
  * @param toolValue - 目标工具 id（claude / pi / codex / opencode）
  * @param piMode - Pi 编排模式（由 Pi 运行时探测给出；缺省按 degraded）
+ * @param surface - 运行表面（缺省 interactive-cli；headless 由运行期调用方传入）
  */
 export function negotiationForHost(
     toolValue: string,
-    piMode?: OrchestrationMode
+    piMode?: OrchestrationMode,
+    surface: SurfaceId = DEFAULT_SURFACE
 ): CapabilityNegotiation | null {
     if (toolValue === 'claude') {
-        return negotiateCapabilities('claude', 'strict');
+        return negotiateCapabilities('claude', 'strict', { surface });
     }
     if (toolValue === 'opencode') {
-        return negotiateCapabilities('opencode', 'strict');
+        return negotiateCapabilities('opencode', 'strict', { surface });
     }
     if (toolValue === 'pi') {
         return piMode === 'strict'
-            ? negotiateCapabilities('pi', 'strict')
-            : negotiateCapabilities('pi', 'degraded', ['skill-load', 'argument-passing']);
+            ? negotiateCapabilities('pi', 'strict', { surface })
+            : negotiateCapabilities('pi', 'degraded', {
+                  capabilitySet: ['skill-load', 'argument-passing'],
+                  surface,
+              });
+    }
+    if (toolValue === 'codex') {
+        return negotiateCapabilities('codex', 'degraded', { surface });
     }
     return null;
 }

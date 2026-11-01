@@ -6,6 +6,12 @@ import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
 import { GATE_PROTOCOL_PREAMBLE, renderGateWhitelistSection } from '../prompt-gate.js';
 import { CODEGRAPH_MCP, SUBAGENT_DISPATCH, skillDelegation } from '../tool-whitelist.js';
+import {
+    GATE_SKIP_IDS,
+    LEGACY_AUTO_MODE_PARAM,
+    renderDelegationModeOption,
+    renderGateSkipOption,
+} from '../../host-orchestration/delegation-contract.js';
 
 export function getAutoWorkflowSkillTemplate(): SkillTemplate {
     return {
@@ -32,7 +38,7 @@ ${renderGateWhitelistSection()}
 ---
 ## Phase 1: Exploration（委派 iagent_spec_explore）
 
-Phase 1 SHALL 委派阶段 \`iagent_spec_explore\`（传 \`mode=delegated\`）执行强制检查点体系探索（强制建探索文件、提示词校验门、CONTEXT.md 检查、CodeGraph 基础扫描含多项目派发与深度分析、L1-L5 grill 追问、功能流程图与流程最终确认门、聚合一致性门、探索完成检测），MUST NOT 内联执行探索逻辑。
+Phase 1 SHALL 委派阶段 \`iagent_spec_explore\`（传 \`${renderDelegationModeOption('delegated')}\`）执行强制检查点体系探索（强制建探索文件、提示词校验门、CONTEXT.md 检查、CodeGraph 基础扫描含多项目派发与深度分析、L1-L5 grill 追问、功能流程图与流程最终确认门、聚合一致性门、探索完成检测），MUST NOT 内联执行探索逻辑。
 
 委派完成后 SHALL 消费 \`iagent_spec_explore\` 输出的**结构化 handoff**（探索文件路径、提示词基线、流程基准确认状态、Pending 影响符号）并据此推进 Phase 2。
 
@@ -57,7 +63,7 @@ mcp__codegraph__codegraph_impact --symbol <symbol> --direction upstream
 
 ### 2.1 提案生成（委派 iagent_spec_propose）
 
-Phase 2 的探索文件迁移与全部制品生成 SHALL 委派阶段 \`iagent_spec_propose\`（传 \`mode=delegated\` + \`exploration-file=<Phase 1 探索文件路径>\`）完成，MUST NOT 内联生成提案制品。委派完成后再进入 Phase 3 自动验证。
+Phase 2 的探索文件迁移与全部制品生成 SHALL 委派阶段 \`iagent_spec_propose\`（传 \`${renderDelegationModeOption('delegated')}\` + \`exploration-file=<Phase 1 探索文件路径>\`）完成，MUST NOT 内联生成提案制品。委派完成后再进入 Phase 3 自动验证。
 
 **退出守卫**：被委派的 \`iagent_spec_propose\` 完成后 MUST NOT 自行进入实现；阶段推进主权归 \`iagent_auto_workflow\`。
 
@@ -101,7 +107,7 @@ Phase 2 的探索文件迁移与全部制品生成 SHALL 委派阶段 \`iagent_s
 ---
 ## Phase 4: Auto-Apply
 
-**Phase 4 在 Phase 3 需求文档桥收束后自动执行。除已完成的需求文档桥外，Phase 4 无其他用户确认 —— 实现以 auto-mode=true 运行，跳过设计确认门。**
+**Phase 4 在 Phase 3 需求文档桥收束后自动执行。除已完成的需求文档桥外，Phase 4 无其他用户确认 —— 实现以 \`${renderGateSkipOption(GATE_SKIP_IDS)}\`（兼容写法 \`${LEGACY_AUTO_MODE_PARAM}=true\`）运行，仅跳过设计确认门。**
 
 **handoff 包（阶段入口）**：Phase 4 起始只读复用 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\`（MUST NOT 重新蒸馏 proposal/specs/design 重产整包）；指纹不一致 → 重建并记 WARN；收尾时只向 \`## 阶段结论\` 追加一行（phase=apply）；MUST NOT 另立包格式。
 
@@ -111,15 +117,15 @@ Phase 2 的探索文件迁移与全部制品生成 SHALL 委派阶段 \`iagent_s
 - 宣告：明确标题「## Auto-Apply Phase」
 - 展示：「验证通过 —— 自动进入实现阶段」
 - 构造实现上下文，包含：
-  - \`auto-mode=true\` —— 跳过设计确认门（与 iagent_spec_apply 一致：Input 传 auto-mode=true；auto-mode 下跳过 Step 5.5 确认门，直接进入 Step 6 批次调度）
+  - \`${renderGateSkipOption(GATE_SKIP_IDS)}\` —— 门承载参数，跳过设计确认门（与 iagent_spec_apply 一致：Input 传该参数后跳过 Step 5.5 确认门，直接进入 Step 6 批次调度；\`${LEGACY_AUTO_MODE_PARAM}=true\` 为兼容等价写法）
   - \`change-name\` —— 来自工作流上下文的当前变更名
-- **委派阶段**：以 \`auto-mode=true\` + \`change-name\` 调用 \`iagent_spec_apply\` skill；被委派技能完整承载 apply 协议
+- **委派阶段**：以 \`${renderGateSkipOption(GATE_SKIP_IDS)}\` + \`change-name\` 调用 \`iagent_spec_apply\` skill；被委派技能完整承载 apply 协议
   - **handoff 包** —— 唯一必读制品 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\`（六节 + 可选 \`## 阶段结论\`），一次性产出、跨阶段只读复用、逐批追加
   - **产出登记表** —— 包内 \`## 已产出（跨单元可见）\` 段，由协调器在每批之后追加
   - **最小回执** —— 固定四列回执 \`<task id> | <status> | <output file> | <public signature>\`，不粘贴代码正文
   - **共享指令前缀** —— 固定顺序「共享前缀（包路径 / 规范要点引用 / 回执格式 / 禁止项）→ 单元增量（任务清单）」
 - Phase 4 **MUST NOT 重复声明或内联 apply 协议正文** —— 该协议的单一源留在 \`iagent_spec_apply\`；本技能只做委派（MUST NOT 内联执行 apply 工作流逻辑，也 MUST NOT 自定一套调度指令格式，二者都会与单一源规则矛盾）
-- \`auto-mode=true\` **仅**跳过设计确认门 —— 共享资源协议继续生效（全自动语义 MUST NOT 免除它）
+- \`${renderGateSkipOption(GATE_SKIP_IDS)}\` **仅**跳过设计确认门（\`${LEGACY_AUTO_MODE_PARAM}=true\` 为兼容写法）—— 共享资源协议继续生效（全自动语义 MUST NOT 免除它）
 - 全部实现任务由被委派技能按其既有批次调度自动完成
 
 ### 4.2 自动实现错误处理
@@ -200,7 +206,7 @@ Phase 4 继承 \`iagent_spec_apply\` 的**测试执行门**并**自动**通过 �
 - **只读操作直接执行** —— 文件读取、CodeGraph 查询与分析步骤（影响分析）无需用户确认即可运行
 - **只读直通不覆盖澄清门** —— grill L1-L5 需求澄清门仍等待用户确认
 - **自动验证** —— 提案后无需用户提示即自动验证
-- **验证通过后自动实现** —— Phase 4 以 auto-mode=true 自动执行（跳过 iagent_spec_apply Step 5.5 门）
+- **验证通过后自动实现** —— Phase 4 以 \`${renderGateSkipOption(GATE_SKIP_IDS)}\` 自动执行（跳过 iagent_spec_apply Step 5.5 门；\`${LEGACY_AUTO_MODE_PARAM}=true\` 为兼容写法）
 - **实现完成后自动归档** —— Phase 5 自动执行，变更名与需求文档状态由上下文传入（遵循 iagent_spec_archive 技能模板）
 - **继承并自动通过测试执行门** —— Phase 4 执行 iagent_spec_apply §9 且仅限变更范围内；范围内失败自动重试至多 3 次，随后暂停并报告；既有的变更范围外失败仅 WARN；项目无测试框架 → WARN 并跳过
 - **测试门失败时不得静默通过** —— 范围内的测试门失败 MUST 在归档前暂停；全自动语义绝不构成跳过该门或跳过归档阻断的理由
@@ -221,7 +227,7 @@ Phase 4 继承 \`iagent_spec_apply\` 的**测试执行门**并**自动**通过 �
 - **注入能力记忆** —— Phase 1 在存在时读取 specs/<capability>/explorations.md
 - **用 CodeGraph 扫描其他项目** —— 探索上下文含其他项目路径时，派发子代理用 CodeGraph 的 projectPath 参数扫描；失败时降级为 Glob/Grep
 - **不丢失探索内容** —— 即使放弃探索文件也保留（除非被删除）
-- **MUST NOT 进入 plan 模式** —— 子代理完成分配任务后 MUST NOT 进入 plan 模式 / 设计模式 / 提出后续步骤；Phase 4 auto-mode 仅跳过设计确认门，MUST NOT 免除退出守卫或共享资源协议
+- **MUST NOT 进入 plan 模式** —— 子代理完成分配任务后 MUST NOT 进入 plan 模式 / 设计模式 / 提出后续步骤；Phase 4 的门承载参数仅跳过设计确认门，MUST NOT 免除退出守卫或共享资源协议
 - **MUST FIRST 读取共享 handoff 包** —— 子代理 MUST 先读 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\` 再做增量查询；MUST NOT 绕过包重读 proposal/specs/design 或重跑已覆盖的 CodeGraph 查询
 `,
         allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(mvn:*), Bash(gradle:*), Bash(ant:*), Bash(go:*), Bash(cargo:*), Bash(git:*), Bash(ls:*), Bash(mv:*), ${CODEGRAPH_MCP}, ${skillDelegation(['spec_explore', 'spec_propose', 'spec_verify_proposal', 'proposal_review', 'requirement_doc', 'spec_apply', 'spec_verify', 'test', 'spec_archive'])}, ${SUBAGENT_DISPATCH}`,
