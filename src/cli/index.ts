@@ -11,6 +11,7 @@
  *   iagent config     配置要安装的 workflow 集
  *   iagent uninstall  移除 iagent 技能与指令
  *   iagent completion 安装/卸载 shell 补全
+ *   iagent version    按实际实现影响面判定版本等级（version / version bump）
  *   iagent spec       规格驱动工作流子命令组（new / status / instructions / archive / validate / migrate / render / sidecar）
  */
 
@@ -35,6 +36,7 @@ import { AI_TOOLS, SKILL_TYPES } from '../core/config.js';
 import { reconcileOrphanCount } from '../core/reconcile.js';
 import { renderPermissionReport } from '../core/permissions.js';
 import { runConfigInteractive, runConfigShow, runConfigSet } from '../commands/config.js';
+import { buildVersionCommand } from '../commands/version.js';
 import { renderLegacyMigrationReport } from '../core/legacy-migration.js';
 import { type MisplacedCleanupResult } from '../core/command-artifacts.js';
 import { type RuleRepairReport } from '../core/project-config.js';
@@ -423,6 +425,9 @@ export function buildProgram(): Command {
                 process.exitCode = 1;
             }
         });
+
+    // 版本判定子命令组（iagent version / version bump）
+    program.addCommand(buildVersionCommand());
 
     // 规格驱动工作流子命令组（iagent spec new / status / instructions / archive）
     program.addCommand(buildSpecCommand());

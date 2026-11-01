@@ -7,6 +7,27 @@
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-11-01
+
+### Added
+
+- 新增 `iagent version` / `iagent version bump`：以「同版本 tag 或引入当前版本号的提交」为基线，
+  读取基线之后的提交、Git diff 与 `CHANGELOG.md` 的 `[Unreleased]`，按实际实现影响面判定
+  major / minor / patch，并写回 `package.json`、归档变更日志、同步 README 版本示例。
+- 版本判定纯函数层 `src/core/version-bump.ts`（提交 / 文件 / 注册表 / CHANGELOG 四类信号，
+  冲突取较大者）与 `test/version-bump.test.ts`（25 用例，含临时 Git 仓库端到端）。
+
+### Changed
+
+- `AGENTS.md` 版本号守则由人工查表改为「命令判定 + 信号表」：提交正文的
+  `Release-Level: major|minor|patch` 可显式声明等级，与自动信号冲突时取较大者；
+  `README.md` 补充判定规则与命令用法。
+- `src/commands/completion.ts` 补全表新增 `version` 与 `bump` 子命令。
+
+### Fixed
+
+- 修复 npm 全局安装后 `iagent` 命令不可用（`package.json` 的 `bin` 路径指向不存在的入口）。
+
 ## [3.0.0] - 2026-11-01
 
 ### BREAKING
@@ -1482,7 +1503,8 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/mi-agent-tools/compare/v3.0.0...HEAD
+[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v3.1.0...HEAD
+[3.1.0]: https://github.com/vshzhe/MiAgentTools/compare/v3.0.0...v3.1.0
 [2.0.0]: https://github.com/mi-agent-tools/compare/v1.0.2...v2.0.0
 [1.0.2]: https://github.com/mi-agent-tools/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/mi-agent-tools/compare/v1.0.0...v1.0.1

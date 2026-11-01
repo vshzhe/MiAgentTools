@@ -61,6 +61,12 @@ const IAGENT_COMMANDS: { name: string; description: string; flags: string[]; sub
     { name: 'completion', description: '安装/卸载 shell 补全', flags: ['--shell'] },
     { name: 'config', description: '配置要安装的 workflow', flags: ['--set', '--show'] },
     {
+        name: 'version',
+        description: '按实现影响面判定并递增版本',
+        flags: ['--from', '--level', '--json', '--dry-run', '--no-changelog', '--no-readme'],
+        subcommands: ['bump'],
+    },
+    {
         name: 'spec',
         description: '规格驱动工作流（new/status/migrate/validate/instructions/archive/render/sidecar）',
         flags: [],

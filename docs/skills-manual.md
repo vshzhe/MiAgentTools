@@ -155,7 +155,8 @@ MiAgentTools 是 AI Agent 技能生成与管理 CLI，按技能类型生成 `iag
 | `iagent_svn_commit` | `/iagent:svn-commit` | SVN 交互式提交（四环节确认）+ 提案分类提交 |
 | `iagent_review` | `/iagent:review` | 代码审查：正确性/安全性/性能/可维护性/规范，分级报告（只审不改） |
 
-> 版本号管理由 CLI 承担：`iagent --version` 显示工具版本；项目自身版本号与 CHANGELOG 由提交流程维护。
+> 版本号管理由 CLI 承担：`iagent --version` 显示工具版本；`iagent version` 按实际实现影响面
+> 判定大 / 次 / 小版本，`iagent version bump` 写回项目版本号、归档 CHANGELOG 并同步 README。
 > 查看已装技能用 `iagent list`（`--json` 结构化）；当前目录用 AI 直接执行 `pwd`。
 
 ## 第七部分：已移除技能（4.0.0）
@@ -168,7 +169,7 @@ MiAgentTools 是 AI Agent 技能生成与管理 CLI，按技能类型生成 `iag
 | `iagent_full_workflow` | 引导式全流程编排 | 并入 `iagent_workflow`（旧 id `full-workflow` / `tr-impl-genfull` → `workflow`） |
 | `iagent_frontend` | Venus4A JSP 前端设计与生成 | 移除（Venus4A 专用领域内容） |
 | `iagent_package` | Venus4A/SVN 打包校验与升级信息归集 | 移除（含运行时 `vendor/auto-package-svn/`） |
-| `iagent_version` | 发布版本（SemVer + 变更日志） | `iagent --version`（工具版本）/ 提交流程维护项目版本 |
+| `iagent_version` | 发布版本（SemVer + 变更日志） | `iagent version` / `iagent version bump`（CLI 承担） |
 | `iagent_pwd` | 查看当前路径 | AI 直接执行 `pwd` |
 | `iagent_skills` | 列出可用技能 | `iagent list` |
 

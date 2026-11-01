@@ -24,7 +24,8 @@ src/
 │   ├── completion.ts                 iagent completion（bash/pwsh 补全脚本生成与安装）
 │   ├── onboarding.ts                 init 后的引导提示
 │   ├── spec.ts                       iagent spec 子命令组（new / status / instructions / validate / migrate / archive / render / sidecar）
-│   └── config.ts                     iagent config（交互式 workflow 配置）
+│   ├── config.ts                     iagent config（交互式 workflow 配置）
+│   └── version.ts                    iagent version（按实现影响面判定并递增版本）
 ├── core/
 │   ├── config.ts                     常量中心：SKILL_PREFIX、9 类 SKILL_TYPES、AI_TOOLS
 │   ├── project-config.ts             .iagent/ 配置读写（config.yaml + rules/）
@@ -65,11 +66,12 @@ src/
 │   ├── project-scan.ts              项目预扫描（scan-baseline.json v2：无上限 + 忽略规则 + 软超时）
 │   ├── scan-ignore.ts               忽略规则解析（固定清单 + .gitignore/自定义 ignore，fail-open）
 │   ├── reconcile.ts                 孤立产物协调
+│   ├── version-bump.ts              版本递增判定（SemVer + 实现影响面信号，纯函数）
 │   ├── shell-completion.ts          shell rc/profile 路径解析与标记块增删（补全与迁移共用）
 │   └── legacy-migration.ts          旧装机一次性迁移（旧标识常量 + 映射表的唯一落点）
 └── utils/file-system.ts             文件系统工具
 
-test/                                vitest（50 个测试文件 + setup）
+test/                                vitest（54 个测试文件 + setup）
 test/setup-home-sandbox.ts           vitest setupFiles：把主目录沙箱到临时目录
 skills/                              静态快照（勿手编，pnpm generate:skills 生成）
 scripts/generate-skills.mjs          快照生成脚本
@@ -85,6 +87,8 @@ pnpm test               # 全量测试
 pnpm lint               # eslint（src/ + test/）
 pnpm generate:skills    # 重新生成 skills/ 快照（改模板后必须运行）
 node bin/iagent.js <cmd> # 直接运行 CLI
+node bin/iagent.js version       # 查看版本判定（只读）
+node bin/iagent.js version bump  # 递增版本并写回 package.json / CHANGELOG / README
 ```
 
 `pnpm test` 经 `test/setup-home-sandbox.ts`（vitest `setupFiles`）把用户主目录指向临时目录：
@@ -149,21 +153,26 @@ node bin/iagent.js <cmd> # 直接运行 CLI
    只会让 command 更长，不会缺失防护语句）；Guardrails 段永不标记。改动模板后
    仍须依次 `pnpm build && pnpm generate:skills`（见第 1 条）
 8. **版本号更新**：完成功能变更时同步更新版本号与变更日志，二者**随本次功能提交一并提交**
-   （不再单独提交 `chore: 版本号`）。以 `package.json` 当前 `version` 为基线，按改动大小递增：
+   （不再单独提交 `chore: 版本号`）。以 `package.json` 当前 `version` 为基线，用
+   `node bin/iagent.js version` 只读判定、`node bin/iagent.js version bump` 写回；
+   判定输入是**实际实现影响面**（基线之后的提交 + Git diff + CHANGELOG `[Unreleased]`），
+   冲突取较大者：
 
-   | 改动性质 | 典型情形 | 递增位 |
-   |---|---|---|
-   | BREAKING（不兼容） | 删技能、改注册结构、改 CLI 行为或参数、改 frontmatter 契约 | major |
-   | 功能新增或变更 | 新增技能或命令、改技能模板行为、改派生规则 | minor |
-   | 修复/文档/重构/测试/构建 | bug 修复、README/AGENTS 文档、纯重构、测试调整 | patch |
+   | 等级 | 自动信号（任一命中） |
+   |---|---|
+   | major（大版本） | `feat!:` / `BREAKING CHANGE:` / `Release-Level: major`；`### BREAKING` 条目；删除技能模板或 CLI 命令、移除 CLI 注册或 `SKILL_TYPES` 条目、移除 `package.json` 的 `bin` / `exports` / `main` / `module` / `types`、提高 `engines.node` 下限 |
+   | minor（次版本） | `feat:` 提交 / `Release-Level: minor`；`### Added` 条目；新增技能模板、CLI 命令或技能类型；新增包契约字段 |
+   | patch（小版本） | 其余（fix / docs / refactor / test / build / chore），无信号时默认 |
 
-   - `package.json` 的 `version` 字段按上表递增；判定有歧义时取**较大**的递增位
-   - `CHANGELOG.md` 把 `[Unreleased]` 中已累积的条目归档为 `## [<新版本>] - YYYY-MM-DD`
-     小节（Keep a Changelog 格式，沿用 `### BREAKING` / `### Added` / `### Changed` 子标题），
-     保留一个空的 `## [Unreleased]` 供后续累积，并同步文件底部的链接引用定义
-     （`[Unreleased]` 的比较基线改为新版本 tag，新增 `[<新版本>]` 的 compare/tag 链接）
-   - 其它出现版本号的位置同步更新（当前为 `README.md` 安装验证中的 `iagent --version` 输出示例；
-     新增此类引用时一并纳入本规则）
+   - 自动判定有歧义时取**较大**递增位；确需人工纠正用 `--level major|minor|patch`
+     （低于自动判定时命令会告警）；提交正文写 `Release-Level: <level>` 可显式声明等级，
+     与自动信号冲突时同样取较大者
+   - `version bump` 负责：`package.json` 的 `version`、把 `[Unreleased]` 归档为
+     `## [<新版本>] - YYYY-MM-DD` 小节（Keep a Changelog 格式；为空时按提交自动合成并提示复核）、
+     保留空的 `[Unreleased]`、同步底部 `[Unreleased]` / `[<新版本>]` 链接与 `README.md` 版本示例；
+     `--dry-run` 只预览，`--no-changelog` / `--no-readme` 可关闭对应写回
+   - 基线默认取同版本 tag 或「引入当前版本号的提交」，可用 `--from <ref>` 覆盖；
+     工作区版本号尚未提交时 `bump` 拒绝执行（防止重复递增）
    - 版本号写入生成产物 frontmatter 的 `generatedBy`（供 `iagent show` 展示），
      **不参与**手改保护判定 —— 保护由 `generatedFingerprint`（内容指纹，见
      `src/core/command-generation/fingerprint.ts`）承担
@@ -263,6 +272,10 @@ node bin/iagent.js <cmd> # 直接运行 CLI
 - `update` 的手改保护依赖 frontmatter `generatedFingerprint`（内容指纹）—— 生成路径必须写全该字段；
   无该字段的存量产物回退到 `generatedBy` 版本号判定
 - 指令 id 派生：`iagent_spec_apply` → `spec-apply`（下划线转连字符，去前缀）
+- 版本递增判定单一源：`src/core/version-bump.ts`（纯函数：信号 → 等级 → 版本与 CHANGELOG 正文）
+  + `src/commands/version.ts`（Git 采集 / 文件写回）；MUST NOT 在其它命令或脚本中另立等级规则。
+  新增公共能力面（CLI 命令 / 技能模板 / 技能类型 / 包契约字段）时同步在 `collectFileSignals`
+  增加对应信号，避免只靠提交信息判定
 - 本机产物均**不入库**（`.gitignore` 忽略）：`.iagent/`（本项目配置）、`.claude/`（dogfood 产物）、
   `.codegraph/`、`.openspec-tmp/`；`openspec/` 仅放行 `changes/**` 的提案制品（见「变更制品纳管策略」），
   其余（`specs/`、`explorations/`、`devdocs/`、`config.yaml` 等）仍忽略。模板的可提交真源是

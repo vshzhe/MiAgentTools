@@ -121,6 +121,8 @@ iagent validate            # 规范校验（CI 可用，CRITICAL 时退出码 1�
 iagent update              # 升级到最新模板（你手改过的技能会被保护跳过）
 iagent uninstall --yes     # 移除（.iagent 配置默认保留）
 iagent --version           # 工具版本
+iagent version             # 按实现影响面判定下一版本（只读）
+iagent version bump        # 写回版本号 + 归档 CHANGELOG（--dry-run 预览）
 ```
 
 ## 下一步

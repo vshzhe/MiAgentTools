@@ -15,14 +15,14 @@ npm install -g mi-agent-tools
 验证安装：
 
 ```bash
-iagent --version    # 输出 3.0.0
+iagent --version    # 输出 3.1.0
 iagent --help       # 查看全部命令
 ```
 
 免全局安装、临时试用（版本号亦可省略，默认取 `latest`）：
 
 ```bash
-npx mi-agent-tools@3.0.0 --version
+npx mi-agent-tools@3.1.0 --version
 npx mi-agent-tools init
 ```
 
@@ -73,7 +73,7 @@ node bin/iagent.js <command>     # 效果与 iagent <command> 完全一致
 
 ```bash
 # 从 npm 安装固定版本
-npm install --save-dev mi-agent-tools@3.0.0
+npm install --save-dev mi-agent-tools@3.1.0
 npx iagent init
 
 # 或从本地仓库路径安装（开发联调用）
@@ -241,7 +241,22 @@ your-project/
 | `iagent generate` | 按类型生成新技能骨架（写入 `skills/` 并安装） | `--type`、`--name`、`--desc`、`--force` |
 | `iagent uninstall` | 移除 iagent 技能与指令（非 iagent 技能不碰） | `--yes`、`--purge-config` |
 | `iagent completion` | 安装/卸载 shell 补全 | `<install\|uninstall>`、`--shell <bash\|powershell>` |
+| `iagent version` | 按实际实现影响面判定版本等级（只读） | `--from <ref>`、`--level <major\|minor\|patch>`、`--json` |
+| `iagent version bump` | 递增版本号并归档变更日志 | `--dry-run`、`--level`、`--no-changelog`、`--no-readme` |
 | `iagent --version` | 显示 CLI 版本号 | — |
+
+`version` 以「同版本 tag 或引入当前版本号的提交」为基线，读取基线之后的提交、Git diff 与
+`CHANGELOG.md` 的 `[Unreleased]`，按**实际实现影响面**取最高等级：
+
+| 等级 | 自动信号（任一命中） |
+| :--- | :--- |
+| major（大版本） | `feat!:` / `BREAKING CHANGE:` / `Release-Level: major`；`### BREAKING` 条目；删除技能模板或 CLI 命令、移除 CLI 注册或技能类型、移除 `package.json` 契约字段、提高 Node 最低版本 |
+| minor（次版本） | `feat:` 提交 / `Release-Level: minor`；`### Added` 条目；新增技能模板、CLI 命令、技能类型或包契约字段 |
+| patch（小版本） | 其余（fix / docs / refactor / test / build / chore），无信号时默认 |
+
+`iagent version bump` 写回 `package.json`，把 `[Unreleased]` 归档为 `## [<版本>] - 日期`
+（为空时按提交自动合成并提示复核），同步底部链接与 README 版本示例；`--dry-run` 只预览。
+提交正文写 `Release-Level: major|minor|patch` 可显式声明等级，与自动信号冲突时取较大者。
 
 `show` 支持完整名（`iagent_spec_apply`）、去前缀段（`spec-apply`）、前缀（`iagent_spec` / `mi`）与片段（≥3 字符，如 `migra`）匹配；
 多命中时列出候选，`--json` 输出结构化详情。

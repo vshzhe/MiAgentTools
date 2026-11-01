@@ -64,6 +64,13 @@ describe('shell 补全脚本生成', () => {
         expect(listed).toEqual([...names].sort());
     });
 
+    it('version 第二级补全包含 bump 子命令', () => {
+        const bash = generateBashCompletion();
+        expect(bash).toMatch(/version\)[\s\S]*?compgen -W "bump"/);
+        const powershell = generatePowerShellCompletion();
+        expect(powershell).toContain("'bump'");
+    });
+
     it('PowerShell 脚本包含 Register-ArgumentCompleter', () => {
         const script = generatePowerShellCompletion();
         expect(script).toContain('Register-ArgumentCompleter -CommandName iagent');
