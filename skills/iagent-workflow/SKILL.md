@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:0ad0e2b4c40488d13b1bf5e0ff65e4e6a4a13dbbca9dd26ab16f34f62b791dcd"
+  generatedFingerprint: "sha256:185069519ad7936d83a63fba8479b093df83642aa74f8eee553019a4c315dd86"
 ---
 
 
@@ -250,7 +250,7 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 
 ### 4.2 实现错误处理
 
-- 编译失败（apply 自动修复 3 次后）：暂停等待用户，不进入归档
+- 编译失败（apply 自动修复 `maxRetries` 次后仍为 `fail`，证据 `status=fail`）：暂停等待用户，不进入归档
 - 测试生成阶段拒绝：回退到 Phase 3.7 实现 + 测试桥重新确认实现范围
 - 子代理失败：retry 一次，仍失败暂停报告
 
@@ -268,15 +268,15 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 ### 5.1 归档桥（强制检查点）
 
 **⛔ GATE: 归档确认门（强制停止）**
-- 就绪检查：tasks.md 全部 `- [x]`；编译检查通过；条件测试子阶段完成；实现验证（`iagent_spec_verify`）通过或已显式声明省略
-- 呈现：实现摘要 + 编译结果 + 测试通过率 + 条件子阶段产物
+- 就绪检查：tasks.md 全部 `- [x]`；**编译证据就绪**（唯一判据：读取 `.openspec-tmp/pipeline-<change-name>/compile-report.md` 的 `**summary**:` 行；handoff 包 `## 阶段结论` 的 `compile` 行仅作辅助，两者不一致时以证据文件为准并记 WARN）：`status ∈ {pass, not-applicable, disabled}` 放行，其中 `not-applicable` / `disabled` 记 WARN 并说明「未执行编译检查」的原因，MUST NOT 表述为「编译检查通过」；证据缺失、`status=fail` 或证据存在但无法解析出汇总状态 → **阻断归档并回到 Phase 4**（输出含期望路径与失败原因）。条件测试子阶段完成；实现验证（`iagent_spec_verify`）通过或已显式声明省略
+- 呈现：实现摘要 + 编译终态与证据路径 + 测试通过率 + 条件子阶段产物
+- **父流程 MUST NOT 自行执行编译或测试命令**（编译与测试由被委派的 `iagent_spec_apply` 单点负责），MUST NOT 以「tasks.md 全部勾选」「实现已验证」替代证据，MUST NOT 因证据缺失而询问用户是否跳过
 - 出口：确认（进入归档）／拒绝（返回 Phase 4 继续实现，不归档）
 
 ### 5.2 委派 `iagent_spec_archive`
 
-- 传入 change-name（跳过选择提示）与 `requirementDocStatus`（Phase 3.5 桥的持久状态：`generated` / `skipped-by-user` / `generation-failed` / `absent`）
-- archive 以"文件存在优先、状态裁决缺失分支"分流：已存在文档就地增量对齐并保护人工域；`absent` 才走历史兼容生成（archive 亦从变更 `exploration.md` 读取同一状态，跨会话可恢复）
-- archive 内部完成：delta spec 合并主规格、CONTEXT.md 同步、探索记忆同步到 `specs/<cap>/explorations.md`、需求文档就地增量对齐（步骤 4.8，保人工域）、目录迁移 `archive/`、ARCHIVE-INDEX.md 更新、需求文档迁移 `devdocs/`
+- 传入 change-name（跳过选择提示）与 `requirementDocStatus`（Phase 3.5 桥的持久状态：`generated` / `skipped-by-user` / `generation-failed` / `absent`）—— archive **只把它当作报告输入**（需求文档存在性报告与跨会话追溯），MUST NOT 用它触发生成 / 对齐 / 迁移
+- archive 内部完成：delta spec 合并主规格、CONTEXT.md 同步、探索记忆同步到 `specs/<cap>/explorations.md`、需求文档存在性**只读报告**（不改写、不迁出）、目录迁移 `archive/`、ARCHIVE-INDEX.md 纯追加、归档只读校验、流程级工作区清理
 - sync 检查点非阻断（失败 WARN 不阻断）
 
 ### 5.3 记忆闭环
@@ -471,7 +471,7 @@ All artifacts ready! Proceeding to the Phase 4 implementation bridge...
 - **用 CodeGraph 扫描其他项目** - 探索上下文含其他项目路径时，派发子代理用 CodeGraph 的 projectPath 参数扫描；失败时降级为 Glob/Grep
 - **深度复查后收束** - 全量通过（D1-D5 + 深度复查）后展示**一次**需求文档"生成 / 跳过"桥：生成 → 直接非交互委派 `iagent_requirement_doc`（失败记 `generation-failed` + WARN 并继续）、跳过 → 记 `skipped-by-user`；状态写入变更 `exploration.md` 的 `## 需求文档状态` 段（写入失败重试一次仍失败即停止，不进入 Phase 3.7），随后进入 Phase 3.7 实现桥
 - **FAIL 不出文档桥** - 验证失败或重验循环中 MUST NOT 生成需求文档、MUST NOT 展示生成/跳过桥
-- **文档状态跨阶段传递** - 桥结果（`generated` / `skipped-by-user` / `generation-failed` / `absent`）持久化于变更探索文件并经 apply 传至 archive；archive 以文件存在优先、状态裁决缺失分支，不因新会话退回兼容生成
+- **文档状态跨阶段传递** - 桥结果（`generated` / `skipped-by-user` / `generation-failed` / `absent`）持久化于变更探索文件并经 apply 传至 archive；archive 仅把它当作报告输入（跨会话追溯），MUST NOT 据其生成 / 就地增量对齐 / 迁出，也不存在“文件存在优先 / 状态裁决缺失分支”
 - **对委派执行退出守卫** - 委派的阶段子技能（spec_apply / spec_archive / test）完成后 MUST NOT 自行进入 plan 模式 / 设计模式或推进阶段；workflow 是唯一有权判定阶段完成并推进下一阶段（桥梁）的角色
 - **向 apply 传门承载参数** - Phase 4 向 spec_apply 传 `gate-skip=design-confirmation`（兼容写法 `auto-mode=true`），由 Phase 3.7 实现桥承载确认；仅跳过设计确认门，其余门与停点照常生效
 - **向 archive 传 change-name** - Phase 5 向 spec_archive 传 change-name 跳过选择

@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:88d24f31d099cd2c8e06111db6d6cea4224a28b24c377c26698caf59f2f8d5f4"
+  generatedFingerprint: "sha256:48946fad6a70ab2efcc3fcffa4f858c9a6b7b41d5cbb7fa33f8028165a15aa10"
 ---
 
 
@@ -310,9 +310,10 @@ _Avoid_: <synonyms>`
 
 遵循 `iagent_spec_apply` 技能的编译检查约定（Step 8），只运行**一次**，覆盖循环中修复的**所有** bug：
 
-- 读取 `openspec/config.yaml` 的 `compileCheck`；未启用（默认禁用）→ 跳到 Phase 6
+- 读取 `.iagent/config.yaml` 的 `compileCheck`（缺段即启用，缺省启用）；未启用（`enabled: false`）→ 跳到 Phase 6
+- **作用域声明**：`compileCheck.command` / `timeoutMs` / `maxRetries` / `autoFix` / `incremental` **仅约束 `iagent_spec_apply`**；debug 只共享 `enabled` 与「缺省启用」语义，仍按本步自身的技术栈探测执行
 - 从 context 探测技术栈并按对应编译命令检查（TypeScript / Java-Maven / Java-Gradle / Go / Rust）；分类变更文件为后端与前端
-- `autoFix.enabled` 时按可修复性自动修复并重跑（最多 `maxRetries` 次，默认 3）
+- 按 debug **自身**策略自动修复并重跑（最多 3 次）—— 该策略独立于 apply 的 `compileCheck.autoFix` / `maxRetries`，MUST NOT 引用这两个字段
 - 汇总编译 / lint / 前端结果，区分已修复与遗留问题；遗留失败**报告**给用户 —— MUST NOT 静默越过失败检查
 
 ---
@@ -375,16 +376,15 @@ Markdown 是唯一真源 —— 直接更新 OpenSpec Markdown 制品；不得�
 
 1. **自动调用 `iagent_proposal_review` 技能**对提案做只读深度复查（超出 D1-D5 核心 + D6-D10 条件评分的深度一致性与覆盖率审计）。复查自动运行（不弹 [Yes/No] 提示）。用户 MAY 中断以跳过；否则照常运行。
    - **降级（回退）（技能不可用）**：技能未安装或调用失败时，降级为 AI 内联只读深度复查并 WARN："iagent_proposal_review 技能不可用，降级为内联复查"。MUST NOT 静默跳过深度复查。
-2. **需求文档桥（⚠️ 单次业务桥，强制）**：深度复查收束后展示**一次**"生成 / 跳过"需求文档业务桥 —— 这是 debug 唯一的文档确认面，不是"是否调用该技能"的二次确认：
-   - **生成** → 直接以非交互模式委派 `iagent_requirement_doc`（传 change-name；不询问文档基本信息、不追加调用确认），文档写入 `openspec/changes/<change-name>/需求文档.md`：成功 → 状态 `generated`；失败 → 状态 `generation-failed` + WARN（含原因）并继续
-   - **跳过** → 不生成，状态 `skipped-by-user`
-   - **已有文档**（用户曾手工生成）：选择跳过时 MUST NOT 覆盖该文件，状态记 `skipped-by-user`；archive 以文件存在优先，仍会就地增量对齐
+2. **需求文档桥（⚠️ 单次业务桥，强制）**：深度复查收束后展示**一次**需求文档业务桥 —— 这是 debug 唯一的文档确认面，不是"是否调用该技能"的二次确认。**出口按 `需求文档.md` 是否存在裁决**：
+   - **文档不存在** → 出口为「生成 / 跳过」：生成 → 直接以非交互模式委派 `iagent_requirement_doc`（传 change-name；不询问文档基本信息、不追加调用确认），文档写入 `openspec/changes/<change-name>/需求文档.md`：成功 → 状态 `generated`；失败 → 状态 `generation-failed` + WARN（含原因）并继续；跳过 → 不生成，状态 `skipped-by-user`
+   - **文档已存在** → **禁用生成分支**（该技能对已存在目标是静默覆盖，会抹掉人工撰写内容）；出口仅「跳过 / 手工编辑」：二者均 MUST NOT 覆盖该文件，状态记 `skipped-by-user`，手工编辑由用户直接在文件中进行（归档只做存在性只读报告，MUST NOT 改写该文件）
    - **状态持久化**：写入变更 `exploration.md` 的 `## 需求文档状态` 段（字段 `requirementDocStatus`，取值仅 `skipped-by-user` / `generation-failed` / `generated`；段缺失即 `absent`）。写入失败 → 自动重试同一写入**一次** → 仍失败即停止：MUST NOT 报告状态已持久化、MUST NOT 委派生成、MUST NOT 标记收束完成/可归档，输出含目标路径与原因的 WARN + 恢复指引
    - **验证 FAIL 或深度复查未收束时** MUST NOT 展示该桥、MUST NOT 委派需求文档技能
 3. **收束（verify-close）**：文档桥收束（生成成功 / 生成失败 / 跳过）后报告该变更已可归档；debug 不自动归档。阶段回执 MUST 携带 `requirementDocStatus` 供后续 archive 消费；archive 即使未收到回执，也会从变更 `exploration.md` 恢复同一状态（跨会话可恢复）
 4. **报告**：显示验证结果、深度复查结论、文档桥结果，以及：
 
-> 「调试完成。需求文档：已生成 / 用户选择跳过 / 生成失败（WARN）—— 状态已记录于变更 exploration.md。」
+> 「调试完成。需求文档：已生成 / 已存在（手工编辑，未覆盖） / 用户选择跳过 / 生成失败（WARN）—— 状态已记录于变更 exploration.md。」
 > 「已可归档 —— 运行 /iagent:spec-archive。」
 
 ### 7.4 清理流程级调试工作区（强制）
@@ -452,7 +452,7 @@ Ready for `/iagent:spec-apply` (fixes already applied) or archive.
 - **分级在 CodeGraph 降级时仍生效**：CodeGraph 不可用时分级仍生效（信号 (a) 降级为文件数代理指标，(b)(c) 照常）；MUST NOT 因降级跳过分级，诊断记录 MUST 标注「信号降级」
 - **需求文档经用户桥**：7.3 在验证 PASS + 深度复查收束后展示**一次**生成 / 跳过桥；生成 → 直接非交互委派 `iagent_requirement_doc`（失败记 `generation-failed` + WARN 并继续），跳过 → 记 `skipped-by-user`；MUST NOT 未经用户确认自动生成，MUST NOT 覆盖用户已有文档
 - **文档状态持久化（重试一次）**：桥结果写入变更 `exploration.md` 的 `## 需求文档状态` 段（`requirementDocStatus`）；写入失败自动重试同一写入一次，仍失败即停止 —— MUST NOT 伪报已持久化、MUST NOT 委派生成、MUST NOT 标记可归档，输出含目标路径与原因的 WARN + 恢复指引；`verify-close` 回执 MUST 携带同一状态
-- **人工撰写字段受保护**：就地增量对齐时 `## 基本信息`（需求编号/需求名称/交付时间，含占位符状态）与 `## 八、评审记录` MUST NOT 覆盖；MUST NOT 删除章节（仅制品已移除的内容可删）
+- **人工撰写字段受保护**：需求文档技能生成或用户手工编辑时，`## 基本信息`（需求编号/需求名称/交付时间，含占位符状态）与 `## 八、评审记录` 属人工域 MUST NOT 被覆盖；本技能 MUST NOT 改写已存在的需求文档；**文档已存在时桥 MUST NOT 提供生成分支**（生成仅限文档不存在时）
 - **零猜测**：多个候选根因 → STOP 并让用户选择；绝不猜测
 - **多方案必须确认**：存在两个及以上可行修复方案（或唯一性证据不足）时，4.0 的修复方案确认门 MUST 阻塞并等待用户确认；拒绝或要求修改时 MUST NOT 实现
 - **唯一方案需证据**：仅当项目约束与代码证据（引用具体约束与 `文件:行`）支持唯一性时说明依据后直通；MUST NOT 凭"看起来只有一种"跳过确认；数据库/schema 的既有独立确认仍须执行

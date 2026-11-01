@@ -47,6 +47,7 @@
 | 2026-10-25 | improve-workflow-debug-bridges | workflow | 父流程需求文档桥 + 四值文档状态 + debug 修复方案门与 host 阶段拆分。[含测试/使用说明] |
 | 2026-10-26 | upgrade-workflow-efficiency | workflow | 六处效率/能力瓶颈一次性收口：扫描去深度与文件数上限（改忽略清单 + 30s 软超时 + skipped 计数，基线 v2）、跨变更 SQLite 索引整体退役（删 `spec reindex` / `sql.js` / 能力 6 条需求）、提案制品纳管且 apply 后精确暂存不自动 commit、CodeGraph 改能力探测 + 锁阶梯（去无条件 sync）、确认门白名单化 + 直通句、跨阶段 handoff 包（原 context-pack）。**BREAKING** → 2.0.0。[含测试/使用说明] |
 | 2026-11-01 | fix-mode-delegation-host-parity | orchestration | 修复技能间委派权限弹窗与委托模式语义：白名单全名化 + mode/gate-skip 双轴 + 四宿主×表面一致。[含测试/使用说明] |
+| 2026-11-01 | improve-compile-gate-and-archive-readonly | workflow | 两条同源缺陷：编译检查能力弱且有跳过路径；归档写入面过宽越界改写历史变更 [含测试] |
 
 ## 模块统计
 
@@ -57,7 +58,7 @@
 | templates | 14 | add-tr-migration-suite (2026-09-11), add-tr-workflow-suite (2026-09-14), add-tr-commit-push (2026-09-22), add-release-package (2026-09-24), add-prompt-validation-gate (2026-09-24), add-flowchart-cross-verify (2026-09-24), improve-tr-impl-debug-orchestration (2026-09-28), improve-workflow-subagent-resource-sharing (2026-09-28), improve-workflow-artifact-dataflow (2026-09-30), improve-init-project-scan (2026-09-30), improve-templates-requirement-doc-timing (2026-10-10), improve-template-dual-layer-optimization (2026-10-10), improve-artifact-full-json-primary (2026-10-12), improve-template-generation-consistency (2026-10-16), improve-template-language-consistency (2026-10-17) |
 | spec | 4 | add-spec-bulk-archive (2026-09-14), add-spec-workflow (2026-09-14), refactor-spec-workflow-template-single-source (2026-09-16), consolidate-skills-and-genericize-checks (2026-10-13) |
 | test | 2 | enhance-test-generate (2026-09-16), improve-tr-test-generate-case-rationalize (2026-09-28) |
-| workflow | 4 | refactor-orchestrator-propose-delegation (2026-10-16), refactor-orchestrator-explore-delegation (2026-10-16), improve-workflow-debug-bridges (2026-10-25), upgrade-workflow-efficiency (2026-10-26) |
+| workflow | 5 | refactor-orchestrator-propose-delegation (2026-10-16), refactor-orchestrator-explore-delegation (2026-10-16), improve-workflow-debug-bridges (2026-10-25), upgrade-workflow-efficiency (2026-10-26), improve-compile-gate-and-archive-readonly (2026-11-01) |
 | artifacts | 1 | markdown-first-artifacts (2026-10-16) |
 | orchestration | 3 | add-host-orchestration-adapters (2026-10-18), fix-pi-native-orchestration (2026-10-18), fix-mode-delegation-host-parity (2026-11-01) |
 

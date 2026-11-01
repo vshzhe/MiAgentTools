@@ -152,11 +152,13 @@ describe('编排器委派 apply/archive 而非内联', () => {
         expect(text).not.toContain('Execute the apply workflow logic');
     });
 
-    it('auto-workflow Phase 5 委派 archive（change-name）', () => {
+    it('auto-workflow Phase 5 委派 archive（change-name）且只引用只读报告语义', () => {
         const text = body('auto-workflow');
         expect(text).toContain('`change-name` + `requirementDocStatus` 调用 `iagent_spec_archive`');
-        // 文档对齐沿用 archive 单一源（present → 就地对齐；absent → 委派 requirement-doc）
-        expect(text).toContain('需求文档对齐 step 4.8');
+        // 归档侧只做存在性报告：不再引用 4.8 对齐分支
+        expect(text).toContain('需求文档存在性**只读报告**');
+        expect(text).not.toContain('需求文档对齐 step 4.8');
+        expect(text).not.toContain('迁移至 devdocs');
     });
 
     it('auto-workflow 继承 apply 的测试执行门且失败仍阻塞', () => {

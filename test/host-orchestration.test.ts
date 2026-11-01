@@ -113,7 +113,7 @@ describe('工作流协议实例声明阶段能力', () => {
         const withProtocol = ORCHESTRATING_WORKFLOW_IDS.filter(
             (workflowId) => getWorkflowProtocol(workflowId) !== undefined
         );
-        // 派生注入面覆盖 9 个委派技能，其中 4 个是编排工作流（其余是阶段技能）
+        // 派生注入面覆盖 7 个委派技能（归档类已退出），其中 4 个是编排工作流（其余是阶段技能）
         expect(withProtocol.sort()).toEqual(['auto-workflow', 'debug', 'migration', 'workflow']);
         for (const workflowId of withProtocol) {
             const protocol = getWorkflowProtocol(workflowId);
@@ -654,7 +654,7 @@ describe('4.7 确认门白名单与协议门清单对齐', () => {
 describe('3.6 编排注入面派生与四宿主产物', () => {
     const skills = getSkillTemplates();
 
-    it('派生结果覆盖既有 9 个委派技能，且与模板 Skill(...) 一一对应', () => {
+    it('派生结果覆盖既有 7 个委派技能，且与模板 Skill(...) 一一对应（归档类已退出）', () => {
         const derived = deriveOrchestrationDelegations(
             skills.map(({ template, commandId }) => ({
                 commandId,
@@ -667,8 +667,6 @@ describe('3.6 编排注入面派生与四宿主产物', () => {
             'migration',
             'project-init',
             'spec-apply',
-            'spec-archive',
-            'spec-bulk-archive',
             'spec-propose',
             'workflow',
         ]);
@@ -683,7 +681,7 @@ describe('3.6 编排注入面派生与四宿主产物', () => {
         expect(derived.delegations['project-init']).toEqual(['feature-doc']);
     });
 
-    it('有委派即注入、无委派不注入', () => {
+    it('有委派即注入、无委派不注入（归档类已退出编排面）', () => {
         const negotiation = negotiateCapabilities('claude', 'strict');
         const injected = adaptSkillContentForHost('# body', negotiation, 'spec-apply');
         expect(injected).toContain('宿主编排适配（生成期注入）');
@@ -694,6 +692,25 @@ describe('3.6 编排注入面派生与四宿主产物', () => {
         expect(notInjected).not.toContain('宿主编排适配');
         expect(isOrchestratingWorkflow('project-init')).toBe(true);
         expect(isOrchestratingWorkflow('commit')).toBe(false);
+        // 归档技能不再含 Skill(...) 条目 ⇒ 不再被派生为编排技能
+        expect(isOrchestratingWorkflow('spec-archive')).toBe(false);
+        expect(isOrchestratingWorkflow('spec-bulk-archive')).toBe(false);
+        const archiveBody = adaptSkillContentForHost('# body', negotiation, 'spec-archive');
+        expect(archiveBody).not.toContain('宿主编排适配');
+        expect(archiveBody).not.toContain('allowed_subagents');
+    });
+
+    it('归档类无 Skill 委派面，spec-bulk-archive 仍保留派发授权', () => {
+        const archive = skills.find(({ template }) => template.name === 'iagent_spec_archive')!.template;
+        const bulk = skills.find(({ template }) => template.name === 'iagent_spec_bulk_archive')!.template;
+        for (const template of [archive, bulk]) {
+            expect(template.allowedTools).not.toContain('Skill(');
+            // 无 Skill(...) 条目 ⇒ 不生成 allowed_subagents（归档类退出编排派生面）
+            expect(isOrchestratingWorkflow(template.name.replace(/^iagent_/, '').replaceAll('_', '-'))).toBe(false);
+        }
+        // Agent / Task 属子代理派发授权，与 Skill 委派是两套语义（批量并行仍需要）
+        expect(bulk.allowedTools).toContain('Agent');
+        expect(bulk.allowedTools).toContain('Task');
     });
 
     it('委派清单携带参数且取值来自显式参数表（未声明不填充）', () => {

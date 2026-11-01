@@ -53,6 +53,12 @@ export interface ProjectConfig {
     workflows: string[];
     /** 用户选择的目标工具 id 列表（空=未配置，用全部工具） */
     tools: string[];
+    /**
+     * `compileCheck` 段的**原始解析结果**（段缺失即 undefined；字段缺失即 undefined）。
+     *
+     * 本字段 MUST NOT 提前填默认值 —— 生效值见 `ResolvedProjectConfig.compileCheck`。
+     */
+    compileCheck?: ParsedCompileCheck;
 }
 
 /** 解析后的完整配置（rules 文件内容已展开） */
@@ -66,6 +72,183 @@ export interface ResolvedProjectConfig {
     workflows: string[];
     /** 用户选择的目标工具 id 列表（空=未配置，用全部工具） */
     tools: string[];
+    /** 生效的编译检查配置（补全默认值后的完整值） */
+    compileCheck: CompileCheckConfig;
+    /** 段级来源：段存在 = `config`（用户配置），段缺失 = `default`（默认值） */
+    compileCheckSource: 'config' | 'default';
+    /** 逐字段回退告警（非法取值回退默认值时给出，供 `iagent config show` 输出） */
+    compileCheckWarnings: string[];
+}
+
+// ── 编译检查配置（compileCheck 单一源） ──────────────────────────
+
+/**
+ * 生效的编译检查配置（字段齐全）。
+ *
+ * 单一源：默认值只在 `DEFAULT_COMPILE_CHECK` 定义一次，技能模板与 CLI
+ * MUST NOT 各自定义一套默认值（技能侧缺段时经 `iagent config show` 读取生效值）。
+ */
+export interface CompileCheckConfig {
+    /** 是否执行编译检查；false 为项目级显式禁用（唯一合法的非执行终态来源） */
+    enabled: boolean;
+    /** 显式编译命令；空 = 按变更文件最近的构建描述符自动探测 */
+    command: string;
+    /** 单条命令超时上限（毫秒），超时计为失败 */
+    timeoutMs: number;
+    /** 批调度每批结束后是否执行批后编译检查（复用收尾全量的同一命令） */
+    incremental: boolean;
+    /** 编译失败后是否进入自动修复循环 */
+    autoFix: boolean;
+    /** 自动修复循环的重试上限（仅在 `autoFix` 为 true 时生效） */
+    maxRetries: number;
+}
+
+/** 编译检查默认值（单一源；缺段 / 缺字段 / 非法取值均回退到此处） */
+export const DEFAULT_COMPILE_CHECK: Readonly<CompileCheckConfig> = {
+    enabled: true,
+    command: '',
+    timeoutMs: 600000,
+    incremental: true,
+    autoFix: true,
+    maxRetries: 3,
+};
+
+/** `compileCheck` 段的原始解析结果（仅含显式声明且合法的字段） */
+export interface CompileCheckRawConfig {
+    enabled?: boolean;
+    command?: string;
+    timeoutMs?: number;
+    incremental?: boolean;
+    autoFix?: boolean;
+    maxRetries?: number;
+}
+
+/** `compileCheck` 段解析结果 */
+export interface ParsedCompileCheck {
+    /** 段是否出现在配置中（段级来源判定：存在 = 用户配置） */
+    present: boolean;
+    /** 原始解析结果（字段可选，缺失即 undefined） */
+    values: CompileCheckRawConfig;
+    /** 逐字段回退告警（字段名 + 回退值） */
+    warnings: string[];
+}
+
+/** 生效编译检查配置 + 来源标记 */
+export interface ResolvedCompileCheck {
+    config: CompileCheckConfig;
+    source: 'config' | 'default';
+    warnings: string[];
+}
+
+/** `compileCheck` 段可识别的字段名（未知字段忽略并 WARN） */
+const COMPILE_CHECK_KEYS = ['enabled', 'command', 'timeoutMs', 'incremental', 'autoFix', 'maxRetries'] as const;
+
+/** 去掉值末尾的行内注释（YAML：`#` 前须是空白） */
+function stripInlineComment(value: string): string {
+    const match = /\s+#.*$/.exec(value);
+    return match ? value.slice(0, match.index) : value;
+}
+
+/** 去掉值两侧成对的引号（单引号 / 双引号） */
+function stripQuotes(value: string): string {
+    const trimmed = value.trim();
+    if (trimmed.length >= 2) {
+        const first = trimmed[0];
+        const last = trimmed[trimmed.length - 1];
+        if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
+            return trimmed.slice(1, -1);
+        }
+    }
+    return trimmed;
+}
+
+/** 回退告警文本（字段名 + 回退值，供 `config show` 逐行输出） */
+function compileCheckFallbackWarning(field: string, rawValue: string, fallback: string | number): string {
+    return `compileCheck: ${field} 非法，已回退默认值 ${fallback}（原值：${rawValue}）`;
+}
+
+/**
+ * 解析 config.yaml 的 `compileCheck` 段（极简 YAML 子集：段头 + 两空格缩进的 `key: value`）。
+ *
+ * - 段缺失 → `present: false`（生效值全部取默认）；
+ * - 字段缺失 → 该字段留空（由 `resolveCompileCheck` 回退默认）；
+ * - 非法取值 → 不写入 `values`，记一条回退告警；
+ * - 未知字段 → 忽略并记告警（不阻断）。
+ *
+ * @param raw - config.yaml 原始内容
+ */
+export function parseCompileCheck(raw: string): ParsedCompileCheck {
+    const warnings: string[] = [];
+    const values: CompileCheckRawConfig = {};
+    const lines = raw.split(/\r?\n/);
+    const head = lines.findIndex((line) => /^compileCheck:\s*(#.*)?$/.test(line));
+    if (head === -1) {
+        return { present: false, values, warnings };
+    }
+
+    for (let i = head + 1; i < lines.length; i++) {
+        const line = lines[i];
+        if (line.trim() === '') {
+            continue;
+        }
+        // 段体结束：出现顶格行（下一个顶层键）
+        if (!/^\s+/.test(line)) {
+            break;
+        }
+        if (/^\s*#/.test(line)) {
+            continue;
+        }
+        const match = /^\s+([A-Za-z0-9_]+):\s*(.*)$/.exec(line);
+        if (!match) {
+            continue;
+        }
+        const field = match[1];
+        const rawValue = stripInlineComment(match[2]).trim();
+        if (!(COMPILE_CHECK_KEYS as readonly string[]).includes(field)) {
+            warnings.push(`compileCheck: 未知字段 ${field} 已忽略`);
+            continue;
+        }
+        if (field === 'enabled' || field === 'incremental' || field === 'autoFix') {
+            const lowered = rawValue.toLowerCase();
+            if (lowered === 'true' || lowered === 'false') {
+                values[field] = lowered === 'true';
+            } else {
+                warnings.push(compileCheckFallbackWarning(field, rawValue, String(DEFAULT_COMPILE_CHECK[field])));
+            }
+            continue;
+        }
+        if (field === 'timeoutMs' || field === 'maxRetries') {
+            if (/^\d+$/.test(rawValue) && Number(rawValue) > 0) {
+                values[field] = Number(rawValue);
+            } else {
+                warnings.push(compileCheckFallbackWarning(field, rawValue, DEFAULT_COMPILE_CHECK[field]));
+            }
+            continue;
+        }
+        // command：非字符串或全空白视为空（自动探测）；原值非空时告警
+        const unquoted = stripQuotes(rawValue);
+        if (unquoted.trim().length === 0) {
+            if (unquoted.length > 0) {
+                warnings.push(compileCheckFallbackWarning('command', rawValue, '(自动探测)'));
+            }
+            values.command = '';
+            continue;
+        }
+        values.command = unquoted.trim();
+    }
+
+    return { present: true, values, warnings };
+}
+
+/**
+ * 由原始解析结果得到生效配置（补全默认值 + 段级来源 + 逐字段回退告警）。
+ *
+ * @param parsed - `parseCompileCheck` 的结果；缺省按「段缺失」处理
+ */
+export function resolveCompileCheck(parsed?: ParsedCompileCheck): ResolvedCompileCheck {
+    const source = parsed?.present ? 'config' : 'default';
+    const config: CompileCheckConfig = { ...DEFAULT_COMPILE_CHECK, ...(parsed?.values ?? {}) };
+    return { config, source, warnings: [...(parsed?.warnings ?? [])] };
 }
 
 /** 默认 config.yaml 内容 */
@@ -87,7 +270,8 @@ rules:
   - spec
 
 # 选择本项目要安装的 workflow（iagent init/update 据此过滤生成）
-# 未配置或为空时使用默认集（7 项：project-init + spec 全 6）
+# 未配置或为空时使用默认集（DEFAULT_WORKFLOWS 8 项：project-init + test + spec 全 6）
+# 下列写回的默认内容为 7 项显式（不含 test）：test 由 spec-apply ⇒ test 依赖注入补足，安装总数同为 8
 # 选了 spec-propose 自动带 spec-verify-proposal；选了 spec-archive 自动带 spec-verify
 workflows:
   - project-init
@@ -106,6 +290,16 @@ tools:
   - claude
   - pi
   - codex
+
+# 编译检查（spec-apply Step 8 的硬门；缺省启用，段缺失即全部取默认值）
+# 生效值可用 iagent config show 查看；本段仅约束 spec-apply，debug 只共享 enabled 与缺省语义
+# compileCheck:
+#   enabled: true            # false = 项目级显式禁用（唯一合法的非执行终态来源）
+#   command: ""              # 空 = 按变更文件最近的构建描述符自动探测
+#   timeoutMs: 600000        # 单条命令超时（毫秒），超时计为失败
+#   incremental: true        # 批调度每批结束后执行批后编译检查（复用同一命令）
+#   autoFix: true            # 编译失败后进入自动修复循环
+#   maxRetries: 3            # 自动修复重试上限
 `;
 }
 
@@ -366,6 +560,11 @@ export function parseProjectConfig(raw: string): ProjectConfig {
     config.rules = readListSection(raw, /^rules:/).filter(isSkillType);
     config.workflows = readListSection(raw, /^workflows:/);
     config.tools = readListSection(raw, /^tools:/);
+    // compileCheck 段：仅承载原始解析结果（段缺失即 undefined，不填默认值）
+    const compileCheck = parseCompileCheck(raw);
+    if (compileCheck.present) {
+        config.compileCheck = compileCheck;
+    }
     return config;
 }
 
@@ -432,7 +631,20 @@ export function readProjectConfig(projectRoot: string): ResolvedProjectConfig | 
         return null;
     }
     const { context, rules, workflows, tools } = parseProjectConfig(raw);
-    const resolved: ResolvedProjectConfig = { context, rules: {}, missingRuleFiles: [], workflows, tools };
+    const resolved: ResolvedProjectConfig = {
+        context,
+        rules: {},
+        missingRuleFiles: [],
+        workflows,
+        tools,
+        compileCheck: { ...DEFAULT_COMPILE_CHECK },
+        compileCheckSource: 'default',
+        compileCheckWarnings: [],
+    };
+    const compileCheck = resolveCompileCheck(parseCompileCheck(raw));
+    resolved.compileCheck = compileCheck.config;
+    resolved.compileCheckSource = compileCheck.source;
+    resolved.compileCheckWarnings = compileCheck.warnings;
 
     for (const type of rules) {
         const ruleFile = path.join(projectRoot, RULES_DIR_NAME, ruleFileNameFor(type));

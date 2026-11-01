@@ -110,6 +110,26 @@ describe('项目配置（.iagent/ 目录结构）', () => {
         expect(content).toContain('- test');
     });
 
+    it('默认 config 内容含 compileCheck 注释示例（缺段即启用）', () => {
+        const content = defaultConfigFileContent();
+        expect(content).toContain('# compileCheck:');
+        expect(content).toContain('#   enabled: true');
+        expect(content).toContain('#   incremental: true');
+        expect(content).toContain('#   maxRetries: 3');
+        // 全注释 ⇒ 段缺失：原始解析不产生 compileCheck，生效值由默认值补齐
+        const parsed = parseProjectConfig(content);
+        expect(parsed.compileCheck).toBeUndefined();
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-compile-default-'));
+        try {
+            ensureProjectConfig(root);
+            const resolved = readProjectConfig(root);
+            expect(resolved?.compileCheck.enabled).toBe(true);
+            expect(resolved?.compileCheckSource).toBe('default');
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
     it('解析 config：context 块 + rules 引用列表', () => {
         const parsed = parseProjectConfig(defaultConfigFileContent());
         expect(parsed.context).toContain('项目背景');

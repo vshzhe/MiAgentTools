@@ -554,8 +554,8 @@ describe('2.5 边界容错与跳过开关', () => {
         const result = runUpdate(projectRoot, { homeDir });
 
         expect(result.legacyMigration.warnings.some((w) => w.includes('迁移未完成'))).toBe(true);
-        // 主流程照常：未配置 workflows 时按默认集刷新（9 模板 × 3 工具）
-        expect(result.installed.length).toBe(27);
+        // 主流程照常：未配置 workflows 时按默认集刷新（8 模板 × 3 工具）
+        expect(result.installed.length).toBe(24);
         // 异常后清理未执行，旧产物保留待下次重跑
         expect(fs.existsSync(path.join(projectRoot, '.claude', 'skills', `${LEGACY_SKILL_PREFIX}tr_impl_feature`))).toBe(
             true

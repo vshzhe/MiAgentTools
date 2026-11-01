@@ -3,7 +3,7 @@
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
-import { CODEGRAPH_CLI, CODEGRAPH_MCP, skillDelegation } from '../tool-whitelist.js';
+import { CODEGRAPH_CLI, CODEGRAPH_MCP } from '../tool-whitelist.js';
 import { CODEGRAPH_LOCK_LADDER, renderCodegraphProbeOrder } from '../codegraph-protocol.js';
 import { renderGateWhitelistSection } from '../prompt-gate.js';
 
@@ -11,7 +11,7 @@ export function getSpecArchiveChangeSkillTemplate(): SkillTemplate {
     return {
         name: 'iagent_spec_archive',
         description: '归档变更。当用户要归档已实现完成的变更、结束变更工作流时使用；触发词"归档 / archive / 结束变更"；NOT for 一次归档多个变更（改用 iagent_spec_bulk_archive）。',
-        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(ls:*), ${CODEGRAPH_CLI}, ${CODEGRAPH_MCP}, ${skillDelegation(['requirement_doc'])}`,
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), ${CODEGRAPH_CLI}, ${CODEGRAPH_MCP}, Bash(node:*)`,
         type: 'spec',
         instructions: `**适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
 
@@ -80,7 +80,7 @@ ${renderGateWhitelistSection()}
    - 直接执行 AI 合并 —— 不提示同步选项（"Sync now" 即默认行为）
    - **内联 AI 合并流程**（不单独调用技能）：对每个 capability，把操作直接应用到主规格 \`openspec/specs/<capability>/spec.md\`：
      - ADDED → 在主规格的正确章节追加新需求（描述 + Scenario）
-     - MODIFIED → 在主规格中就地替换对应的需求/Scenario
+     - MODIFIED → 在主规格中就地替换对应的需求/Scenario；**目标需求标识在主 spec 中缺失**时按 ADDED 追加该需求（描述 + Scenario），并在归档摘要中列出「MODIFIED 目标缺失（已追加）」告警后继续归档 —— MUST NOT 中止归档、MUST NOT 丢弃该需求
      - REMOVED → 从主规格中删除对应需求（\`reason\` / \`migration\` 值可在归档摘要中引用）
      - RENAMED → 更新主规格中的需求标识及所有交叉引用
    - 冲突解决与章节放置遵循 v1.1.20 specs-apply 合并语义
@@ -163,53 +163,25 @@ ${renderGateWhitelistSection()}
    - 变更的 exploration.md 仍随变更一起移入归档目录（提取是复制，不是移动）
    - 不得因同步失败而阻塞归档 —— 记录日志并继续
 
-4.8 **归档前需求文档检查点（强制检查点，状态感知）**
+4.8 **归档前需求文档只读报告**
 
-   **⚠️ 强制：确保需求文档在归档移动之前已存在并对齐，且尊重父流程已持久化的文档决定**
-
-   在探索记忆同步（4.7）之后、移动变更目录（5）**之前**执行。检查点同时读取**两件事**：
+   在探索记忆同步（4.7）之后、移动变更目录（5）**之前**执行。只读取**两件事**：
 
    - 变更目录内 \`需求文档.md\` 是否存在（\`openspec/changes/<change-name>/需求文档.md\`，用 \`path.join()\` 构建）
-   - 该变更 \`exploration.md\` 的 \`## 需求文档状态\` 段（字段 \`requirementDocStatus\`）
+   - 该变更 \`exploration.md\` 的 \`## 需求文档状态\` 段（字段 \`requirementDocStatus\`；段缺失即 \`absent\`）
 
-   **优先级（强制）：文档文件存在 > 持久状态** —— 文件存在时无论状态为何都走"已存在"分支（就地增量对齐）；状态只裁决"文件缺失"分支。
+   **只读报告（强制）**：结果**只进入摘要报告**，用于跨会话追溯：
 
-   **状态取值（四值模型）**：
+   - 文件存在（任一状态）→ 摘要记「需求文档：已存在（未改写）」
+   - 文件缺失（任一状态，含 \`absent\`）→ 摘要记「需求文档：缺失」
+   - 读取失败（文件存在性或状态段不可读）→ 输出含路径与原因的 WARN，摘要记「需求文档：状态不可读」，继续归档
 
-   | 取值 | 含义 | 文档缺失时的处理 |
-   |------|------|------------------|
-   | \`absent\` | 该段缺失或取值非法（**不落盘**） | 历史兼容：以非交互模式委派 \`iagent_requirement_doc\` |
-   | \`skipped-by-user\` | 用户在父流程文档桥明确选择跳过 | 报告跳过并继续归档，MUST NOT 生成 |
-   | \`generation-failed\` | 父流程文档桥委派生成失败 | 输出 WARN 并继续，MUST NOT 静默重试 |
-   | \`generated\` | 父流程文档桥生成成功（终态） | 输出 WARN（"曾生成但文件缺失"）并继续，MUST NOT 重建 |
-
-   **执行步骤（顺序固定）**：
-
-   1. **读取状态与文件存在性**（一次读取）：读 \`exploration.md\` 的 \`## 需求文档状态\` 段 + 检查 \`需求文档.md\` 是否存在
-
-   2. **I/O 失败语义（强制）**：读取失败 → 自动重试同一读取**一次** → 仍失败即停止（MUST NOT 第二次或无限重试）：
-      - MUST NOT 把状态视为 \`absent\` —— MUST NOT 进入历史兼容生成分支
-      - MUST NOT 生成需求文档
-      - 文档已存在时仍按"文档已存在"分支对齐；文档缺失时输出含目标路径与原因的 WARN 与恢复指引
-      - 读取失败 MUST NOT 阻断归档
-
-   3. **分支 A —— 文档已存在（任何状态，含 \`skipped-by-user\`）**：对该文件执行 **in-place（就地）增量对齐更新**。\`## 基本信息\`（需求编号 / 需求名称 / 交付时间，含占位符状态）与 \`## 八、评审记录\` 属**人工域**，MUST NOT 覆盖 —— 逐字保留；\`一~七\` 章节 SHALL 从**当前** Markdown 源（\`proposal.md\` / \`design.md\` / \`specs/**/*.md\` / \`tasks.md\`）重新推导。本分支**不得调用 \`iagent_requirement_doc\`** —— 该技能自身规则是"目标文件已存在时静默覆盖"，会抹掉人工撰写的评审内容。对齐 MUST NOT 删除章节（仅可丢弃制品中已移除的内容）；若文档结构已损坏，重建缺失章节并记录 WARN
-
-   4. **分支 B —— 文档缺失且 \`skipped-by-user\`**：报告"用户已选择跳过需求文档生成"并继续归档；MUST NOT 调用 \`iagent_requirement_doc\`、MUST NOT 生成
-
-   5. **分支 C —— 文档缺失且 \`generation-failed\`**：输出含原因的 WARN（用户曾确认生成但首次委派失败），继续归档；MUST NOT 静默重试生成（用户可手工重跑需求文档技能）
-
-   6. **分支 D —— 文档缺失且 \`generated\`**：输出 WARN（"曾生成但文件缺失"），继续归档；MUST NOT 重新生成
-
-   7. **分支 E —— 文档缺失且 \`absent\`（历史兼容）**：以**非交互模式**委派 \`iagent_requirement_doc\` 技能并传入变更名 —— 不向用户提问，基本信息用占位符；文档写入 \`openspec/changes/<change-name>/需求文档.md\`
-
-   8. **失败处理（非阻塞）**：若生成、对齐或检查失败，记录 WARN（含目标路径与原因），然后继续归档 —— 绝不因本检查点阻塞归档，也绝不静默宣称成功
+   **禁止写入（强制）**：本检查点 MUST NOT 生成需求文档、MUST NOT 就地增量对齐、MUST NOT 迁出到 \`openspec/devdocs/\`，MUST NOT 委派 \`iagent_requirement_doc\`。\`requirementDocStatus\` MUST NOT 再被用于触发任何写入动作（它只是报告输入）。
 
    **强制检查点**：
-   - 系统 MUST 在移动变更目录前完成需求文档检查点
-   - 显式状态（\`skipped-by-user\` / \`generation-failed\` / \`generated\`）与文档存在性共同裁决分支，MUST NOT 一律走旧生成行为
-   - 生成的文档留在变更目录内并随其移动；随后既有 Step 6 会把它迁移到 \`openspec/devdocs/\`
-   - 不得因生成或对齐失败而阻塞归档 —— 记录日志并继续
+   - 系统 MUST 在移动变更目录前完成需求文档只读报告
+   - 该报告失败 MUST NOT 阻断归档 —— 记录 WARN 并继续，MUST NOT 静默宣称成功
+   - 需求文档的生成职责属于提案验证后的文档桥（workflow / auto-workflow / debug）与用户手工调用
 
 
 5. **执行归档**
@@ -225,19 +197,7 @@ ${renderGateWhitelistSection()}
 
    保留 \`.openspec.yaml\` 与 \`attachments/\` 子目录 —— 它们会随变更目录自动移动。
 
-6. **把需求文档移入 devdocs（若存在）**
-
-   变更目录移入归档后，检查归档后的变更是否含已生成的需求文档：
-
-   \`\`\`bash
-   ls "openspec/changes/archive/YYYY-MM-DD-<name>/需求文档.md"
-   \`\`\`
-
-   - **若文件存在**：把它移动到 \`openspec/devdocs/YYYY-MM-DD-<change-name>-需求文档.md\`
-     - \`YYYY-MM-DD\` 前缀取自同一归档目录名（与归档命令的目录命名逻辑一致）
-     - 若归档目录名不含可解析的 \`YYYY-MM-DD-\` 前缀，降级为不带时间戳的 \`openspec/devdocs/<change-name>-需求文档.md\`
-     - devdocs 目录不存在则创建（用 \`path.join()\`）；目标已存在则覆盖
-   - **若文件不存在**：静默跳过本步骤 —— 不报错、不告警，继续归档流程
+   变更目录内若存在 \`需求文档.md\`，它随目录一起留在 \`openspec/changes/archive/\` 内（本技能 MUST NOT 迁出到 \`openspec/devdocs/\`）。
 
 6.5 **归档后 CodeGraph 同步 + 验证（条件执行，daemon 感知）**
 
@@ -259,11 +219,11 @@ ${renderGateWhitelistSection()}
       - 验证查询失败或返回空：记录告警，不阻塞归档
       - CodeGraph 同步独立于 \`--skip-specs\` / \`--no-validate\` / 跳过校验的选择执行
 
-7. **更新或创建 ARCHIVE-INDEX.md**
+7. **更新或创建 ARCHIVE-INDEX.md（纯追加）**
 
    **IMPORTANT**：workspace 范围的变更（actionContext.mode: "workspace-planning"）跳过本步骤。
 
-   归档索引文件位于 \`openspec/changes/archive/ARCHIVE-INDEX.md\`。
+   归档索引文件位于 \`openspec/changes/archive/ARCHIVE-INDEX.md\`。维护方式为**纯追加本批条目** —— MUST NOT 全量重建或整体覆盖。
 
    **文件不存在时创建它**：
 <!-- CMD:SKIP -->
@@ -313,6 +273,11 @@ ${renderGateWhitelistSection()}
    d. 把页脚时间戳更新为当前日期
 <!-- /CMD:SKIP -->
 
+   **结构损坏时（强制，纯追加不重建）**：若文件存在但表格结构部分损坏、无法完整解析：
+   - **保留原文**：MUST NOT 全量重建、MUST NOT 整体覆盖、MUST NOT 丢弃既有历史条目
+   - **仅追加**本批的最小条目（\`| {date} | {change-name} | {module} | {summary} |\`）
+   - 输出 WARN 提示人工修复（含损坏位置线索）；该项 MUST NOT 阻断归档
+
    **跨平台说明**：Windows 上用 \`path.join()\` 构建路径。检查文件是否存在时注意大小写敏感性差异。
 
 8. **展示摘要**
@@ -325,8 +290,25 @@ ${renderGateWhitelistSection()}
    - 归档索引更新状态
    - CodeGraph 同步状态（已同步 / 跳过 —— 未初始化或出错）
    - 探索记忆同步状态（已同步 / 跳过 —— 无探索文件或无 delta spec / 失败 —— 已记录告警）
-   - 需求文档状态（就地已对齐 / 用户已跳过未生成 / 生成失败 WARN 未重试 / 曾生成但文件缺失 WARN 未重建 / 历史兼容已生成 / 状态读取失败 WARN 未生成 —— 均附原因）
+   - 需求文档状态（已存在（未改写） / 缺失 / 状态不可读 WARN —— 只报告，MUST NOT 生成、对齐或迁出）
+   - 流程级工作区清理结果（已清理 / 清理失败 WARN + 路径）
    - 关于任何告警的说明（未完成的制品/任务）
+
+9. **归档收尾清理（流程级工作区）**
+
+   摘要展示后执行。**顺序强制**：MUST 发生在向 handoff 包 \`## 阶段结论\` 追加 \`phase=archive\` 行**之后**。
+
+   - **清理目标**：该变更的 \`.openspec-tmp/pipeline-<change-name>/\`（含 \`compile-report.md\` 与 \`handoff-pack.md\`）；**迁移期同时识别旧前缀 \`apply-<change-name>/\`**
+   - **执行方式**：跨平台删除 —— 经 Bash 运行 \`node -e "fs.rmSync(<path>, { recursive: true, force: true })"\`；MUST NOT 改用平台相关的递归删除命令（更宽的破坏面）
+   - **清理失败**（文件被占用 / 权限不足）→ 记 WARN 并给出工作区路径，MUST NOT 阻断归档，MUST NOT 改写已写入的阶段结论
+   - 工作区不存在 → 静默跳过（记一行日志）
+
+10. **归档只读护栏自检**
+
+   流程末尾确认：本次归档未改写 \`openspec/changes/archive/**\` 下的既有内容（本变更自身的整目录移动与 ARCHIVE-INDEX 追加除外），亦未向 \`openspec/devdocs/\` 写入或迁移任何 \`需求文档.md\`。
+
+   - 发现越界 → 输出含路径的 WARN 并说明需人工复核；MUST NOT 静默忽略、MUST NOT 回滚或重写已归档内容
+   - 自检结果并入摘要（与 8 的工作区清理结果一起展示）
 
 **Output（成功）**
 
@@ -337,9 +319,10 @@ ${renderGateWhitelistSection()}
 **Schema:** <schema-name>
 **Archived to:** openspec/changes/archive/YYYY-MM-DD-<name>/
 **Specs:** ✓ Synced to main specs (or "No delta specs" or "Sync failed — warning logged" or "主规格未同步（skip_specs 声明）")
-**Archive Index:** ✓ Updated ARCHIVE-INDEX.md
+**Archive Index:** ✓ Appended to ARCHIVE-INDEX.md (纯追加；结构损坏时仅追加 + WARN)
 **Exploration Memory:** ✓ Synced to specs/<capability>/explorations.md (or "Skipped — no exploration file" or "Skipped — no delta specs" or "Failed — warning logged")
-**Requirement Document:** ✓ Generated → openspec/devdocs/YYYY-MM-DD-<name>-需求文档.md (or "✓ Aligned in place (人工域 preserved)" / "Skipped — user chose to skip" / "WARN: generation previously failed — not retried" / "WARN: previously generated but file missing — not rebuilt" / "WARN: status unreadable — not generated" / "Failed — warning logged: <reason>")
+**Requirement Document:** 已存在（未改写）(or "缺失" / "状态不可读 — warning logged: <reason>") —— 只报告；未生成、未对齐、未迁出 devdocs
+**Pipeline Workspace:** ✓ Cleaned .openspec-tmp/pipeline-<name>/ (or "Cleanup failed — warning logged: <reason>"; 迁移期同时识别 apply-<name>/)
 **CodeGraph:** ✓ Synced (or "Not initialized — skipped" or "Sync skipped due to error")
 
 All artifacts complete. All tasks complete.
@@ -388,10 +371,13 @@ Target archive directory already exists.
 - 保留 \`attachments/\` 子目录 —— 它随变更目录自动移动
 - 为 ARCHIVE-INDEX.md 提取摘要时，扫描 \`tasks.md\` 的补充类型标签，并把 \`[含xxx]\` 标注追加到摘要
 - 归档移动前，为每个涉及的能力把探索记忆同步到 specs/<capability>/explorations.md；exploration.md 或 delta spec 缺失时跳过（并记日志）；绝不因同步失败阻塞归档
-- 预归档检查点（4.8）按“文件存在优先 + 状态裁决缺失分支”分流：已存在 → 就地增量对齐并逐字保留人工域（\`## 基本信息\` / \`## 八、评审记录\`），该分支绝不调用生成技能；缺失时 \`skipped-by-user\` 不生成、\`generation-failed\` 与 \`generated\` 仅 WARN 不重试、仅 \`absent\` 走历史兼容生成；状态或文件存在性读取失败重试一次仍失败时不视为 \`absent\`、不生成（文档存在仍对齐）；绝不因生成或对齐失败阻塞归档
+- 需求文档只读报告（4.8）：只判定 \`需求文档.md\` 存在性与可选读取 \`requirementDocStatus\`，结果只进摘要 —— MUST NOT 生成、MUST NOT 就地增量对齐、MUST NOT 迁出到 \`openspec/devdocs/\`、MUST NOT 委派 \`iagent_requirement_doc\`；读取失败只记 WARN，绝不阻断归档
+- **归档只读**：MUST NOT 修改 \`openspec/changes/archive/\` 下的既有内容 —— 已归档变更是历史事实；整目录移动（\`openspec/changes/<name>/\` → \`openspec/changes/archive/YYYY-MM-DD-<name>/\`）不属于改写，\`ARCHIVE-INDEX.md\` 的**追加**是显式例外；流程末尾保留一次护栏自检
+- ARCHIVE-INDEX.md 为**纯追加**索引：结构损坏时保留原文 + 仅追加本批最小条目 + WARN 提示人工修复，MUST NOT 全量重建或整体覆盖
+- 归档收尾清理流程级工作区 \`.openspec-tmp/pipeline-<change-name>/\`（同时识别旧 \`apply-\` 前缀）必须在追加 \`phase=archive\` 结论之后；清理失败只 WARN，不阻断归档、不改写阶段结论
 - 当变更声明 \`skip_specs\`（状态报告 specs 为 skipped）时，归档摘要 MUST 注明 "主规格未同步（skip_specs 声明）"，避免用户误以为规格同步被遗漏
 - 清晰展示发生了什么
-- 若存在 delta spec，执行同步评估、展示合并摘要，并直接执行内联 AI 合并（ADDED/MODIFIED/REMOVED/RENAMED → 主规格，遵循 v1.1.20 specs-apply 语义）
+- 若存在 delta spec，执行同步评估、展示合并摘要，并直接执行内联 AI 合并（ADDED/MODIFIED/REMOVED/RENAMED → 主规格，遵循 v1.1.20 specs-apply 语义）；MODIFIED 目标在主 spec 缺失时按 ADDED 追加并记「MODIFIED 目标缺失（已追加）」告警，MUST NOT 中止归档或丢弃需求
 - 归档流程不含任何索引重建：跨变更 SQLite 索引能力已退役，MUST NOT 出现索引重建类步骤`,
         license: 'MIT',
         compatibility: '依赖 iagent CLI（spec 命令组）与 CodeGraph CLI（可选）。',

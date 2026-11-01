@@ -288,14 +288,13 @@ describe('调用类白名单条目（MCP / Skill 委派 / 子代理派发）', (
             parseEntries(template.allowedTools).some((entry) => entry.startsWith('Skill('))
         );
         // 委派技能集合（回归锁）：白名单声明委派即意味着该技能正文存在委派动作
+        // 归档类已移除唯一的需求文档委派条目 ⇒ 退出编排委派面（9 → 7）
         expect(delegating.map((s) => s.commandId).sort()).toEqual([
             'auto-workflow',
             'debug',
             'migration',
             'project-init',
             'spec-apply',
-            'spec-archive',
-            'spec-bulk-archive',
             'spec-propose',
             'workflow',
         ]);
@@ -545,12 +544,34 @@ describe('2.4 白名单 canonical 形态全量断言', () => {
         return entry.template;
     }
 
-    it('归档技能具备需求文档委派条目（canonical）', () => {
+    it('归档技能不委派需求文档技能（授权面收敛：无条目、无正文委派、留清理授权）', () => {
         for (const name of ['iagent_spec_archive', 'iagent_spec_bulk_archive']) {
-            expect(templatesOf(name).allowedTools, `${name} 缺需求文档委派`).toContain(
+            const template = templatesOf(name);
+            const entries = template.allowedTools
+                .split(',')
+                .map((entry) => entry.trim())
+                .filter((entry) => entry.length > 0);
+            expect(template.allowedTools, `${name} 残留需求文档委派条目`).not.toContain(
                 'Skill(iagent-requirement-doc)'
             );
+            expect(template.instructions, `${name} 正文仍委派需求文档技能`).not.toMatch(
+                /委派 `iagent_requirement_doc` 技能/
+            );
+            // 归档收尾清理的真实调用支撑：保留 Bash(node:*)，MUST NOT 用更宽的删除条目替代
+            expect(entries, `${name} 缺少归档收尾清理所需的 Bash(node:*)`).toContain('Bash(node:*)');
+            expect(entries, `${name} 使用了过宽的删除授权`).not.toContain('Bash(rm:*)');
+            // 白名单仍由共享常量产出（CodeGraph 双写保留）
+            expect(entries).toContain('mcp__codegraph');
+            expect(entries).toContain(CODEGRAPH_CLI);
         }
+        // Step 6 删除后 spec-archive 不再调用 ls
+        expect(templatesOf('iagent_spec_archive').allowedTools).not.toContain('Bash(ls:*)');
+        // 批量归档的并行派发授权保留（属子代理派发，不是 Skill 委派）
+        const bulkEntries = templatesOf('iagent_spec_bulk_archive').allowedTools
+            .split(',')
+            .map((entry) => entry.trim());
+        expect(bulkEntries).toContain('Agent');
+        expect(bulkEntries).toContain('Task');
     });
 
     it('debug 具备文档与回归测试委派条目（canonical，无通配）', () => {

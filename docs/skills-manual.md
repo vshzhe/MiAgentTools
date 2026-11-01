@@ -109,7 +109,7 @@ MiAgentTools 是 AI Agent 技能生成与管理 CLI，按技能类型生成 `iag
 | `iagent_spec_propose` | `/iagent:spec-propose` | 一步生成完整提案（proposal/design/specs/tasks） | 需求描述 + 探索文件 → `proposal.md` / `design.md` / `specs/**/*.md` / `tasks.md` |
 | `iagent_spec_apply` | `/iagent:spec-apply` | 按任务清单实现变更（设计确认门 + 批调度 + 编译检查） | change-name → 代码 + tasks.md 勾选状态 |
 | `iagent_spec_verify` | `/iagent:spec-verify` | 实现完成后、归档前验证实现与制品一致 | change-name → 验证报告 |
-| `iagent_spec_archive` | `/iagent:spec-archive` | 归档变更：delta 合并主规格、记忆同步、需求文档对齐 | change-name → `archive/` + 主规格 |
+| `iagent_spec_archive` | `/iagent:spec-archive` | 归档变更：delta 合并主规格、记忆同步、需求文档只读报告 | change-name → `archive/` + 主规格 |
 | `iagent_spec_bulk_archive` | `/iagent:spec-bulk-archive` | 批量归档多个已完成变更 + 冲突解决 | 变更列表 → 归档批次 |
 | `iagent_spec_verify_proposal` | `/iagent:spec-verify-proposal` | 提案验证门：D1-D10 量化评分（阈值 90%） | change-name → 评分报告 |
 

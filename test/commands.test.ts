@@ -19,7 +19,7 @@ let tempRoot: string;
 
 beforeAll(() => {
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-test-'));
-    // 配置全量 workflows，让 init 装全部 20 个技能（默认集 8 显式项 + 1 注入 = 9 个）
+    // 配置全量 workflows，让 init 装全部 20 个技能（默认集 8 项自身无注入）
     ensureProjectConfig(tempRoot);
     writeWorkflowsToConfig(tempRoot, getSkillTemplates().map((e) => e.commandId));
 });
@@ -217,15 +217,15 @@ describe('workflows 过滤（profile 生效）', () => {
         return fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-wf-'));
     }
 
-    it('未配置 workflows 时 init 装默认集 8 显式项 + 1 注入 = 9 个（每工具）', () => {
+    it('未配置 workflows 时 init 装默认集 8 项（无注入，每工具）', () => {
         const root = freshRoot();
         try {
             const result = runInit(root);
             expect(result.workflowsSource).toBe('default');
-            expect(result.skillsInstalled.length).toBe(27); // 9 templates × 3 tools
-            expect(result.commandsInstalled.length).toBe(18); // 9 templates × 2 adapters
-            // spec-archive 在默认集内，其依赖 requirement-doc 被注入
-            expect(result.injectedDeps).toEqual(['requirement-doc']);
+            expect(result.skillsInstalled.length).toBe(24); // 8 templates × 3 tools
+            expect(result.commandsInstalled.length).toBe(16); // 8 templates × 2 adapters
+            // 归档类不再注入 requirement-doc ⇒ 默认集无注入项
+            expect(result.injectedDeps).toEqual([]);
             // 默认集内技能存在
             expect(
                 fs.existsSync(path.join(root, '.claude', 'skills', 'iagent-project-init', 'SKILL.md'))

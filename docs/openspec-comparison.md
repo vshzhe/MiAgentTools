@@ -193,7 +193,7 @@
 | 4.5 CONTEXT.md 术语同步 | 存在则补充缺失术语；不存在则从 proposal（领域术语）+ design（技术术语）自动创建 | 无术语表机制 |
 | 4.6 CodeGraph 状态检查 | `codegraph status` 单一检测（禁止 Glob 预检 `.codegraph/`——dot 目录假阴性） | 无 |
 | 4.7 探索记忆同步 | 提取变更 exploration.md 的 Decisions/术语/边界场景，追加到 `specs/<capability>/explorations.md`；过时决策标"已过时"不删历史 | 无 |
-| 4.8 需求文档生成 | 不存在则委派 iagent_requirement_doc 非交互生成；已存在则就地增量对齐（人工域 `## 基本信息` / `## 八、评审记录` 原样保留、一~七节按当前制品重导，此分支不调技能）；失败 WARN 非阻断 | 无 |
+| 4.8 需求文档只读报告 | 仅判定存在性 + 可选读取 `requirementDocStatus`，结果只进摘要；不生成 / 不就地增量对齐 / 不迁出 devdocs（生成职责属父流程文档桥与人工调用）；读取失败 WARN 非阻断 | 无 |
 
 ### 5.2 CodeGraph 知识图谱同步 + 符号验证
 
@@ -208,12 +208,13 @@
   （扫描 tasks.md 类型标签）
 - **OpenSpec**：归档目录内无索引文件，变更历史需自行翻目录
 
-### 5.4 需求文档归档生成与归集（devdocs）
+### 5.4 需求文档只读报告（不生成 / 不迁出）
 
-- **iAgent**：**归档时生成**（不存在则委派 iagent_requirement_doc 自动生成；已存在则就地
-  增量对齐、保留人工填写的评审记录与基本信息）后**归集**到
-  `openspec/devdocs/YYYY-MM-DD-<change-name>-需求文档.md`
-  （与 iagent_requirement_doc 八章节需求文档技能联动，形成"变更→评审文档"交付链）
+- **iAgent**：归档阶段只做**存在性只读报告** —— 判定变更目录内 `需求文档.md` 是否存在
+  （可读 `requirementDocStatus` 供跨会话追溯），结果只进摘要；**不生成、不就地增量对齐、
+  不迁出 `openspec/devdocs/`**。需求文档的生成由提案验证后的文档桥
+  （workflow / auto-workflow / debug）或用户手工调用 `iagent_requirement_doc` 承担，
+  文件随变更目录留在 `archive/` 内可被 Glob / Grep 检索
 - **OpenSpec**：无需求文档概念
 
 ### 5.5 归档一步化与防覆盖
@@ -318,7 +319,7 @@ unlabeled scenarios 识别（#1521）、任务声明验证方式（#1660）等�
 | 18 | 3 个 MANDATORY 归档前检查点 | archive | ✗（仅 spec 同步检查） |
 | 19 | CodeGraph sync + 符号验证 | archive | ✗ |
 | 20 | ARCHIVE-INDEX.md 归档索引 + 模块统计 | archive | ✗ |
-| 21 | 需求文档归档到 devdocs/ | archive | ✗ |
+| 21 | 需求文档存在性只读报告（不生成 / 不迁出） | archive | ✗ |
 | 22 | 术语表（CONTEXT.md）自动维护 | propose / archive | ✗ |
 | 23 | 一站式工作流编排技能（workflow / auto / debug / migration） | impl 系列 | ✗（无编排层） |
 | 24 | 中文交付生态（需求文档八章节、中文标签、中文注释） | 全部 | ✗ |

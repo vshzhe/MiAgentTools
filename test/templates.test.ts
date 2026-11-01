@@ -454,60 +454,477 @@ describe('2.11 spec-explore 既有探索协议回归', () => {
     });
 });
 
-// 任务 2.12：spec-archive 需求文档检查点回归（改 CodeGraph 段时不得削弱既有状态分支）。
-describe('2.12 spec-archive 需求文档检查点回归', () => {
+// 任务 4.7：spec-archive 归档只读 + 需求文档只读报告回归（写入分支与 devdocs 迁移已删除）。
+describe('4.7 spec-archive 归档只读与只读报告', () => {
     const archive = skillCorpus('iagent_spec_archive');
 
-    it('跳过不补生成 / 已存在则对齐', () => {
-        expect(archive).toContain('skipped-by-user');
-        expect(archive).toContain('MUST NOT 调用 `iagent_requirement_doc`、MUST NOT 生成');
-        expect(archive).toContain('就地增量对齐');
-    });
-
-    it('生成失败不重试 / 已生成缺失不重建', () => {
-        expect(archive).toContain('generation-failed');
-        expect(archive).toContain('MUST NOT 静默重试生成');
-        expect(archive).toContain('generated');
-        expect(archive).toContain('MUST NOT 重新生成');
-    });
-
-    it('读取失败不落入兼容生成（重试一次后停止）', () => {
-        expect(archive).toContain('自动重试同一读取**一次**');
-        expect(archive).toContain('MUST NOT 进入历史兼容生成分支');
-    });
-
-    it('历史无状态兼容（absent 分支）', () => {
-        expect(archive).toContain('分支 E');
-        expect(archive).toContain('非交互模式');
-        expect(archive).toContain('`absent`');
-    });
-
-    it('人工域受保护（基本信息与评审记录逐字保留）', () => {
-        expect(archive).toContain('人工域');
-        expect(archive).toContain('逐字保留');
-        expect(archive).toContain('## 八、评审记录');
-    });
-
-    it('单独调用读持久状态（文件存在性与状态同读）', () => {
-        expect(archive).toContain('检查点同时读取**两件事**');
-        expect(archive).toContain('文档文件存在 > 持久状态');
-    });
-
-    it('失败不阻断归档', () => {
-        expect(archive).toContain('绝不因本检查点阻塞归档');
-    });
-
-    it('探索记忆同步与 delta 智能合并仍在', () => {
-        expect(archive).toContain('探索记忆同步');
-        expect(archive).toContain('ADDED/MODIFIED/REMOVED/RENAMED');
-    });
-
-    it('需求文档状态四值语义与 host-orchestration 一致', () => {
-        for (const status of ['absent', 'skipped-by-user', 'generation-failed', 'generated']) {
-            expect(archive).toContain(status);
+    it('4.8 改为只读报告：只报告存在性，不生成 / 不对齐 / 不委派', () => {
+        expect(archive).toContain('4.8 **归档前需求文档只读报告');
+        expect(archive).toContain('已存在（未改写）');
+        expect(archive).toContain('需求文档：缺失');
+        expect(archive).toContain('该报告失败 MUST NOT 阻断归档');
+        expect(archive).toContain('MUST NOT 生成需求文档');
+        expect(archive).not.toMatch(/in-place|就地增量对齐更新/);
+        expect(archive).not.toMatch(/委派 `iagent_requirement_doc` 技能/);
+        // 旧的四值分流分支已删除
+        for (const token of ['分支 A', '分支 B', '分支 E', 'generation-failed', 'skipped-by-user']) {
+            expect(archive, `残留旧分流分支 ${token}`).not.toContain(token);
         }
     });
+
+    it('Step 6 删除：需求文档不再迁出 devdocs，文件随目录留在 archive/', () => {
+        expect(archive).not.toContain('把需求文档移入 devdocs');
+        expect(archive).not.toContain('devdocs/YYYY-MM-DD');
+        expect(archive).toContain('MUST NOT 迁出到 `openspec/devdocs/`');
+    });
+
+    it('归档只读护栏存在（整目录移动不属于改写）', () => {
+        expect(archive).toContain('**归档只读**');
+        expect(archive).toContain('MUST NOT 修改 `openspec/changes/archive/`');
+        expect(archive).toContain('整目录移动');
+        expect(archive).toContain('`ARCHIVE-INDEX.md` 的**追加**是显式例外');
+        expect(archive).toContain('归档只读护栏自检');
+    });
+
+    it('索引纯追加：结构损坏时只追加不重建', () => {
+        expect(archive).toContain('纯追加');
+        expect(archive).toContain('保留原文');
+        expect(archive).toContain('MUST NOT 全量重建');
+        expect(archive).toContain('提示人工修复');
+        expect(archive).not.toContain('重建该文件');
+        expect(archive).not.toContain('重建整个文件');
+    });
+
+    it('delta spec 智能合并仍在（ADDED/MODIFIED/REMOVED/RENAMED）', () => {
+        expect(archive).toContain('ADDED/MODIFIED/REMOVED/RENAMED');
+        expect(archive).toContain('delta specs 已合并');
+    });
+
+    it('MODIFIED 目标在主 spec 缺失时按 ADDED 追加并告警（不中止、不丢弃）', () => {
+        expect(archive).toContain('目标需求标识在主 spec 中缺失');
+        expect(archive).toContain('按 ADDED 追加该需求');
+        expect(archive).toContain('MODIFIED 目标缺失（已追加）');
+        expect(archive).toContain('MUST NOT 中止归档');
+        expect(archive).toContain('MUST NOT 丢弃该需求');
+    });
+
+    it('归档收尾清理流程级工作区（phase=archive 之后，失败仅 WARN）', () => {
+        expect(archive).toContain('归档收尾清理（流程级工作区）');
+        expect(archive).toContain('phase=archive');
+        // 顺序强制：清理在阶段结论追加之后
+        expect(archive).toContain('顺序强制');
+        expect(archive).toContain('.openspec-tmp/pipeline-<change-name>/');
+        expect(archive).toContain('apply-<change-name>/');
+        expect(archive).toContain('node -e "fs.rmSync(');
+        expect(archive).toContain('MUST NOT 阻断归档');
+        expect(archive).toContain('流程级工作区清理结果');
+    });
 });
+
+// 任务 2.10：spec-apply 编译硬门模板断言（无跳过出口 / 终态四值 / 配置载体 / 范围降级链）。
+describe('2.10 spec-apply 编译硬门', () => {
+    const apply = skillCorpus('iagent_spec_apply');
+
+    it('硬门无会话级跳过出口（正文与 Output）', () => {
+        expect(apply).toContain('编译检查阶段（硬门）');
+        expect(apply).not.toContain('跳过检查并归档');
+        expect(apply).not.toContain('跳过并记录警告');
+        expect(apply).not.toContain('[3] 跳过');
+        expect(apply).toContain('无会话级跳过出口');
+    });
+
+    it('终态四值齐备且非通过终态不得表述为通过', () => {
+        for (const status of ['pass', 'fail', 'not-applicable', 'disabled']) {
+            expect(apply, `缺少终态 ${status}`).toContain(`\`${status}\``);
+        }
+        expect(apply).toContain('MUST NOT 表述为「通过」');
+        expect(apply).toContain('未执行编译检查（无可编译产物 / 项目级显式禁用）');
+    });
+
+    it('配置载体为 .iagent/config.yaml，缺段经 iagent config show 取默认值', () => {
+        expect(apply).toContain('.iagent/config.yaml');
+        expect(apply).toContain('iagent config show');
+        expect(apply).toContain('enabled=true');
+        expect(apply).toContain('maxRetries=3');
+        // 旧位置仅 WARN，不双源
+        expect(apply).toContain('openspec/config.yaml');
+        expect(apply).toContain('MUST NOT 采用其取值');
+    });
+
+    it('不再是 allowedEditRoots 的必需消费者（Step 2 与 Step 8 两处）', () => {
+        expect(apply).toContain('**均非必需字段**');
+        expect(apply).toContain('MUST NOT 依赖 `allowedEditRoots`');
+        expect(apply).not.toContain('从状态 JSON 解析 `allowedEditRoots`');
+        // 变更范围走降级链并记 WARN
+        expect(apply).toContain('降级链');
+        for (const source of ['`git diff`（含未跟踪文件）', '`contextFiles` / `changeRoot`', 'project-root']) {
+            expect(apply, `范围降级链缺少 ${source}`).toContain(source);
+        }
+    });
+
+    it('批后增量检查收敛到 compileCheck.incremental 且不再读 apply.incrementalCheck', () => {
+        expect(apply).toContain('compileCheck.incremental');
+        expect(apply).toContain('批后编译检查');
+        expect(apply).toContain('复用收尾全量所用的**同一条命令**');
+        // 旧配置只在弃用语境出现（不作为生效来源）
+        const occurrences = apply.split('apply.incrementalCheck').length - 1;
+        expect(occurrences).toBeGreaterThan(0);
+        expect(apply).toContain('`apply.incrementalCheck` 一类字段');
+        expect(apply).not.toMatch(/从 `openspec\/config.yaml` 读取 `apply.incrementalCheck`/);
+    });
+
+    it('命令运行时判定且不固化本项目命令', () => {
+        const main = allSkills.find(({ template }) => template.name === 'iagent_spec_apply')?.template.instructions ?? '';
+        expect(main).toContain('构建描述符');
+        expect(main).toContain('MUST NOT 把本项目命令固化为唯一命令');
+        expect(main).toContain('MUST NOT 用 `npm run build` 当万能回退');
+        // 主文件 MUST NOT 固化本仓库命令（细则文件中的描述符矩阵属允许形态）
+        expect(main).not.toContain('node build.js');
+    });
+
+    it('显式命令优先且 monorepo 按描述符归组、去重后逐条执行', () => {
+        expect(apply).toContain('`compileCheck.command` 非空 → 直接使用，不追加任何探测命令');
+        expect(apply).toContain('monorepo 按描述符归组、去重后逐条执行');
+        // 逐条执行时命令 / 退出码 / 范围分别记录
+        expect(apply).toContain('`command` / `exitCode` / `scope`');
+    });
+
+    it('描述符矩阵覆盖非本仓库生态（pom / lockfile / tsconfig）', () => {
+        for (const row of [
+            '`pom.xml` | `mvn compile -DskipTests`',
+            '`tsc --noEmit`',
+            '`pnpm-lock.yaml` | `pnpm run build`',
+            '`package-lock.json` | `npm run build`',
+            '`yarn.lock` | `yarn build`',
+        ]) {
+            expect(apply, `描述符矩阵缺少 ${row}`).toContain(row);
+        }
+    });
+
+    it('超时与缺依赖计为失败，MUST NOT 归为 not-applicable', () => {
+        expect(apply).toContain('命令超时、依赖未安装');
+        expect(apply).toContain('command not found');
+        expect(apply).toContain('缺 `node_modules`');
+        expect(apply).toContain('一律计为失败');
+        expect(apply).toContain('MUST NOT 归类为 `not-applicable`');
+    });
+
+    it('重试耗尽后暂停：不进入测试门、不给归档建议', () => {
+        expect(apply).toContain('MUST NOT 进入 Step 9');
+        expect(apply).toContain('MUST NOT 给出归档建议');
+        expect(apply).toContain('含 `file:line`');
+    });
+
+    it('旧配置位置只读一次 WARN 且不合并 / 不回退', () => {
+        expect(apply).toContain('只读一次并 WARN');
+        expect(apply).toContain('MUST NOT 在两文件间合并或回退');
+    });
+
+    it('autoFix=false 首次失败即 fail；lint / 前端辅助项保留', () => {
+        expect(apply).toContain('`autoFix=false` 时**首次失败即**');
+        expect(apply).toContain('辅助检查');
+        expect(apply).toContain('lint');
+        expect(apply).toContain('前端校验');
+        expect(apply).toContain('SHALL NOT 参与四值终态');
+    });
+
+    it('描述符矩阵 ↔ allowedTools 一致性（每类编译命令均有授权）', () => {
+        const entry = allSkills.find(({ template }) => template.name === 'iagent_spec_apply');
+        expect(entry).toBeDefined();
+        const tools = (entry?.template.allowedTools ?? '').split(',').map((item) => item.trim());
+        const detail =
+            (entry?.template.references ?? []).find((ref) => ref.path === 'references/compile-check.md')
+                ?.content ?? '';
+
+        // 双向校验：矩阵声明了该命令 ⇔ 白名单具备对应 Bash 授权
+        const matrix: Array<[string, string]> = [
+            ['pnpm run build', 'Bash(pnpm:*)'],
+            ['npm run build', 'Bash(npm:*)'],
+            ['yarn build', 'Bash(yarn:*)'],
+            ['tsc --noEmit', 'Bash(tsc:*)'],
+            ['node build.js', 'Bash(node:*)'],
+            ['mvn compile -DskipTests', 'Bash(mvn:*)'],
+            ['ant compile', 'Bash(ant:*)'],
+            ['gradle compileJava', 'Bash(gradle:*)'],
+            ['go build ./...', 'Bash(go:*)'],
+            ['cargo build', 'Bash(cargo:*)'],
+        ];
+        for (const [command, allowed] of matrix) {
+            expect(detail, `描述符矩阵缺少命令 ${command}`).toContain(command);
+            expect(tools, `白名单缺少 ${allowed}（正文命令 ${command} 将无法执行）`).toContain(allowed);
+        }
+    });
+
+    it('细则下沉 references/compile-check.md 且保留内联兜底', () => {
+        expect(apply).toContain('references/compile-check.md');
+        expect(apply).toContain('MUST 先 `Read` `references/compile-check.md`');
+        expect(apply).toContain('MUST NOT 因此跳过编译检查');
+    });
+});
+
+// 任务 2.11：spec-apply 编译证据契约与生命周期断言。
+describe('2.11 spec-apply 编译证据', () => {
+    const apply = skillCorpus('iagent_spec_apply');
+    const refs = new Map(
+        (getSkillTemplates().find(({ template }) => template.name === 'iagent_spec_apply')?.template.references ?? []).map(
+            (ref) => [ref.path, ref.content]
+        )
+    );
+
+    it('九个证据字段名齐全且每次执行一行', () => {
+        for (const column of [
+            'change',
+            'command',
+            'exitCode',
+            'errorCount',
+            'fixedCount',
+            'status',
+            'scope',
+            'timestamp',
+            'reason',
+        ]) {
+            expect(apply, `证据缺少字段 ${column}`).toContain(`\`${column}\``);
+        }
+        expect(apply).toContain('.openspec-tmp/pipeline-<change-name>/compile-report.md');
+        expect(apply).toContain('每次执行一行');
+    });
+
+    it('summary 汇总行与「任一 fail → fail」优先级', () => {
+        expect(apply).toContain('**summary**: status=<...>');
+        expect(apply).toContain('任一命令行 `fail` → `fail`');
+        expect(apply).toContain('零命令时只能是 `not-applicable` 或 `disabled`');
+    });
+
+    it('非执行终态使用固定占位（- / 0）且不得留空或 N/A', () => {
+        expect(apply).toContain('记 `-`');
+        expect(apply).toContain('`errorCount` / `fixedCount` 记 `0`');
+        expect(apply).toContain('MUST NOT 留空');
+        expect(apply).toContain('`N/A`');
+    });
+
+    it('非执行终态的 reason 使用固定文案（不适用 / 显式禁用）', () => {
+        expect(apply).toContain('`reason` 分别写');
+        expect(apply).toContain('未探测到可编译产物');
+        expect(apply).toContain('项目级显式禁用');
+    });
+
+    it('handoff 包追加 compile 行且使用编译四值（非回执状态）', () => {
+        expect(apply).toContain('| compile | <编译四值> | <证据路径> | <nextAllowed> |');
+        expect(apply).toContain('该行 status 使用编译四值');
+        expect(apply).toContain('MUST NOT 写成回执状态');
+    });
+
+    it('四终态均写证据；Step 10 保留证据与 handoff 包至归档收尾', () => {
+        expect(apply).toContain('四终态均须产出');
+        expect(apply).toContain('统一临时工作区清理（保留编译证据与 handoff 包）');
+        expect(apply).toContain('MUST 保留');
+        expect(apply).toContain('compile-report.md');
+        expect(apply).toContain('handoff-pack.md');
+        expect(apply).toContain('父流程归档收尾');
+        expect(apply).toContain('清理对象**只限临时脚本与草稿**');
+        // 独立调用不得强制删除，须报告证据路径
+        expect(apply).toContain('**独立调用（无父流程）**');
+        expect(apply).toContain('在完成摘要中报告证据文件路径');
+    });
+
+    it('references 含证据模板与终态判定表', () => {
+        const detail = refs.get('references/compile-check.md') ?? '';
+        expect(detail).toContain('**summary**: status=');
+        // 九列固定表头（父流程按固定列解析）
+        expect(detail).toContain(
+            '| change | command | exitCode | errorCount | fixedCount | status | scope | timestamp | reason |'
+        );
+        expect(detail).toContain('终态判定表');
+        expect(detail).toContain('monorepo 归组与去重');
+    });
+});
+
+// 任务 3.3：父流程编译证据就绪检查（只读、不执行编译、不扩权限）。
+describe('3.3 父流程编译证据就绪检查', () => {
+    const PARENTS = ['iagent_workflow', 'iagent_auto_workflow'];
+
+    it('两端均读取证据文件与 summary 行，含放行/阻断判定', () => {
+        for (const name of PARENTS) {
+            const body = skillCorpus(name);
+            expect(body, `${name} 未读取证据路径`).toContain(
+                '.openspec-tmp/pipeline-<change-name>/compile-report.md'
+            );
+            expect(body, `${name} 未读取汇总行`).toContain('**summary**:');
+            expect(body, `${name} 未声明放行集合`).toContain('{pass, not-applicable, disabled}');
+            expect(body, `${name} 未声明阻断条件`).toMatch(/status=fail/);
+            expect(body, `${name} 未声明证据缺失阻断`).toMatch(/证据缺失|missing/);
+        }
+    });
+
+    it('not-applicable / disabled 记 WARN 且不得写成「编译检查通过」', () => {
+        for (const name of PARENTS) {
+            const body = skillCorpus(name);
+            expect(body, `${name} 缺少 WARN 措辞`).toContain('未执行编译检查');
+            expect(body, `${name} 允许写成「编译检查通过」`).toContain('MUST NOT 表述为「编译检查通过」');
+        }
+    });
+
+    it('不可解析等同缺失（不得因文件存在就放行）', () => {
+        for (const name of PARENTS) {
+            const body = skillCorpus(name);
+            expect(body, `${name} 未声明不可解析的处理`).toMatch(/无法解析(出汇总状态)?/);
+        }
+    });
+
+    it('父流程不执行编译也不扩权限', () => {
+        const auto = getSkillTemplates().find(({ template }) => template.name === 'iagent_auto_workflow');
+        expect(auto?.template.allowedTools).not.toContain('Bash(tsc:*)');
+        for (const name of PARENTS) {
+            const body = skillCorpus(name);
+            expect(body, `${name} 未声明不自行编译`).toContain('MUST NOT 自行执行编译');
+        }
+    });
+
+    it('均不含已移除的归档写入描述', () => {
+        for (const name of PARENTS) {
+            const body = skillCorpus(name);
+            expect(body, `${name} 残留 4.8 引用`).not.toContain('4.8');
+            expect(body, `${name} 残留 devdocs 迁移描述`).not.toContain('迁移至 devdocs');
+        }
+    });
+
+    it('workflow 不含已移除的归档分流语义（仅保留否定式声明）', () => {
+        const body = skillCorpus('iagent_workflow');
+        // 旧的「文件存在优先 / 状态裁决缺失分支 / 兼容生成」正向结论零命中
+        expect(body).not.toContain('archive 以文件存在优先');
+        expect(body).not.toContain('状态裁决缺失分支，不因新会话');
+        expect(body).not.toContain('兼容生成');
+        // 新语义：只作报告输入，且不得据其写入
+        expect(body).toContain('仅把它当作报告输入');
+        expect(body).toContain('MUST NOT 据其生成 / 就地增量对齐 / 迁出');
+    });
+
+    it('编译终态与回执状态词汇不混用', () => {
+        const apply = skillCorpus('iagent_spec_apply');
+        expect(apply).toContain('编译四值');
+        expect(apply).toContain('MUST NOT 写成回执状态');
+        for (const name of PARENTS) {
+            expect(skillCorpus(name)).not.toMatch(/status=ok 即视为编译/);
+        }
+    });
+
+    it('编译失败沿用既有暂停语义', () => {
+        const workflowBody = skillCorpus('iagent_workflow');
+        expect(workflowBody).toContain('阻断归档并回到 Phase 4');
+        const autoBody = skillCorpus('iagent_auto_workflow');
+        expect(autoBody).toContain('MUST NOT 自动归档');
+        expect(autoBody).toContain('暂停并向用户报告');
+    });
+});
+
+// 任务 7.1：debug 仅共享 compileCheck 的 enabled 与缺省启用语义（字段作用域声明）。
+describe('7.1 debug 共享编译检查缺省语义与作用域声明', () => {
+    const debug = skillCorpus('iagent_debug');
+
+    it('载体为 .iagent/config.yaml 且缺省启用（不再出现「默认禁用」）', () => {
+        expect(debug).toContain('.iagent/config.yaml');
+        expect(debug).toContain('compileCheck');
+        expect(debug).toContain('缺省启用');
+        expect(debug).not.toContain('默认禁用');
+    });
+
+    it('两技能均声明字段作用域：仅 enabled 与缺省语义共享', () => {
+        // debug 侧显式声明不消费 command / timeoutMs / maxRetries / autoFix / incremental
+        expect(debug).toContain('仅约束 `iagent_spec_apply`');
+        expect(debug).toContain('只共享 `enabled`');
+        // apply 侧同一口径（细则段声明仅约束本技能）
+        expect(skillCorpus('iagent_spec_apply')).toContain('仅约束本技能');
+    });
+});
+
+// 任务 5.6：spec-bulk-archive 归档只读与只读报告断言。
+describe('5.6 spec-bulk-archive 归档只读', () => {
+    const bulk = skillCorpus('iagent_spec_bulk_archive');
+    const a6 = bulk.slice(bulk.indexOf('a.6 **需求文档只读报告'), bulk.indexOf('b. **执行归档**'));
+    const b5 = bulk.slice(bulk.indexOf('b.5 **探索记忆同步**'), bulk.indexOf('c. **归档只读校验'));
+
+    it('a.6 只读报告：无写入分支、无生成技能委派', () => {
+        expect(a6).toContain('需求文档：已存在（未改写）');
+        expect(a6).toContain('需求文档：缺失');
+        expect(a6).not.toContain('in-place');
+        expect(a6).not.toMatch(/委派 `iagent_requirement_doc` 技能/);
+        expect(a6).toContain('MUST NOT 中止该变更单元');
+    });
+
+    it('b.5 仅保留探索记忆同步（不再迁出 devdocs）', () => {
+        expect(b5).toContain('探索记忆同步');
+        // 缺失探索文件 / 无 delta spec 时记录日志并继续（不中止批次）
+        expect(b5).toContain('跳过探索记忆同步：无探索文件');
+        expect(b5).toContain('无 delta spec');
+        expect(b5).not.toContain('devdocs');
+        expect(b5).not.toContain('需求文档迁移');
+    });
+
+    it('10.g 结构损坏只追加不重建', () => {
+        const g = bulk.slice(bulk.indexOf('g. **损坏索引文件的处置'), bulk.indexOf('h. **跳过失败与已跳过的变更**'));
+        expect(g).toContain('保留原文');
+        expect(g).toContain('仅追加本批成功变更的最小条目');
+        expect(g).toContain('MUST NOT 全量重建');
+        expect(g).toContain('提示人工修复');
+        expect(g).not.toContain('重建该文件');
+        expect(bulk).not.toContain('用正确结构重建');
+    });
+
+    it('完整单元序列顺序固定（a → a.5 → a.6 → b → b.5 → c → d）', () => {
+        const STEPS = [
+            'a. **同步规格**',
+            'a.5 **CONTEXT.md 同步',
+            'a.6 **需求文档只读报告',
+            'b. **执行归档**',
+            'b.5 **探索记忆同步**',
+            'c. **归档只读校验 + 流程级工作区清理**',
+            'd. **记录结果**',
+        ];
+        const positions = STEPS.map((step) => bulk.indexOf(step));
+        STEPS.forEach((step, index) => {
+            expect(positions[index], `缺少步骤「${step}」`).toBeGreaterThanOrEqual(0);
+        });
+        // 七个不同位置（防止同一处文本被重复计为多个步骤）
+        expect(new Set(positions).size).toBe(STEPS.length);
+        expect(positions).toEqual([...positions].sort((left, right) => left - right));
+    });
+
+    it('只读护栏 + c 步只读校验 + 单元清理存在', () => {
+        expect(bulk).toContain('**归档只读**');
+        expect(bulk).toContain('MUST NOT 修改 `openspec/changes/archive/`');
+        expect(bulk).toContain('c. **归档只读校验 + 流程级工作区清理**');
+        expect(bulk).toContain('单元成功后清理流程级工作区');
+        expect(bulk).toContain('失败或跳过的单元保留工作区');
+        expect(bulk).toContain('node -e "fs.rmSync(');
+        // 越界告警不中止批次，也不静默忽略
+        expect(bulk).toContain('记录含变更名与路径的 WARN');
+        expect(bulk).toContain('MUST NOT 中止整批');
+        expect(bulk).toContain('MUST NOT 静默忽略');
+    });
+
+    it('MODIFIED 目标在主 spec 缺失时按 ADDED 追加并告警（与单变更同义）', () => {
+        expect(bulk).toContain('目标需求标识在主 spec 中缺失');
+        expect(bulk).toContain('按 ADDED 追加该需求');
+        expect(bulk).toContain('MODIFIED 目标缺失（已追加）');
+        expect(bulk).toContain('MUST NOT 中止该变更单元或整批');
+        expect(bulk).toContain('MUST NOT 丢弃该需求');
+    });
+
+    it('摘要模板含只读校验与清理结果', () => {
+        expect(bulk).toContain('Archive read-only check');
+        expect(bulk).toContain('Pipeline workspace cleanup');
+        expect(bulk).toContain('Requirement document report');
+    });
+
+    it('SUBAGENT_DISPATCH 保留（批量并行仍属子代理派发）', () => {
+        const template = getSkillTemplates().find(({ template }) => template.name === 'iagent_spec_bulk_archive')
+            ?.template;
+        const entries = (template?.allowedTools ?? '').split(',').map((entry) => entry.trim());
+        expect(entries).toContain('Agent');
+        expect(entries).toContain('Task');
+    });
+});
+
 
 // 任务 3.5：spec-apply 既有实现流程回归（MODIFIED 需求整体重写后逐条守护）。
 describe('3.5 spec-apply 既有实现流程回归', () => {
@@ -535,9 +952,13 @@ describe('3.5 spec-apply 既有实现流程回归', () => {
         expect(apply).toContain('MUST 先更新 proposal/specs/design');
     });
 
-    it('编译检查（技术栈探测 + 自动修复上限 3 次）', () => {
+    it('编译检查（硬门：配置载体 + 终态四值 + 自动修复上限）', () => {
         expect(apply).toContain('编译检查阶段');
-        expect(apply).toContain('最多 3 次');
+        expect(apply).toContain('.iagent/config.yaml');
+        for (const status of ['`pass`', '`fail`', '`not-applicable`', '`disabled`']) {
+            expect(apply, `缺少终态 ${status}`).toContain(status);
+        }
+        expect(apply).toMatch(/最多 `maxRetries` 次（默认 3）/);
     });
 
     it('[测试] 任务委派 iagent_test，不另立测试规则', () => {
@@ -745,13 +1166,13 @@ describe('7.7 归档步骤序回归', () => {
 });
 
 // spec-workflow-skills / 「spec-archive 归档技能」：归档步骤序（探索记忆同步 →
-// 需求文档检查点 → 目录迁移 → ARCHIVE-INDEX）。顺序是协议约束，故断言文本相对位置。
-describe('7.7 归档步骤序（探索记忆同步 → 需求文档检查点 → 目录迁移 → ARCHIVE-INDEX）', () => {
+// 需求文档只读报告 → 目录迁移 → ARCHIVE-INDEX）。顺序是协议约束，故断言文本相对位置。
+describe('7.7 归档步骤序（探索记忆同步 → 需求文档只读报告 → 目录迁移 → ARCHIVE-INDEX）', () => {
     const STEPS = [
         '4.7 **归档前探索记忆同步',
-        '4.8 **归档前需求文档检查点',
+        '4.8 **归档前需求文档只读报告',
         '5. **执行归档**',
-        '7. **更新或创建 ARCHIVE-INDEX.md**',
+        '7. **更新或创建 ARCHIVE-INDEX.md（纯追加）**',
     ];
 
     it('技能版与指令版正文的相对位置一致且严格递增', () => {
@@ -774,10 +1195,10 @@ describe('7.7 归档步骤序（探索记忆同步 → 需求文档检查点 →
         const move = body.indexOf('把 `changeRoot` 移动到');
 
         expect(move).toBeGreaterThan(body.indexOf('4.7 **归档前探索记忆同步'));
-        expect(move).toBeGreaterThan(body.indexOf('4.8 **归档前需求文档检查点'));
-        expect(move).toBeLessThan(body.indexOf('7. **更新或创建 ARCHIVE-INDEX.md**'));
+        expect(move).toBeGreaterThan(body.indexOf('4.8 **归档前需求文档只读报告'));
+        expect(move).toBeLessThan(body.indexOf('7. **更新或创建 ARCHIVE-INDEX.md（纯追加）**'));
         // 两个检查点都显式声明「移动变更目录前」完成（顺序约束的正文依据）
         expect(body).toContain('系统 MUST 在移动变更目录前完成探索记忆同步');
-        expect(body).toContain('系统 MUST 在移动变更目录前完成需求文档检查点');
+        expect(body).toContain('系统 MUST 在移动变更目录前完成需求文档只读报告');
     });
 });

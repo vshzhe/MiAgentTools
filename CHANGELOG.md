@@ -7,6 +7,57 @@
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-11-01
+
+### BREAKING
+
+- **编译检查配置载体迁移**：`compileCheck` 只在 `.iagent/config.yaml` 生效；`openspec/config.yaml`
+  的同名段与 `apply.incrementalCheck` 不再被读取（仅输出一次 WARN 指向迁移目标）。
+  缺省语义固定为「启用」（`enabled: true`），「默认禁用」表述已删除。
+- **默认安装集 9 → 8**：`DEPS` 移除 `spec-archive` / `spec-bulk-archive ⇒ requirement-doc`，
+  未配置 `workflows` 的项目默认安装由 9 项降为 8 项（不再随装 `requirement-doc`）；
+  `workflow` / `auto-workflow` 显式声明该依赖，其安装集不变。
+- **归档能力收缩**：归档不再生成、不就地增量对齐、不迁出 `openspec/devdocs/` 需求文档；
+  `需求文档.md` 随变更目录留在 `archive/` 内，归档只报告存在性；两个归档技能不再委派
+  `iagent_requirement_doc`（`allowed-tools` 取值随之变化，退出宿主编排派生面）。
+- **编译门收紧**：`spec-apply` Step 8 删除会话级跳过出口（`[3] 跳过并记录警告` 与
+  「跳过检查并归档」），终态只允许 `pass` / `not-applicable` / `disabled`（仅配置）/ `fail`；
+  自动修复 `maxRetries`（默认 3）耗尽后暂停，不进入测试门、不建议归档。
+
+### Added
+
+- `.iagent/config.yaml` 新增 `compileCheck` 段（`enabled` / `command` / `timeoutMs` /
+  `incremental` / `autoFix` / `maxRetries`），默认值单一源在 `src/core/project-config.ts`；
+  `iagent config show` 展示生效值、来源（用户配置 / 默认值 / 含回退字段）与逐字段回退 WARN。
+- 编译证据契约：`.openspec-tmp/pipeline-<change-name>/compile-report.md`（九字段表格 +
+  `**summary**:` 汇总行）与 handoff 包 `## 阶段结论` 的 `compile` 行；由 `spec-apply` 产出，
+  `workflow` / `auto-workflow` 只读消费（父流程不执行编译、不扩张编译权限）。
+- `spec-apply` 的 Step 8 细则下沉 `references/compile-check.md`（描述符探测矩阵、命令构造、
+  monorepo 归组去重、证据模板、终态判定表），主 SKILL 保持 ≤500 行。
+- 归档收尾清理流程级工作区 `.openspec-tmp/pipeline-<change-name>/`（单变更与批量单元成功时清理；
+  失败 / 跳过单元保留供诊断；清理失败仅 WARN，不阻断归档）。
+
+### Changed
+
+- `compileCheck.incremental`（默认 true）成为批后增量检查唯一开关，复用收尾全量同一命令；
+  `apply.incrementalCheck` 的语义收敛至该字段。
+- `spec-apply` 的变更范围识别改为降级链（`tasks.md` 产出 → `git diff` 含未跟踪 → 状态 JSON 的
+  `contextFiles` / `changeRoot`），不再依赖不存在的 `allowedEditRoots`；Step 2 的 workspace 护栏同步放宽。
+- `ARCHIVE-INDEX.md` 改为纯追加：结构损坏时保留原文 + 仅追加本批最小条目 + WARN，不再全量重建；
+  两个归档技能补「归档只读」护栏（整目录移动不属于改写）。
+- `debug` Phase 5 的编译检查载体与缺省语义对齐（`.iagent/config.yaml`、缺省启用），并声明
+  `command` / `timeoutMs` / `maxRetries` / `autoFix` / `incremental` 仅约束 `spec-apply`。
+- 归档类技能退出宿主编排派生面（无 `Skill(...)` 条目 ⇒ 不注入编排段、不生成 `allowed_subagents`），
+  委派技能回归锁由 9 个收敛为 7 个。
+
+### Fixed
+
+- 修复「编译检查标强制却存在三条跳过通道」的根因：终态改为可机器校验的证据文件，
+  父流程就绪检查读证据而非自由文本报告。
+- 修复 `spec-apply` 8.3 解析不存在字段、8.4 固化本仓库命令、`apply.incrementalCheck`
+  有配置无步骤三处脱节。
+- 修复归档侧缺少「归档只读」护栏、`ARCHIVE-INDEX.md` 损坏时全量重建的问题。
+
 ## [2.1.0] - 2026-11-01
 
 ### Added
@@ -1431,7 +1482,7 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/mi-agent-tools/compare/v2.1.0...HEAD
+[Unreleased]: https://github.com/mi-agent-tools/compare/v3.0.0...HEAD
 [2.0.0]: https://github.com/mi-agent-tools/compare/v1.0.2...v2.0.0
 [1.0.2]: https://github.com/mi-agent-tools/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/mi-agent-tools/compare/v1.0.0...v1.0.1

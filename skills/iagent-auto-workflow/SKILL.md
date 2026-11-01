@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:968e6fffc4cd65af349a581efa1b136a8197501e92d104b0dbf4b3030b4676d1"
+  generatedFingerprint: "sha256:c5d1547146be8f8d4be76b46a544c62b667a66f81e970fc7e74783cc22ed1ba7"
 ---
 
 
@@ -149,7 +149,7 @@ Phase 2 的探索文件迁移与全部制品生成 SHALL 委派阶段 `iagent_sp
 
 ### 4.2 自动实现错误处理
 
-- **编译检查失败**（自动修复 3 次尝试后）：暂停并等待用户指示 —— 不得进入归档
+- **编译检查失败**（apply 自动修复 `maxRetries` 后仍为 `fail`，证据 `status=fail`）：暂停并等待用户指示 —— 不得进入归档；本技能 MUST NOT 自行执行编译（编译由 `iagent_spec_apply` 单点负责），MUST NOT 为此扩张自身白名单
 - **子代理失败**：自动重试一次；重试仍失败则暂停并报告
 - **用户中断**：完成当前批次，其余任务标记为未完成，然后暂停
 
@@ -180,19 +180,25 @@ Phase 4 继承 `iagent_spec_apply` 的**测试执行门**并**自动**通过 —
 ---
 ## Phase 5: Auto-Archive
 
-**Phase 5 在 Phase 4（自动实现）完成、编译检查与测试门通过、且实现验证桥（§4.4）通过或已显式省略后自动执行。无额外用户确认。**
+**Phase 5 在 Phase 4（自动实现）完成、编译证据放行（§5.1）、测试门通过、且实现验证桥（§4.4）通过或已显式省略后自动执行。无额外用户确认。**
 
-### 5.1 自动执行归档
+### 5.1 自动归档前置（只读编译证据）与执行归档
 
-实现完成且编译检查通过（验证桥通过或已显式省略）后：
+**编译证据就绪（唯一判据，强制）**：进入归档前读取 `.openspec-tmp/pipeline-<change-name>/compile-report.md` 的 `**summary**:` 行（handoff 包 `## 阶段结论` 的 `compile` 行仅作辅助，两者不一致时以证据文件为准并记 WARN）：
+
+- `status ∈ {pass, not-applicable, disabled}` → 放行；`not-applicable` / `disabled` 记 WARN 并说明「未执行编译检查」的原因，MUST NOT 表述为「编译检查通过」
+- `status=fail`、证据缺失（`missing`）或证据存在但无法解析出汇总状态 → **MUST NOT 自动归档**：暂停并向用户报告（含期望路径与失败原因），回到 Phase 4 修复
+- 本技能 MUST NOT 自行执行编译或测试命令，MUST NOT 因证据缺失而询问用户是否跳过
+
+就绪（验证桥通过或已显式省略）后：
 - 宣告：明确标题「## Auto-Archive Phase」
 - 展示：「实现完成 —— 自动进入归档阶段」
 - 构造归档上下文，包含：
   - `change-name` —— 当前变更名（跳过变更选择提示）
-  - `requirementDocStatus` —— Phase 3 文档桥的持久状态（`generated` / `skipped-by-user` / `generation-failed` / `absent`）
-- **委派阶段**：以 `change-name` + `requirementDocStatus` 调用 `iagent_spec_archive` skill；被委派技能完整承载归档协议（delta spec 同步、CONTEXT.md 同步、CodeGraph 检查、探索记忆同步、需求文档对齐 step 4.8、目录移动、需求文档迁移至 devdocs、ARCHIVE-INDEX.md 更新）—— 本技能 MUST NOT 重复声明或内联该协议正文
+  - `requirementDocStatus` —— Phase 3 文档桥的持久状态（`generated` / `skipped-by-user` / `generation-failed` / `absent`）；**仅作报告输入**，MUST NOT 用于触发归档侧的生成 / 对齐 / 迁移
+- **委派阶段**：以 `change-name` + `requirementDocStatus` 调用 `iagent_spec_archive` skill；被委派技能完整承载归档协议（delta spec 同步、CONTEXT.md 同步、CodeGraph 检查、探索记忆同步、需求文档存在性**只读报告**、目录移动、ARCHIVE-INDEX.md 纯追加、归档只读校验、流程级工作区清理）—— 本技能 MUST NOT 重复声明或内联该协议正文
 - 全部归档步骤在被委派技能内部自动执行
-- **需求文档对齐（单一源规则）**：由被委派的 `iagent_spec_archive` step 4.8 承载 —— 文件存在优先（就地增量对齐，逐字保留人工域 `## 基本信息` / `## 八、评审记录`）；文件缺失时按状态分流：`skipped-by-user` 不生成、`generation-failed` 与 `generated` 仅 WARN 不重试、仅 `absent` 走历史兼容生成。本技能 MUST NOT 复制该分支规则正文 —— 只引用 step 4.8
+- **需求文档语义（单一源规则）**：由被委派的 `iagent_spec_archive` 承载 —— 只做存在性报告（「已存在（未改写）」/「缺失」）；MUST NOT 生成、MUST NOT 就地增量对齐、MUST NOT 迁出到 `openspec/devdocs/`。本技能 MUST NOT 复制该分支规则正文
 
 ### 5.2 自动归档错误处理
 
@@ -200,7 +206,7 @@ Phase 4 继承 `iagent_spec_apply` 的**测试执行门**并**自动**通过 —
 - **CONTEXT.md 同步失败**：记录 warning 并继续（非阻断）
 - **CodeGraph 未初始化**：跳过 CodeGraph 步骤并继续（非阻断）
 - **探索记忆同步失败**：记录 warning 并继续（非阻断）
-- **需求文档生成或对齐失败**：记录 warning（目标路径 + 原因）并继续（非阻断）
+- **需求文档报告缺失或不可读**：记录 warning（目标路径 + 原因）并继续（非阻断；报告不等于生成，MUST NOT 因此触发归档侧写入）
 - **归档目标已存在**：以错误失败，建议改名
 
 ### 5.3 完成

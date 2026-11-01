@@ -42,7 +42,7 @@ export function getRequirementDocSkillTemplate(): SkillTemplate {
 - MUST NOT 提问。
 - 使用 Markdown 格式，基本信息用占位符。
 - 用户稍后可独立重跑本技能以补全细节。
-- **调用方说明（自动调用方 = 三父流程文档桥"生成"分支 + 归档 \`absent\` 兼容生成分支）**：自动调用本技能的是 \`iagent_workflow\` Phase 3.5 / \`iagent_auto_workflow\` Phase 3 / \`iagent_debug\` verify-close 三处需求文档桥的"生成"分支，以及归档对 \`absent\` 缺失文档的兼容生成（\`iagent_spec_archive\` 步骤 4.8，及其在 \`iagent_spec_bulk_archive\` 中的 a.6）。\`iagent_spec_verify_proposal\` 保持纯验证职责、不调用本技能；\`iagent_spec_propose\` 独立调用在验证 PASS 后停止，MUST NOT 自动调用本技能（不提供文档桥）。归档对 \`skipped-by-user\` / \`generation-failed\` / \`generated\` 的缺失分支 MUST NOT 调用本技能，已有文档由归档就地增量对齐（保护人工域）。本技能 MUST NOT 写改变更 \`exploration.md\` 的需求文档状态 —— 该状态由父流程或归档维护。**任何阶段都可手工调用** —— 下述独立模式保持不变。
+- **调用方说明（自动调用方 = 三父流程文档桥"生成"分支）**：自动调用本技能的是 \`iagent_workflow\` Phase 3.5 / \`iagent_auto_workflow\` Phase 3 / \`iagent_debug\` verify-close 三处需求文档桥的"生成"分支。\`iagent_spec_verify_proposal\` 保持纯验证职责、不调用本技能；\`iagent_spec_propose\` 独立调用在验证 PASS 后停止，MUST NOT 自动调用本技能（不提供文档桥）。**归档侧（\`iagent_spec_archive\` / \`iagent_spec_bulk_archive\`）只做需求文档存在性只读报告，MUST NOT 生成、MUST NOT 就地增量对齐、MUST NOT 迁出，故 MUST NOT 调用本技能。** 本技能 MUST NOT 写改变更 \`exploration.md\` 的需求文档状态 —— 该状态由父流程维护。**任何阶段都可手工调用** —— 下述独立模式保持不变。
 
 ## Step 3: 读取变更制品
 
@@ -223,7 +223,7 @@ END IF
 - 归档目录名没有可解析的 \`YYYY-MM-DD-\` 前缀时，回退到不带时间戳的 \`openspec/devdocs/{change-name}-需求文档.md\`
 - 目标目录缺失时创建（devdocs 或变更目录），使用 \`path.join()\`
 - 目标文件已存在时静默覆盖 —— 重新生成是幂等的，MUST NOT 因提问阻塞
-- **此静默覆盖规则是有意为之，MUST NOT 弱化**：保护人工撰写内容是用**调用方**的职责。可能面对已评审文档的调用方（归档检查点）MUST 自行探测已存在文件，改走就地对齐分支，而非调用本技能 —— 见 \`iagent_spec_archive\` 步骤 4.8。因此本技能保持为纯粹的「产出文档」原语。
+- **此静默覆盖规则是有意为之，MUST NOT 弱化**：保护人工撰写内容是用**调用方**的职责。本技能不探测目标文件、**不做就地增量对齐** —— 可能面对已评审文档的调用方（用户手工重跑、或在父流程文档桥中补齐已存在文档）MUST 自行判断是否先备份或改写，而非默认依赖本技能保留人工域。因此本技能保持为纯粹的「产出文档」原语。
 
 ## 产出校验
 

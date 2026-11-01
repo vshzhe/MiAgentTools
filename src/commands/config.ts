@@ -15,6 +15,8 @@ import { resolveWorkflows } from '../core/profiles.js';
 import {
     ensureProjectConfig,
     readProjectConfig,
+    resolveCompileCheck,
+    type ResolvedCompileCheck,
     writeWorkflowsToConfig,
 } from '../core/project-config.js';
 
@@ -102,12 +104,52 @@ export function runConfigShow(projectRoot: string): string {
     } else {
         lines.push('  .iagent/config.yaml 不存在（用 iagent init 创建）');
     }
+    lines.push(...renderCompileCheckLines(projectConfig));
     lines.push(`  生效 workflow（来源：${source}）：${resolved.workflows.length} 项`);
     for (const wf of resolved.workflows) {
         const isInjected = resolved.injected.includes(wf);
         lines.push(`    ${isInjected ? '+ ' : '  '}${wf}${isInjected ? '  (依赖注入)' : ''}`);
     }
     return lines.join('\n');
+}
+
+/**
+ * 渲染生效编译检查配置（`compileCheck`）及其段级来源与回退告警。
+ *
+ * 只消费 `project-config.ts` 的解析结果，MUST NOT 在此另算默认值。
+ *
+ * @param projectConfig - 解析后的项目配置（`null`/缺段时全部取默认值）
+ */
+function renderCompileCheckLines(
+    projectConfig: ReturnType<typeof readProjectConfig>
+): string[] {
+    let resolution: ResolvedCompileCheck;
+    if (projectConfig) {
+        resolution = {
+            config: projectConfig.compileCheck,
+            source: projectConfig.compileCheckSource,
+            warnings: projectConfig.compileCheckWarnings,
+        };
+    } else {
+        // 配置文件不存在：按默认值展示，MUST NOT 误报为用户配置
+        resolution = resolveCompileCheck();
+    }
+    const { config, source, warnings } = resolution;
+    const sourceLabel =
+        source === 'default'
+            ? '默认值'
+            : warnings.length > 0
+              ? '用户配置（含回退字段）'
+              : '用户配置';
+    const command = config.command.length > 0 ? config.command : '(自动探测)';
+    const lines = [
+        `  compileCheck: enabled=${config.enabled}, command=${command}, incremental=${config.incremental}, ` +
+            `timeoutMs=${config.timeoutMs}, autoFix=${config.autoFix}, maxRetries=${config.maxRetries}（来源：${sourceLabel}）`,
+    ];
+    for (const warning of warnings) {
+        lines.push(`    WARN ${warning}`);
+    }
+    return lines;
 }
 
 /**

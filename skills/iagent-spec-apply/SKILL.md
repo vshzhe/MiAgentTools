@@ -1,14 +1,14 @@
 ---
 name: iagent-spec-apply
 description: "实现变更。当 openspec/changes/ 下已有变更制品（proposal/specs/design/tasks），需要基于规格驱动实现任务清单时使用；触发词\"实现变更 / apply / 执行任务 / 按规格实现\"；NOT for 无变更制品时直接描述需求（改用 iagent_workflow 引导生成制品后再实现）。"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(ant:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), Skill(iagent-test), Agent, Task
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(yarn:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(ant:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), Skill(iagent-test), Agent, Task
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）。
 metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:a3f573a561468ebb76e70789cc6b1510280a9cdbed4aaa610cd103ac89164365"
+  generatedFingerprint: "sha256:02396698b14f99aac0828ca2cec9b4573767ac14cfa098c387dd546e1d07fb93"
 ---
 
 **实现前先阅读 .iagent/rules/coding-rules.md 的 AI 编码护栏。** 禁止猜测数据库字段、API 参数或业务规则 —— 标 **[待确认]** 并询问用户。
@@ -64,7 +64,7 @@ metadata:
    - `progress`：任务总数、已完成数、剩余数
    - 哪个制品承载任务（spec-driven 通常为 "tasks"，其他类型以状态输出为准）
 
-   **工作区护栏：** 若状态 JSON 报告 `actionContext.mode: "workspace-planning"` 且 `allowedEditRoots` 为空，说明本切片不支持完整工作区 apply。把关联仓库与目录视为只读上下文，请用户通过显式实现工作流选择受影响区域，并在编辑文件前 STOP。
+   **工作区护栏：** 若状态 JSON **报告** `actionContext.mode: "workspace-planning"`（字段存在且为该值）时，说明本切片不支持完整工作区 apply —— 把关联仓库与目录视为只读上下文，请用户通过显式实现工作流选择受影响区域，并在编辑文件前 STOP。`actionContext` / `allowedEditRoots` **均非必需字段**（`getChangeStatus` 不返回它们）：字段缺失时按 `changeRoot` / `contextFiles` 继续并记 WARN，MUST NOT 因此把变更判为不可实现。
 
    **跳过制品（skipped）处理：** 若状态报告某制品为 `skipped`（变更声明了 `skip_specs`），不要把它当作缺失 —— 其依赖视为已满足，其余制品照常实现。此类制品不会在 Step 3 返回的 `instruction` 状态中被标为未完成。
 
@@ -182,66 +182,51 @@ metadata:
    - 若全部完成：进入 Step 8（编译检查）
    - 若暂停：说明原因并等待指引
 
-8. **编译检查阶段** ⚠️ 强制
+8. **编译检查阶段（硬门）** ⚠️ 强制
 
-   全部任务完成后，执行自动编译检查：
+   全部任务完成后执行。**执行前 MUST 先 `Read` `references/compile-check.md`**（描述符探测矩阵、命令构造细则、monorepo 归组去重算法、证据模板、终态判定表）；该文件不可读时记录 WARN 并按本步内联摘要继续，MUST NOT 因此跳过编译检查或记为 `not-applicable`。
 
-   **8.1 加载编译检查配置**
-   - 读取 `openspec/config.yaml` 的 `compileCheck` 配置
-   - 若 `compileCheck.enabled: false`，跳到 Step 9（测试执行门）
+   **8.1 读取配置（唯一真源）**
+   - 读 `.iagent/config.yaml` 的 `compileCheck`（`enabled` / `command` / `timeoutMs` / `incremental` / `autoFix` / `maxRetries`）；段或字段缺失时运行 `iagent config show` 取生效默认值；CLI 不可用时按 `enabled=true` / `command=""` / `timeoutMs=600000` / `incremental=true` / `autoFix=true` / `maxRetries=3` 执行并记 WARN
+   - 旧位置弃用：`openspec/config.yaml` 若存在 `compileCheck` / `apply.incrementalCheck` 一类字段，只读一次并 WARN（指明迁移到 `.iagent/config.yaml` 的新字段），MUST NOT 采用其取值、MUST NOT 在两文件间合并或回退
 
-   **8.2 探测技术栈**
-   - 从 `config.yaml` 的 context 中解析关键词（TypeScript、Java、Go、Rust）
-   - 检查项目配置文件（tsconfig.json、pom.xml、go.mod、Cargo.toml）
-   - Java：从配置或构建文件判定构建工具（Maven/Ant/Gradle）
-   - 未探测到技术栈时，给出告警并跳过编译检查
+   **8.2 启用判定**
+   - `enabled=false` → 终态 `disabled`（项目级显式禁用）→ **仍须写 disabled 证据**（8.8）后再进入 Step 9，MUST NOT 跳过证据
+   - `enabled=true` → 继续 8.3
 
-   **8.3 获取变更范围文件**
-   - 从状态 JSON 解析 `allowedEditRoots`
-   - 用 `git diff` 识别变更范围内的已修改文件
-   - 将文件分为后端（TypeScript/Java/Go/Rust）与前端（JSP/Vue/React）
+   **8.3 变更范围（降级链，每次降级记 WARN）**
+   1) `tasks.md` 声明的产出与 `Spec Ref`；2) `git diff`（含未跟踪文件）；3) 状态 JSON 的 `contextFiles` / `changeRoot`；三源皆不可得 → 以项目根为范围并在证据 `scope` 记 `project-root`。MUST NOT 依赖 `allowedEditRoots`（状态 JSON 不返回该字段）
 
-   **8.4 执行后端编译检查**
-   - 按技术栈执行编译命令：
-     - TypeScript: `tsc --noEmit` or `pnpm run build` (fallback: `npm run build`)
-     - Java-Maven: `mvn compile -DskipTests`
-     - Java-Ant: `ant compile`
-     - Java-Gradle: `gradle compileJava`
-     - Go: `go build ./...`
-     - Rust: `cargo build`
-   - 捕获错误并解析为结构化格式
+   **8.4 命令判定（三级，运行时按目标项目确定）**
+   1) `compileCheck.command` 非空 → 直接使用，不追加任何探测命令；2) 否则以**变更文件最近的祖先目录**向上查找构建描述符（`package.json` 的 `scripts.build` + lockfile、`tsconfig.json`、`pom.xml`、`build.gradle(.kts)`、`build.xml`、`go.mod`、`Cargo.toml`、`build.js`），按命中项构造命令（monorepo 按描述符归组、去重后逐条执行）；3) 均未命中 → `not-applicable`（`reason` 写「未探测到可编译产物」，MUST NOT 记为 `pass`）。MUST NOT 把本项目命令固化为唯一命令，也 MUST NOT 用 `npm run build` 当万能回退
 
-   **8.5 执行后端 lint 检查**（若已配置）
-   - TypeScript：`eslint`
-   - Java：`mvn checkstyle:check`
-   - 区分可自动修复与不可自动修复的问题
+   **8.5 执行与捕获**
+   - 逐条执行命令（单条超时取 `timeoutMs`），记录 `command` / `exitCode` / `scope` 与错误数；命令超时、依赖未安装（`command not found` / 缺 `node_modules`）一律计为失败并进入 8.7，MUST NOT 归类为 `not-applicable`
 
-   **8.6 执行前端校验**（若已配置）
-   - JSP 文件：校验标签闭合、EL 表达式、自定义标签定义
-   - Vue/React：检查组件引用
+   **8.6 失败判定**
+   - 退出码非零或超时 → 失败；`autoFix=false` 时**首次失败即**写 `fail` 证据（8.8）并进入 8.9，MUST NOT 进入修复循环（`maxRetries` 仅在 `autoFix=true` 时生效）
 
-   **8.7 自动修复循环**（若已配置）
-   - 若 `autoFix.enabled: true`：
-     - 按可修复性分类问题（类型标注、未使用变量、import 顺序）
-     - 对变更范围内的文件应用修复
-     - 重新运行编译/lint 检查
-     - 最多重复 `maxRetries` 次（默认 3）
+   **8.7 自动修复循环（`autoFix=true`）**
+   - 按可修复性分类问题（类型标注 / 未使用变量 / import 顺序），只修改变更范围内文件，重跑同一条命令；最多 `maxRetries` 次（默认 3）
 
-   **8.8 生成编译检查报告**
-   - 汇总结果：后端编译、lint、前端
-   - 列出所有已修复问题及其 file:line 引用
-   - 列出需人工介入的问题
+   **8.8 写入编译证据（四终态均须产出，无终态可免写）**
+   - 证据文件：`.openspec-tmp/pipeline-<change-name>/compile-report.md`（`path.join()` 构造），九列固定 `change` / `command` / `exitCode` / `errorCount` / `fixedCount` / `status` / `scope` / `timestamp` / `reason`，每次执行一行；文末汇总行 `**summary**: status=<...>, commands=<n>, totalErrors=<n>, totalFixed=<n>`（任一命令行 `fail` → `fail`；否则全部 `pass` → `pass`；零命令时只能是 `not-applicable` 或 `disabled`）
+   - 非执行终态（`not-applicable` / `disabled`）的 `command` / `exitCode` / `scope` 记 `-`，`errorCount` / `fixedCount` 记 `0`，`reason` 分别写「未探测到可编译产物」/「项目级显式禁用」；MUST NOT 留空，MUST NOT 用 `N/A` 等自由文本变体
+   - 向 handoff 包 `## 阶段结论` 追加一行 `| compile | <编译四值> | <证据路径> | <nextAllowed> |`（包缺失时先按六节协议产出一次）；该行 status 使用编译四值（`pass` / `fail` / `not-applicable` / `disabled`），MUST NOT 写成回执状态
 
-   **8.9 处理检查失败**
-   - 若自动修复后仍有失败：
-     - 按 `onFailure` 配置展示失败处理选项
-     - 选项：[1] 查看详情，[2] 手动修复，[3] 跳过并记录警告
-   - 若全部检查通过：进入 Step 9（测试执行门）
+   **8.9 终态判定（硬门，无会话级跳过出口）**
+   - `pass` → 进入 Step 9
+   - `not-applicable` / `disabled` → 记 WARN，摘要写「未执行编译检查（无可编译产物 / 项目级显式禁用）」，MUST NOT 表述为「通过」；随后进入 Step 9
+   - `fail`（含重试耗尽、`autoFix=false`）→ **暂停并报告剩余错误（含 `file:line`）**：MUST NOT 进入 Step 9、MUST NOT 把任务勾为完成、MUST NOT 给出归档建议；用户要求「跳过检查继续」时保持 `fail`，MUST NOT 伪造 `disabled` / `not-applicable`
+
+   **8.10 辅助检查（保留，仅 WARN）**
+   - lint（TypeScript `eslint` / Java `mvn checkstyle:check`）与前端校验（JSP 标签闭合与 EL 表达式、Vue/React 组件引用）在项目适用时照常执行
+   - 结果只记 WARN 与摘要，SHALL NOT 参与四值终态、SHALL NOT 计入证据 `errorCount`（避免「编译通过但有告警」被误判为 fail）
 
 9. **测试执行门** ⚠️ 强制（仅限变更范围内）
    - 在编译检查（§8）之后运行。编译失败是硬错误；测试失败属于另一类问题（存量红灯测试、断言不匹配、环境问题）—— 这正是两道门分开、MUST NOT 合并为一道的原因。§8 MUST 保持其 `-DskipTests`/`compile` 语义；测试执行由本门负责。
 
-   **9.1 探测测试命令** —— 基于 §8.2 探测到的同一技术栈：
+   **9.1 探测测试命令** —— 基于 §8.4 命中的构建描述符（同一项目生态）：
    - Java-Maven：`mvn test`（仅跑选定类时用 `-Dtest=...` 限定范围）
    - Java-Gradle：`gradle test`
    - Java-Ant：`ant test`
@@ -267,10 +252,12 @@ metadata:
 
    **9.6 测试门报告** —— 汇总：覆盖范围、范围内通过/失败数、范围外存量失败（WARN）、覆盖率工具运行时的覆盖率数据（见 `iagent_test` §5.1）
 
-10. **统一临时工作区清理** ⚠️ 强制
-   - 编译检查（§8）与测试执行门（§9）都结束后 —— 无论通过、失败还是跳过 —— 在单次清理中删除整个流程级临时工作区
-   - **清理对象**：`.openspec-tmp/pipeline-<change-name>/`（handoff 包及其产出登记表、阶段结论都在其中）；**迁移期同时识别旧前缀 `apply-<change-name>/`**（若存在一并清理），清理失败记 WARN 并给出路径，MUST NOT 阻断流程
-   - 它们是流程级制品，MUST NOT 遗留；清理失败（文件被占用、权限不足）：记录 WARN 并给出工作区路径，便于用户手动删除，流程继续、不阻塞
+10. **统一临时工作区清理（保留编译证据与 handoff 包）** ⚠️ 强制
+   - 编译检查（§8）与测试执行门（§9）都结束后执行**一次**清理；清理对象**只限临时脚本与草稿**（编译校验脚本、临时配置、草稿输出等）
+   - **MUST 保留** `.openspec-tmp/pipeline-<change-name>/compile-report.md` 与 `handoff-pack.md` 至**父流程归档收尾** —— 它们是父流程就绪检查的唯一判据，MUST NOT 在此删除；**迁移期同时识别旧前缀 `apply-<change-name>/`**
+   - **独立调用（无父流程）**：保留证据并在完成摘要中报告证据文件路径，清理责任移交用户
+   - **父流程调用**：由 `spec-archive` / `spec-bulk-archive` 在归档成功后清理该工作区（apply 内不删除）
+   - 清理失败（文件被占用、权限不足）：记录 WARN 并给出工作区路径，MUST NOT 阻断流程
 
 10.5 **提案制品精确暂存（收尾提示，不提交）** ⚠️ 强制
    - 目标变更名：本次执行的 `<change-name>`（无父流程时取唯一活跃变更；多活跃变更时以本次 change-name 为准）
@@ -283,10 +270,10 @@ metadata:
 11. **最终状态与归档建议**
 
    展示：
-   - 编译检查结果汇总
+   - 编译检查终态（`pass` / `not-applicable` / `disabled`）与证据文件路径 —— 后两者显式标注「未执行编译检查」
    - 测试执行门结果汇总
    - 全部任务完成状态
-   - 建议通过 iagent spec archive "<name>" --yes（或 iagent_spec_archive 技能）归档变更
+   - 仅在编译终态放行（`pass` / `not-applicable` / `disabled`）且测试门通过时，建议通过 iagent spec archive "<name>" --yes（或 iagent_spec_archive 技能）归档变更
 
 <!-- CMD:SKIP -->
 **Output（实现过程中）**
@@ -325,15 +312,36 @@ Starting compile check...
 
 ## 编译检查报告
 
+**编译终态**: pass | 证据：.openspec-tmp/pipeline-<change-name>/compile-report.md
+**命令**: <command>（scope: <range>）→ exitCode 0
+
 | 检查项 | 状态 | 详情 |
 |-------|------|------|
-| Backend Compile | ✓ PASS | TypeScript: tsc --noEmit |
-| Backend Lint | ✓ PASS | eslint: 0 issues |
-| Frontend | ✓ PASS | No JSP files in scope |
+| Backend Compile | ✓ pass | <command>（exitCode 0） |
+| Backend Lint | ⚠ WARN | eslint: 0 issues（辅助项，不计入编译终态） |
+| Frontend | - 不适用 | 无前端文件（辅助项，不计入编译终态） |
 
 **自动修复**: 2 issues fixed (type annotations, import order)
 
-All checks passed! You can archive this change via iagent CLI.
+编译门通过。归档前父流程会读取上述证据文件判定就绪。
+```
+
+**Output（编译门放行但未执行：not-applicable / disabled）**
+
+```
+## Implementation Complete
+
+**Change:** <change-name>
+**Schema:** <schema-name>
+**Progress:** 7/7 tasks complete ✓
+
+## 编译检查报告
+
+**编译终态**: not-applicable（未执行编译检查：无可编译产物）
+              或 disabled（未执行编译检查：项目级显式禁用）
+**证据**: .openspec-tmp/pipeline-<change-name>/compile-report.md（command / exitCode / scope 记 `-`，errorCount / fixedCount 记 `0`）
+
+未执行编译检查 —— 这不等于通过。父流程会读取该证据并按对应终态记 WARN 后放行（不阻断归档）。
 ```
 
 **Output（编译检查失败时）**
@@ -346,11 +354,13 @@ All checks passed! You can archive this change via iagent CLI.
 
 ## 编译检查报告
 
+**编译终态**: fail | 证据：.openspec-tmp/pipeline-<change-name>/compile-report.md
+
 | 检查项 | 状态 | 详情 |
 |-------|------|------|
-| Backend Compile | ✗ FAIL | 3 errors |
-| Backend Lint | ✓ PASS | eslint: 0 issues |
-| Frontend | - SKIPPED | No JSP files |
+| Backend Compile | ✗ fail | 3 errors |
+| Backend Lint | ⚠ WARN | eslint: 0 issues（辅助项） |
+| Frontend | - 不适用 | 无前端文件（辅助项） |
 
 **自动修复**: Applied 2 fixes, 3 issues remain
 
@@ -359,12 +369,8 @@ All checks passed! You can archive this change via iagent CLI.
 2. `src/utils.ts:12` - Cannot find name 'config'
 3. `src/api.ts:78` - Missing return type
 
-**处理选项**:
-[1] 查看详细错误信息
-[2] 手动修复后重新检查
-[3] 跳过检查并归档（记录警告）
-
-请选择处理方式？
+**已暂停** —— 编译检查是硬门，没有「跳过检查」出口，也不会给出归档建议。
+修复上述错误后重新执行 apply（测试执行门与归档均未进入）。
 ```
 
 **Output（暂停：遇到问题时）**
@@ -428,14 +434,16 @@ What would you like to do?
 - 实现与既有代码或共享工具签名冲突时立即暂停
 - 编译检查前做交付前自检：无猜测字段、API 契约对齐、参数已校验、UI 状态已覆盖
 - 直接从变更目录读取制品文件 —— 除标准集合外不要假设具体文件名
-- ⚠️ **强制**：全部任务完成后执行 Step 8 编译检查
+- ⚠️ **强制**：全部任务完成后执行 Step 8 编译检查（硬门：终态只有 `pass` / `fail` / `not-applicable` / `disabled` 四值，配置载体为 `.iagent/config.yaml` 的 `compileCheck`）
 - ⚠️ **强制**：编译检查后执行 Step 9 测试执行门 —— 范围限定为本次变更（范围内失败阻塞；范围外存量失败仅 WARN 且 MUST NOT 阻塞）
 - ⚠️ **强制**：`[测试]` 任务 MUST 委派 `iagent_test`（传测试层级与优先级）生成测试代码，MUST NOT 在 apply 内另立一套测试规则；该技能不可用时记录 WARN 并按同一规则本地实现（MUST NOT 伪装为委派完成）；MUST NOT 走补充文档的 `产出:` → `attachments/` 规则（放在 attachments/ 下的测试代码无法运行）
 
 - ⚠️ **强制**：子代理派发指令 MUST 携带 EXIT GUARD（子代理退出守卫）—— 完成分配任务后立即停止并返回回执，MUST NOT 进入 plan 模式 / 设计模式，也不得提出后续步骤；编排器是唯一有权判停和推进阶段的角色
 - ⚠️ **强制**：子代理 MUST 先读取 handoff 包（`.openspec-tmp/pipeline-<change-name>/handoff-pack.md`），再执行其它任何动作 —— 不得先做其他动作；MUST NOT 重读 proposal/specs/design，MUST NOT 重跑包已覆盖的 CodeGraph 查询；仅做增量查询
 - ⚠️ **强制**：收尾按固定清单精确暂存提案制品（逐条 `git add`，MUST NOT 全量添加），**MUST NOT 自动 commit**；暂存失败只 WARN、不阻断收尾
-- ⚠️ **强制**：给出归档建议前先解析编译错误并提供修复选项
+- ⚠️ **强制**：编译检查为硬门 —— `fail` 时 MUST 暂停并报告剩余错误（含 `file:line`），MUST NOT 提供「跳过检查」选项、MUST NOT 进入测试执行门、MUST NOT 给出归档建议；用户要求跳过时保持 `fail`
+- ⚠️ **强制**：MUST NOT 伪造 `not-applicable` / `disabled` —— `disabled` 仅来自 `.iagent/config.yaml` 的 `compileCheck.enabled: false`，`not-applicable` 仅当运行时未探测到任何可编译产物；`autoFix=false` 时首次失败即 `fail`
+- ⚠️ **强制**：编译证据 `compile-report.md` 与 handoff 包 MUST 保留至归档收尾 —— Step 10 只清理临时脚本与草稿，MUST NOT 删除证据文件
 
 **流畅工作流集成**
 
