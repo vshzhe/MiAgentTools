@@ -22,7 +22,7 @@
   "type": "module",
   "packageManager": "pnpm@10.34.5",
   "bin": {
-    "iagent": "./bin/iagent.js"
+    "iagent": "bin/iagent.js"
   },
   "files": [
     "dist",
