@@ -15,14 +15,14 @@ npm install -g mi-agent-tools
 验证安装：
 
 ```bash
-iagent --version    # 输出 3.1.0
+iagent --version    # 输出 3.2.0
 iagent --help       # 查看全部命令
 ```
 
 免全局安装、临时试用（版本号亦可省略，默认取 `latest`）：
 
 ```bash
-npx mi-agent-tools@3.1.0 --version
+npx mi-agent-tools@3.2.0 --version
 npx mi-agent-tools init
 ```
 
@@ -73,7 +73,7 @@ node bin/iagent.js <command>     # 效果与 iagent <command> 完全一致
 
 ```bash
 # 从 npm 安装固定版本
-npm install --save-dev mi-agent-tools@3.1.0
+npm install --save-dev mi-agent-tools@3.2.0
 npx iagent init
 
 # 或从本地仓库路径安装（开发联调用）
@@ -112,7 +112,7 @@ workflowId 即既有指令 id（如 `spec-explore`）。旧下划线形态 `iage
 | :--- | :--- | :--- | :--- |
 | Claude Code | `.claude/skills/iagent-<workflowId>/` | `.claude/commands/iagent/<id>.md` | YAML frontmatter（name/allowed-tools/category/tags）+ Markdown |
 | Pi | `.pi/skills/iagent-<workflowId>/` | `.pi/prompts/iagent-<id>.md` | Pi prompt 模板：扁平前缀、frontmatter 仅 description + 记账字段；参数经 `$ARGUMENTS` 注入；另生成 `.pi/agents/` 原生 agent 定义（orchestrator + 阶段） |
-| Codex | `.codex/skills/iagent-<workflowId>/` | —（skills-invocable） | 仅生成技能，通过 `$` 前缀调用 |
+| Codex | `.codex/skills/iagent-<workflowId>/` | —（skills-only） | 仅生成技能，以 `$iagent-<id>` 引用触发（如 `$iagent-spec-apply`） |
 | OpenCode V2 | `.opencode/skills/iagent-<workflowId>/` | `.opencode/commands/iagent-<id>.md` | V2 口径：指令含 `agent`/`subagent` 元数据；项目级 `.opencode/agents/` 与 `.opencode/opencode.jsonc`（`permissions`）随 init 生成。**可选（opt-in）** |
 
 ### 宿主原生编排
@@ -125,6 +125,7 @@ workflowId 即既有指令 id（如 `spec-explore`）。旧下划线形态 `iage
 | OpenCode V2 | `skill` 工具 | `subagent` + 项目级 agent | `question` / `permissions` |
 | Pi strict | `/skill:name` | `Agent({ subagent_type })` + `.pi/agents/` 定义 | Extension workflow / gate 工具 |
 | Pi degraded | `/skill:name` | 无（本地执行，显式声明不构成委派） | 无 |
+| Codex | `$iagent-<id>` 引用加载 SKILL.md | 无（本地执行，显式声明不构成委派） | 无（门以阻塞回执上报） |
 
 **Pi 严格编排运行时**：默认安装 npm 包 `@tintinweb/pi-subagents`（latest，项目级），并在
 `.pi/agents/` 生成 `iagent-orchestrator.md` 与 `iagent-<workflowId>.md`（`name` 即
@@ -169,13 +170,13 @@ iagent update --tools claude
 | 使用方式 | Claude Code | Pi | OpenCode | Codex |
 | :--- | :--- | :--- | :--- | :--- |
 | 斜杠指令 | `/iagent:spec-apply` | `/iagent-spec-apply` | `/iagent-spec-apply` | —（skills-only） |
-| 技能触发 | 按 description 自动匹配 | 按 description 自动匹配 | 按 description 自动匹配 | `$iagent_spec_apply` |
+| 技能触发 | 按 description 自动匹配 | 按 description 自动匹配 | 按 description 自动匹配 | `$iagent-spec-apply` |
 
 **使用步骤**（以 Claude Code 为例）：
 
 1. 在目标项目执行 `iagent init`
 2. 打开该项目的 Claude Code / Pi / OpenCode / Codex 会话
-3. 输入 `/iagent:workflow <需求>`（Codex 用 `$iagent_workflow`），或直接用自然语言描述需求
+3. 输入 `/iagent:workflow <需求>`（Codex 用 `$iagent-workflow`），或直接用自然语言描述需求
 4. AI 按技能指引完成探索→提案→验证→实现→归档
 
 常用斜杠指令对照：

@@ -1,14 +1,14 @@
 ---
 name: iagent-debug
-description: "一站式调试工作流：复现→用 CodeGraph 与能力记忆调查根因→变更关联→带强制回归测试的修复→编译检查→同步提案→验证；触发词\"调试 / debug / 修复 bug / bug 报告 / 复现 / 根因\"；NOT for：新功能开发用 iagent_workflow、单一阶段探索用 iagent_spec_explore"
+description: "一站式调试工作流：复现→用 CodeGraph 与能力记忆调查根因→变更关联→带强制回归测试的修复→编译检查→同步提案→验证；触发词\"调试 / debug / 修复 bug / bug 报告 / 复现 / 根因\"；NOT for：新功能开发用 iagent-workflow、单一阶段探索用 iagent-spec-explore"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(iagent-spec-verify-proposal), Skill(iagent-proposal-review), Skill(iagent-requirement-doc), Skill(iagent-test), Agent, Task
 license: MIT
-compatibility: 依赖 iagent CLI（spec 命令组）与 iagent_spec_verify_proposal / iagent_proposal_review / iagent_requirement_doc / iagent_test 技能（test 为条件委派）；CodeGraph MCP 可选（不可用时降级 Glob/Grep）。
+compatibility: 依赖 iagent CLI（spec 命令组）与 iagent-spec-verify-proposal / iagent-proposal-review / iagent-requirement-doc / iagent-test 技能（test 为条件委派）；CodeGraph MCP 可选（不可用时降级 Glob/Grep）。
 metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:48946fad6a70ab2efcc3fcffa4f858c9a6b7b41d5cbb7fa33f8028165a15aa10"
+  generatedFingerprint: "sha256:282a886f069da939e36e585da6880478945cc573691da0b8db7964ccbe57bd1e"
 ---
 
 
@@ -20,13 +20,13 @@ metadata:
 1. **复现阶段** —— 以失败测试或显式复现步骤作为验收判据
 2. **排查阶段** —— 能力记忆注入 + CodeGraph 根因分析 + 排查深度分级（2.2.3.5：按影响半径 / 跨模块 / 根因清晰度选轻量或深度路径）+ grill-with-docs 纪律
 3. **关联变更判定阶段** —— 判定 bug 归属哪个变更（进行中 / 新建修复变更 / 已归档来源 / 非缺陷），并在收束时确定 `changeName`
-4. **修复阶段** —— 方案数量判定（多方案须用户确认；唯一且证据充分则说明依据后直通）→ 精准修复 → 委派 `iagent_test` 生成回归测试并验收
+4. **修复阶段** —— 方案数量判定（多方案须用户确认；唯一且证据充分则说明依据后直通）→ 精准修复 → 委派 `iagent-test` 生成回归测试并验收
 5. **调试循环** —— 每次修复后询问用户是否还有相关 bug；有则重复 P1-P4，没有则进入统一的 P5-P7
-6. **编译检查阶段** —— 复用 iagent_spec_apply 技能的编译检查约定（覆盖所有循环修复）
+6. **编译检查阶段** —— 复用 iagent-spec-apply 技能的编译检查约定（覆盖所有循环修复）
 7. **同步阶段** —— 更新变更制品并持久化所有根因分析（覆盖所有循环修复）
 8. **验证收束阶段（verify-close）** —— 失败时自动修复循环；通过后先深度复查，再经需求文档"生成 / 跳过"桥收束并持久化文档状态（覆盖所有循环修复）
 
-**宿主阶段对应（宿主无关协议）**：Phase 1–3（含 2.4 诊断确认包收束与变更归属判定）对应 `investigate` —— 交付 `rootCause` / `defectChain` / `changeName` / `affectedSymbols`；Phase 4 对应 `fix` —— 方案确认门绑定条件 `multiple-fix-options`（存在多个可行方案置真→阻塞待确认；唯一且证据充分置假→门不适用、直通）；Phase 5–7 对应 `verify-close` —— 消费 fix 结果并交付验证/复查结论与 `requirementDocStatus`。全部阶段仍由单一 `iagent_debug` 全流程技能承载，不拆分为多个对外技能。
+**宿主阶段对应（宿主无关协议）**：Phase 1–3（含 2.4 诊断确认包收束与变更归属判定）对应 `investigate` —— 交付 `rootCause` / `defectChain` / `changeName` / `affectedSymbols`；Phase 4 对应 `fix` —— 方案确认门绑定条件 `multiple-fix-options`（存在多个可行方案置真→阻塞待确认；唯一且证据充分置假→门不适用、直通）；Phase 5–7 对应 `verify-close` —— 消费 fix 结果并交付验证/复查结论与 `requirementDocStatus`。全部阶段仍由单一 `iagent-debug` 全流程技能承载，不拆分为多个对外技能。
 
 ## ⛔ GATE PROTOCOL — ACTIVE
 
@@ -124,7 +124,7 @@ metadata:
 - 定位或编写一个能演示该 bug 的测试
 - 运行该测试并确认其因所报原因 FAIL（而非无关的环境搭建错误）
 - 记录：测试文件路径、测试名、期望与实际结果
-- **边界（强制）**：本步的测试仅作为**失败证据**（可为临时测试），**不构成回归测试** —— 正式回归测试在 4.2 由 `iagent_test` 生成或改造落库，MUST NOT 以本步的临时测试充当唯一回归测试
+- **边界（强制）**：本步的测试仅作为**失败证据**（可为临时测试），**不构成回归测试** —— 正式回归测试在 4.2 由 `iagent-test` 生成或改造落库，MUST NOT 以本步的临时测试充当唯一回归测试
 
 ### 1.2 经显式步骤复现
 
@@ -258,7 +258,7 @@ _Avoid_: <synonyms>`
 ---
 ## Phase 4: 修复（方案判定 → 实施 → 回归测试）
 
-按 iagent_spec_apply 技能的任务执行规范实现修复。
+按 iagent-spec-apply 技能的任务执行规范实现修复。
 
 ### 4.0 可行修复方案数量判定（变更归属明确后，强制）
 
@@ -287,7 +287,7 @@ _Avoid_: <synonyms>`
 - 实现中暴露设计问题时，暂停并建议更新变更制品，而非静默偏离
 - **验证口径（2.4）**：修复方案 MUST 覆盖该缺陷链路的**「异常节点 + 根因节点」**；仅覆盖触发节点而未覆盖根因节点时，视为修复未完成
 
-### 4.2 强制回归测试（委派 `iagent_test`）
+### 4.2 强制回归测试（委派 `iagent-test`）
 
 - 每个修复 MUST 有回归测试，其：修复前 FAIL、修复后 PASS
 - 运行 Phase 1 的复现并确认其现已通过
@@ -295,10 +295,10 @@ _Avoid_: <synonyms>`
 
 **编写动作（委派，强制）**
 
-- 回归测试的编写 SHALL 委派 `iagent_test`，向其提供：已确认的缺陷链路（2.4）、Phase 1 的复现证据、测试级别/优先级与变更名
-- `iagent_test` 是测试生成规则（框架探测、项目既有风格对齐、用例设计、反模式防护）的**唯一来源**；debug MUST NOT 再维护与之冲突的内联框架检测或测试生成规则
-- **Phase 1 内联临时测试的边界**：Phase 1 MAY 以内联临时测试建立失败证据，但该测试**不构成**回归测试；MUST NOT 仅以 Phase 1 临时测试充当唯一回归测试 —— 正式回归测试 SHALL 由 `iagent_test` 生成或改造落库
-- **能力缺失**：strict 模式无法委派 `iagent_test` 时 SHALL 按能力协商**阻断并报告**；MUST NOT 以"自写 + WARN"绕过。仅在宿主显式协商 degraded 时才允许本地编写，并须透明记录"本阶段未发生委派"—— MUST NOT 伪装为 strict 委派完成
+- 回归测试的编写 SHALL 委派 `iagent-test`，向其提供：已确认的缺陷链路（2.4）、Phase 1 的复现证据、测试级别/优先级与变更名
+- `iagent-test` 是测试生成规则（框架探测、项目既有风格对齐、用例设计、反模式防护）的**唯一来源**；debug MUST NOT 再维护与之冲突的内联框架检测或测试生成规则
+- **Phase 1 内联临时测试的边界**：Phase 1 MAY 以内联临时测试建立失败证据，但该测试**不构成**回归测试；MUST NOT 仅以 Phase 1 临时测试充当唯一回归测试 —— 正式回归测试 SHALL 由 `iagent-test` 生成或改造落库
+- **能力缺失**：strict 模式无法委派 `iagent-test` 时 SHALL 按能力协商**阻断并报告**；MUST NOT 以"自写 + WARN"绕过。仅在宿主显式协商 degraded 时才允许本地编写，并须透明记录"本阶段未发生委派"—— MUST NOT 伪装为 strict 委派完成
 
 **验收（debug 自身职责，委派不放松）**
 
@@ -308,10 +308,10 @@ _Avoid_: <synonyms>`
 ---
 ## Phase 5: 编译检查 — 汇总所有修复
 
-遵循 `iagent_spec_apply` 技能的编译检查约定（Step 8），只运行**一次**，覆盖循环中修复的**所有** bug：
+遵循 `iagent-spec-apply` 技能的编译检查约定（Step 8），只运行**一次**，覆盖循环中修复的**所有** bug：
 
 - 读取 `.iagent/config.yaml` 的 `compileCheck`（缺段即启用，缺省启用）；未启用（`enabled: false`）→ 跳到 Phase 6
-- **作用域声明**：`compileCheck.command` / `timeoutMs` / `maxRetries` / `autoFix` / `incremental` **仅约束 `iagent_spec_apply`**；debug 只共享 `enabled` 与「缺省启用」语义，仍按本步自身的技术栈探测执行
+- **作用域声明**：`compileCheck.command` / `timeoutMs` / `maxRetries` / `autoFix` / `incremental` **仅约束 `iagent-spec-apply`**；debug 只共享 `enabled` 与「缺省启用」语义，仍按本步自身的技术栈探测执行
 - 从 context 探测技术栈并按对应编译命令检查（TypeScript / Java-Maven / Java-Gradle / Go / Rust）；分类变更文件为后端与前端
 - 按 debug **自身**策略自动修复并重跑（最多 3 次）—— 该策略独立于 apply 的 `compileCheck.autoFix` / `maxRetries`，MUST NOT 引用这两个字段
 - 汇总编译 / lint / 前端结果，区分已修复与遗留问题；遗留失败**报告**给用户 —— MUST NOT 静默越过失败检查
@@ -353,12 +353,12 @@ Markdown 是唯一真源 —— 直接更新 OpenSpec Markdown 制品；不得�
 
 ### 7.1 调用验证技能
 
-对变更 `<name>`，通过 **调用 `iagent_spec_verify_proposal` 技能**执行验证：
+对变更 `<name>`，通过 **调用 `iagent-spec-verify-proposal` 技能**执行验证：
 
-- `iagent_spec_verify_proposal` 是技能名，不是有效的 `iagent spec instructions` 制品 ID —— MUST NOT 将其作为 CLI 指令运行
+- `iagent-spec-verify-proposal` 是技能名，不是有效的 `iagent spec instructions` 制品 ID —— MUST NOT 将其作为 CLI 指令运行
 - 该技能通过读取制品与 exploration.md 执行 D1-D5 核心 + D6-D10 条件评分
 
-**降级（回退）（技能不可用）**：技能未安装或调用失败时，降级为 AI 内联读取制品并手动执行 D1-D5 核心 + D6-D10 条件评分，并发出 WARN："iagent_spec_verify_proposal 技能不可用，降级为内联评分"。MUST NOT 静默跳过验证。
+**降级（回退）（技能不可用）**：技能未安装或调用失败时，降级为 AI 内联读取制品并手动执行 D1-D5 核心 + D6-D10 条件评分，并发出 WARN："iagent-spec-verify-proposal 技能不可用，降级为内联评分"。MUST NOT 静默跳过验证。
 
 ### 7.2 验证 FAIL → 自动修复循环
 
@@ -374,10 +374,10 @@ Markdown 是唯一真源 —— 直接更新 OpenSpec Markdown 制品；不得�
 
 验证通过后：
 
-1. **自动调用 `iagent_proposal_review` 技能**对提案做只读深度复查（超出 D1-D5 核心 + D6-D10 条件评分的深度一致性与覆盖率审计）。复查自动运行（不弹 [Yes/No] 提示）。用户 MAY 中断以跳过；否则照常运行。
-   - **降级（回退）（技能不可用）**：技能未安装或调用失败时，降级为 AI 内联只读深度复查并 WARN："iagent_proposal_review 技能不可用，降级为内联复查"。MUST NOT 静默跳过深度复查。
+1. **自动调用 `iagent-proposal-review` 技能**对提案做只读深度复查（超出 D1-D5 核心 + D6-D10 条件评分的深度一致性与覆盖率审计）。复查自动运行（不弹 [Yes/No] 提示）。用户 MAY 中断以跳过；否则照常运行。
+   - **降级（回退）（技能不可用）**：技能未安装或调用失败时，降级为 AI 内联只读深度复查并 WARN："iagent-proposal-review 技能不可用，降级为内联复查"。MUST NOT 静默跳过深度复查。
 2. **需求文档桥（⚠️ 单次业务桥，强制）**：深度复查收束后展示**一次**需求文档业务桥 —— 这是 debug 唯一的文档确认面，不是"是否调用该技能"的二次确认。**出口按 `需求文档.md` 是否存在裁决**：
-   - **文档不存在** → 出口为「生成 / 跳过」：生成 → 直接以非交互模式委派 `iagent_requirement_doc`（传 change-name；不询问文档基本信息、不追加调用确认），文档写入 `openspec/changes/<change-name>/需求文档.md`：成功 → 状态 `generated`；失败 → 状态 `generation-failed` + WARN（含原因）并继续；跳过 → 不生成，状态 `skipped-by-user`
+   - **文档不存在** → 出口为「生成 / 跳过」：生成 → 直接以非交互模式委派 `iagent-requirement-doc`（传 change-name；不询问文档基本信息、不追加调用确认），文档写入 `openspec/changes/<change-name>/需求文档.md`：成功 → 状态 `generated`；失败 → 状态 `generation-failed` + WARN（含原因）并继续；跳过 → 不生成，状态 `skipped-by-user`
    - **文档已存在** → **禁用生成分支**（该技能对已存在目标是静默覆盖，会抹掉人工撰写内容）；出口仅「跳过 / 手工编辑」：二者均 MUST NOT 覆盖该文件，状态记 `skipped-by-user`，手工编辑由用户直接在文件中进行（归档只做存在性只读报告，MUST NOT 改写该文件）
    - **状态持久化**：写入变更 `exploration.md` 的 `## 需求文档状态` 段（字段 `requirementDocStatus`，取值仅 `skipped-by-user` / `generation-failed` / `generated`；段缺失即 `absent`）。写入失败 → 自动重试同一写入**一次** → 仍失败即停止：MUST NOT 报告状态已持久化、MUST NOT 委派生成、MUST NOT 标记收束完成/可归档，输出含目标路径与原因的 WARN + 恢复指引
    - **验证 FAIL 或深度复查未收束时** MUST NOT 展示该桥、MUST NOT 委派需求文档技能
@@ -450,7 +450,7 @@ Ready for `/iagent:spec-apply` (fixes already applied) or archive.
 - **分级与缺陷链路图解耦**：分级只决定 2.2.4 是否执行，2.4 诊断确认包内的缺陷链路对轻量路径同样**强制产出**，MUST NOT 豁免
 - **升级兜底是触发条件，不是独立步骤**：升级兜底即 2.2.4 扩展后的触发条件之一，MUST NOT 为其新建独立章节或编号（2.2.4 的内容与编号不变）
 - **分级在 CodeGraph 降级时仍生效**：CodeGraph 不可用时分级仍生效（信号 (a) 降级为文件数代理指标，(b)(c) 照常）；MUST NOT 因降级跳过分级，诊断记录 MUST 标注「信号降级」
-- **需求文档经用户桥**：7.3 在验证 PASS + 深度复查收束后展示**一次**生成 / 跳过桥；生成 → 直接非交互委派 `iagent_requirement_doc`（失败记 `generation-failed` + WARN 并继续），跳过 → 记 `skipped-by-user`；MUST NOT 未经用户确认自动生成，MUST NOT 覆盖用户已有文档
+- **需求文档经用户桥**：7.3 在验证 PASS + 深度复查收束后展示**一次**生成 / 跳过桥；生成 → 直接非交互委派 `iagent-requirement-doc`（失败记 `generation-failed` + WARN 并继续），跳过 → 记 `skipped-by-user`；MUST NOT 未经用户确认自动生成，MUST NOT 覆盖用户已有文档
 - **文档状态持久化（重试一次）**：桥结果写入变更 `exploration.md` 的 `## 需求文档状态` 段（`requirementDocStatus`）；写入失败自动重试同一写入一次，仍失败即停止 —— MUST NOT 伪报已持久化、MUST NOT 委派生成、MUST NOT 标记可归档，输出含目标路径与原因的 WARN + 恢复指引；`verify-close` 回执 MUST 携带同一状态
 - **人工撰写字段受保护**：需求文档技能生成或用户手工编辑时，`## 基本信息`（需求编号/需求名称/交付时间，含占位符状态）与 `## 八、评审记录` 属人工域 MUST NOT 被覆盖；本技能 MUST NOT 改写已存在的需求文档；**文档已存在时桥 MUST NOT 提供生成分支**（生成仅限文档不存在时）
 - **零猜测**：多个候选根因 → STOP 并让用户选择；绝不猜测
@@ -458,8 +458,8 @@ Ready for `/iagent:spec-apply` (fixes already applied) or archive.
 - **唯一方案需证据**：仅当项目约束与代码证据（引用具体约束与 `文件:行`）支持唯一性时说明依据后直通；MUST NOT 凭"看起来只有一种"跳过确认；数据库/schema 的既有独立确认仍须执行
 - **归档只读**：MUST NOT 修改 `openspec/changes/archive/`
 - **回归测试强制**：每个修复都附带一个修复前失败、修复后通过的测试 —— 适用于循环中的**每个** bug
-- **回归测试编写委派 `iagent_test`**：传入已确认的缺陷链路、Phase 1 复现证据、测试级别/优先级与变更名；`iagent_test` 是框架/风格/用例规则的唯一来源，debug MUST NOT 复制其内联框架检测或测试生成规则；strict 无法委派时 MUST 阻断并报告，MUST NOT 以"自写 + WARN"绕过（仅显式协商 degraded 时允许本地编写并透明记录未发生的委派）
-- **Phase 1 临时测试不替代回归测试**：Phase 1 MAY 以内联临时测试建立失败证据，但该测试不构成回归测试；正式回归测试 SHALL 由 `iagent_test` 生成或改造落库
+- **回归测试编写委派 `iagent-test`**：传入已确认的缺陷链路、Phase 1 复现证据、测试级别/优先级与变更名；`iagent-test` 是框架/风格/用例规则的唯一来源，debug MUST NOT 复制其内联框架检测或测试生成规则；strict 无法委派时 MUST 阻断并报告，MUST NOT 以"自写 + WARN"绕过（仅显式协商 degraded 时允许本地编写并透明记录未发生的委派）
+- **Phase 1 临时测试不替代回归测试**：Phase 1 MAY 以内联临时测试建立失败证据，但该测试不构成回归测试；正式回归测试 SHALL 由 `iagent-test` 生成或改造落库
 - **委派绝不放松两条硬要求**：回归测试 MUST 仍覆盖缺陷链路的「异常节点 + 根因节点」，且 MUST 仍修复前 FAIL / 修复后 PASS —— 委派返回后自行核对两者
 - **提案同步强制**：验证前制品必须反映**所有**已实现的修复
 - **验证绝不跳过**：技能 → 内联降级（回退）+ WARN；FAIL → 自动修复循环，无跳过路径；PASS → 深度复查（技能 → 内联降级（回退）+ WARN）→ 需求文档桥 → verify-close 收束

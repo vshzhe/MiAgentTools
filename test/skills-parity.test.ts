@@ -78,11 +78,12 @@ describe('skills/ 静态快照与模板一致性', () => {
         for (const { template } of templates) {
             const skillId = deriveSkillId(template.name);
             const skillDir = path.join(SKILLS_DIR, skillId);
-            const declaredRefs = template.references ?? [];
-            const declaredPaths = new Set(declaredRefs.map((r) => r.path));
+            // 以生成结果为真源（references 内容在生成期完成技能 ID 归一化与引用改写）
+            const generatedRefs = generateSkillContent(template, 'snapshot').references ?? [];
+            const declaredPaths = new Set(generatedRefs.map((r) => r.path));
 
             // 1. 声明的参考文件必须存在且内容一致
-            for (const ref of declaredRefs) {
+            for (const ref of generatedRefs) {
                 const refFile = path.join(skillDir, ref.path);
                 expect(
                     fs.existsSync(refFile),

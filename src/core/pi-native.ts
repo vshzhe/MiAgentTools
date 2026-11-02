@@ -18,6 +18,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { COMMAND_NAMESPACE } from './config.js';
 import { escapeYamlValue } from './command-generation/yaml.js';
+import { normalizeHostSkillRefs } from './command-generation/host-refs.js';
 import { SKILL_ID_PREFIX } from './skill-id.js';
 import {
     CONDITIONAL_DELEGATIONS,
@@ -202,7 +203,7 @@ export function renderPiStageAgent(
     const lines: string[] = [];
     lines.push('---');
     lines.push(`name: ${agentId}`);
-    lines.push(`description: ${escapeYamlValue(description)}`);
+    lines.push(`description: ${escapeYamlValue(normalizeHostSkillRefs(description))}`);
     lines.push(`tools: ${PI_AGENT_TOOLS.join(', ')}`);
     lines.push('prompt_mode: append');
     if (allowedSubagents && allowedSubagents.length > 0) {
@@ -212,6 +213,10 @@ export function renderPiStageAgent(
     lines.push('---');
     lines.push('');
     lines.push(`你是 iagent 阶段 worker，负责 workflowId 为 \`${workflowId}\` 的阶段。`);
+    lines.push('');
+    lines.push(
+        `执行本阶段前，先使用 \`read\` 工具读取 \`.pi/skills/${agentId}/SKILL.md\` 获取完整阶段规程。`
+    );
     lines.push('');
     lines.push('- 只执行被分配的阶段，MUST NOT 自行推进父 workflow 阶段；');
     lines.push('- 完成后返回协议规定的回执：`phase` / `status` / 产物位置 / 下一步允许动作 / 失败原因（如有）；');

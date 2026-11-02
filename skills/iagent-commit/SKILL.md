@@ -1,6 +1,6 @@
 ---
 name: iagent-commit
-description: "提交变更。当用户要提交代码，需要检查变更、生成规范的提交信息并提交时使用；触发词\"提交 / commit / git 提交 / 生成提交信息\"；NOT for SVN 项目提交（改用 iagent_svn_commit）。"
+description: "提交变更。当用户要提交代码，需要检查变更、生成规范的提交信息并提交时使用；触发词\"提交 / commit / git 提交 / 生成提交信息\"；NOT for SVN 项目提交（改用 iagent-svn-commit）。"
 allowed-tools: Bash(git status:*), Bash(git diff:*), Bash(git add:*), Bash(git commit:*), Bash(git log:*), Read, Glob, Grep
 license: MIT
 compatibility: 需要 git 环境。
@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: commit
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:2f398457192ea5d29a5ec2b29d7a0c1d50a5c17b285b6444b000f3408086c617"
+  generatedFingerprint: "sha256:c89d1a6487c7d574a8358f88e32856bf832fddfa68774aa88bd343c3b0ced545"
 ---
 
 提交变更 —— 提交前必须核对变更内容，提交信息必须符合规范。
@@ -51,7 +51,7 @@ metadata:
    - **排除**：`attachments/**` 与 `需求文档.md`（附件与人工评审产物不入默认提交清单）
    - 不存在的条目跳过（不报错）；暂存失败（权限 / 路径不存在 / 未纳管）只记 WARN 并提示手动处理，MUST NOT 阻断代码提交，也 MUST NOT 静默把制品混入提交
 
-   **溯源**：提交信息主体保持 Conventional Commits 一行式，另起**尾行** `提案: <change-name>`（与 `iagent_svn_commit` 完全同格式）。
+   **溯源**：提交信息主体保持 Conventional Commits 一行式，另起**尾行** `提案: <change-name>`（与 `iagent-svn-commit` 完全同格式）。
 
 3. **生成提交信息**
 

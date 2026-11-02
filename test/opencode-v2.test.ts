@@ -12,8 +12,10 @@ import {
     ORCHESTRATOR_AGENT_ID,
     collectShellPrefixes,
     hasDispatchEntry,
+    hasWriteEntry,
     mergeOpenCodeProjectConfig,
     openCodeAgentId,
+    removeOpenCodeProjectArtifacts,
     renderOrchestratorAgent,
     renderWorkerAgent,
     writeOpenCodeProjectArtifacts,
@@ -56,15 +58,37 @@ describe('OpenCode V2 agent 定义', () => {
         expect(md).toContain('"iagent-*"');
     });
 
-    it('worker 为 subagent 且限定到自身 skill，并具备读写能力', () => {
+    it('worker 为 subagent、限定到自身 skill，并默认不授予 edit（最小权限）', () => {
         const md = renderWorkerAgent('spec-explore', '探索阶段');
         expect(md).toContain('mode: subagent');
         expect(md).toContain('resource: "iagent-spec-explore"');
-        // worker 需能读取与修改代码，否则阶段无法执行
+        // 只读阶段（未传 grantEdit）不得获得写入授权，但必须能读取与交互提问
         expect(md).toContain('action: read');
-        expect(md).toContain('action: edit');
+        expect(md).toContain('action: question');
+        expect(md).not.toContain('action: edit');
         expect(md).toContain('phase');
         expect(md).toContain('status');
+    });
+
+    it('可写阶段授予 edit，且两类 worker 均含 question', () => {
+        const writable = renderWorkerAgent('spec-apply', '实现变更', { grantEdit: true });
+        expect(writable).toContain('action: edit');
+        expect(writable).toContain('action: question');
+
+        const readOnly = renderWorkerAgent('review', '代码审查', { grantEdit: false });
+        expect(readOnly).not.toContain('action: edit');
+        expect(readOnly).toContain('action: question');
+    });
+
+    it('worker 正文含加载 SKILL.md 的引导，description 归一化并转义', () => {
+        const md = renderWorkerAgent('spec-apply', '委派 iagent_test 的实现阶段');
+        expect(md).toContain('`.opencode/skills/iagent-spec-apply/SKILL.md`');
+        expect(md).toContain('`skill` 工具');
+        // 内部下划线技能名归一化为 canonical
+        expect(md).not.toContain('iagent_test');
+        // 含冒号时经 escapeYamlValue 包裹
+        const escaped = renderWorkerAgent('spec-apply', '阶段: 实现');
+        expect(escaped).toContain('description: "阶段: 实现"');
     });
 });
 
@@ -348,5 +372,265 @@ describe('4.2 OpenCode 权限翻译完整性', () => {
         const rules = JSON.parse(merged.content).permissions as unknown[];
         expect(rules).toContainEqual({ action: 'shell', resource: 'codegraph ', effect: 'deny' });
         expect(rules).toContainEqual({ action: 'shell', resource: 'codegraph ', effect: 'allow' });
+    });
+});
+
+// 变更 fix-multi-agent-skill-command-generation / 任务 3.1 / 3.3：
+// 多词 shell 前缀、stripJsonc 卸载、worker 最小权限、orphan 清理。
+describe('OpenCode V2 多词 shell 前缀与卸载安全', () => {
+    it('collectShellPrefixes 支持含空格的多词子命令', () => {
+        const prefixes = collectShellPrefixes([
+            'Bash(git status:*), Bash(git diff:*), Bash(codegraph:*)',
+            'Bash(pnpm:*)',
+        ]);
+        expect(prefixes).toEqual(['git status ', 'git diff ', 'codegraph ', 'pnpm ']);
+    });
+
+    it('collectShellPrefixes：单词 / 多词混合前缀保序且跨条目去重', () => {
+        const prefixes = collectShellPrefixes([
+            'Read, Bash(git status:*), Bash(ls:*)',
+            'Bash(git status:*), Bash(git log:*)',
+            'Read, Write',
+        ]);
+        expect(prefixes).toEqual(['git status ', 'ls ', 'git log ']);
+    });
+
+    it('collectShellPrefixes：无 `:*` 通配、空命令与非 Bash 条目不派生', () => {
+        expect(
+            collectShellPrefixes(['Bash(git diff)', 'Bash()', 'Bash(:*)', 'Read, Glob, mcp__codegraph__x'])
+        ).toEqual([]);
+        expect(collectShellPrefixes([])).toEqual([]);
+    });
+
+    it('hasWriteEntry 精确识别 Write / Edit 授权', () => {
+        expect(hasWriteEntry('Read, Write, Edit, Glob')).toBe(true);
+        expect(hasWriteEntry('Read, Glob, Grep, Bash(iagent:*)')).toBe(false);
+        expect(hasWriteEntry('Read, TodoWrite')).toBe(false);
+    });
+
+    it('hasWriteEntry：单独授权与词边界（EditHistory / Bash(Write:*) 不算）', () => {
+        expect(hasWriteEntry('Edit')).toBe(true);
+        expect(hasWriteEntry('Write')).toBe(true);
+        expect(hasWriteEntry('Read, Write')).toBe(true);
+        expect(hasWriteEntry('Read, EditHistory')).toBe(false);
+        expect(hasWriteEntry('Bash(Write:*)')).toBe(false);
+        expect(hasWriteEntry('')).toBe(false);
+    });
+
+    it('含 $schema URL、JSONC 注释与多词 shell 规则的配置卸载后可精确清理', () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-oc-uninstall-'));
+        try {
+            fs.mkdirSync(path.join(root, '.opencode'), { recursive: true });
+            fs.mkdirSync(path.join(root, OPENCODE_AGENTS_DIR), { recursive: true });
+            fs.writeFileSync(
+                path.join(root, OPENCODE_CONFIG_FILE),
+                `// iagent 项目级权限（JSONC）
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permissions": [
+    { "action": "shell", "resource": "git status ", "effect": "allow" },
+    { "action": "skill", "resource": "iagent-workflow", "effect": "allow" },
+  ],
+}
+`,
+                'utf8'
+            );
+            fs.writeFileSync(
+                path.join(root, OPENCODE_AGENTS_DIR, `${ORCHESTRATOR_AGENT_ID}.md`),
+                '---\nname: x\n---\n',
+                { encoding: 'utf8', flag: 'w' }
+            );
+
+            const removed = removeOpenCodeProjectArtifacts(root);
+
+            expect(removed).toContain(OPENCODE_CONFIG_FILE);
+            expect(removed).toContain(`${OPENCODE_AGENTS_DIR}/${ORCHESTRATOR_AGENT_ID}.md`);
+            expect(fs.existsSync(path.join(root, OPENCODE_CONFIG_FILE))).toBe(false);
+            expect(fs.existsSync(path.join(root, OPENCODE_AGENTS_DIR, `${ORCHESTRATOR_AGENT_ID}.md`))).toBe(false);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('用户自定义规则存在时保留文件与用户规则', () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-oc-uninstall-user-'));
+        try {
+            fs.mkdirSync(path.join(root, '.opencode'), { recursive: true });
+            fs.writeFileSync(
+                path.join(root, OPENCODE_CONFIG_FILE),
+                `{
+  "$schema": "https://opencode.ai/config.json",
+  // 用户自建规则
+  "model": "anthropic/claude-sonnet-4-5",
+  "permissions": [
+    { "action": "skill", "resource": "user-skill", "effect": "allow" },
+    { "action": "skill", "resource": "iagent-workflow", "effect": "allow" },
+  ],
+}
+`,
+                'utf8'
+            );
+
+            removeOpenCodeProjectArtifacts(root);
+
+            const parsed = JSON.parse(fs.readFileSync(path.join(root, OPENCODE_CONFIG_FILE), 'utf8'));
+            expect(parsed.model).toBe('anthropic/claude-sonnet-4-5');
+            expect(parsed.permissions).toContainEqual({
+                action: 'skill',
+                resource: 'user-skill',
+                effect: 'allow',
+            });
+            expect(parsed.permissions).not.toContainEqual({
+                action: 'skill',
+                resource: 'iagent-workflow',
+                effect: 'allow',
+            });
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('JSONC 块注释 / 行内注释 / 字符串内 // 与尾逗号均可解析（合并路径）', () => {
+        const existing = `/* iagent 项目级权限（生成片段）
+   多行块注释 */
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "provider/https://example.com/model", // 用户模型（含 // 的字符串值）
+  "permissions": [
+    { "action": "shell", "resource": "git push *", "effect": "deny" }, /* 用户自建 deny */
+  ],
+}
+`;
+        const merged = mergeOpenCodeProjectConfig(existing, {
+            skillIds: ['iagent-workflow'],
+            agentIds: [],
+            shellPrefixes: [],
+        });
+
+        expect(merged.warning).toBeUndefined();
+        const parsed = JSON.parse(merged.content);
+        // `$schema` URL 中的 `//` 未被当作注释
+        expect(parsed.$schema).toBe('https://opencode.ai/config.json');
+        // 字符串值内的 `//` 逐字保留
+        expect(parsed.model).toBe('provider/https://example.com/model');
+        // 用户 deny 规则与新增 iagent 规则共存
+        expect(parsed.permissions).toContainEqual({
+            action: 'shell',
+            resource: 'git push *',
+            effect: 'deny',
+        });
+        expect(parsed.permissions).toContainEqual({
+            action: 'skill',
+            resource: 'iagent-workflow',
+            effect: 'allow',
+        });
+    });
+
+    it('卸载路径同样经 stripJsonc：块注释与字符串内 // 不破坏解析', () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-oc-uninstall-jsonc-'));
+        try {
+            fs.mkdirSync(path.join(root, '.opencode'), { recursive: true });
+            fs.writeFileSync(
+                path.join(root, OPENCODE_CONFIG_FILE),
+                `{
+  "$schema": "https://opencode.ai/config.json",
+  /* iagent 权限（项目级） */
+  "note": "see // docs",
+  "permissions": [
+    { "action": "skill", "resource": "iagent-workflow", "effect": "allow" }, /* iagent 规则 */
+  ],
+}
+`,
+                'utf8'
+            );
+
+            const removed = removeOpenCodeProjectArtifacts(root);
+
+            // 仍有用户字段 → 保留文件，仅移除 iagent 规则
+            expect(removed).toContain(`${OPENCODE_CONFIG_FILE}（已移除 iagent 权限规则）`);
+            const parsed = JSON.parse(fs.readFileSync(path.join(root, OPENCODE_CONFIG_FILE), 'utf8'));
+            expect(parsed.$schema).toBe('https://opencode.ai/config.json');
+            expect(parsed.note).toBe('see // docs');
+            expect(parsed.permissions).toBeUndefined();
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+});
+
+describe('OpenCode V2 orphan agent 清理', () => {
+    const stageOf = (commandId: string) => {
+        const entry = getSkillTemplates().find((item) => item.commandId === commandId);
+        if (!entry) {
+            throw new Error(`技能模板缺失：${commandId}`);
+        }
+        return {
+            workflowId: entry.commandId,
+            description: entry.template.description,
+            allowedTools: entry.template.allowedTools,
+        };
+    };
+
+    it('生效集缩小后清理 iagent-*.md orphan，保留 orchestrator 与用户自建 agent', () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-oc-orphan-'));
+        try {
+            writeOpenCodeProjectArtifacts(root, [stageOf('spec-explore'), stageOf('spec-propose')]);
+            const userAgent = path.join(root, OPENCODE_AGENTS_DIR, 'custom.md');
+            fs.writeFileSync(userAgent, '---\nname: custom\n---\n', 'utf8');
+
+            const result = writeOpenCodeProjectArtifacts(root, [stageOf('spec-explore')]);
+
+            expect(result.removed).toContain(`${OPENCODE_AGENTS_DIR}/${openCodeAgentId('spec-propose')}.md`);
+            expect(
+                fs.existsSync(path.join(root, OPENCODE_AGENTS_DIR, `${openCodeAgentId('spec-propose')}.md`))
+            ).toBe(false);
+            expect(
+                fs.existsSync(path.join(root, OPENCODE_AGENTS_DIR, `${openCodeAgentId('spec-explore')}.md`))
+            ).toBe(true);
+            expect(fs.existsSync(path.join(root, OPENCODE_AGENTS_DIR, `${ORCHESTRATOR_AGENT_ID}.md`))).toBe(true);
+            expect(fs.existsSync(userAgent)).toBe(true);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('orphan 清理仅作用于 iagent-*.md（非 .md 的 iagent 文件保留）', () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-oc-orphan-ext-'));
+        try {
+            writeOpenCodeProjectArtifacts(root, [stageOf('spec-explore')]);
+            const staleMd = path.join(root, OPENCODE_AGENTS_DIR, 'iagent-stale.md');
+            const notesTxt = path.join(root, OPENCODE_AGENTS_DIR, 'iagent-notes.txt');
+            fs.writeFileSync(staleMd, '---\nname: stale\n---\n', 'utf8');
+            fs.writeFileSync(notesTxt, '用户笔记\n', 'utf8');
+
+            const result = writeOpenCodeProjectArtifacts(root, [stageOf('spec-explore')]);
+
+            expect(result.removed).toContain(`${OPENCODE_AGENTS_DIR}/iagent-stale.md`);
+            expect(fs.existsSync(staleMd)).toBe(false);
+            expect(fs.existsSync(notesTxt)).toBe(true);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('写入阶段 worker 时按 allowedTools 决定 edit 权限', () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-oc-edit-'));
+        try {
+            writeOpenCodeProjectArtifacts(root, [stageOf('spec-apply'), stageOf('review')]);
+            const writable = fs.readFileSync(
+                path.join(root, OPENCODE_AGENTS_DIR, `${openCodeAgentId('spec-apply')}.md`),
+                'utf8'
+            );
+            const readOnly = fs.readFileSync(
+                path.join(root, OPENCODE_AGENTS_DIR, `${openCodeAgentId('review')}.md`),
+                'utf8'
+            );
+            expect(writable).toContain('action: edit');
+            expect(writable).toContain('action: question');
+            expect(readOnly).not.toContain('action: edit');
+            expect(readOnly).toContain('action: question');
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
     });
 });

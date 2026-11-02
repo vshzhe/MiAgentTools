@@ -16,6 +16,8 @@ import {
 } from '../core/config.js';
 import { generateSkillContent } from '../core/command-generation/index.js';
 import { AI_TOOLS } from '../core/config.js';
+import { getKnownCommandIds } from '../core/templates/registry.js';
+import { rewriteCommandRefs } from '../core/templates/command-references.js';
 import { readProjectConfig, resolveActiveTools, type ResolvedProjectConfig } from '../core/project-config.js';
 import type { SkillTemplate } from '../core/templates/types.js';
 import { ensureDir, writeFile, pathExists, writeSkillReferences } from '../utils/file-system.js';
@@ -124,14 +126,21 @@ export function runGenerate(projectRoot: string, options: GenerateOptions): Gene
     writeFile(sourceFile, generated.fileContent, { force: true });
     writeSkillReferences(sourceDir, generated.references);
 
-    // 2. 安装到生效工具集目录（.claude/skills/...）：经 resolveActiveTools 解析，
+    // 2. 安装到生效工具集目录（`<tool.skillsDir>/skills/`）：经 resolveActiveTools 解析，
     //    使 opt-in 工具（OpenCode）仅在显式配置时才安装
     const activeTools = resolveActiveTools(undefined, projectConfig?.tools, AI_TOOLS);
+    const knownCommandIds = getKnownCommandIds();
     let installedPath = '';
     for (const tool of activeTools) {
-        const installed = tool.value === 'claude'
-            ? generated
-            : generateSkillContent(template, packageVersion, { hostId: tool.value });
+        // references 与主正文同等改写（按目标工具布局）；技能 ID 归一化在生成器单点完成
+        const toolTemplate: SkillTemplate = {
+            ...template,
+            references: template.references?.map((ref) => ({
+                ...ref,
+                content: rewriteCommandRefs(ref.content, tool.commandsLayout, knownCommandIds),
+            })),
+        };
+        const installed = generateSkillContent(toolTemplate, packageVersion, { hostId: tool.value });
         const installDir = path.join(projectRoot, tool.skillsDir, TOOL_SKILLS_SUBDIR, skillName);
         const installFile = path.join(installDir, 'SKILL.md');
         ensureDir(installDir);

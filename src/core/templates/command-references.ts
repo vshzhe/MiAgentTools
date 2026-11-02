@@ -5,7 +5,8 @@
  * 引用一律以**规范形** `/iagent:<id>` 书写；`<id>` 为技能名经 `deriveCommandId`
  * 派生的指令 id。生成期由 `rewriteCommandRefs` 按目标工具布局改写：
  *   - `namespace-dir`（Claude Code）：保持 `/iagent:<id>`
- *   - `prefixed-file`（Pi prompts）：改写为 `/iagent-<id>`
+ *   - `prefixed-file`（Pi prompts / OpenCode commands）：改写为 `/iagent-<id>`
+ *   - `skills-only`（Codex）：改写为宿主原生技能语法 `$iagent-<id>`
  *
  * 改写**仅作用于已知 id**（`getKnownCommandIds()` 派生自注册表），未知名保持原样
  * —— 与上游 OpenSpec 的 `command-references` 同构：不把拼写错误静默改造成另一个
@@ -16,6 +17,7 @@
  */
 
 import type { CommandLayout } from '../config.js';
+import { SKILL_ID_PREFIX } from '../skill-id.js';
 
 /** 规范形引用前缀（与 `COMMAND_NAMESPACE` 一致） */
 export const COMMAND_REF_PREFIX = '/iagent:';
@@ -26,6 +28,15 @@ export const COMMAND_REF_RE = /\/iagent:([a-z-]+)/g;
 /** prefixed-file 布局的引用形式 `/iagent-<id>` */
 export function prefixedCommandRef(id: string): string {
     return `/iagent-${id}`;
+}
+
+/**
+ * skills-only 布局（Codex）的引用形式 `$iagent-<id>`。
+ *
+ * Codex CLI 原生以 `$<skill-name>` 激活技能，无自定义斜杠指令。
+ */
+export function codexSkillRef(id: string): string {
+    return `$${SKILL_ID_PREFIX}${id}`;
 }
 
 /**
@@ -47,6 +58,7 @@ export function commandRef(id: string, knownIds?: ReadonlySet<string>): string {
  *
  * - `namespace-dir` 或未指定：返回原文（规范形即目标形式）
  * - `prefixed-file`：将已知 id 的 `/iagent:<id>` 改写为 `/iagent-<id>`
+ * - `skills-only`（Codex）：将已知 id 的 `/iagent:<id>` 改写为 `$iagent-<id>`
  *
  * 未知名保持原样（不静默改造）。
  */
@@ -55,11 +67,12 @@ export function rewriteCommandRefs(
     layout: CommandLayout | undefined,
     knownIds: ReadonlySet<string>
 ): string {
-    if (layout !== 'prefixed-file') {
+    if (!layout || layout === 'namespace-dir') {
         return text;
     }
+    const render = layout === 'skills-only' ? codexSkillRef : prefixedCommandRef;
     return text.replace(COMMAND_REF_RE, (match, id: string) =>
-        knownIds.has(id) ? prefixedCommandRef(id) : match
+        knownIds.has(id) ? render(id) : match
     );
 }
 

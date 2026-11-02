@@ -68,7 +68,7 @@ const DOC_MODULES = `## 模块与功能点文档骨架（docs/project/modules/�
 
 - 模块边界 MUST 以真实目录/包结构为依据，MUST NOT 凭命名猜测
 - 功能点 MUST 能定位到具体入口（方法、路由、页面），无入口的条目 MUST NOT 写入
-- 信息基础优先经 \`Skill\` 工具委派 \`iagent_feature_doc\` 获取；不可得时自行扫描并在文档中标注来源
+- 信息基础优先委派技能 \`iagent_feature_doc\` 获取（宿主原生技能委派）；不可得时自行扫描并在文档中标注来源
 `;
 
 /** references/doc-database.md：数据库文档骨架 */
@@ -191,7 +191,7 @@ export function getProjectInitSkillTemplate(): SkillTemplate {
 
 ### 3. 委派 \`iagent_feature_doc\`（模块与功能点 / 数据库 / API 规范）
 
-五类中「模块与功能点 / 数据库 / API 规范」的信息基础，MUST 优先经 \`Skill\` 工具委派 \`iagent_feature_doc\` 获取，复用其框架档案能力。
+五类中「模块与功能点 / 数据库 / API 规范」的信息基础，MUST 优先委派技能 \`iagent_feature_doc\` 获取（宿主原生技能委派），复用其框架档案能力。
 
 - **降级路径一（委派不可得）**：该技能不可调用或执行失败 → 记 WARN，改为自行扫描（Glob / Grep / Read），MUST NOT 因此终止
 - **降级路径二（无 CodeGraph 索引）**：目标项目未初始化 CodeGraph 索引时，改用 Glob / Grep / Read 完成扫描
@@ -301,7 +301,7 @@ ${renderCodegraphProbeOrder({ withCli: true })}
 | \`references/doc-api.md\` | API 规范 |
 | \`references/doc-security.md\` | 安全规范 |
 
-> 子文件路径相对技能目录（如 \`.claude/skills/iagent-project-init/references/doc-api.md\`）。
+> 子文件路径相对技能目录（如 \`references/doc-api.md\`）。
 
 ## 约束
 

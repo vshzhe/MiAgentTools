@@ -1,7 +1,5 @@
 ## 强制检查点体系（delegated 模式）
 
-**Input**: 用户的主题描述（想构建什么）。
-
 用 **TodoWrite 工具** 初始化跟踪：`[{"content": "Phase 1: Exploration", "status": "in_progress"}, {"content": "Phase 2: Proposal", "status": "pending"}, {"content": "Phase 3: Verification", "status": "pending"}, {"content": "Phase 4: Implementation", "status": "pending"}, {"content": "Phase 5: Archive", "status": "pending"}]`
 
 ### 1.1 创建探索文件（强制检查点）

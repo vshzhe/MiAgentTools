@@ -1,14 +1,14 @@
 ---
 name: iagent-auto-workflow
-description: "一站式全自动工作流：探索→提案→验证→需求文档桥→自动实现→自动归档，L1-L5 用户确认后除验证阶段的需求文档桥外全自动；触发词\"全自动工作流 / auto workflow / fully automated pipeline\"。当用户需要完全自动化、无需手工 apply/archive 步骤的管道时使用；NOT for 交互式引导工作流（改用 iagent_workflow）。"
+description: "一站式全自动工作流：探索→提案→验证→需求文档桥→自动实现→自动归档，L1-L5 用户确认后除验证阶段的需求文档桥外全自动；触发词\"全自动工作流 / auto workflow / fully automated pipeline\"。当用户需要完全自动化、无需手工 apply/archive 步骤的管道时使用；NOT for 交互式引导工作流（改用 iagent-workflow）。"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(mvn:*), Bash(gradle:*), Bash(ant:*), Bash(go:*), Bash(cargo:*), Bash(git:*), Bash(ls:*), Bash(mv:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(iagent-spec-explore), Skill(iagent-spec-propose), Skill(iagent-spec-verify-proposal), Skill(iagent-proposal-review), Skill(iagent-requirement-doc), Skill(iagent-spec-apply), Skill(iagent-spec-verify), Skill(iagent-test), Skill(iagent-spec-archive), Agent, Task
 license: MIT
-compatibility: 依赖 iagent CLI（spec 命令组）与 spec 系列技能（iagent_spec_apply / iagent_spec_archive）；CLI 缺失时降级为 AI 内联生成。
+compatibility: 依赖 iagent CLI（spec 命令组）与 spec 系列技能（iagent-spec-apply / iagent-spec-archive）；CLI 缺失时降级为 AI 内联生成。
 metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:c5d1547146be8f8d4be76b46a544c62b667a66f81e970fc7e74783cc22ed1ba7"
+  generatedFingerprint: "sha256:9fdd18a3ee628a4b79e46692e6e620f0d79dea883c8f547c60b27474b483955e"
 ---
 
 
@@ -55,13 +55,13 @@ metadata:
 > 跨变更索引重建类动作已随索引能力退役（DEC-2），不构成任何门或动作。
 
 ---
-## Phase 1: Exploration（委派 iagent_spec_explore）
+## Phase 1: Exploration（委派 iagent-spec-explore）
 
-Phase 1 SHALL 委派阶段 `iagent_spec_explore`（传 `mode=delegated`）执行强制检查点体系探索（强制建探索文件、提示词校验门、CONTEXT.md 检查、CodeGraph 基础扫描含多项目派发与深度分析、L1-L5 grill 追问、功能流程图与流程最终确认门、聚合一致性门、探索完成检测），MUST NOT 内联执行探索逻辑。
+Phase 1 SHALL 委派阶段 `iagent-spec-explore`（传 `mode=delegated`）执行强制检查点体系探索（强制建探索文件、提示词校验门、CONTEXT.md 检查、CodeGraph 基础扫描含多项目派发与深度分析、L1-L5 grill 追问、功能流程图与流程最终确认门、聚合一致性门、探索完成检测），MUST NOT 内联执行探索逻辑。
 
-委派完成后 SHALL 消费 `iagent_spec_explore` 输出的**结构化 handoff**（探索文件路径、提示词基线、流程基准确认状态、Pending 影响符号）并据此推进 Phase 2。
+委派完成后 SHALL 消费 `iagent-spec-explore` 输出的**结构化 handoff**（探索文件路径、提示词基线、流程基准确认状态、Pending 影响符号）并据此推进 Phase 2。
 
-**退出守卫**：被委派的 `iagent_spec_explore` 完成后 MUST NOT 自行进入提案或实现；阶段完成判定与推进主权归编排器。
+**退出守卫**：被委派的 `iagent-spec-explore` 完成后 MUST NOT 自行进入提案或实现；阶段完成判定与推进主权归编排器。
 
 ## Phase 2: Proposal
 
@@ -80,11 +80,11 @@ mcp__codegraph__codegraph_impact --symbol <symbol> --direction upstream
 - `proposal.md` Impact: Impact Analysis 段
 - `design.md` Context: Architecture Impact 段
 
-### 2.1 提案生成（委派 iagent_spec_propose）
+### 2.1 提案生成（委派 iagent-spec-propose）
 
-Phase 2 的探索文件迁移与全部制品生成 SHALL 委派阶段 `iagent_spec_propose`（传 `mode=delegated` + `exploration-file=<Phase 1 探索文件路径>`）完成，MUST NOT 内联生成提案制品。委派完成后再进入 Phase 3 自动验证。
+Phase 2 的探索文件迁移与全部制品生成 SHALL 委派阶段 `iagent-spec-propose`（传 `mode=delegated` + `exploration-file=<Phase 1 探索文件路径>`）完成，MUST NOT 内联生成提案制品。委派完成后再进入 Phase 3 自动验证。
 
-**退出守卫**：被委派的 `iagent_spec_propose` 完成后 MUST NOT 自行进入实现；阶段推进主权归 `iagent_auto_workflow`。
+**退出守卫**：被委派的 `iagent-spec-propose` 完成后 MUST NOT 自行进入实现；阶段推进主权归 `iagent-auto-workflow`。
 
 ## Phase 3: Verification
 
@@ -100,7 +100,7 @@ Phase 2 的探索文件迁移与全部制品生成 SHALL 委派阶段 `iagent_sp
 
 ### 3.2 运行验证
 
-- 调用 `iagent_spec_verify_proposal` **skill** 执行 D1-D5 评分
+- 调用 `iagent-spec-verify-proposal` **skill** 执行 D1-D5 评分
 - 技能不可用时降级为 AI 内联评分 + WARN 日志；禁止静默跳过
 - 计算覆盖率与总分（统一 90% 阈值）
 - 从 config.yaml 的 context 探测技术栈
@@ -108,13 +108,13 @@ Phase 2 的探索文件迁移与全部制品生成 SHALL 委派阶段 `iagent_sp
 ### 3.3 处理结果
 
 **PASS (≥90%)**：
-- 自动执行提案深度复查：调用 `iagent_proposal_review` skill 做深度复查（不弹 [Yes/No] 询问）；技能不可用时降级为 AI 内联深度复查 + WARN 日志；禁止静默跳过
+- 自动执行提案深度复查：调用 `iagent-proposal-review` skill 做深度复查（不弹 [Yes/No] 询问）；技能不可用时降级为 AI 内联深度复查 + WARN 日志；禁止静默跳过
 - 结果与验证报告一并展示
 - **收束 —— 需求文档桥（⚠️ 单次业务桥，强制）**：验证 PASS **且**深度复查收束后，展示**一次**"生成 / 跳过"需求文档业务桥 —— 这是本阶段唯一的流程级阻塞门，不是"是否调用技能"的二次确认：
-  - **生成** → 直接以非交互模式委派 `iagent_requirement_doc`（传 change-name；不询问文档基本信息、不追加调用确认），文档写入 `openspec/changes/<change-name>/需求文档.md`：成功 → 状态 `generated`；失败 → 状态 `generation-failed` + WARN（含原因）并继续
+  - **生成** → 直接以非交互模式委派 `iagent-requirement-doc`（传 change-name；不询问文档基本信息、不追加调用确认），文档写入 `openspec/changes/<change-name>/需求文档.md`：成功 → 状态 `generated`；失败 → 状态 `generation-failed` + WARN（含原因）并继续
   - **跳过** → 不生成，状态 `skipped-by-user`
   - **状态持久化**：写入变更 `exploration.md` 的 `## 需求文档状态` 段（字段 `requirementDocStatus`，取值仅 `skipped-by-user` / `generation-failed` / `generated`；段缺失即 `absent`）。写入失败 → 自动重试同一写入**一次** → 仍失败即停止：MUST NOT 报告已持久化、MUST NOT 委派生成、MUST NOT 进入 Phase 4，输出含目标路径与原因的 WARN + 恢复指引
-  - **回执交付**：桥结果同时写入 verify 阶段回执的 `requirementDocStatus`（与 `iagent_workflow` / `iagent_debug` 同一口径）—— 缺失该字段的回执视为无效，MUST NOT 据此推进到 Phase 4
+  - **回执交付**：桥结果同时写入 verify 阶段回执的 `requirementDocStatus`（与 `iagent-workflow` / `iagent-debug` 同一口径）—— 缺失该字段的回执视为无效，MUST NOT 据此推进到 Phase 4
   - **验证 FAIL 或深度复查未收束时 MUST NOT 展示该桥、MUST NOT 委派需求文档技能**
 - **自动转入 Phase 4**：需求文档桥收束（生成成功 / 生成失败 / 跳过）后，自动进入 Phase 4（自动实现）—— 不再出现对该阶段技能的调用确认询问
 
@@ -136,26 +136,26 @@ Phase 2 的探索文件迁移与全部制品生成 SHALL 委派阶段 `iagent_sp
 - 宣告：明确标题「## Auto-Apply Phase」
 - 展示：「验证通过 —— 自动进入实现阶段」
 - 构造实现上下文，包含：
-  - `gate-skip=design-confirmation` —— 门承载参数，跳过设计确认门（与 iagent_spec_apply 一致：Input 传该参数后跳过 Step 5.5 确认门，直接进入 Step 6 批次调度；`auto-mode=true` 为兼容等价写法）
+  - `gate-skip=design-confirmation` —— 门承载参数，跳过设计确认门（与 iagent-spec-apply 一致：Input 传该参数后跳过 Step 5.5 确认门，直接进入 Step 6 批次调度；`auto-mode=true` 为兼容等价写法）
   - `change-name` —— 来自工作流上下文的当前变更名
-- **委派阶段**：以 `gate-skip=design-confirmation` + `change-name` 调用 `iagent_spec_apply` skill；被委派技能完整承载 apply 协议
+- **委派阶段**：以 `gate-skip=design-confirmation` + `change-name` 调用 `iagent-spec-apply` skill；被委派技能完整承载 apply 协议
   - **handoff 包** —— 唯一必读制品 `.openspec-tmp/pipeline-<change-name>/handoff-pack.md`（六节 + 可选 `## 阶段结论`），一次性产出、跨阶段只读复用、逐批追加
   - **产出登记表** —— 包内 `## 已产出（跨单元可见）` 段，由协调器在每批之后追加
   - **最小回执** —— 固定四列回执 `<task id> | <status> | <output file> | <public signature>`，不粘贴代码正文
   - **共享指令前缀** —— 固定顺序「共享前缀（包路径 / 规范要点引用 / 回执格式 / 禁止项）→ 单元增量（任务清单）」
-- Phase 4 **MUST NOT 重复声明或内联 apply 协议正文** —— 该协议的单一源留在 `iagent_spec_apply`；本技能只做委派（MUST NOT 内联执行 apply 工作流逻辑，也 MUST NOT 自定一套调度指令格式，二者都会与单一源规则矛盾）
+- Phase 4 **MUST NOT 重复声明或内联 apply 协议正文** —— 该协议的单一源留在 `iagent-spec-apply`；本技能只做委派（MUST NOT 内联执行 apply 工作流逻辑，也 MUST NOT 自定一套调度指令格式，二者都会与单一源规则矛盾）
 - `gate-skip=design-confirmation` **仅**跳过设计确认门（`auto-mode=true` 为兼容写法）—— 共享资源协议继续生效（全自动语义 MUST NOT 免除它）
 - 全部实现任务由被委派技能按其既有批次调度自动完成
 
 ### 4.2 自动实现错误处理
 
-- **编译检查失败**（apply 自动修复 `maxRetries` 后仍为 `fail`，证据 `status=fail`）：暂停并等待用户指示 —— 不得进入归档；本技能 MUST NOT 自行执行编译（编译由 `iagent_spec_apply` 单点负责），MUST NOT 为此扩张自身白名单
+- **编译检查失败**（apply 自动修复 `maxRetries` 后仍为 `fail`，证据 `status=fail`）：暂停并等待用户指示 —— 不得进入归档；本技能 MUST NOT 自行执行编译（编译由 `iagent-spec-apply` 单点负责），MUST NOT 为此扩张自身白名单
 - **子代理失败**：自动重试一次；重试仍失败则暂停并报告
 - **用户中断**：完成当前批次，其余任务标记为未完成，然后暂停
 
-### 4.3 测试执行门（继承自 iagent_spec_apply §9，自动通过）
+### 4.3 测试执行门（继承自 iagent-spec-apply §9，自动通过）
 
-Phase 4 继承 `iagent_spec_apply` 的**测试执行门**并**自动**通过 —— 全自动管线 MUST NOT 跳过该门，也 MUST NOT 把它当作「无需确认因此无需跑测试」：
+Phase 4 继承 `iagent-spec-apply` 的**测试执行门**并**自动**通过 —— 全自动管线 MUST NOT 跳过该门，也 MUST NOT 把它当作「无需确认因此无需跑测试」：
 
 - 范围：**仅变更范围内** —— 本次变更 `[测试]` 任务产出的测试，以及覆盖被改文件的既有测试
 - **范围内测试通过** → 自动通过并进入 Phase 5
@@ -164,15 +164,15 @@ Phase 4 继承 `iagent_spec_apply` 的**测试执行门**并**自动**通过 —
 - **3 次尝试后仍失败** → 暂停并向用户报告。MUST NOT 静默通过，MUST NOT 进入归档
 - 项目无测试框架 → 记录 WARN，跳过该门，继续
 
-**条件测试子阶段**：变更 `tasks.md` 含 `[测试]` 任务时，在测试执行门前委派阶段 `iagent_test` skill 生成变更范围测试；门判定仍然适用（范围内失败自动重试后暂停）。
+**条件测试子阶段**：变更 `tasks.md` 含 `[测试]` 任务时，在测试执行门前委派阶段 `iagent-test` skill 生成变更范围测试；门判定仍然适用（范围内失败自动重试后暂停）。
 
 ### 4.4 实现验证桥（委派，强制）
 
-测试执行门通过后，MUST 委派阶段 `iagent_spec_verify` skill 校验实现与制品（specs/tasks/design）的一致性：
+测试执行门通过后，MUST 委派阶段 `iagent-spec-verify` skill 校验实现与制品（specs/tasks/design）的一致性：
 
 - **验证通过** → 进入 Phase 5（自动归档）
 - **验证失败** → 回到 Phase 4 修复；MUST NOT 进入归档
-- **降级（`iagent_spec_verify` 不可用）**：记录 WARN 并显式记录省略决策（「实现验证由 apply 编译检查 + 归档一致性承担」）—— MUST NOT 静默跳过
+- **降级（`iagent-spec-verify` 不可用）**：记录 WARN 并显式记录省略决策（「实现验证由 apply 编译检查 + 归档一致性承担」）—— MUST NOT 静默跳过
 
 - **⛔ EXIT GUARD (强制 — 子代理退出守卫)**：每条子代理调度指令 MUST 携带退出守卫 —— 完成分配任务后立即停止并返回回执，MUST NOT 进入 plan 模式 / 设计模式 / 提出后续步骤 / 超出分配范围继续；编排器是唯一有权判停、汇总、推进阶段的角色；子代理 MUST NOT 越权替代编排器做阶段收尾决策
 - **MUST FIRST 先读取 handoff 包**：子代理调度指令 MUST 强制子代理在任何其他动作之前先读 handoff 包（`.openspec-tmp/pipeline-<change-name>/handoff-pack.md`）—— MUST NOT 重读 proposal/specs/design 或重跑包已覆盖的 CodeGraph 查询；仅做增量查询
@@ -196,9 +196,9 @@ Phase 4 继承 `iagent_spec_apply` 的**测试执行门**并**自动**通过 —
 - 构造归档上下文，包含：
   - `change-name` —— 当前变更名（跳过变更选择提示）
   - `requirementDocStatus` —— Phase 3 文档桥的持久状态（`generated` / `skipped-by-user` / `generation-failed` / `absent`）；**仅作报告输入**，MUST NOT 用于触发归档侧的生成 / 对齐 / 迁移
-- **委派阶段**：以 `change-name` + `requirementDocStatus` 调用 `iagent_spec_archive` skill；被委派技能完整承载归档协议（delta spec 同步、CONTEXT.md 同步、CodeGraph 检查、探索记忆同步、需求文档存在性**只读报告**、目录移动、ARCHIVE-INDEX.md 纯追加、归档只读校验、流程级工作区清理）—— 本技能 MUST NOT 重复声明或内联该协议正文
+- **委派阶段**：以 `change-name` + `requirementDocStatus` 调用 `iagent-spec-archive` skill；被委派技能完整承载归档协议（delta spec 同步、CONTEXT.md 同步、CodeGraph 检查、探索记忆同步、需求文档存在性**只读报告**、目录移动、ARCHIVE-INDEX.md 纯追加、归档只读校验、流程级工作区清理）—— 本技能 MUST NOT 重复声明或内联该协议正文
 - 全部归档步骤在被委派技能内部自动执行
-- **需求文档语义（单一源规则）**：由被委派的 `iagent_spec_archive` 承载 —— 只做存在性报告（「已存在（未改写）」/「缺失」）；MUST NOT 生成、MUST NOT 就地增量对齐、MUST NOT 迁出到 `openspec/devdocs/`。本技能 MUST NOT 复制该分支规则正文
+- **需求文档语义（单一源规则）**：由被委派的 `iagent-spec-archive` 承载 —— 只做存在性报告（「已存在（未改写）」/「缺失」）；MUST NOT 生成、MUST NOT 就地增量对齐、MUST NOT 迁出到 `openspec/devdocs/`。本技能 MUST NOT 复制该分支规则正文
 
 ### 5.2 自动归档错误处理
 
@@ -231,11 +231,11 @@ Phase 4 继承 `iagent_spec_apply` 的**测试执行门**并**自动**通过 —
 - **只读操作直接执行** —— 文件读取、CodeGraph 查询与分析步骤（影响分析）无需用户确认即可运行
 - **只读直通不覆盖澄清门** —— grill L1-L5 需求澄清门仍等待用户确认
 - **自动验证** —— 提案后无需用户提示即自动验证
-- **验证通过后自动实现** —— Phase 4 以 `gate-skip=design-confirmation` 自动执行（跳过 iagent_spec_apply Step 5.5 门；`auto-mode=true` 为兼容写法）
-- **实现完成后自动归档** —— Phase 5 自动执行，变更名与需求文档状态由上下文传入（遵循 iagent_spec_archive 技能模板）
-- **继承并自动通过测试执行门** —— Phase 4 执行 iagent_spec_apply §9 且仅限变更范围内；范围内失败自动重试至多 3 次，随后暂停并报告；既有的变更范围外失败仅 WARN；项目无测试框架 → WARN 并跳过
+- **验证通过后自动实现** —— Phase 4 以 `gate-skip=design-confirmation` 自动执行（跳过 iagent-spec-apply Step 5.5 门；`auto-mode=true` 为兼容写法）
+- **实现完成后自动归档** —— Phase 5 自动执行，变更名与需求文档状态由上下文传入（遵循 iagent-spec-archive 技能模板）
+- **继承并自动通过测试执行门** —— Phase 4 执行 iagent-spec-apply §9 且仅限变更范围内；范围内失败自动重试至多 3 次，随后暂停并报告；既有的变更范围外失败仅 WARN；项目无测试框架 → WARN 并跳过
 - **测试门失败时不得静默通过** —— 范围内的测试门失败 MUST 在归档前暂停；全自动语义绝不构成跳过该门或跳过归档阻断的理由
-- **深度复查后收束** —— 全部通过后调用 `iagent_proposal_review` 做深度复查（不可用则内联深度复查 + WARN），随后展示**一次**需求文档"生成 / 跳过"桥（生成 → 直接非交互委派 `iagent_requirement_doc`，失败记 `generation-failed` + WARN 并继续；跳过 → 记 `skipped-by-user`），再自动转入 Phase 4
+- **深度复查后收束** —— 全部通过后调用 `iagent-proposal-review` 做深度复查（不可用则内联深度复查 + WARN），随后展示**一次**需求文档"生成 / 跳过"桥（生成 → 直接非交互委派 `iagent-requirement-doc`，失败记 `generation-failed` + WARN 并继续；跳过 → 记 `skipped-by-user`），再自动转入 Phase 4
 - **文档桥是本阶段唯一阻塞门** —— 验证阶段仅有该桥 1 个流程级阻塞门；桥后 MUST NOT 追加对下一阶段技能的调用确认（宿主权限与 strict/degraded 检查仍独立生效）
 - **FAIL 不出文档桥** —— 验证 FAIL 或深度复查未收束时 MUST NOT 展示生成/跳过桥、MUST NOT 委派需求文档技能
 - **文档状态持久化** —— 桥结果写入变更 `exploration.md` 的 `## 需求文档状态` 段（`requirementDocStatus`）；写入失败重试一次仍失败即停止（不委派生成、不进入 Phase 4、不伪报持久化），并输出 WARN + 恢复指引

@@ -1,6 +1,6 @@
 ---
 name: iagent-migration
-description: "一站式自动化功能迁移（auto migration / 功能迁移）：经 feature_doc 蒸馏源项目 + 用户确认核心功能清单 → 加载目标项目编码规范 → 生成标准 OpenSpec 变更提案 → 实现门后按规范实现 → 独立复查代理交叉核对源/目标功能并产出报告 + P0/P1 修复循环（via iagent_migration_check）。当用户要把源项目的功能或模块自动迁移到当前（目标）项目时使用；触发词\"功能迁移 / auto migration / 迁移功能 / 源项目迁移\"；NOT for 单独的源项目扫描（用 iagent_feature_doc）或单独迁移后对比（用 iagent_migration_check）。"
+description: "一站式自动化功能迁移（auto migration / 功能迁移）：经 feature_doc 蒸馏源项目 + 用户确认核心功能清单 → 加载目标项目编码规范 → 生成标准 OpenSpec 变更提案 → 实现门后按规范实现 → 独立复查代理交叉核对源/目标功能并产出报告 + P0/P1 修复循环（via iagent-migration-check）。当用户要把源项目的功能或模块自动迁移到当前（目标）项目时使用；触发词\"功能迁移 / auto migration / 迁移功能 / 源项目迁移\"；NOT for 单独的源项目扫描（用 iagent-feature-doc）或单独迁移后对比（用 iagent-migration-check）。"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(iagent-feature-doc), Skill(iagent-migration-check), Agent, Task
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）；CLI 缺失时降级为 AI 内联生成（CLI-degraded generation）。
@@ -8,14 +8,16 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:8dce3cfb3fb69032c0de08c69f428fbe52d9a6ad04dda72198032e1cfb0a9b1d"
+  generatedFingerprint: "sha256:3413fe425180379c1ecdbbaa32305bb2126b6d3238b0b063c374478a75b99725"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
 
 一站式自动功能迁移，四阶段推进：生成源需求文档并蒸馏确认核心功能 → 探索目标项目（含目标编码规范加载）+ 生成变更提案 → 实现确认门 → 复查子代理做迁移检查并进入修复循环。流程结构与规格驱动工作流（`/iagent:spec-explore` → `/iagent:spec-propose` → `/iagent:spec-apply`）及一站式引导工作流 `/iagent:workflow`（探索 → 提案 → 验证）一致；探索与提案生成自动进行（一致性直通）。流程中有两个性质不同的中途确认点：Phase 1 的**蒸馏确认**（需求澄清门 —— 确认迁移什么 WHAT）与 Phase 3 的**实现门**（流程门 —— 确认如何实现 HOW）；Phase 2→3 的一致性直通不受影响。
 
-**Trigger boundary**：本技能编排**完整**迁移管线（扫描源项目 → 变更提案 → 实现 → 迁移对比）。单独的源项目扫描属于 `iagent_feature_doc`；单独的迁移后对比属于 `iagent_migration_check`。
+**输入**：源项目路径与待迁移的目标模块描述（可选；缺失项在 Step 0 交互式收集，已提供的跳过）。
+
+**Trigger boundary**：本技能编排**完整**迁移管线（扫描源项目 → 变更提案 → 实现 → 迁移对比）。单独的源项目扫描属于 `iagent-feature-doc`；单独的迁移后对比属于 `iagent-migration-check`。
 
 ## ⛔ GATE PROTOCOL — ACTIVE
 
@@ -57,7 +59,7 @@ metadata:
 | SOURCE_PROJECT (源项目根目录) | 是 | 路径必须存在且可读 —— 无效路径 → 明确报错并要求重新输入，绝不猜测修正 |
 | 功能入口 | 是 | 文件路径 / URL 路由 / 模块名 / 整个项目 |
 | TARGET_PROJECT (目标项目根目录) | 否 | 默认取当前项目 |
-| 源项目框架档案 | 否 | 框架未知 → 自动探测结构，结果以 **[待确认]** 呈现给用户确认（规则同 iagent_feature_doc） |
+| 源项目框架档案 | 否 | 框架未知 → 自动探测结构，结果以 **[待确认]** 呈现给用户确认（规则同 iagent-feature-doc） |
 | 目标项目框架档案 | 否 | 收集规则相同；目标架构信息供 Phase 2 使用 |
 | 迁移范围说明 | 否 | 用户给出的约束（例如仅后端、保留数据库 schema） |
 
@@ -66,7 +68,7 @@ metadata:
 ## Phase 1: 生成源需求文档（自动）
 
 1. 先确定变更名（遵循项目的变更命名约定，例如功能迁移用 `add-<module>-<feature>`），并用 `path.join()` 创建 `openspec/changes/<change-name>/attachments/source-feature-doc/` —— Phase 1 的全部产出直接落在该目录，不做暂存或搬运。
-2. 以**非交互模式**委派 **iagent_feature_doc** 技能：注入 SOURCE_PROJECT、功能入口、输出模式 = 迁移重构模式、源项目框架档案，以及第 1 步的输出目录。
+2. 以**非交互模式**委派 **iagent-feature-doc** 技能：注入 SOURCE_PROJECT、功能入口、输出模式 = 迁移重构模式、源项目框架档案，以及第 1 步的输出目录。
 3. 生成的需求文档是本次迁移的唯一真源。其中缺口保持 **[待确认]** 标记 —— 在 Phase 2 之前与用户确认解决，不得猜测。
 4. **蒸馏并确认核心功能（蒸馏确认）**：从需求文档中蒸馏出核心功能清单（核心功能、业务规则、API 契约要点 —— 蒸馏产物，不是整份文档）。将清单提交用户确认（AskUserQuestion；用户可删减条目）。清单与文档/源码不一致处标 **[待确认]** 并由用户裁决（修正清单或更新文档）—— 不得猜测。清单**为空即阻断**流程：请用户重新扫描源项目或收窄功能入口 —— 绝不允许带着空清单继续。确认后把清单写入 `openspec/changes/<change-name>/exploration.md` 的 `## 蒸馏核心功能清单` 段（该文件在 Phase 1 末尾创建；Phase 2 第 1 步合并探索材料时保留此段）。确认后的清单既是 Phase 2 提案的派生输入，也是 Phase 4 的复查范围基线；用户删减的条目记录在 exploration.md 中，并**排除**在 Phase 4 复查范围之外（绝不计为功能缺失 P0/P1）。
 
@@ -102,7 +104,7 @@ metadata:
 
 ## Phase 4: 复查子代理迁移检查 + 修复循环
 
-1. **派发独立复查子代理**交叉核对源/目标功能并产出报告。调度指令 MUST 显式注入全部输入：已确认核心功能清单（exploration.md 路径）、源需求文档路径、目标实现范围、SOURCE_PROJECT、TARGET_PROJECT、双方框架档案，以及输出目录 `openspec/changes/<change-name>/attachments/migration-check/`。子代理内部：以**非交互模式**委派 **iagent_migration_check** 技能并传入这些参数（技能委派 —— 不得内联重实现对比逻辑），再在对比结果之上叠加核心功能交叉核对（功能覆盖矩阵 + 差异说明），产出最终复查报告。复查范围**排除**用户删减的功能（绝不计为功能缺失 P0/P1）。
+1. **派发独立复查子代理**交叉核对源/目标功能并产出报告。调度指令 MUST 显式注入全部输入：已确认核心功能清单（exploration.md 路径）、源需求文档路径、目标实现范围、SOURCE_PROJECT、TARGET_PROJECT、双方框架档案，以及输出目录 `openspec/changes/<change-name>/attachments/migration-check/`。子代理内部：以**非交互模式**委派 **iagent-migration-check** 技能并传入这些参数（技能委派 —— 不得内联重实现对比逻辑），再在对比结果之上叠加核心功能交叉核对（功能覆盖矩阵 + 差异说明），产出最终复查报告。复查范围**排除**用户删减的功能（绝不计为功能缺失 P0/P1）。
 
    **B组架构融入检查**：复查子代理 MUST 在迁移检查结果之上再执行 3 项架构一致性检查：
    - **C11 — 异常体系融入检查**：扫描目标迁移代码中残留的源项目异常处理构造（例如源项目专有异常类、吞掉错误的空 catch 块）。残留的源项目错误处理构造属 P0 问题。
@@ -110,7 +112,7 @@ metadata:
    - **C13 — 架构一致性检查**：核对迁移代码是否遵循目标项目的分层、包命名与目录约定。架构不一致属 P2 问题。
 
    B组检查发现 MUST 与迁移检查结果合并进同一份最终复查报告，使用相同的 P0/P1/P2 分级。
-2. **复查子代理失败降级链**（绝不静默跳过复查）：串行重试一次 → 仍失败，降级为主流程直接调用 iagent_migration_check（非交互、相同注入参数）→ 仍失败，输出 WARN 并以 COMPLETE-WITH-WARNING 结束流程。
+2. **复查子代理失败降级链**（绝不静默跳过复查）：串行重试一次 → 仍失败，降级为主流程直接调用 iagent-migration-check（非交互、相同注入参数）→ 仍失败，输出 WARN 并以 COMPLETE-WITH-WARNING 结束流程。
 3. 读取检查报告（P0/P1/P2 问题清单）。
 4. 修复循环：
     - **发现 P0/P1** → 呈现问题清单 + 修复建议 → 请用户确认修复 → 应用修复（同时改代码 AND 直接编辑变更 `tasks.md` —— 勾选已完成任务并追加新增/更新任务；MUST NOT 写入或重新渲染 `tasks.json`）→ 重跑迁移检查（回到本阶段第 1 步）。重复直到无 P0/P1。

@@ -3,7 +3,7 @@
    **变更级 handoff 包（流程级，一次产出、跨阶段复用）：**
 
    - **路径**：项目根下 `.openspec-tmp/pipeline-<change-name>/handoff-pack.md`（用 `path.join()` 构造；该目录已被 `.gitignore` 排除，**不进提交面**）
-   - **跨阶段复用（优先）**：`iagent_spec_propose` 在提案定稿时已产出该包 → apply **只读复用**，MUST NOT 重产整包；收尾时仅向 `## 阶段结论` 追加一行
+   - **跨阶段复用（优先）**：`iagent-spec-propose` 在提案定稿时已产出该包 → apply **只读复用**，MUST NOT 重产整包；收尾时仅向 `## 阶段结论` 追加一行
    - **独立调用时（包不存在）**：按同一六节协议**产出一次**（只在首次派发前产出，不按批重产、也不按单元重产）
    - **头部固定元信息**：`change: <name>` / `producedBy: propose|apply` / `producedAt: <ISO>` / `sourceFingerprint: <hash>`
    - **指纹校验**：阶段入口比对当前制品（proposal / design / specs / tasks）的内容指纹；与 `sourceFingerprint` 不一致 → 重建整包并记 WARN，MUST NOT 静默沿用陈旧包
@@ -89,7 +89,7 @@
    - 遵循常规实现流程
 
    **测试代码**（带 `[测试]` 标签的任务）：
-       - **MUST 委派 `iagent_test`**（传入测试层级与优先级）生成测试代码 —— MUST NOT 在 apply 内另立一套测试规则。`iagent_test` 不可用（degraded / 技能缺失）时记录 WARN 并按同一测试规则本地实现，MUST NOT 伪装为委派完成
+       - **MUST 委派 `iagent-test`**（传入测试层级与优先级）生成测试代码 —— MUST NOT 在 apply 内另立一套测试规则。`iagent-test` 不可用（degraded / 技能缺失）时记录 WARN 并按同一测试规则本地实现，MUST NOT 伪装为委派完成
        - **框架探测**：从构建文件（`pom.xml` → JUnit 4/5 + Mockito；`build.gradle` → JUnit 4/5 + Mockito；`package.json` → Vitest / Jest / Mocha）与结构线索（`src/test/` 或 `test/` 下的既有测试文件）探测项目测试框架；对齐**既有**测试风格（注解、断言、命名约定）—— 不得另造新风格
        - **覆盖范围**（最低要求）：① spec Scenario —— 为任务 `Spec Ref` 中引用的每个 `#### Scenario:` 写一个测试；② BCDE 边界 —— Boundary（最小/最大值、空集合）、Condition（null 入参、缺失字段）、Default（默认构造对象、未设置枚举）、Error（非法入参、抛出的异常）；③ 若某 Scenario 被判定为不可测，把结论以注释写入测试文件，使"未写"与"从未评估"可区分
        - **测试结构**：每个被测生产类一个测试类，命名为 `<ClassName>Test`（Java）或 `<className>.test.<ext>`（Node）；每个测试方法用 `@Test`（JUnit）/ `it(...)`（Vitest/Jest/Mocha）注解覆盖**一个**逻辑 Scenario；采用 Arrange-Act-Assert (AAA) 模式

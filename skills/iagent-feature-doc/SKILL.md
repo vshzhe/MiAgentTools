@@ -1,6 +1,6 @@
 ---
 name: iagent-feature-doc
-description: "扫描源项目功能模块并生成功能需求实现文档（项目功能地图 / feature map）：覆盖前端实现、后端方法、字段级 API 契约、数据库调用链与跨模块交互，框架档案按项目实际探测。当用户要扫描源项目功能模块、从代码分析功能实现、构建项目功能地图、或为框架迁移/重构生成迁移需求文档（migration requirement document）时使用；触发词\"功能地图 / feature map / 扫描源项目 / 功能实现文档\"；NOT for 把 OpenSpec 变更提案转为评审需求文档——那是 iagent_requirement_doc。"
+description: "扫描源项目功能模块并生成功能需求实现文档（项目功能地图 / feature map）：覆盖前端实现、后端方法、字段级 API 契约、数据库调用链与跨模块交互，框架档案按项目实际探测。当用户要扫描源项目功能模块、从代码分析功能实现、构建项目功能地图、或为框架迁移/重构生成迁移需求文档（migration requirement document）时使用；触发词\"功能地图 / feature map / 扫描源项目 / 功能实现文档\"；NOT for 把 OpenSpec 变更提案转为评审需求文档——那是 iagent-requirement-doc。"
 allowed-tools: Read, Write, Edit, Glob, Grep, mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore
 license: MIT
 compatibility: CodeGraph MCP 可选；无索引时自动降级为 Glob/Grep/Read 手动扫描。
@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: docs
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:991f4ff65b68ebb634352be47bb9e85b1c2d895375540937084ed941a38687ea"
+  generatedFingerprint: "sha256:d6b5c6800e98a0d000bb1eeb68a2dc7386388740acf2df00fb198d23feae8d43"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。

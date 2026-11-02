@@ -244,8 +244,13 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
             const instructions =
                 negotiation === null
                     ? base
-                    : adaptSkillContentForHost(base, negotiation, deriveCommandId(template.name));
-            const generated = generateSkillContent({ ...template, instructions }, packageVersion, {
+                    : adaptSkillContentForHost(base, negotiation, deriveCommandId(template.name), orchestration);
+            // references 与主正文同等改写（未知名保持原样，技能 ID 归一化在生成器单点完成）
+            const references = template.references?.map((ref) => ({
+                ...ref,
+                content: rewriteCommandRefs(ref.content, tool.commandsLayout, knownCommandIds),
+            }));
+            const generated = generateSkillContent({ ...template, instructions, references }, packageVersion, {
                 hostId: tool.value,
             });
             const skillDir = path.join(skillsRoot, generated.dirName);
@@ -316,7 +321,7 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
                     body:
                         negotiation === null
                             ? baseBody
-                            : adaptSkillContentForHost(baseBody, negotiation, id),
+                            : adaptSkillContentForHost(baseBody, negotiation, id, orchestration),
                     allowedTools: template.allowedTools,
                     generatedBy: packageVersion,
                     hostMeta:

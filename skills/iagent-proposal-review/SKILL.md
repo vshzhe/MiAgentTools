@@ -1,6 +1,6 @@
 ---
 name: iagent-proposal-review
-description: "检查变更提案完整性与实现合规性——深度代码库探索、8 维度完整性检查、合规性验证、量化评分与遗漏场景补充。触发词\"检查提案 / 检查设计 / review proposal / 检查遗漏 / 提案完整性 / 检查合规性 / 验证实现方式\"；在 /iagent:spec-propose 或 /iagent:workflow 验证通过后自动调用，也可手动调用；NOT for 代码审查（改用 iagent_review）"
+description: "检查变更提案完整性与实现合规性——深度代码库探索、8 维度完整性检查、合规性验证、量化评分与遗漏场景补充。触发词\"检查提案 / 检查设计 / review proposal / 检查遗漏 / 提案完整性 / 检查合规性 / 验证实现方式\"；在 /iagent:spec-propose 或 /iagent:workflow 验证通过后自动调用，也可手动调用；NOT for 代码审查（改用 iagent-review）"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*)
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组，可选加载变更）；检查点语言无关，语言/框架专项检查按项目特征与项目实际信息触发。
@@ -8,12 +8,14 @@ metadata:
   author: mi-agent-tools
   type: review
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:51542ff44a4ef12aa22e24db4c4653bdd3bbe12905b7f703eff3b30b4a5b3305"
+  generatedFingerprint: "sha256:6e587ee5acf54f894be078b102d198080651b0002fe74063d95d2e9e510b8b53"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
 
 检查变更提案完整性与实现合规性——深度代码库探索、8 维度完整性检查、合规性验证、量化评分与遗漏场景补充。在 /iagent:spec-propose 创建提案后，或经过 /iagent:spec-explore 探索分析后，使用此 skill 验证提案是否完整覆盖需求场景、是否符合项目规范。确保每个变更提案都经过完整性验证和合规性检查后再进入实现阶段。
+
+**输入**：待审查的变更名称（kebab-case，可选；未指定时自动扫描活跃变更）。
 
 本 skill 通过多维度检查确保：
 1. 需求场景完整覆盖（无遗漏）
@@ -21,7 +23,7 @@ metadata:
 3. 代码设计符合框架模式
 4. 安全性和性能考虑充分
 
-**职责边界（双门非重叠）**：本 skill 是提案验证的**深度层**——应在 `iagent_spec_verify_proposal`（D1-D5 核心 + D6-D10 条件维度，统一 90% 阈值）PASS（≥90%）之后调用；本 skill 只做深度代码库探索、多维完整性/合规复查与遗漏场景补充，MUST NOT 重复 D1-DN 量化评分（那是 spec_verify_proposal 的职责）。
+**职责边界（双门非重叠）**：本 skill 是提案验证的**深度层**——应在 `iagent-spec-verify-proposal`（D1-D5 核心 + D6-D10 条件维度，统一 90% 阈值）PASS（≥90%）之后调用；本 skill 只做深度代码库探索、多维完整性/合规复查与遗漏场景补充，MUST NOT 重复 D1-DN 量化评分（那是 spec_verify_proposal 的职责）。
 
 ---
 

@@ -16,7 +16,7 @@
 | `autoFix` | 布尔 | `true` | 失败后是否进入自动修复循环 |
 | `maxRetries` | 整数 | `3` | 自动修复重试上限（仅 `autoFix=true` 生效） |
 
-作用域：`command` / `timeoutMs` / `maxRetries` / `autoFix` / `incremental` **仅约束本技能**；`iagent_debug` 只共享 `enabled` 与「缺省启用」语义。
+作用域：`command` / `timeoutMs` / `maxRetries` / `autoFix` / `incremental` **仅约束本技能**；`iagent-debug` 只共享 `enabled` 与「缺省启用」语义。
 
 ## 2. 构建描述符探测矩阵
 

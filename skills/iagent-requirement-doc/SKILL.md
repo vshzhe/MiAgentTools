@@ -1,6 +1,6 @@
 ---
 name: iagent-requirement-doc
-description: "把变更制品（proposal.md / design.md / specs/**/*.md + tasks.md）转换为标准八章节需求文档（requirement document）供人工评审。当用户要生成需求文档 / 需求单 / 转换提案为需求文档时使用；触发词\"需求文档 / requirement document / 需求单 / 提案转文档\"；NOT for 扫描源项目生成迁移需求文档——那用 iagent_feature_doc。"
+description: "把变更制品（proposal.md / design.md / specs/**/*.md + tasks.md）转换为标准八章节需求文档（requirement document）供人工评审。当用户要生成需求文档 / 需求单 / 转换提案为需求文档时使用；触发词\"需求文档 / requirement document / 需求单 / 提案转文档\"；NOT for 扫描源项目生成迁移需求文档——那用 iagent-feature-doc。"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*)
 license: MIT
 compatibility: 纯文件读取与生成，无 CLI 硬依赖（iagent spec status 为可选加载方式）；支持独立交互与非交互工作流集成双模式。
@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: docs
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:44a19ef48274eb1d11a42ded147fe998f462c0367d24c4aae355fbe89462bb5d"
+  generatedFingerprint: "sha256:7f89b3b45d8406bc5d79aca78250e9ef4a231f061d039b68f5555f4fccebae79"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
@@ -45,7 +45,7 @@ metadata:
 - MUST NOT 提问。
 - 使用 Markdown 格式，基本信息用占位符。
 - 用户稍后可独立重跑本技能以补全细节。
-- **调用方说明（自动调用方 = 三父流程文档桥"生成"分支）**：自动调用本技能的是 `iagent_workflow` Phase 3.5 / `iagent_auto_workflow` Phase 3 / `iagent_debug` verify-close 三处需求文档桥的"生成"分支。`iagent_spec_verify_proposal` 保持纯验证职责、不调用本技能；`iagent_spec_propose` 独立调用在验证 PASS 后停止，MUST NOT 自动调用本技能（不提供文档桥）。**归档侧（`iagent_spec_archive` / `iagent_spec_bulk_archive`）只做需求文档存在性只读报告，MUST NOT 生成、MUST NOT 就地增量对齐、MUST NOT 迁出，故 MUST NOT 调用本技能。** 本技能 MUST NOT 写改变更 `exploration.md` 的需求文档状态 —— 该状态由父流程维护。**任何阶段都可手工调用** —— 下述独立模式保持不变。
+- **调用方说明（自动调用方 = 三父流程文档桥"生成"分支）**：自动调用本技能的是 `iagent-workflow` Phase 3.5 / `iagent-auto-workflow` Phase 3 / `iagent-debug` verify-close 三处需求文档桥的"生成"分支。`iagent-spec-verify-proposal` 保持纯验证职责、不调用本技能；`iagent-spec-propose` 独立调用在验证 PASS 后停止，MUST NOT 自动调用本技能（不提供文档桥）。**归档侧（`iagent-spec-archive` / `iagent-spec-bulk-archive`）只做需求文档存在性只读报告，MUST NOT 生成、MUST NOT 就地增量对齐、MUST NOT 迁出，故 MUST NOT 调用本技能。** 本技能 MUST NOT 写改变更 `exploration.md` 的需求文档状态 —— 该状态由父流程维护。**任何阶段都可手工调用** —— 下述独立模式保持不变。
 
 ## Step 3: 读取变更制品
 

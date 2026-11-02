@@ -227,6 +227,141 @@ describe('OpenCode 指令生成', () => {
     });
 });
 
+// 变更 fix-multi-agent-skill-command-generation / 任务 1.2 / 1.4：
+// generateSkillContent 全字段与 references 统一归一化（不依赖 options.hostId）。
+describe('技能 ID 统一归一化（全字段 + references）', () => {
+    const template = {
+        name: 'iagent_spec_apply',
+        description: '委派 iagent_test 与 iagent_spec_verify 的示例描述',
+        compatibility: '依赖 iagent_spec_verify_proposal',
+        instructions: '委派 `iagent_test` 生成回归测试；由 iagent_spec_apply 承载。',
+        allowedTools: 'Read',
+        type: 'impl' as const,
+        references: [
+            { path: 'references/notes.md', content: '参考 iagent_feature_doc 与 iagent_review。' },
+        ],
+    };
+
+    it('未传 hostId 时 description / compatibility / 正文 / references 全部归一化', () => {
+        const generated = generateSkillContent(template, '1.0.0');
+        expect(generated.fileContent).toContain('iagent-test');
+        expect(generated.fileContent).not.toMatch(/\biagent_(test|spec_verify|spec_apply)\b/);
+        expect(generated.references?.[0].content).toContain('iagent-feature-doc');
+        expect(generated.references?.[0].content).toContain('iagent-review');
+        expect(generated.references?.[0].content).not.toMatch(/\biagent_[a-z]/);
+    });
+
+    it('references 路径保持不变（只改写内容）', () => {
+        const generated = generateSkillContent(template, '1.0.0', { hostId: 'pi' });
+        expect(generated.references?.[0].path).toBe('references/notes.md');
+    });
+});
+
+// 变更 fix-multi-agent-skill-command-generation / 任务 2.1 / 2.3：
+// Pi 与 OpenCode 的参数注入矩阵（围栏隔离 + 仅首个顶层段 + 无参跳过）。
+describe('Pi / OpenCode 参数注入矩阵', () => {
+    const commandTemplates = getCommandTemplates();
+
+    /** 用指定适配器格式化工具无关正文 */
+    function formatWith(adapter: typeof piAdapter, body: string): string {
+        const generated = generateCommand(
+            {
+                id: 'sample',
+                name: 'sample',
+                description: '示例',
+                category: 'impl',
+                tags: [],
+                body,
+                allowedTools: 'Read',
+                generatedBy: '9.9.9',
+            },
+            adapter
+        );
+        return generated.fileContent;
+    }
+
+    for (const [label, adapter] of [
+        ['Pi', piAdapter],
+        ['OpenCode', opencodeAdapter],
+    ] as const) {
+        it(`${label}：20 个内置指令中 19 个注入 $ARGUMENTS，spec-bulk-archive 跳过`, () => {
+            const injected: string[] = [];
+            const skipped: string[] = [];
+            for (const { template, id } of commandTemplates) {
+                const output = formatWith(adapter, template.content);
+                if (output.includes('**Provided arguments**: $ARGUMENTS')) {
+                    injected.push(id);
+                } else {
+                    skipped.push(id);
+                }
+            }
+            expect(injected.length).toBe(19);
+            expect(skipped).toEqual(['spec-bulk-archive']);
+        });
+
+        it(`${label}：顶层中文 **输入**：注入占位符`, () => {
+            const output = formatWith(adapter, '**输入**：待验证评分的变更名称。\n\n## 步骤\n\n执行。');
+            expect(output).toContain('**Provided arguments**: $ARGUMENTS');
+        });
+
+        it(`${label}：顶层英文 **Input**: 注入占位符`, () => {
+            const output = formatWith(adapter, '**Input**: topic\n\n## Steps\n\nDo it.');
+            expect(output).toContain('**Provided arguments**: $ARGUMENTS');
+        });
+
+        it(`${label}：围栏代码块内的输入示例不触发误注入`, () => {
+            const output = formatWith(
+                adapter,
+                '## 报告模板\n\n```markdown\n**输入**: 示例内容\n```\n\n~~~\n**输入**: 示例\n~~~\n\n无顶层输入段。'
+            );
+            expect(output).not.toContain('Provided arguments');
+        });
+
+        it(`${label}：首个顶层输入段之后注入，非顶层示例段被排除`, () => {
+            const output = formatWith(
+                adapter,
+                '**输入**：变更名称（可选）。\n\n## 检查示例\n\n**输入**: add-order-query\n\n执行。'
+            );
+            const first = output.indexOf('**Provided arguments**: $ARGUMENTS');
+            expect(first).toBeGreaterThan(-1);
+            expect(output.indexOf('## 检查示例')).toBeGreaterThan(first);
+            expect(output.match(/Provided arguments/g)?.length).toBe(1);
+        });
+
+        // 真实模板回归：proposal-review 正文的 `## 检查示例` 段含未围栏同形行
+        // （`**输入**: 检查变更提案 ...`），只能靠「仅首个顶层段」排除。
+        it(`${label}：proposal-review 模板只在顶层输入段注入一次（示例段同形行不触发）`, () => {
+            const review = commandTemplates.find(({ id }) => id === 'proposal-review');
+            expect(review).toBeDefined();
+            const output = formatWith(adapter, review?.template.content ?? '');
+            const matches = output.match(/Provided arguments/g) ?? [];
+            expect(matches.length).toBe(1);
+            // 注入点位于 `## 检查示例` 之前
+            expect(output.indexOf('**Provided arguments**: $ARGUMENTS')).toBeLessThan(
+                output.indexOf('## 检查示例')
+            );
+        });
+
+        it(`${label}：无参声明（None required / 无需参数）跳过注入`, () => {
+            const none = formatWith(adapter, '**Input**: None required (prompts for selection)\n\nDo it.');
+            const zhongwen = formatWith(adapter, '**输入**：无需参数（会提示选择）\n\n执行。');
+            expect(none).not.toContain('Provided arguments');
+            expect(zhongwen).not.toContain('Provided arguments');
+        });
+
+        it(`${label}：已含 $ARGUMENTS / $@ / $1 占位符时跳过注入`, () => {
+            for (const body of [
+                '**输入**：主题。\n\n使用 $ARGUMENTS。',
+                '**输入**：主题。\n\n使用 $@ 传递。',
+                '**输入**：主题。\n\n使用 $1 传递。',
+            ]) {
+                const output = formatWith(adapter, body);
+                expect(output).not.toContain('Provided arguments');
+            }
+        });
+    }
+});
+
 describe('用户自定义 description 保持原文（生成器不翻译）', () => {
     it('runGenerate 的 --desc 逐字写入 frontmatter（英文与中英混排均不转换）', () => {
         const root = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-desc-'));

@@ -1,6 +1,6 @@
 ---
 name: iagent-spec-archive
-description: "归档变更。当用户要归档已实现完成的变更、结束变更工作流时使用；触发词\"归档 / archive / 结束变更\"；NOT for 一次归档多个变更（改用 iagent_spec_bulk_archive）。"
+description: "归档变更。当用户要归档已实现完成的变更、结束变更工作流时使用；触发词\"归档 / archive / 结束变更\"；NOT for 一次归档多个变更（改用 iagent-spec-bulk-archive）。"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Bash(node:*)
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）与 CodeGraph CLI（可选）。
@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:d1cea9b04c04a85c8bd88117fa07ac7dccc071f84d8f877124353930a0e3172d"
+  generatedFingerprint: "sha256:a1a9bf60f606abeac7093d41fb539644c1425127e14d7df0eede61e164b0c09a"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
@@ -203,7 +203,7 @@ metadata:
    - 文件缺失（任一状态，含 `absent`）→ 摘要记「需求文档：缺失」
    - 读取失败（文件存在性或状态段不可读）→ 输出含路径与原因的 WARN，摘要记「需求文档：状态不可读」，继续归档
 
-   **禁止写入（强制）**：本检查点 MUST NOT 生成需求文档、MUST NOT 就地增量对齐、MUST NOT 迁出到 `openspec/devdocs/`，MUST NOT 委派 `iagent_requirement_doc`。`requirementDocStatus` MUST NOT 再被用于触发任何写入动作（它只是报告输入）。
+   **禁止写入（强制）**：本检查点 MUST NOT 生成需求文档、MUST NOT 就地增量对齐、MUST NOT 迁出到 `openspec/devdocs/`，MUST NOT 委派 `iagent-requirement-doc`。`requirementDocStatus` MUST NOT 再被用于触发任何写入动作（它只是报告输入）。
 
    **强制检查点**：
    - 系统 MUST 在移动变更目录前完成需求文档只读报告
@@ -288,7 +288,6 @@ metadata:
       - **变更名称**：取自目录名（日期前缀之后）
       - **模块**：从变更名模式 `{prefix}-{module}-{feature}` 提取，无法判断时用 "general"
       - **摘要**：`proposal.md` Why 的首段（历史 JSON-only 降级时只读 change.json；最多 50 字符）
-      - **补充标注**：读取变更目录中的 `tasks.md`（历史 JSON-only 降级时只读 tasks.json），通过**匹配固定标签白名单**收集补充任务类型 `[测试]` / `[DB脚本]` / `[使用说明]`（排除 `[代码]`），并把 `[含<type1>/<type2>/...]` 追加到摘要（如 `[含测试/DB脚本]`）。只按白名单匹配 —— 不得收集"所有方括号内容"：`[测试]` 任务带层级/优先级子标注（`[测试][单元][P0]`），其中 `[单元]`/`[P0]` 不是任务类型，收集它们会产生 `[含测试/单元/P0]` 噪声。白名单之外的标签一律忽略（非阻塞；MAY 记录 WARN）。若无补充任务，跳过标注。
 
    b. 向 "归档变更列表" 表新增一行：
       `| {date} | {change-name} | {module} | {summary} |`
@@ -299,6 +298,8 @@ metadata:
 
    d. 把页脚时间戳更新为当前日期
 <!-- /CMD:SKIP -->
+
+   **补充标注的标签白名单（强制，指令版同样适用）**：读取变更目录中的 `tasks.md`（历史 JSON-only 降级时只读 tasks.json），通过**匹配固定标签白名单**收集补充任务类型 `[测试]` / `[DB脚本]` / `[使用说明]`（排除 `[代码]`），并把 `[含<type1>/<type2>/...]` 追加到摘要（如 `[含测试/DB脚本]`）。只按白名单匹配 —— 不得收集"所有方括号内容"：`[测试]` 任务带层级/优先级子标注（`[测试][单元][P0]`），其中 `[单元]`/`[P0]` 不是任务类型，收集它们会产生 `[含测试/单元/P0]` 噪声。白名单之外的标签一律忽略（非阻塞；MAY 记录 WARN）。若无补充任务，跳过标注。
 
    **结构损坏时（强制，纯追加不重建）**：若文件存在但表格结构部分损坏、无法完整解析：
    - **保留原文**：MUST NOT 全量重建、MUST NOT 整体覆盖、MUST NOT 丢弃既有历史条目
@@ -398,7 +399,7 @@ Target archive directory already exists.
 - 保留 `attachments/` 子目录 —— 它随变更目录自动移动
 - 为 ARCHIVE-INDEX.md 提取摘要时，扫描 `tasks.md` 的补充类型标签，并把 `[含xxx]` 标注追加到摘要
 - 归档移动前，为每个涉及的能力把探索记忆同步到 specs/<capability>/explorations.md；exploration.md 或 delta spec 缺失时跳过（并记日志）；绝不因同步失败阻塞归档
-- 需求文档只读报告（4.8）：只判定 `需求文档.md` 存在性与可选读取 `requirementDocStatus`，结果只进摘要 —— MUST NOT 生成、MUST NOT 就地增量对齐、MUST NOT 迁出到 `openspec/devdocs/`、MUST NOT 委派 `iagent_requirement_doc`；读取失败只记 WARN，绝不阻断归档
+- 需求文档只读报告（4.8）：只判定 `需求文档.md` 存在性与可选读取 `requirementDocStatus`，结果只进摘要 —— MUST NOT 生成、MUST NOT 就地增量对齐、MUST NOT 迁出到 `openspec/devdocs/`、MUST NOT 委派 `iagent-requirement-doc`；读取失败只记 WARN，绝不阻断归档
 - **归档只读**：MUST NOT 修改 `openspec/changes/archive/` 下的既有内容 —— 已归档变更是历史事实；整目录移动（`openspec/changes/<name>/` → `openspec/changes/archive/YYYY-MM-DD-<name>/`）不属于改写，`ARCHIVE-INDEX.md` 的**追加**是显式例外；流程末尾保留一次护栏自检
 - ARCHIVE-INDEX.md 为**纯追加**索引：结构损坏时保留原文 + 仅追加本批最小条目 + WARN 提示人工修复，MUST NOT 全量重建或整体覆盖
 - 归档收尾清理流程级工作区 `.openspec-tmp/pipeline-<change-name>/`（同时识别旧 `apply-` 前缀）必须在追加 `phase=archive` 结论之后；清理失败只 WARN，不阻断归档、不改写阶段结论

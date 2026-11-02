@@ -12,13 +12,21 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import {
     getSkillTemplates,
     getCommandTemplates,
     getKnownCommandIds,
 } from '../src/core/templates/index.js';
-import { extractCommandRefIds, rewriteCommandRefs } from '../src/core/templates/command-references.js';
+import {
+    codexSkillRef,
+    extractCommandRefIds,
+    rewriteCommandRefs,
+} from '../src/core/templates/command-references.js';
+import { AI_TOOLS } from '../src/core/config.js';
 import { resolveWorkflows } from '../src/core/profiles.js';
+import { normalizeHostSkillRefs } from '../src/core/command-generation/host-refs.js';
 
 /** 条件委派（模板内含"委派不可得→自行降级"路径）：不要求 DEPS 覆盖 */
 const CONDITIONAL_DELEGATIONS: Record<string, readonly string[]> = {
@@ -146,5 +154,152 @@ describe('rewriteCommandRefs 按工具布局改写', () => {
         const ids = new Set(['spec-apply']);
         expect(rewriteCommandRefs('/iagent:spec-apply', 'namespace-dir', ids)).toBe('/iagent:spec-apply');
         expect(rewriteCommandRefs('/iagent:spec-apply', undefined, ids)).toBe('/iagent:spec-apply');
+    });
+});
+
+// 变更 fix-multi-agent-skill-command-generation / 任务 1.1 / 1.4：Codex skills-only 改写。
+describe('Codex skills-only 布局改写与 undefined 向后兼容', () => {
+    const ids = getKnownCommandIds();
+
+    it('codexSkillRef 产出宿主原生技能引用 $iagent-<id>', () => {
+        expect(codexSkillRef('spec-apply')).toBe('$iagent-spec-apply');
+    });
+
+    it('skills-only：已知 id 改写为 $iagent-<id>，未知名保持原样', () => {
+        expect(
+            rewriteCommandRefs(
+                '运行 /iagent:spec-apply 与 /iagent:unknown',
+                'skills-only',
+                new Set(['spec-apply'])
+            )
+        ).toBe('运行 $iagent-spec-apply 与 /iagent:unknown');
+    });
+
+    it('layout === undefined 时返回原字符串（向后兼容）', () => {
+        expect(rewriteCommandRefs('/iagent:spec-apply', undefined, ids)).toBe('/iagent:spec-apply');
+    });
+
+    it('references 附加文件内容与主正文同一改写规则', () => {
+        const refContent = '详见 /iagent:spec-apply 与 /iagent:spec-verify';
+        expect(rewriteCommandRefs(refContent, 'skills-only', ids)).toBe(
+            '详见 $iagent-spec-apply 与 $iagent-spec-verify'
+        );
+    });
+
+    it('AI_TOOLS 的 codex 条目配置为 skills-only 且无指令目录', () => {
+        const codex = AI_TOOLS.find((tool) => tool.value === 'codex');
+        expect(codex?.commandsDir).toBe('');
+        expect(codex?.commandsLayout).toBe('skills-only');
+    });
+});
+
+// 变更 fix-multi-agent-skill-command-generation / 任务 1.1 / 1.2：
+// 布局矩阵（含重复应用幂等）与技能 ID 归一化单点。
+describe('rewriteCommandRefs 布局全矩阵与幂等', () => {
+    const ids = getKnownCommandIds();
+    const canonical = '/iagent:spec-apply /iagent:unknown /iagent:spec-verify';
+
+    it('四种布局矩阵：namespace-dir / undefined 原样，prefixed-file 与 skills-only 仅改写已知 id', () => {
+        expect(rewriteCommandRefs(canonical, 'namespace-dir', ids)).toBe(canonical);
+        expect(rewriteCommandRefs(canonical, undefined, ids)).toBe(canonical);
+        expect(rewriteCommandRefs(canonical, 'prefixed-file', ids)).toBe(
+            '/iagent-spec-apply /iagent:unknown /iagent-spec-verify'
+        );
+        expect(rewriteCommandRefs(canonical, 'skills-only', ids)).toBe(
+            '$iagent-spec-apply /iagent:unknown $iagent-spec-verify'
+        );
+    });
+
+    it('重复应用幂等：改写后的文本不再含规范形引用，二次改写不变', () => {
+        for (const layout of ['prefixed-file', 'skills-only'] as const) {
+            const once = rewriteCommandRefs(canonical, layout, ids);
+            expect(rewriteCommandRefs(once, layout, ids)).toBe(once);
+            // 已知 id 的规范形引用已被消费；未知名保留原样（故仍可被提取到）
+            expect(extractCommandRefIds(once)).toEqual(['unknown']);
+        }
+    });
+
+    it('大小写与已改写形态不受影响（不做静默大小写归一化）', () => {
+        const text = '/iagent:Spec-Apply 与 $iagent-spec-apply';
+        expect(rewriteCommandRefs(text, 'skills-only', ids)).toBe(text);
+        expect(rewriteCommandRefs(text, 'prefixed-file', ids)).toBe(text);
+    });
+
+    it('空 id 集下仅保留原字符串（未知名一律不动）', () => {
+        expect(rewriteCommandRefs('/iagent:spec-apply', 'skills-only', new Set())).toBe(
+            '/iagent:spec-apply'
+        );
+    });
+});
+
+describe('技能 ID 归一化单点（normalizeHostSkillRefs）', () => {
+    it('多段下划线 legacy 名归一化为 canonical kebab-case', () => {
+        expect(normalizeHostSkillRefs('iagent_spec_verify_proposal')).toBe(
+            'iagent-spec-verify-proposal'
+        );
+        expect(normalizeHostSkillRefs('委派 iagent_test 与 `iagent_review`')).toBe(
+            '委派 iagent-test 与 `iagent-review`'
+        );
+    });
+
+    it('canonical 形态与裸前缀不被改写，且幂等', () => {
+        expect(normalizeHostSkillRefs('iagent-spec-apply')).toBe('iagent-spec-apply');
+        // 前缀后无 id：不构成技能名
+        expect(normalizeHostSkillRefs('iagent_ 之后')).toBe('iagent_ 之后');
+        const once = normalizeHostSkillRefs('iagent_feature_doc 与 iagent_spec_apply');
+        expect(once).toBe('iagent-feature-doc 与 iagent-spec-apply');
+        expect(normalizeHostSkillRefs(once)).toBe(once);
+    });
+
+    it('非词首的 `iagent_` 子串不受影响（词边界约束）', () => {
+        expect(normalizeHostSkillRefs('my_iagent_x')).toBe('my_iagent_x');
+    });
+});
+
+// 变更 fix-multi-agent-skill-command-generation / 任务 1.3 / 1.4：源码卫生回归锁。
+describe('模板源码卫生：无硬编码宿主路径与废弃 version', () => {
+    const WORKFLOWS_DIR = path.join(process.cwd(), 'src', 'core', 'templates', 'workflows');
+    const templateFiles = fs
+        .readdirSync(WORKFLOWS_DIR)
+        .filter((name) => name.endsWith('.ts'))
+        .map((name) => ({
+            name,
+            text: fs.readFileSync(path.join(WORKFLOWS_DIR, name), 'utf8'),
+        }));
+
+    it('全部 20 个技能模板与 generate 命令骨架不含 metadata version', () => {
+        const offenders = templateFiles
+            .filter(({ text }) => /version:\s*'1\.0'/.test(text))
+            .map(({ name }) => name);
+        const generateSource = fs.readFileSync(
+            path.join(process.cwd(), 'src', 'commands', 'generate.ts'),
+            'utf8'
+        );
+        expect(offenders).toEqual([]);
+        expect(generateSource).not.toMatch(/version:\s*'1\.0'/);
+    });
+
+    it('模板正文与 references 无硬编码 .claude/skills/ 路径', () => {
+        const offenders: string[] = [];
+        for (const { template } of getSkillTemplates()) {
+            const corpus = `${template.name}\n${template.instructions}\n` +
+                (template.references ?? []).map((ref) => ref.content).join('\n');
+            if (corpus.includes('.claude/skills/')) {
+                offenders.push(template.name);
+            }
+        }
+        expect(offenders).toEqual([]);
+    });
+
+    it('模板正文与 references 无 Claude 专属「经 Skill 工具委派」表述', () => {
+        const offenders: string[] = [];
+        for (const { template } of getSkillTemplates()) {
+            const corpus = `${template.instructions}\n` +
+                (template.references ?? []).map((ref) => ref.content).join('\n');
+            if (corpus.includes('经 `Skill` 工具')) {
+                offenders.push(template.name);
+            }
+        }
+        expect(offenders).toEqual([]);
     });
 });

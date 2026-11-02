@@ -1,6 +1,6 @@
 ---
 name: iagent-spec-explore
-description: "进入探索模式。当用户想要在变更前或变更中思考问题、调研代码库、明确需求时使用；触发词\"探索 / explore / 调研 / 思考 / 明确需求\"；NOT for 一站式引导全流程（改用 iagent_workflow）或缺陷根因排查（改用 iagent_debug）。"
+description: "进入探索模式。当用户想要在变更前或变更中思考问题、调研代码库、明确需求时使用；触发词\"探索 / explore / 调研 / 思考 / 明确需求\"；NOT for 一站式引导全流程（改用 iagent-workflow）或缺陷根因排查（改用 iagent-debug）。"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(git:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）与 CodeGraph MCP（不可用时回退 Glob/Grep）。
@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:009a6cd99f365cc31170b3bb621e74728d986d3854decf4fb61a814ee8cb5cff"
+  generatedFingerprint: "sha256:def085be8cdd18364c3a5fcb09da5497d8ef0742a9d1c55061c754a021fc078d"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。

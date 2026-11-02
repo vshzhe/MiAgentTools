@@ -1,6 +1,6 @@
 ---
 name: iagent-spec-bulk-archive
-description: "批量归档变更。当用户要一次归档多个已完成变更时使用；触发词\"批量归档 / bulk archive / 归档多个\"；NOT for 单个变更归档（改用 iagent_spec_archive）。"
+description: "批量归档变更。当用户要一次归档多个已完成变更时使用；触发词\"批量归档 / bulk archive / 归档多个\"；NOT for 单个变更归档（改用 iagent-spec-archive）。"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Bash(node:*), Agent, Task
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）与 CodeGraph CLI（可选）。
@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:52eb0b05ae0c8e09f3c0d4952bd62b7e04580b5fe59225b8447eb7c490ecd8ae"
+  generatedFingerprint: "sha256:9cce0d215209a2583764e54758d955d71c1f02e7449b9b2590b1ca79ac48e28c"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
@@ -230,7 +230,7 @@ metadata:
    a.6 **需求文档只读报告（归档前，位于目录移动之前）**：
       - **判定范围**：仅 `openspec/changes/<change-name>/需求文档.md`（用 `path.join()`），并同时读取该变更 `exploration.md` 的 `## 需求文档状态` 段（字段 `requirementDocStatus`；段缺失即 `absent`）
       - **只读报告（结果只进入该变更的摘要报告）**：文件存在（任一状态）→ 该变更摘要记「需求文档：已存在（未改写）」；文件缺失（任一状态，含 `absent`）→ 摘要记「需求文档：缺失」；读取失败 → 输出含路径与原因的 WARN + 摘要「需求文档：状态不可读」，继续（失败只记 WARN，MUST NOT 中止该变更单元或整批）
-      - **禁止写入**：MUST NOT 生成、MUST NOT 就地增量对齐、MUST NOT 迁出到 `openspec/devdocs/`，MUST NOT 委派 `iagent_requirement_doc`；`requirementDocStatus` 任一取值均只用于报告，MUST NOT 触发任何写入动作
+      - **禁止写入**：MUST NOT 生成、MUST NOT 就地增量对齐、MUST NOT 迁出到 `openspec/devdocs/`，MUST NOT 委派 `iagent-requirement-doc`；`requirementDocStatus` 任一取值均只用于报告，MUST NOT 触发任何写入动作
 
    b. **执行归档**：
       运行 iagent CLI 归档命令 —— 它一步完成状态检查与目录移动：
@@ -481,7 +481,7 @@ No active changes found. Create a new change to get started.
 - 记录并报告全部结果（成功/跳过/失败）
 - 按变更同步探索记忆（步骤 b.5）；某个变更失败只记录告警，绝不中止整批
 - 按变更同步 CONTEXT.md（步骤 a.5）；制品缺失时跳过并记日志，绝不阻塞整批
-- 按变更（步骤 a.6，先于目录移动）只做**需求文档只读报告**：判定 `需求文档.md` 存在性与可选读取 `requirementDocStatus`，结果只进该变更摘要（「已存在（未改写）」/「缺失」/「状态不可读」）；MUST NOT 生成、MUST NOT 就地增量对齐、MUST NOT 迁出到 `openspec/devdocs/`、MUST NOT 委派 `iagent_requirement_doc`；失败只记录告警，绝不中止该变更单元或整批
+- 按变更（步骤 a.6，先于目录移动）只做**需求文档只读报告**：判定 `需求文档.md` 存在性与可选读取 `requirementDocStatus`，结果只进该变更摘要（「已存在（未改写）」/「缺失」/「状态不可读」）；MUST NOT 生成、MUST NOT 就地增量对齐、MUST NOT 迁出到 `openspec/devdocs/`、MUST NOT 委派 `iagent-requirement-doc`；失败只记录告警，绝不中止该变更单元或整批
 - **归档只读**：MUST NOT 修改 `openspec/changes/archive/` 下的既有内容 —— 已归档变更是历史事实；整目录移动不属于改写，`ARCHIVE-INDEX.md` 的**追加**是显式例外；单元序列 c 步执行只读校验，越界只 WARN 且不中止批次
 - **单元成功后清理流程级工作区** `.openspec-tmp/pipeline-<change-name>/`（同时识别旧 `apply-` 前缀）；失败或跳过的单元保留工作区供诊断，清理失败只 WARN 且不中止批次
 - **索引纯追加**：结构损坏时保留原文 + 仅追加本批最小条目 + WARN 提示人工修复，MUST NOT 全量重建或整体覆盖

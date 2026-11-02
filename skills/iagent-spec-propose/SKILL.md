@@ -1,6 +1,6 @@
 ---
 name: iagent-spec-propose
-description: "创建变更提案。当用户要快速描述想构建的内容并一步生成包含设计、规格和任务的完整提案时使用；触发词\"提案 / propose / 创建变更 / 生成规格\"；NOT for 直接实现变更（改用 iagent_spec_apply）或一站式引导全流程（改用 iagent_workflow）。"
+description: "创建变更提案。当用户要快速描述想构建的内容并一步生成包含设计、规格和任务的完整提案时使用；触发词\"提案 / propose / 创建变更 / 生成规格\"；NOT for 直接实现变更（改用 iagent-spec-apply）或一站式引导全流程（改用 iagent-workflow）。"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Skill(iagent-spec-verify-proposal), Agent, Task
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）与 CodeGraph MCP（可选）。
@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:c9f45fd593f26ed6dfe80a9b1cf7118ddf7fef830b7b8fb2e43b77b3d16b2863"
+  generatedFingerprint: "sha256:b022166ccea7dee98b4068331fcd2562c86271e470d61a2a4d370261e9ebdda4"
 ---
 
 提出新变更 —— 一步创建变更并生成全部制品。
@@ -27,7 +27,7 @@ metadata:
 
 ---
 
-**Input**: 用户请求应包含变更名（kebab-case）或对想构建内容的描述。编排器可传 `mode=delegated`（委派执行模式）与 `exploration-file=<path>`：delegated 模式下**跳过 Step 0 的用户选择提示**（直接迁移 `exploration-file`）、**抑制结尾规划边界停点**、**抑制自身 Phase 3 验证**（由编排器的验证超集承担），并输出**结构化回执**。默认 `mode=interactive` 行为与既有完全一致（保留 Step 0 提示、自身 Phase 3、结尾停点）。`iagent_spec_apply` 的 `auto-mode=true` **仅**等价于门承载轴的 `gate-skip=design-confirmation`，**不是** `mode=delegated` 的等价别名（两轴不可互换）。
+**Input**: 用户请求应包含变更名（kebab-case）或对想构建内容的描述。编排器可传 `mode=delegated`（委派执行模式）与 `exploration-file=<path>`：delegated 模式下**跳过 Step 0 的用户选择提示**（直接迁移 `exploration-file`）、**抑制结尾规划边界停点**、**抑制自身 Phase 3 验证**（由编排器的验证超集承担），并输出**结构化回执**。默认 `mode=interactive` 行为与既有完全一致（保留 Step 0 提示、自身 Phase 3、结尾停点）。`iagent-spec-apply` 的 `auto-mode=true` **仅**等价于门承载轴的 `gate-skip=design-confirmation`，**不是** `mode=delegated` 的等价别名（两轴不可互换）。
 
 **委托模式契约（双轴正交，不可互换）**
 
@@ -80,7 +80,6 @@ metadata:
      - 标注「已过时（由 <change-name> 取代）」的分节仅作历史参考，以取代变更的决策为准
    - 不存在：记录 "无能力级探索记忆 — 全新探索"，正常流程
 
-<!-- CMD:SKIP -->
 0.2. **扫描探索文件目录**
    - MUST 使用 Glob 工具扫描 `openspec/explorations/*.md`
    - 获取所有探索文件列表
@@ -124,7 +123,6 @@ metadata:
      - 读取 Analysis 章节 → 生成 design.md
      - 读取 Questions 章节 → 生成 specs/<capability>/spec.md
      - 读取 Codebase Findings 章节 → 生成 tasks.md
-<!-- /CMD:SKIP -->
 
 1. **若未提供清晰输入，询问用户想构建什么**
 
@@ -160,9 +158,7 @@ metadata:
 **模块识别**：
 - 使用 Glob 工具扫描 `openspec/specs/` 目录获取模块名
 - 将用户描述中的关键词与模块名匹配
-<!-- CMD:SKIP -->
 - 常见模块关键词：archive→cli-archive, artifact/workflow→cli-artifact-workflow, validate→cli-validate, workspace→workspace-foundation, change→change-creation
-<!-- /CMD:SKIP -->
 - 若无模块匹配，使用简化格式 `{prefix}-{feature}`
 
 **示例转换**：
@@ -243,16 +239,16 @@ metadata:
 5.5 **产出变更级 handoff 包（供 verify / apply / archive 只读复用）**
 
    - 在全部 `applyRequires` 制品定稿后，于 `.openspec-tmp/pipeline-<change-name>/handoff-pack.md`（用 `path.join()` 构造）产出**一次**六节 handoff 包：`## 变更摘要` / `## 契约` / `## 规范要点` / `## 文件归属表` / `## Codebase 摘要` / `## 已产出（跨单元可见）`；头部固定元信息 `change:` / `producedBy: propose` / `producedAt:` / `sourceFingerprint:`（覆盖 proposal / design / specs / tasks 的内容指纹）
-   - 下游 `iagent_spec_verify` / `iagent_spec_apply` / `iagent_spec_archive` **只读复用**该包并只追加 `## 阶段结论`，MUST NOT 重产整包；指纹不一致时由消费方重建并记 WARN
+   - 下游 `iagent-spec-verify` / `iagent-spec-apply` / `iagent-spec-archive` **只读复用**该包并只追加 `## 阶段结论`，MUST NOT 重产整包；指纹不一致时由消费方重建并记 WARN
    - Phase 3 自动修复若改动制品，MUST 在验证通过后按新指纹**重建该包一次**，保持 `sourceFingerprint` 与制品一致
    - **产出失败只记 WARN 并继续**（不阻断提案）：下游包缺失时按同一六节协议自行产出一次，或降级为内联注入
 
 6. **Phase 3 验证（自动 —— 强制，不可跳过）**
-   > **delegated 模式分支**：若 `mode=delegated`，**抑制本节**——不调用 `iagent_spec_verify_proposal`、不生成需求文档（编排器的 Phase 3 为其超集，含 `proposal_review` 深度复查），直接输出结构化回执交回编排器。`interactive` 模式照常执行本节。
+   > **delegated 模式分支**：若 `mode=delegated`，**抑制本节**——不调用 `iagent-spec-verify-proposal`、不生成需求文档（编排器的 Phase 3 为其超集，含 `proposal_review` 深度复查），直接输出结构化回执交回编排器。`interactive` 模式照常执行本节。
    全部 `applyRequires` 制品完成后，自动进入 Phase 3 验证（不得在验证前以 "准备就绪，可进入实现" 结束工作流）：
-   - 调用 `iagent_spec_verify_proposal` **skill** 执行 D1-D5 评分。（`iagent_spec_verify_proposal` 是技能名，而非合法的 `iagent spec instructions` 制品 ID —— 不得把它当作 CLI 指令运行。）
+   - 调用 `iagent-spec-verify-proposal` **skill** 执行 D1-D5 评分。（`iagent-spec-verify-proposal` 是技能名，而非合法的 `iagent spec instructions` 制品 ID —— 不得把它当作 CLI 指令运行。）
    - **验证复查子代理**：派发一个独立的只读复查子代理（Task 工具，subagent_type: "general-purpose"）执行 D1-D5 评分 —— 该子代理读取变更制品但不修改。子代理派发失败时：降级（回退）到主工作流内联评分并记录 WARN 日志（绝不静默跳过验证）。
-   - **PASS (≥90%)**：验证通过后可对提案做一次内联深度复查（由主工作流在通过后直接执行一次只读复查，不依赖专门技能名）。深度复查收束后**停止** —— 输出验证与复查结论即完成规划边界：MUST NOT 生成需求文档、MUST NOT 呈现“生成 / 跳过”桥（文档桥只属于 workflow / auto-workflow / debug 三父流程；用户 MAY 之后手工调用 `iagent_requirement_doc`）。
+   - **PASS (≥90%)**：验证通过后可对提案做一次内联深度复查（由主工作流在通过后直接执行一次只读复查，不依赖专门技能名）。深度复查收束后**停止** —— 输出验证与复查结论即完成规划边界：MUST NOT 生成需求文档、MUST NOT 呈现“生成 / 跳过”桥（文档桥只属于 workflow / auto-workflow / debug 三父流程；用户 MAY 之后手工调用 `iagent-requirement-doc`）。
    - **FAIL (<90%)**：自动生成修复、应用、重跑；若仍 FAIL，提供 [手动编辑] / [返回探索 (/iagent:spec-explore)] / [查看差异]（无跳过直接实现的通道）。
    - 技能不可用时降级（回退）：AI 内联 D1-D5 评分 + WARN 日志；绝不静默跳过。
    - 验证使用 90% 通过阈值。
@@ -265,7 +261,7 @@ metadata:
 - 变更名与位置
 - 已创建制品的清单与简要说明
 - 验证结果："Phase 3 验证通过（≥90%）。内联深度复查已完成。"
-- 需求文档：本技能独立调用**不生成**、不提供生成 / 跳过桥（需要时请手工调用 iagent_requirement_doc）
+- 需求文档：本技能独立调用**不生成**、不提供生成 / 跳过桥（需要时请手工调用 iagent-requirement-doc）
 - **降级说明（如适用）**：流程基准缺失或未获用户确认时标注 "流程基准不可用：已降级为仅凭 exploration.md 生成（未确认的流程图未被当作既定前提）"
 - 就绪状态："全部制品已创建并验证！准备就绪，可进入实现。"
 - 提示语："告知我即可开始执行任务。"
@@ -292,7 +288,7 @@ metadata:
 - 逐个遍历 `specs/**/*.md` 的 Requirement/Scenario 块，判定每个是否可测（历史 JSON-only 变更仅只读降级）
 - **可测场景** → MUST 生成一个带层级 + 优先级的 `[测试]` 任务
 - **不可测场景**（无可验证行为的纯文档 / 配置变更）→ MUST 仍然生成一个记录判定结论及其依据的 `[测试]` 任务，例如 `- [ ] [测试][单元][P2] 4.2 评估：纯文档变更，无需测试（依据：无可验证行为）`
-  - 理由：留痕的判定结论使"未编写测试"可与"从未评估"区分 —— 与 `iagent_test` 的不测闸门同一原则
+  - 理由：留痕的判定结论使"未编写测试"可与"从未评估"区分 —— 与 `iagent-test` 的不测闸门同一原则
 - 测试任务依赖其对应的实现任务 —— 当某测试任务覆盖由另一任务实现的行为时，在任务描述中标注依赖，使 apply 串行调度它们
 
 **流程基准消费规则**

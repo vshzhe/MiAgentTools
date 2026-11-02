@@ -19,6 +19,8 @@ import * as path from 'node:path';
 import { COMMAND_NAMESPACE } from './config.js';
 import { SKILL_ID_PREFIX } from './skill-id.js';
 import { getSkillTemplates } from './templates/index.js';
+import { escapeYamlValue } from './command-generation/yaml.js';
+import { normalizeHostSkillRefs } from './command-generation/host-refs.js';
 import {
     defaultOrchestrationDelegations,
     type OrchestrationDelegations,
@@ -54,12 +56,14 @@ export function iagentResourcePattern(): string {
  * （前缀按「命令 + 空格」匹配，如 `"git "` 放行 `git status`）。故 Claude 侧
  * `Bash(<cmd>:*)` 映射为 `<cmd> `（MUST NOT 映射为 `bash *` 全量放行）。
  *
- * 仅识别 `Bash(<cmd>:*)` 形态；`Bash(<cmd>:<literal>)` 等无通配写法不派生（列表外）。
+ * 正则**非锚定全局匹配**（`allowedTools` 是逗号拼接串，`^`/`$` 锚定会全不匹配），
+ * 且命令段允许空格 —— 支持多词子命令 `Bash(git status:*)` → `"git status "`。
+ * `Bash(<cmd>:<literal>)` 等无通配写法不派生（列表外）。
  */
 export function collectShellPrefixes(allowedTools: readonly string[]): string[] {
     const prefixes: string[] = [];
     for (const tools of allowedTools) {
-        for (const match of tools.matchAll(/Bash\(([a-zA-Z0-9._-]+):\*\)/g)) {
+        for (const match of tools.matchAll(/Bash\(([a-zA-Z0-9._-]+(?:\s+[a-zA-Z0-9._-]+)*):\*\)/g)) {
             const prefix = `${match[1]} `;
             if (!prefixes.includes(prefix)) {
                 prefixes.push(prefix);
@@ -74,21 +78,39 @@ export function hasDispatchEntry(allowedTools: string): boolean {
     return /(^|, )\s*(Agent|Task)\s*(,|$)/.test(allowedTools);
 }
 
-/** 渲染 worker agent 的 `permissions` 段（skill / 条件 subagent / shell） */
+/** 是否携带写入类授权（`Write` / `Edit` 任一，用于按需授予 `edit` 权限） */
+export function hasWriteEntry(allowedTools: string): boolean {
+    return /(^|, )\s*(Write|Edit)\s*(,|$)/.test(allowedTools);
+}
+
+/**
+ * 渲染 worker agent 的 `permissions` 段（skill / 条件 subagent / 条件 edit / question / shell）。
+ *
+ * 最小权限：
+ *   - `edit` 仅在阶段模板 `allowedTools` 含 `Write` / `Edit` 时授予（`grantEdit`），
+ *     只读技能（review / proposal-review / spec-verify*）不得获得；
+ *   - `question` 对所有阶段 worker 授予（门控与澄清交互必需）。
+ */
 function renderWorkerPermissions(options: {
     workflowId: string;
     skillIds: readonly string[];
     grantSubagent: boolean;
     shellPrefixes: readonly string[];
+    grantEdit: boolean;
 }): string[] {
     const lines: string[] = [];
     lines.push('permissions:');
     lines.push('  - action: read');
     lines.push('    resource: "*"');
     lines.push('    effect: allow');
-    lines.push('  - action: edit');
+    lines.push('  - action: question');
     lines.push('    resource: "*"');
     lines.push('    effect: allow');
+    if (options.grantEdit) {
+        lines.push('  - action: edit');
+        lines.push('    resource: "*"');
+        lines.push('    effect: allow');
+    }
     const skillIds = [...new Set([`${SKILL_ID_PREFIX}${options.workflowId}`, ...options.skillIds])];
     for (const id of skillIds) {
         lines.push('  - action: skill');
@@ -152,6 +174,8 @@ export function renderWorkerAgent(
         grantSubagent?: boolean;
         /** 该阶段正文实际使用的命令前缀（`<cmd> `） */
         shellPrefixes?: readonly string[];
+        /** 该阶段模板是否含写入类授权（`Write` / `Edit`） */
+        grantEdit?: boolean;
     } = {}
 ): string {
     const permissions = renderWorkerPermissions({
@@ -159,14 +183,18 @@ export function renderWorkerAgent(
         skillIds: options.skillIds ?? [],
         grantSubagent: options.grantSubagent === true,
         shellPrefixes: options.shellPrefixes ?? [],
+        grantEdit: options.grantEdit === true,
     });
+    const skillId = `${SKILL_ID_PREFIX}${workflowId}`;
     return `---
-description: ${description}
+description: ${escapeYamlValue(normalizeHostSkillRefs(description))}
 mode: subagent
 ${permissions.join('\n')}
 ---
 
 你是 iagent 阶段 worker，负责 workflowId 为 \`${workflowId}\` 的阶段。
+
+执行本阶段前，先使用 \`skill\` 工具加载 \`${skillId}\`（\`${OPENCODE_DIR}/skills/${skillId}/SKILL.md\`）获取完整阶段规程。
 
 - 只执行被分配的阶段，MUST NOT 自行推进父 workflow 阶段；
 - 完成后返回协议规定的回执：\`phase\` / \`status\` / 产物位置 / 下一步允许动作 / 失败原因（如有）。
@@ -335,6 +363,8 @@ export function mergeOpenCodeProjectConfig(
 export interface OpenCodeProjectArtifactsResult {
     /** 写出的 agent 文件（项目相对） */
     agents: string[];
+    /** 清理的 orphan agent 文件（项目相对） */
+    removed: string[];
     /** 配置文件（项目相对） */
     configFile: string;
     /** 配置文件是否新建 */
@@ -354,13 +384,17 @@ export interface OpenCodeStageEntry {
 /**
  * 写入 OpenCode V2 项目级编排产物：orchestrator + 各阶段 worker agent + 项目级 permissions。
  *
- * 权限翻译完整性（变更 fix-mode-delegation-host-parity）：
+ * 权限翻译完整性（变更 fix-mode-delegation-host-parity / fix-multi-agent-skill-command-generation）：
  *   - `skill`：项目级覆盖全部阶段 agent 与其实际委派目标；worker 额外覆盖「自身 + 委派目标」；
  *   - `subagent`：项目级覆盖 iagent agent；worker 仅在其模板含派发条目时授予（资源限定 `iagent-*`）；
- *   - `shell`：由 `Bash(<cmd>:*)` 前缀派生（`<cmd> `），MUST NOT 出现全量放行；
+ *   - `edit`：worker 仅在其模板 `allowedTools` 含 `Write` / `Edit` 时授予（只读技能最小权限）；
+ *   - `question`：所有阶段 worker 均授予（门控与澄清交互必需）；
+ *   - `shell`：由 `Bash(<cmd>:*)` 前缀派生（`<cmd> `，支持多词子命令），MUST NOT 出现全量放行；
  *   - MCP：不生成猜测性规则，缺口进入 `warnings` 诊断。
  *
- * 增量合并配置文件，保留用户既有字段与非 iagent 规则；失败降级为告警，不抛出。
+ * agent 定义为纯生成物：生效集缩小后清理 `.opencode/agents/` 下的 `iagent-*.md` orphan
+ * （保留 orchestrator 与用户自建非 `iagent-` 文件）。增量合并配置文件，保留用户既有字段
+ * 与非 iagent 规则；失败降级为告警，不抛出。
  */
 export function writeOpenCodeProjectArtifacts(
     projectRoot: string,
@@ -369,6 +403,7 @@ export function writeOpenCodeProjectArtifacts(
 ): OpenCodeProjectArtifactsResult {
     const result: OpenCodeProjectArtifactsResult = {
         agents: [],
+        removed: [],
         configFile: OPENCODE_CONFIG_FILE,
         configCreated: false,
         warnings: [],
@@ -400,6 +435,7 @@ export function writeOpenCodeProjectArtifacts(
     }
 
     const agentsDir = path.join(projectRoot, OPENCODE_AGENTS_DIR);
+    const expectedFiles = new Set<string>([`${ORCHESTRATOR_AGENT_ID}.md`]);
     try {
         fs.mkdirSync(agentsDir, { recursive: true });
         const orchestratorFile = path.join(agentsDir, `${ORCHESTRATOR_AGENT_ID}.md`);
@@ -408,6 +444,7 @@ export function writeOpenCodeProjectArtifacts(
 
         for (const stage of stages) {
             const id = openCodeAgentId(stage.workflowId);
+            expectedFiles.add(`${id}.md`);
             const file = path.join(agentsDir, `${id}.md`);
             const delegated = (orchestration.delegations[stage.workflowId] ?? []).map(
                 (target) => `${SKILL_ID_PREFIX}${target}`
@@ -418,10 +455,31 @@ export function writeOpenCodeProjectArtifacts(
                     skillIds: delegated,
                     grantSubagent: hasDispatchEntry(stage.allowedTools ?? ''),
                     shellPrefixes: collectShellPrefixes([stage.allowedTools ?? '']),
+                    grantEdit: hasWriteEntry(stage.allowedTools ?? ''),
                 }),
                 'utf8'
             );
             result.agents.push(`${OPENCODE_AGENTS_DIR}/${id}.md`);
+        }
+
+        // orphan 清理：生效集缩小后移除不再需要的 `iagent-*.md`
+        // （保留 orchestrator 与非 `iagent-` 前缀的用户自建 agent）
+        for (const name of fs.readdirSync(agentsDir)) {
+            if (!name.startsWith(SKILL_ID_PREFIX) || !name.endsWith('.md')) {
+                continue;
+            }
+            if (expectedFiles.has(name)) {
+                continue;
+            }
+            const target = path.join(agentsDir, name);
+            try {
+                fs.rmSync(target, { force: true });
+                result.removed.push(`${OPENCODE_AGENTS_DIR}/${name}`);
+            } catch (error) {
+                result.warnings.push(
+                    `OpenCode orphan agent 清理失败（${name}）：${(error as Error).message}`
+                );
+            }
         }
     } catch (error) {
         result.warnings.push(`OpenCode V2 agent 写入失败（已跳过）：${(error as Error).message}`);
@@ -482,11 +540,7 @@ export function removeOpenCodeProjectArtifacts(projectRoot: string): string[] {
             getSkillTemplates().map(({ template }) => template.allowedTools)
         );
         try {
-            const parsed = JSON.parse(
-                raw
-                    .replace(/\/\/.*$/gm, '')
-                    .replace(/,(\s*[}\]])/g, '$1')
-            ) as Record<string, unknown>;
+            const parsed = JSON.parse(stripJsonc(raw)) as Record<string, unknown>;
             const rules = Array.isArray(parsed.permissions) ? (parsed.permissions as unknown[]) : [];
             const userRules = rules.filter((r) => !isIagentRule(r, managedShellPrefixes));
             const nonSchemaKeys = Object.keys(parsed).filter((k) => k !== '$schema' && k !== 'permissions');

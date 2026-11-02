@@ -35,9 +35,15 @@ describe('模板派生一致性（全模板单一源）', () => {
     }
 
     it('唯一源含 CMD:SKIP 标记的模板派生后必须变短（标记生效性抽检）', () => {
-        // 至少 explore/apply/propose/archive 四个模板带标记（漂移修复与裁剪迁移），全部校验
+        // 标记集合（本变更后）：spec-apply / spec-archive / spec-verify-proposal。
+        // spec-propose 的 Step 0.2~0.7 已取消裁剪（独立调用需完整探索文件关联能力），
+        // 故 MUST NOT 再出现在标记模板集合中；全部标记模板逐个校验裁剪生效。
         const marked = skillEntries.filter(({ template }) => template.instructions.includes('<!-- CMD:SKIP -->'));
-        expect(marked.length).toBeGreaterThanOrEqual(4);
+        expect(marked.map(({ commandId }) => commandId).sort()).toEqual([
+            'spec-apply',
+            'spec-archive',
+            'spec-verify-proposal',
+        ]);
         for (const { template } of marked) {
             const derived = deriveCommandContent(template.instructions);
             expect(derived.length).toBeLessThan(template.instructions.length);
@@ -196,5 +202,59 @@ describe('模板派生一致性（文档桥 / debug 决策护栏）', () => {
             .join('\n');
         expect(all).not.toContain('需求文档不在范围内（强制禁止）');
         expect(all).not.toContain('Phase 7 MUST NOT 生成需求文档');
+    });
+});
+
+// 变更 fix-multi-agent-skill-command-generation / 任务 2.2 / 2.3：
+// CMD:SKIP 裁剪边界与参考文件标记隔离。
+describe('CMD:SKIP 裁剪边界（spec-archive / spec-propose / spec-explore）', () => {
+    const commandById = new Map(
+        getCommandTemplates().map(({ template, id }) => [id, template])
+    );
+
+    it('spec-archive 指令版保留 ARCHIVE-INDEX 标签白名单规则句', () => {
+        const derived = commandById.get('spec-archive')?.content ?? '';
+        expect(derived).toContain('匹配固定标签白名单');
+        expect(derived).toContain('`[测试]`');
+        expect(derived).toContain('`[DB脚本]`');
+        expect(derived).toContain('`[使用说明]`');
+        // 白名单反例说明（不得收集所有方括号内容）同样进入指令版
+        expect(derived).toContain('不得收集"所有方括号内容"');
+        // 逐步操作细节仍被裁剪（仅技能版）
+        expect(derived).not.toContain('d. 把页脚时间戳更新为当前日期');
+        expect(derived).not.toContain('CMD:SKIP');
+    });
+
+    it('spec-propose 指令版保留 Step 0.2~0.7 探索文件扫描与迁移步骤', () => {
+        const derived = commandById.get('spec-propose')?.content ?? '';
+        for (const marker of [
+            '0.2. **扫描探索文件目录**',
+            '0.3. **判断探索文件状态**',
+            '0.4. **提示用户（当存在探索文件时）**',
+            '0.5. **CONTEXT.md 检查（强制检查点）**',
+            '0.6. **用户选择处理**',
+            '0.7. **探索内容传递给提案生成**',
+        ]) {
+            expect(derived, `spec-propose 指令版缺少：${marker}`).toContain(marker);
+        }
+        expect(derived).not.toContain('CMD:SKIP');
+    });
+
+    it('spec-explore 指令版仍只有一份顶层 Input 声明', () => {
+        const derived = commandById.get('spec-explore')?.content ?? '';
+        const heads = derived.split('\n').filter((line) => /^\*\*(?:Input\*\*:|输入\*\*\s*[：:])/.test(line));
+        expect(heads.length).toBe(1);
+    });
+
+    it('全部 references[].content 不含 CMD:SKIP 字面量（参考文件不经派生）', () => {
+        const offenders: string[] = [];
+        for (const { template } of getSkillTemplates()) {
+            for (const ref of template.references ?? []) {
+                if (ref.content.includes('CMD:SKIP')) {
+                    offenders.push(`${template.name}/${ref.path}`);
+                }
+            }
+        }
+        expect(offenders).toEqual([]);
     });
 });

@@ -98,7 +98,8 @@ export const HOST_PROFILES: Readonly<Record<HostId, HostCapabilityProfile>> = {
         host: 'codex',
         capabilities: ['skill-load', 'argument-passing'],
         native: {
-            skillLoading: '读取 SKILL.md（skills-only，无宿主级技能调用工具）',
+            // 与改写语法同源：技能以 `$iagent-<id>` 形式被引用 / 加载（skills-only）
+            skillLoading: 'skills-only：技能以 `$iagent-<id>` 形式引用并加载 SKILL.md',
             delegation: '无子代理 / 技能委派机制（skills-only）—— 阶段由当前 agent 本地执行，不构成委派',
             gate: '无交互式确认门机制（skills-only）—— 门以阻塞回执形态上报',
         },

@@ -14,15 +14,9 @@ import type {
 import type { SkillTemplate } from '../templates/types.js';
 import { escapeYamlValue } from './yaml.js';
 import { fingerprintOf, FINGERPRINT_FIELD } from './fingerprint.js';
+import { normalizeHostSkillRefs } from './host-refs.js';
 import { SKILL_PREFIX } from '../config.js';
 import { deriveSkillId } from '../skill-id.js';
-
-/** 宿主产物中将 legacy 技能引用规范化为 canonical kebab-case。 */
-function normalizeHostSkillRefs(text: string): string {
-    return text.replace(/\biagent_([a-z0-9_]+)\b/g, (_match, suffix: string) =>
-        `iagent-${suffix.replaceAll('_', '-')}`
-    );
-}
 
 /**
  * 生成单个指令文件（工具无关内容 + 工具适配器格式化）。
@@ -72,8 +66,14 @@ const EMPTY_FINGERPRINT_LINE = `  ${FINGERPRINT_FIELD}: ""`;
  * （见 fingerprint.ts），故同一 (template, generatedByVersion) 恒得同一产物，
  * `test/skills-parity.test.ts` 的字节级比较得以成立。
  *
+ * 技能 ID 归一化（`iagent_<id>` → `iagent-<id>`）**无条件**作用于
+ * `description`、`compatibility`、`instructions` 与 `references[].content`：
+ * 四个宿主与 `skills/` 快照一律使用 canonical kebab-case，不依赖调用方是否
+ * 传入 `options.hostId`（hostId 仅决定是否写 Claude 专有的 `allowed-tools`）。
+ *
  * @param template - 技能模板
  * @param generatedByVersion - 生成器版本号（写入 metadata.generatedBy）
+ * @param _options - 宿主选项（仅 `hostId` 影响 `allowed-tools` 行）
  */
 export function generateSkillContent(
     template: SkillTemplate,
@@ -87,10 +87,11 @@ export function generateSkillContent(
     const allowedToolsLine = !options.hostId || options.hostId === 'claude'
         ? `allowed-tools: ${template.allowedTools}\n`
         : '';
-    const description = options.hostId ? normalizeHostSkillRefs(template.description) : template.description;
-    const compatibility = options.hostId
-        ? normalizeHostSkillRefs(template.compatibility || '无特殊依赖，通用环境可用。')
-        : template.compatibility || '无特殊依赖，通用环境可用。';
+    const description = normalizeHostSkillRefs(template.description);
+    const compatibility = normalizeHostSkillRefs(
+        template.compatibility || '无特殊依赖，通用环境可用。'
+    );
+    const instructions = normalizeHostSkillRefs(template.instructions);
     const placeholder = `---
 name: ${skillId}
 description: ${escapeYamlValue(description)}
@@ -103,7 +104,7 @@ metadata:
 ${EMPTY_FINGERPRINT_LINE}
 ---
 
-${template.instructions}
+${instructions}
 `;
     return {
         dirName: skillId,
@@ -111,6 +112,9 @@ ${template.instructions}
             EMPTY_FINGERPRINT_LINE,
             `  ${FINGERPRINT_FIELD}: "${fingerprintOf(placeholder)}"`
         ),
-        references: template.references,
+        references: template.references?.map((ref) => ({
+            ...ref,
+            content: normalizeHostSkillRefs(ref.content),
+        })),
     };
 }

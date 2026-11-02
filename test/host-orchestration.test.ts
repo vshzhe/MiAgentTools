@@ -3,6 +3,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { getSkillTemplates } from '../src/core/templates/index.js';
 import {
     CAPABILITY_ORDER,
@@ -12,6 +14,7 @@ import {
     GATE_CONDITION_IDS,
     GATE_WHITELIST,
     GATE_WHITELIST_ANCHORS,
+    HOST_PROFILES,
     ORCHESTRATION_DELEGATIONS,
     ORCHESTRATING_WORKFLOW_IDS,
     PHASE_GATE_CATEGORY,
@@ -36,6 +39,7 @@ import {
     renderDelegate,
     renderDelegationList,
     renderHostOrchestrationSection,
+    renderLoadSkill,
     validateReceipt,
 } from '../src/core/host-orchestration/index.js';
 
@@ -713,6 +717,24 @@ describe('3.6 编排注入面派生与四宿主产物', () => {
         expect(bulk.allowedTools).toContain('Task');
     });
 
+    // 变更 fix-multi-agent-skill-command-generation / 任务 4.1 / 4.3：
+    // init/update 透传「基于生效集派生」的 orchestration —— 被裁剪的 workflow 不回退到全量默认表。
+    it('透传生效集 orchestration：被裁剪的 workflow 不再注入编排段', () => {
+        const negotiation = negotiateCapabilities('claude', 'strict');
+        const cropped = deriveOrchestrationDelegations([
+            { commandId: 'debug', allowedTools: 'Read, Skill(iagent-test)' },
+        ]);
+
+        const without = adaptSkillContentForHost('# body', negotiation, 'workflow', cropped);
+        expect(without).not.toContain('宿主编排适配');
+
+        const injected = adaptSkillContentForHost('# body', negotiation, 'debug', cropped);
+        expect(injected).toContain('宿主编排适配（生成期注入）');
+        expect(injected).toContain('iagent-test');
+        // 裁剪后的委派清单只含生效集声明的目标
+        expect(injected).not.toContain('iagent-proposal-review');
+    });
+
     it('委派清单携带参数且取值来自显式参数表（未声明不填充）', () => {
         const list = renderDelegationList(
             'claude',
@@ -947,6 +969,38 @@ describe('degraded 产物的委派语句覆盖声明', () => {
         expect(content).toContain('degraded 覆盖声明');
         expect(content).toContain('不构成委派');
         expect(content).not.toContain('经 Skill 工具委派');
+    });
+});
+
+// 变更 fix-multi-agent-skill-command-generation / 任务 1.5 / 1.4：
+// Codex 引用语法（$iagent-<id>）与能力档案同源，且不虚增 delegate / gate。
+describe('Codex 引用语法与能力档案同源', () => {
+    it('capabilities 仍仅含 skill-load / argument-passing', () => {
+        expect([...HOST_PROFILES.codex.capabilities]).toEqual(['skill-load', 'argument-passing']);
+        expect(HOST_PROFILES.codex.capabilities).not.toContain('delegate');
+        expect(HOST_PROFILES.codex.capabilities).not.toContain('gate');
+    });
+
+    it('协商仍为 degraded 且 missing 含 delegate / gate', () => {
+        const codex = negotiationForHost('codex')!;
+        expect(codex.mode).toBe('degraded');
+        expect(codex.missing).toContain('delegate');
+        expect(codex.missing).toContain('gate');
+    });
+
+    it('skillLoading 与 renderLoadSkill 采用 $iagent-<id> 引用语法', () => {
+        expect(HOST_PROFILES.codex.native.skillLoading).toContain('$iagent-<id>');
+        expect(HOST_PROFILES.codex.native.skillLoading).not.toContain('无宿主级技能调用工具');
+
+        const load = renderLoadSkill('codex', 'degraded', { workflowId: 'spec-apply' });
+        expect(load).toContain('$iagent-spec-apply');
+        expect(load).not.toContain('无宿主级技能调用工具');
+    });
+
+    it('README 四工具对照表的 Codex 触发形式为 canonical $iagent-spec-apply', () => {
+        const readme = fs.readFileSync(path.join(process.cwd(), 'README.md'), 'utf8');
+        expect(readme).toContain('`$iagent-spec-apply`');
+        expect(readme).not.toContain('`$iagent_spec_apply`');
     });
 });
 

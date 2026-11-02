@@ -12,35 +12,14 @@
  *   name / allowed-tools / category / tags。
  *
  * 参数注入：OpenCode 只在正文显式占位符（`$ARGUMENTS` / `$1`）处接收用户参数。
- * 既有指令正文以 `**Input**:` 声明输入契约但不含占位符，故生成期在 Input 段后
- * 注入 `**Provided arguments**: $ARGUMENTS`（移植自 OpenSpec 的 opencode 适配器）。
+ * 既有指令正文以输入契约段声明入参但不含占位符，故生成期在该段后注入
+ * `**Provided arguments**: $ARGUMENTS`（与 Pi 共用同一实现，含中英输入段识别）。
  */
 
 import type { CommandContent, ToolCommandAdapter } from '../types.js';
 import { escapeYamlValue } from '../yaml.js';
 import { commandFilePath } from '../../command-artifacts.js';
-
-/** 匹配 `**Input**:` 段（含其后续非空行，直到空行） */
-const OPENCODE_INPUT_BLOCK = /^\*\*Input\*\*:[^\r\n]*(?:\r?\n(?!\r?\n)[^\r\n]*)*/m;
-/** 匹配声明无需输入的 Input 段 */
-const OPENCODE_NO_INPUT = /^\*\*Input\*\*:\s*None required\b/im;
-/** 匹配已存在的参数占位符（`$ARGUMENTS` 或 `$1`..`$n`） */
-const OPENCODE_ARGUMENT_PLACEHOLDER = /\$(?:ARGUMENTS\b|[1-9]\d*\b)/;
-
-/**
- * 在 `**Input**:` 契约段之后注入 `$ARGUMENTS` 占位符。
- * 正文已含参数占位符、或 Input 段声明 `None required` 时原样返回（不重复注入）。
- */
-function injectOpenCodeArgs(body: string): string {
-    if (OPENCODE_ARGUMENT_PLACEHOLDER.test(body) || OPENCODE_NO_INPUT.test(body)) {
-        return body;
-    }
-    const eol = body.includes('\r\n') ? '\r\n' : '\n';
-    return body.replace(
-        OPENCODE_INPUT_BLOCK,
-        (input) => `${input}${eol}**Provided arguments**: $ARGUMENTS`
-    );
-}
+import { injectCommandArgs } from './inject-args.js';
 
 export const opencodeAdapter: ToolCommandAdapter = {
     toolId: 'opencode',
@@ -66,7 +45,7 @@ ${agentLine}${subagentLine}metadata:
   generatedBy: "${content.generatedBy || ''}"${fpLine}
 ---
 
-${injectOpenCodeArgs(content.body)}
+${injectCommandArgs(content.body)}
 `;
     },
 };

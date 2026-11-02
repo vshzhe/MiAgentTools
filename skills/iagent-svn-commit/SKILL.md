@@ -1,6 +1,6 @@
 ---
 name: iagent-svn-commit
-description: "SVN 交互式提交（四环节确认：范围→清单与描述→知识库推送→最终确认），含编译产物排除、UTF-8 注释落盘、凭据处理、提交后双验证、知识库推送。支持提案分类提交：按点名提案将变更自动归类为功能代码/测试代码/文档，分类分批提交并在每笔提交信息尾行标注来源提案。当用户在 SVN 项目要提交代码、提交提案产出、按类型分类提交时使用；触发词\"SVN 提交 / svn commit / 分类提交\"；NOT for Git 项目提交（改用 iagent_commit）。"
+description: "SVN 交互式提交（四环节确认：范围→清单与描述→知识库推送→最终确认），含编译产物排除、UTF-8 注释落盘、凭据处理、提交后双验证、知识库推送。支持提案分类提交：按点名提案将变更自动归类为功能代码/测试代码/文档，分类分批提交并在每笔提交信息尾行标注来源提案。当用户在 SVN 项目要提交代码、提交提案产出、按类型分类提交时使用；触发词\"SVN 提交 / svn commit / 分类提交\"；NOT for Git 项目提交（改用 iagent-commit）。"
 allowed-tools: Bash(svn:*), Bash(powershell:*), Read, Write, Glob, Grep
 license: MIT
 compatibility: 需要 SVN 环境（工作副本 .svn 存在或 svn info 可用）；提案分类提交需要 openspec/changes/ 变更结构。
@@ -8,10 +8,10 @@ metadata:
   author: mi-agent-tools
   type: commit
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:cf70084d9fd15f1b3363ee0b9a5fbb6e923db750f216b6935fe9f5bdef67efbc"
+  generatedFingerprint: "sha256:f03776850592e87fd60916baa793e3cbfac7342befaf4a72948d006779f475f4"
 ---
 
-SVN 提交注释生成与执行（iagent_svn_commit）—— 四环节确认提交 + 提案分类提交。
+SVN 提交注释生成与执行（iagent-svn-commit）—— 四环节确认提交 + 提案分类提交。
 
 **输入**：`/iagent:svn-commit` 后可跟变更列表名、点名文件或「提交 <提案名> 提案」；省略时先自动检测活跃提案，无活跃变更再询问是否提交全部。
 

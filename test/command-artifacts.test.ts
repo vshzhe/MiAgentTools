@@ -100,6 +100,24 @@ describe('listManagedCommands（归属识别）', () => {
         }
     });
 
+    // 变更 fix-multi-agent-skill-command-generation / 任务 4.3：
+    // codex 显式配置 commandsLayout: 'skills-only' 后仍不产出 / 不识别指令产物。
+    it('codex 配置 skills-only 布局后仍不产出 / 不识别指令', () => {
+        expect(codex.commandsLayout).toBe('skills-only');
+        expect(codex.commandsDir).toBe('');
+        expect(() => commandFilePath('codex', 'spec-apply')).toThrow(/skills-only/);
+        const root = freshRoot();
+        try {
+            write(root, '.codex/commands/iagent-spec-apply.md');
+            expect(listManagedCommands(root, codex)).toEqual([]);
+            expect(removeManagedCommands(root, codex)).toEqual([]);
+            // 文件未被误删
+            expect(fs.existsSync(path.join(root, '.codex/commands/iagent-spec-apply.md'))).toBe(true);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
     it('prefixed-file（opencode）：仅取 iagent- 前缀 .md，忽略用户文件与非 md', () => {
         const root = freshRoot();
         try {

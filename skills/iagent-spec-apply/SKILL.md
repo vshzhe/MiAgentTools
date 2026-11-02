@@ -1,6 +1,6 @@
 ---
 name: iagent-spec-apply
-description: "实现变更。当 openspec/changes/ 下已有变更制品（proposal/specs/design/tasks），需要基于规格驱动实现任务清单时使用；触发词\"实现变更 / apply / 执行任务 / 按规格实现\"；NOT for 无变更制品时直接描述需求（改用 iagent_workflow 引导生成制品后再实现）。"
+description: "实现变更。当 openspec/changes/ 下已有变更制品（proposal/specs/design/tasks），需要基于规格驱动实现任务清单时使用；触发词\"实现变更 / apply / 执行任务 / 按规格实现\"；NOT for 无变更制品时直接描述需求（改用 iagent-workflow 引导生成制品后再实现）。"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(yarn:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(ant:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), Skill(iagent-test), Agent, Task
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）。
@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:02396698b14f99aac0828ca2cec9b4573767ac14cfa098c387dd546e1d07fb93"
+  generatedFingerprint: "sha256:da429ef20f084b3021b2f218fdd5974caf90bdfe5b6c6bd2f45e9e7cd03bc0a1"
 ---
 
 **实现前先阅读 .iagent/rules/coding-rules.md 的 AI 编码护栏。** 禁止猜测数据库字段、API 参数或业务规则 —— 标 **[待确认]** 并询问用户。
@@ -79,7 +79,7 @@ metadata:
    - `progress`：任务总数、已完成数、剩余数（用于 Step 5 的进度展示）
    - `taskList`：带勾选状态与分组标签的结构化任务条目（用于 Step 5.5 的批规划）
    - `instruction`：动态三态指令：
-     - `"blocked"`：制品缺失或不完整 → 建议先运行 `iagent_spec_verify` 补全制品；实现前 STOP
+     - `"blocked"`：制品缺失或不完整 → 建议先运行 `iagent-spec-verify` 补全制品；实现前 STOP
      - `"ready"`：制品完整且存在待办任务 → 进入 Step 4（读取上下文文件）
      - `"all_done"`：全部任务已完成 → 祝贺并建议归档；STOP
 
@@ -94,7 +94,7 @@ metadata:
    - 记录 WARN 说明降级原因。
    - 保持相同的 Markdown 优先语义与任务勾选规则。
    **状态处理（两条路径相同）：**
-   - 制品缺失（proposal/specs/design/tasks）：给出提示，建议先用 `iagent_spec_verify` 补全制品
+   - 制品缺失（proposal/specs/design/tasks）：给出提示，建议先用 `iagent-spec-verify` 补全制品
    - 全部任务已完成：祝贺并建议归档
    - 其他情况：进入实现
 
@@ -250,7 +250,7 @@ metadata:
    - 3 次后仍有失败：暂停并向用户报告。MUST NOT 把对应任务标为 `[x]`，MUST NOT 进入归档
    - 若必须收窄或简化测试的预期行为才能通过 → 适用范围蔓延护栏：标 **[待确认]**，说明差异并询问用户
 
-   **9.6 测试门报告** —— 汇总：覆盖范围、范围内通过/失败数、范围外存量失败（WARN）、覆盖率工具运行时的覆盖率数据（见 `iagent_test` §5.1）
+   **9.6 测试门报告** —— 汇总：覆盖范围、范围内通过/失败数、范围外存量失败（WARN）、覆盖率工具运行时的覆盖率数据（见 `iagent-test` §5.1）
 
 10. **统一临时工作区清理（保留编译证据与 handoff 包）** ⚠️ 强制
    - 编译检查（§8）与测试执行门（§9）都结束后执行**一次**清理；清理对象**只限临时脚本与草稿**（编译校验脚本、临时配置、草稿输出等）
@@ -273,7 +273,7 @@ metadata:
    - 编译检查终态（`pass` / `not-applicable` / `disabled`）与证据文件路径 —— 后两者显式标注「未执行编译检查」
    - 测试执行门结果汇总
    - 全部任务完成状态
-   - 仅在编译终态放行（`pass` / `not-applicable` / `disabled`）且测试门通过时，建议通过 iagent spec archive "<name>" --yes（或 iagent_spec_archive 技能）归档变更
+   - 仅在编译终态放行（`pass` / `not-applicable` / `disabled`）且测试门通过时，建议通过 iagent spec archive "<name>" --yes（或 iagent-spec-archive 技能）归档变更
 
 <!-- CMD:SKIP -->
 **Output（实现过程中）**
@@ -436,7 +436,7 @@ What would you like to do?
 - 直接从变更目录读取制品文件 —— 除标准集合外不要假设具体文件名
 - ⚠️ **强制**：全部任务完成后执行 Step 8 编译检查（硬门：终态只有 `pass` / `fail` / `not-applicable` / `disabled` 四值，配置载体为 `.iagent/config.yaml` 的 `compileCheck`）
 - ⚠️ **强制**：编译检查后执行 Step 9 测试执行门 —— 范围限定为本次变更（范围内失败阻塞；范围外存量失败仅 WARN 且 MUST NOT 阻塞）
-- ⚠️ **强制**：`[测试]` 任务 MUST 委派 `iagent_test`（传测试层级与优先级）生成测试代码，MUST NOT 在 apply 内另立一套测试规则；该技能不可用时记录 WARN 并按同一规则本地实现（MUST NOT 伪装为委派完成）；MUST NOT 走补充文档的 `产出:` → `attachments/` 规则（放在 attachments/ 下的测试代码无法运行）
+- ⚠️ **强制**：`[测试]` 任务 MUST 委派 `iagent-test`（传测试层级与优先级）生成测试代码，MUST NOT 在 apply 内另立一套测试规则；该技能不可用时记录 WARN 并按同一规则本地实现（MUST NOT 伪装为委派完成）；MUST NOT 走补充文档的 `产出:` → `attachments/` 规则（放在 attachments/ 下的测试代码无法运行）
 
 - ⚠️ **强制**：子代理派发指令 MUST 携带 EXIT GUARD（子代理退出守卫）—— 完成分配任务后立即停止并返回回执，MUST NOT 进入 plan 模式 / 设计模式，也不得提出后续步骤；编排器是唯一有权判停和推进阶段的角色
 - ⚠️ **强制**：子代理 MUST 先读取 handoff 包（`.openspec-tmp/pipeline-<change-name>/handoff-pack.md`），再执行其它任何动作 —— 不得先做其他动作；MUST NOT 重读 proposal/specs/design，MUST NOT 重跑包已覆盖的 CodeGraph 查询；仅做增量查询

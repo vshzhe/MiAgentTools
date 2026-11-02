@@ -420,6 +420,8 @@ export function getProposalReviewSkillTemplate(): SkillTemplate {
 
 检查变更提案完整性与实现合规性——深度代码库探索、8 维度完整性检查、合规性验证、量化评分与遗漏场景补充。在 /iagent:spec-propose 创建提案后，或经过 /iagent:spec-explore 探索分析后，使用此 skill 验证提案是否完整覆盖需求场景、是否符合项目规范。确保每个变更提案都经过完整性验证和合规性检查后再进入实现阶段。
 
+**输入**：待审查的变更名称（kebab-case，可选；未指定时自动扫描活跃变更）。
+
 本 skill 通过多维度检查确保：
 1. 需求场景完整覆盖（无遗漏）
 2. 实现方式符合项目规范

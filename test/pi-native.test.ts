@@ -61,6 +61,22 @@ describe('Pi agent frontmatter 契约', () => {
         expect(content).not.toContain('allowed_subagents');
         expect(content).toContain(`tools: ${PI_AGENT_TOOLS.join(', ')}`);
     });
+
+    // 变更 fix-multi-agent-skill-command-generation / 任务 3.2 / 3.3
+    it('阶段 agent 正文含读取 .pi/skills/iagent-<id>/SKILL.md 的引导', () => {
+        const content = renderPiStageAgent('spec-apply', '实现变更');
+        expect(content).toContain('`.pi/skills/iagent-spec-apply/SKILL.md`');
+        expect(content).toContain('`read` 工具');
+    });
+
+    it('description 归一化（iagent_ → iagent-）并安全转义', () => {
+        const normalized = renderPiStageAgent('spec-apply', '委派 iagent_test 的实现阶段');
+        expect(normalized).toContain('description: 委派 iagent-test 的实现阶段');
+        expect(normalized).not.toContain('iagent_test');
+
+        const escaped = renderPiStageAgent('spec-apply', '阶段: 实现');
+        expect(escaped).toContain('description: "阶段: 实现"');
+    });
 });
 
 describe('写入与生命周期', () => {

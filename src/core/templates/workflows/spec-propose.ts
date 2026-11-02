@@ -58,7 +58,6 @@ ${renderGateWhitelistSection()}
      - 标注「已过时（由 <change-name> 取代）」的分节仅作历史参考，以取代变更的决策为准
    - 不存在：记录 "无能力级探索记忆 — 全新探索"，正常流程
 
-<!-- CMD:SKIP -->
 0.2. **扫描探索文件目录**
    - MUST 使用 Glob 工具扫描 \`openspec/explorations/*.md\`
    - 获取所有探索文件列表
@@ -102,7 +101,6 @@ ${renderGateWhitelistSection()}
      - 读取 Analysis 章节 → 生成 design.md
      - 读取 Questions 章节 → 生成 specs/<capability>/spec.md
      - 读取 Codebase Findings 章节 → 生成 tasks.md
-<!-- /CMD:SKIP -->
 
 1. **若未提供清晰输入，询问用户想构建什么**
 
@@ -138,9 +136,7 @@ ${renderGateWhitelistSection()}
 **模块识别**：
 - 使用 Glob 工具扫描 \`openspec/specs/\` 目录获取模块名
 - 将用户描述中的关键词与模块名匹配
-<!-- CMD:SKIP -->
 - 常见模块关键词：archive→cli-archive, artifact/workflow→cli-artifact-workflow, validate→cli-validate, workspace→workspace-foundation, change→change-creation
-<!-- /CMD:SKIP -->
 - 若无模块匹配，使用简化格式 \`{prefix}-{feature}\`
 
 **示例转换**：
@@ -316,7 +312,7 @@ ${renderGateWhitelistSection()}
 **流程基准**：若 exploration.md 含经确认的功能流程图，design.md 引用原流程，tasks.md 标注节点 id；未确认流程图不得作为既定前提并在报告中记录降级。`,
         license: 'MIT',
         compatibility: '依赖 iagent CLI（spec 命令组）与 CodeGraph MCP（可选）。',
-        metadata: { author: 'mi-agent-tools', version: '1.0' },
+        metadata: { author: 'mi-agent-tools' },
     };
 }
 

@@ -792,3 +792,176 @@ describe('工具选择持久化与旧位置清理', () => {
         }
     });
 });
+
+// 变更 fix-multi-agent-skill-command-generation / 任务 4.1 / 4.3：
+// references 跨宿主改写、手改保护与 codex 引用语法。
+describe('4.3 调用方管线：references 改写与手改保护', () => {
+    function makeRoot(workflows: string[]): string {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-callers-'));
+        ensureProjectConfig(root);
+        writeWorkflowsToConfig(root, workflows);
+        return root;
+    }
+
+    it('codex 生成的 SKILL.md 与 references 均改写为 $iagent-<id>', () => {
+        const root = makeRoot(['workflow', 'spec-explore']);
+        try {
+            runInit(root, { tools: 'codex' });
+            const skill = fs.readFileSync(
+                path.join(root, '.codex', 'skills', 'iagent-workflow', 'SKILL.md'),
+                'utf8'
+            );
+            // 正文中的规范形引用改写为 Codex 原生技能语法
+            expect(skill).toContain('$iagent-workflow');
+            expect(skill).not.toMatch(/\/iagent:[a-z]/);
+
+            const refsDir = path.join(root, '.codex', 'skills', 'iagent-spec-explore', 'references');
+            const corpus = fs
+                .readdirSync(refsDir)
+                .map((name) => fs.readFileSync(path.join(refsDir, name), 'utf8'))
+                .join('\n');
+            expect(corpus).toContain('$iagent-spec-explore');
+            expect(corpus).not.toMatch(/\/iagent:[a-z]/);
+            expect(corpus).not.toMatch(/\biagent_[a-z]/);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('pi / opencode 的 references 均改写为 /iagent-<id> 并完成技能 ID 归一化', () => {
+        const root = makeRoot(['workflow', 'spec-explore']);
+        try {
+            runInit(root, { tools: 'pi,opencode' });
+            for (const dir of ['.pi', '.opencode']) {
+                const refsDir = path.join(root, dir, 'skills', 'iagent-spec-explore', 'references');
+                const corpus = fs
+                    .readdirSync(refsDir)
+                    .map((name) => fs.readFileSync(path.join(refsDir, name), 'utf8'))
+                    .join('\n');
+                expect(corpus, `${dir} references 仍有规范形引用`).not.toMatch(/\/iagent:[a-z]/);
+                expect(corpus, `${dir} references 仍有下划线技能名`).not.toMatch(/\biagent_[a-z]/);
+            }
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('update 手改 SKILL.md 时跳过且不覆盖 references/', () => {
+        const root = makeRoot(['project-init']);
+        try {
+            runInit(root, { tools: 'claude' });
+            const skillFile = path.join(root, '.claude', 'skills', 'iagent-project-init', 'SKILL.md');
+            const refFile = path.join(
+                root,
+                '.claude',
+                'skills',
+                'iagent-project-init',
+                'references',
+                'doc-modules.md'
+            );
+            expect(fs.existsSync(refFile)).toBe(true);
+            // 模拟用户手改主 SKILL.md 与 references
+            fs.appendFileSync(skillFile, '\n用户手改标记\n', 'utf8');
+            fs.writeFileSync(refFile, '用户手改的参考文件\n', 'utf8');
+
+            const result = runUpdate(root, { tools: 'claude' });
+
+            expect(result.skippedModified.map((p) => p.replaceAll('\\', '/'))).toContain(
+                '.claude/skills/iagent-project-init/SKILL.md'
+            );
+            expect(fs.readFileSync(refFile, 'utf8')).toBe('用户手改的参考文件\n');
+            expect(fs.readFileSync(skillFile, 'utf8')).toContain('用户手改标记');
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('update --force 时覆盖并重新写出改写后的 references', () => {
+        const root = makeRoot(['project-init']);
+        try {
+            runInit(root, { tools: 'claude' });
+            const skillFile = path.join(root, '.claude', 'skills', 'iagent-project-init', 'SKILL.md');
+            const refFile = path.join(
+                root,
+                '.claude',
+                'skills',
+                'iagent-project-init',
+                'references',
+                'doc-modules.md'
+            );
+            fs.appendFileSync(skillFile, '\n用户手改标记\n', 'utf8');
+            fs.writeFileSync(refFile, '用户手改的参考文件\n', 'utf8');
+
+            runUpdate(root, { tools: 'claude', force: true });
+
+            expect(fs.readFileSync(skillFile, 'utf8')).not.toContain('用户手改标记');
+            expect(fs.readFileSync(refFile, 'utf8')).not.toBe('用户手改的参考文件\n');
+            expect(fs.readFileSync(refFile, 'utf8')).toContain('模块地图');
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    // references/ 与 SKILL.md 同属一次写入面：SKILL.md 需写入（此处以手改 + force 触发）时
+    // 按模板整目录同步，模板已删除的参考文件不得残留（removeDir + writeSkillReferences）。
+    it('update 重写 SKILL.md 时清理模板已不存在的陈旧参考文件', () => {
+        const root = makeRoot(['project-init']);
+        try {
+            runInit(root, { tools: 'claude' });
+            const skillFile = path.join(root, '.claude', 'skills', 'iagent-project-init', 'SKILL.md');
+            const refsDir = path.join(root, '.claude', 'skills', 'iagent-project-init', 'references');
+            const staleFile = path.join(refsDir, 'legacy-note.md');
+            fs.writeFileSync(staleFile, '陈旧参考文件\n', 'utf8');
+            fs.appendFileSync(skillFile, '\n用户手改标记\n', 'utf8');
+
+            runUpdate(root, { tools: 'claude', force: true });
+
+            expect(fs.existsSync(staleFile)).toBe(false);
+            expect(fs.readFileSync(path.join(refsDir, 'doc-modules.md'), 'utf8')).toContain('模块地图');
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    // init / update 透传「基于生效集派生」的 orchestration：产物编排面跟随裁剪后的 workflow 集。
+    it('init 按生效集透传 orchestration（仅编排技能注入编排段，原生 agent 委派面同步裁剪）', () => {
+        const root = makeRoot(['debug']);
+        try {
+            runInit(root, { tools: 'claude,opencode' });
+
+            const debugSkill = fs.readFileSync(
+                path.join(root, '.claude', 'skills', 'iagent-debug', 'SKILL.md'),
+                'utf8'
+            );
+            expect(debugSkill).toContain('## 宿主编排适配（生成期注入）');
+            // 委派目标来自 debug 模板的 Skill(...) 条目
+            expect(debugSkill).toContain('iagent-requirement-doc');
+            expect(debugSkill).toContain('iagent-spec-verify-proposal');
+
+            // 被 DEPS 注入的非编排技能（无 Skill(...) 条目）不注入编排段
+            const verifySkill = fs.readFileSync(
+                path.join(root, '.claude', 'skills', 'iagent-spec-verify-proposal', 'SKILL.md'),
+                'utf8'
+            );
+            expect(verifySkill).not.toContain('## 宿主编排适配（生成期注入）');
+
+            // 未在生效集内的 workflow 不产生产物
+            expect(fs.existsSync(path.join(root, '.claude', 'skills', 'iagent-workflow'))).toBe(false);
+
+            // OpenCode worker 的委派面同样按生效集派生
+            const debugWorker = fs.readFileSync(
+                path.join(root, '.opencode', 'agents', 'iagent-debug.md'),
+                'utf8'
+            );
+            expect(debugWorker).toContain('action: subagent');
+            expect(debugWorker).toContain('resource: "iagent-requirement-doc"');
+            const verifyWorker = fs.readFileSync(
+                path.join(root, '.opencode', 'agents', 'iagent-spec-verify-proposal.md'),
+                'utf8'
+            );
+            expect(verifyWorker).not.toContain('action: subagent');
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+});

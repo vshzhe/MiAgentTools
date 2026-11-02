@@ -177,6 +177,8 @@ export function getSpecVerifyProposalSkillTemplate(): SkillTemplate {
 
 本技能执行增强的 10 维度验证，含量化评分与技术栈检测。
 
+**输入**：待验证评分的变更名称（kebab-case，可选）。
+
 ${renderGateWhitelistSection()}
 
 **只读验证步骤无需确认即可执行**：读取制品、扫描文件、CodeGraph 查询与 D1-D10 评分分析直接运行，无需中途确认提示。仅验证报告（以及真正属于用户决策的选择，例如 FAIL 判定后选择修复路径）呈现给用户。

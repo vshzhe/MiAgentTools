@@ -7,6 +7,48 @@
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-11-02
+
+### Added
+
+- `CommandLayout` 新增 `'skills-only'` 布局并配置给 `codex`：技能正文中的已知 `/iagent:<id>`
+  在 Codex 产物中改写为宿主原生技能引用 `$iagent-<id>`；`layout === undefined` 仍原样返回
+  （兼容既有单测）。
+- 新增 `src/core/command-generation/host-refs.ts`，作为 `normalizeHostSkillRefs` 的单一实现
+  （generator / opencode-v2 / pi-native 共用）。
+- 新增 `src/core/command-generation/adapters/inject-args.ts`，作为 Pi / OpenCode 参数占位符
+  注入的共享实现（围栏代码块感知 + 中英 Input 段 + 幂等跳过）。
+- OpenCode / Pi 阶段 worker agent 正文新增技能规程加载引导（`skill` 工具 / `read SKILL.md`）；
+  `scanReconcileOrphans` 扩展为同时扫描 `.opencode/agents/`。
+
+### Changed
+
+- `generateSkillContent` 无条件对 `description`、`compatibility`、`instructions` 与
+  `references[].content` 执行 `iagent_<id>` → `iagent-<id>` 归一化（不再依赖 `hostId`）。
+- `init` / `update` / `generate` 对 `references/*.md` 同步执行指令引用改写；`update` 在
+  `SKILL.md` 手改跳过时不再覆盖该技能 `references/`。
+- `init` / `update` 向 `adaptSkillContentForHost` 显式传入按生效集计算的 `orchestration`，
+  使编排注入面遵循 `workflows` 裁剪。
+- OpenCode worker 权限改为最小权限：仅含 `Write` / `Edit` 的阶段授予 `edit`，全员补
+  `question`；`description` 先归一化再 YAML 转义。
+- Codex 能力档案与 `README.md` 口径统一为 `$iagent-<id>`（`capabilities` 仍不含
+  `delegate` / `gate`）。
+
+### Fixed
+
+- 修复 Pi / OpenCode 指令适配器在中文模板下丢失 `$ARGUMENTS` 注入（12/20 指令参数丢失），
+  以及 `spec-bulk-archive` 无参指令被误注入的问题。
+- 修复 OpenCode V2 `Bash(git <subcmd>:*)` 权限全部漏提（`collectShellPrefixes` 不支持
+  含空格的子命令前缀）。
+- 修复 `iagent uninstall` 无法清理 `.opencode/opencode.jsonc`（行注释正则截断 `$schema`
+  中的 `https://`）。
+- 修复 `references/*.md` 完全绕过指令引用改写与技能 ID 归一化。
+- 修复模板正文硬编码 `.claude/skills/` 路径与 `经 Skill 工具` 等 Claude 专属措辞。
+- 修复 `deriveCommandContent` 裁剪边界越界：`spec-explore` 指令版重复 `Input` 段、
+  `spec-archive` 丢失归档标签白名单防护句、`spec-propose` 丢失探索文件扫描步骤。
+- 清理 4 个模板残留的废弃 `metadata.version` 字段。
+- 修复 OpenCode `.opencode/agents/` 缺少 orphan agent 清理与 reconcile 扫描。
+
 ## [3.1.0] - 2026-11-01
 
 ### Added
@@ -1503,7 +1545,8 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v3.1.0...HEAD
+[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v3.2.0...HEAD
+[3.2.0]: https://github.com/vshzhe/MiAgentTools/compare/v3.1.0...v3.2.0
 [3.1.0]: https://github.com/vshzhe/MiAgentTools/compare/v3.0.0...v3.1.0
 [2.0.0]: https://github.com/mi-agent-tools/compare/v1.0.2...v2.0.0
 [1.0.2]: https://github.com/mi-agent-tools/compare/v1.0.1...v1.0.2

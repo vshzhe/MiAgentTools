@@ -10,19 +10,19 @@
 
 ### 3.2 验证执行
 
-通过**调用 `iagent_spec_verify_proposal` 技能**执行 D1-D5 核心验证（而不是 CLI 指令）：
+通过**调用 `iagent-spec-verify-proposal` 技能**执行 D1-D5 核心验证（而不是 CLI 指令）：
 
 ```bash
 # Resolve change status first
 iagent spec status --change "<name>" --json
-# Then invoke the verification skill (iagent_spec_verify_proposal is a SKILL name, not a valid
+# Then invoke the verification skill (iagent-spec-verify-proposal is a SKILL name, not a valid
 # `iagent spec instructions` artifact ID — valid artifact IDs are proposal/specs/design/tasks only.
-# Running `iagent spec instructions iagent_spec_verify_proposal` errors with "Artifact not found".)
+# Running `iagent spec instructions iagent-spec-verify-proposal` errors with "Artifact not found".)
 ```
 
-调用技能：为变更 `<name>` 调用 `iagent_spec_verify_proposal`。该技能通过读取制品与 exploration.md 内联完成 D1-D5 评分，不依赖任何 CLI verify 命令（并不存在——iagent CLI 只有做 schema 级检查的 `validate`）。
+调用技能：为变更 `<name>` 调用 `iagent-spec-verify-proposal`。该技能通过读取制品与 exploration.md 内联完成 D1-D5 评分，不依赖任何 CLI verify 命令（并不存在——iagent CLI 只有做 schema 级检查的 `validate`）。
 
-**降级（回退）（技能不可用）**：若 `iagent_spec_verify_proposal` 技能未安装或调用失败，降级为 AI 内联读取 proposal/specs/design/tasks + D1-D5 手工评分，并输出 WARN 日志："iagent_spec_verify_proposal 技能不可用，已降级为内联评分"。MUST NOT 静默跳过验证。
+**降级（回退）（技能不可用）**：若 `iagent-spec-verify-proposal` 技能未安装或调用失败，降级为 AI 内联读取 proposal/specs/design/tasks + D1-D5 手工评分，并输出 WARN 日志："iagent-spec-verify-proposal 技能不可用，已降级为内联评分"。MUST NOT 静默跳过验证。
 
 执行 5 维度验证：
 1. **D1: 需求覆盖** — Decisions → 规格需求
@@ -30,7 +30,7 @@ iagent spec status --change "<name>" --json
 3. **D3: 任务完整性** — 规格需求 → 任务
 4. **D4: 边界覆盖** — 问题 / 边界场景 → 规格 Scenario
 5. **D5: Pending 解决** — Pending 事项 → 已解决
-6. **D6-D10: 条件维度** — 交互细节（Interaction Detail）/ API 契约（API Contract）/ 数据库映射（DB Mapping）/ 业务步骤（Business Steps）/ 流程图节点覆盖，由 `iagent_spec_verify_proposal` 按变更类型自动触发；未触发维度不计分
+6. **D6-D10: 条件维度** — 交互细节（Interaction Detail）/ API 契约（API Contract）/ 数据库映射（DB Mapping）/ 业务步骤（Business Steps）/ 流程图节点覆盖，由 `iagent-spec-verify-proposal` 按变更类型自动触发；未触发维度不计分
 
 ### 3.3 量化评分报告
 
@@ -71,19 +71,19 @@ iagent spec status --change "<name>" --json
 
 当所有维度 PASS（≥90%）时：
 
-1. **自动执行深度复查** — 调用 `iagent_proposal_review` **技能**——不询问用户，自动执行（用户可中断跳过）
+1. **自动执行深度复查** — 调用 `iagent-proposal-review` **技能**——不询问用户，自动执行（用户可中断跳过）
 2. 深度复查范围：代码库深度探索 + 多维完整性
 3. 结果与验证报告一并展示
 4. **降级（回退）（技能不可用或调用失败）**：降级为主工作流内联只读深度复查 + WARN 日志——永不静默跳过
 
-> "验证通过！D1-D5 全部 ≥90%。自动运行 iagent_proposal_review..."
+> "验证通过！D1-D5 全部 ≥90%。自动运行 iagent-proposal-review..."
 > [展示深度复查结果]
 
 若用户想跳过深度复查，可主动中断；否则自动运行。
 
 5. **收束 —— 需求文档桥（⚠️ 单次业务桥，强制）** — 验证 PASS **且**深度复查收束后，父编排器展示**一次**"生成 / 跳过"需求文档业务桥：
    - **仅在此时展示**：验证 FAIL、重验循环中或深度复查未收束时 MUST NOT 展示该桥，也 MUST NOT 调用需求文档技能
-   - **生成** → 直接以非交互模式委派 `iagent_requirement_doc`（传 change-name；不询问文档基本信息、不追加"是否调用该技能"确认），文档写入 `openspec/changes/<change-name>/需求文档.md`
+   - **生成** → 直接以非交互模式委派 `iagent-requirement-doc`（传 change-name；不询问文档基本信息、不追加"是否调用该技能"确认），文档写入 `openspec/changes/<change-name>/需求文档.md`
      - 委派成功 → 状态写 `generated`
      - 委派失败 → 状态写 `generation-failed`，输出 WARN（含原因）并继续原流程（不重试、不阻断）
    - **跳过** → 不生成文档，状态写 `skipped-by-user`
@@ -106,7 +106,7 @@ iagent spec status --change "<name>" --json
 - 该段缺失或取值非法即视为 `absent`（历史变更兼容分支），MUST NOT 猜测为跳过或已生成
 - **I/O 语义（强制）**：写入失败 → 自动重试同一写入**一次** → 仍失败即停止（MUST NOT 第二次或无限重试）：
   - MUST NOT 报告状态已持久化或阶段已完成
-  - MUST NOT 委派 `iagent_requirement_doc`
+  - MUST NOT 委派 `iagent-requirement-doc`
   - MUST NOT 进入依赖该状态的下一阶段（Phase 3.7 实现桥及后续）
   - SHALL 输出含目标路径与原因的 WARN 与恢复指引（用户可修复后重跑本阶段）
 - **传递**：桥结果同时写入阶段回执；进入 apply 与 archive 时携带同一状态（archive 亦从探索文件读取，二者不一致时以探索文件的持久记录为准）

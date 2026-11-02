@@ -608,7 +608,7 @@ All artifacts ready! Proceeding to the Phase 4 implementation bridge...
         type: 'impl',
         license: 'MIT',
         compatibility: '依赖 iagent CLI（spec 命令组）与阶段技能（iagent_spec_apply / iagent_spec_archive，条件 iagent_test）；CLI 缺失时探索/提案降级为 AI 内联生成（CLI-degraded generation）。',
-        metadata: { author: 'mi-agent-tools', version: '1.0' },
+        metadata: { author: 'mi-agent-tools' },
         references: [
             { path: 'references/verification-protocol.md', content: VERIFICATION_PROTOCOL_FULL },
         ],

@@ -129,6 +129,17 @@ describe('指令正文派生覆盖度可观测', () => {
     });
 });
 
+// 变更 fix-multi-agent-skill-command-generation / 任务 1.3 / 1.4：
+// frontmatter 元数据不含游离 version（产物版本由 metadata.generatedBy 承载）。
+describe('frontmatter 元数据无游离 version', () => {
+    it('全部 20 个技能模板的 metadata 不含 version 字段', () => {
+        const offenders = skills
+            .filter(({ template }) => template.metadata !== undefined && 'version' in template.metadata)
+            .map(({ template }) => template.name);
+        expect(offenders).toEqual([]);
+    });
+});
+
 function exploreRefContent(relPath: string): string {
     const explore = skills.find((s) => s.template.name === 'iagent_spec_explore');
     const ref = (explore?.template.references ?? []).find((r) => r.path === relPath);

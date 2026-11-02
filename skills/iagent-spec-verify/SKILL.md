@@ -1,6 +1,6 @@
 ---
 name: iagent-spec-verify
-description: "验证变更。当用户要在实现完成后、归档前验证实现与变更制品（specs/tasks/design）是否一致时使用；触发词\"验证变更 / verify / 实现验证 / 一致性检查\"；NOT for 实现前的提案质量评分门（改用 iagent_spec_verify_proposal）。"
+description: "验证变更。当用户要在实现完成后、归档前验证实现与变更制品（specs/tasks/design）是否一致时使用；触发词\"验证变更 / verify / 实现验证 / 一致性检查\"；NOT for 实现前的提案质量评分门（改用 iagent-spec-verify-proposal）。"
 allowed-tools: Bash(iagent:*), Read, Glob, Grep
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）。
@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:186a19e7ba503c8737460b6b3872f80c61a3eb7b33438fbbbd1f71ca8caf113d"
+  generatedFingerprint: "sha256:3852bb185d5f1de0654e9cd88be65c6381c7a9f4381a46a7d85116f22d6aa1db"
 ---
 
 **验证前先阅读 .iagent/rules/coding-rules.md 中的验证标准。** 重点检查未定义数据字段、架构分层违规、前端 UI 状态覆盖。

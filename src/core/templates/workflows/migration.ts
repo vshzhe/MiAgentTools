@@ -16,6 +16,8 @@ export function getMigrationSkillTemplate(): SkillTemplate {
 
 一站式自动功能迁移，四阶段推进：生成源需求文档并蒸馏确认核心功能 → 探索目标项目（含目标编码规范加载）+ 生成变更提案 → 实现确认门 → 复查子代理做迁移检查并进入修复循环。流程结构与规格驱动工作流（\`/iagent:spec-explore\` → \`/iagent:spec-propose\` → \`/iagent:spec-apply\`）及一站式引导工作流 \`/iagent:workflow\`（探索 → 提案 → 验证）一致；探索与提案生成自动进行（一致性直通）。流程中有两个性质不同的中途确认点：Phase 1 的**蒸馏确认**（需求澄清门 —— 确认迁移什么 WHAT）与 Phase 3 的**实现门**（流程门 —— 确认如何实现 HOW）；Phase 2→3 的一致性直通不受影响。
 
+**输入**：源项目路径与待迁移的目标模块描述（可选；缺失项在 Step 0 交互式收集，已提供的跳过）。
+
 **Trigger boundary**：本技能编排**完整**迁移管线（扫描源项目 → 变更提案 → 实现 → 迁移对比）。单独的源项目扫描属于 \`iagent_feature_doc\`；单独的迁移后对比属于 \`iagent_migration_check\`。
 
 ${GATE_PROTOCOL_PREAMBLE}

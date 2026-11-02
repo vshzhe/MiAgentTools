@@ -62,7 +62,7 @@ export function isSkillType(value: string): value is SkillType {
 }
 
 /** 指令产物布局 */
-export type CommandLayout = 'namespace-dir' | 'prefixed-file';
+export type CommandLayout = 'namespace-dir' | 'prefixed-file' | 'skills-only';
 
 /** 目标 AI 工具配置（支持 Claude Code / Pi / Codex / OpenCode，架构预留多工具扩展） */
 export interface AIToolOption {
@@ -81,6 +81,7 @@ export interface AIToolOption {
      * 指令产物布局（commandsDir 为空时省略）：
      *  - `namespace-dir`：`<commandsDir>/<namespace>/<id>.md`（Claude Code）
      *  - `prefixed-file`：`<commandsDir>/<namespace>-<id>.md`（Pi / OpenCode 扁平布局）
+     *  - `skills-only`：无指令产物，正文引用改写为宿主原生技能语法 `$iagent-<id>`（Codex）
      */
     commandsLayout?: CommandLayout;
     /**
@@ -118,7 +119,9 @@ export const AI_TOOLS: AIToolOption[] = [
         value: 'codex',
         name: 'Codex',
         skillsDir: '.codex',
+        // Codex 原生以 `$<skill-name>` 激活技能，无自定义斜杠指令产物
         commandsDir: '',
+        commandsLayout: 'skills-only',
     },
     {
         value: 'opencode',

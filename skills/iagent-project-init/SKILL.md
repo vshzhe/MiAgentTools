@@ -1,6 +1,6 @@
 ---
 name: iagent-project-init
-description: "初始化项目。当用户要创建新项目、搭建目录结构、生成配置文件、初始化知识文档或准备开发环境时使用；触发词\"初始化项目 / project init / 搭建项目 / 生成配置\"；NOT for 扫描源项目功能模块（改用 iagent_feature_doc）。"
+description: "初始化项目。当用户要创建新项目、搭建目录结构、生成配置文件、初始化知识文档或准备开发环境时使用；触发词\"初始化项目 / project init / 搭建项目 / 生成配置\"；NOT for 扫描源项目功能模块（改用 iagent-feature-doc）。"
 allowed-tools: Bash(ls:*), Bash(pwd:*), Read, Write, Glob, Grep, Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(iagent-feature-doc)
 license: MIT
 compatibility: 无特殊依赖，通用环境可用。CodeGraph 索引与文档能力技能均为可选增强，缺失时自动降级。
@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: init
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:326e348ca62af8e75a331d368dfee9027c90686adef8a7d76ff8d7dd38590dfc"
+  generatedFingerprint: "sha256:80cab37043f6458245514b8e8ef51c7693585ae313ec6f0c4b00d5454e6cb92e"
 ---
 
 初始化项目 —— 读扫描基线 → 五类语义扫描 → 逐份确认 → 落盘 → 回写 context → 蒸馏规则。
@@ -43,9 +43,9 @@ metadata:
 - **优先采信已结构化的技术栈声明**：`.iagent/config.yaml` 的 `context` 段、`openspec/config.yaml` 的声明，其可信度高于从依赖文件推测
 - **框架判定 MUST 结合源码实际使用情况**（如 import 频次、注解出现次数）；MUST NOT 仅凭 jar / 依赖存在就断言「项目使用某框架」——依赖目录中的 jar 只作为候选列出
 
-### 3. 委派 `iagent_feature_doc`（模块与功能点 / 数据库 / API 规范）
+### 3. 委派 `iagent-feature-doc`（模块与功能点 / 数据库 / API 规范）
 
-五类中「模块与功能点 / 数据库 / API 规范」的信息基础，MUST 优先经 `Skill` 工具委派 `iagent_feature_doc` 获取，复用其框架档案能力。
+五类中「模块与功能点 / 数据库 / API 规范」的信息基础，MUST 优先委派技能 `iagent-feature-doc` 获取（宿主原生技能委派），复用其框架档案能力。
 
 - **降级路径一（委派不可得）**：该技能不可调用或执行失败 → 记 WARN，改为自行扫描（Glob / Grep / Read），MUST NOT 因此终止
 - **降级路径二（无 CodeGraph 索引）**：目标项目未初始化 CodeGraph 索引时，改用 Glob / Grep / Read 完成扫描
@@ -160,7 +160,7 @@ metadata:
 | `references/doc-api.md` | API 规范 |
 | `references/doc-security.md` | 安全规范 |
 
-> 子文件路径相对技能目录（如 `.claude/skills/iagent-project-init/references/doc-api.md`）。
+> 子文件路径相对技能目录（如 `references/doc-api.md`）。
 
 ## 约束
 

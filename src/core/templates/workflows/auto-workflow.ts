@@ -240,7 +240,7 @@ Phase 4 继承 \`iagent_spec_apply\` 的**测试执行门**并**自动**通过 �
         type: 'impl',
         license: 'MIT',
         compatibility: '依赖 iagent CLI（spec 命令组）与 spec 系列技能（iagent_spec_apply / iagent_spec_archive）；CLI 缺失时降级为 AI 内联生成。',
-        metadata: { author: 'mi-agent-tools', version: '1.0' },
+        metadata: { author: 'mi-agent-tools' },
     };
 }
 

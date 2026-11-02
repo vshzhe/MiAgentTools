@@ -31,8 +31,6 @@ const FLOWCHART_FULL = buildFlowchartBlock(REQUIREMENT_FLOW_COLUMNS);
 /** 探索强制检查点体系全文（写入 references/exploration-protocol.md，delegated 模式按需读取） */
 const EXPLORATION_PROTOCOL_FULL = `## 强制检查点体系（delegated 模式）
 
-**Input**: 用户的主题描述（想构建什么）。
-
 用 **TodoWrite 工具** 初始化跟踪：\`[{"content": "Phase 1: Exploration", "status": "in_progress"}, {"content": "Phase 2: Proposal", "status": "pending"}, {"content": "Phase 3: Verification", "status": "pending"}, {"content": "Phase 4: Implementation", "status": "pending"}, {"content": "Phase 5: Archive", "status": "pending"}]\`
 
 ### 1.1 创建探索文件（强制检查点）
@@ -1317,7 +1315,7 @@ ${FLOWCHART}
 - **不要在流程最终确认门上死锁** - 流程最终确认门同样有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续）；用户拒绝时记录未确认状态后继续，不得反复要求确认`,
         license: 'MIT',
         compatibility: '依赖 iagent CLI（spec 命令组）与 CodeGraph MCP（不可用时回退 Glob/Grep）。',
-        metadata: { author: 'mi-agent-tools', version: '1.0' },
+        metadata: { author: 'mi-agent-tools' },
         references: [
             { path: 'references/prompt-gate.md', content: PROMPT_GATE_FULL },
             { path: 'references/flowchart-gate.md', content: FLOWCHART_FULL },

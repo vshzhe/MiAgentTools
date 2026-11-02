@@ -157,6 +157,11 @@ export function buildProgram(): Command {
                     console.log(`  ! ${warning}`);
                 }
             }
+            if (result.openCodeProject) {
+                for (const removed of result.openCodeProject.removed) {
+                    console.log(`    - 清理 orphan：${removed}`);
+                }
+            }
             console.log(`  技能：${result.skillsInstalled.length} 个`);
             for (const skill of result.skillsInstalled) {
                 console.log(`    + ${skill}`);
@@ -290,6 +295,11 @@ export function buildProgram(): Command {
             if (result.openCodeProject?.warnings.length) {
                 for (const warning of result.openCodeProject.warnings) {
                     console.log(`  ! ${warning}`);
+                }
+            }
+            if (result.openCodeProject) {
+                for (const removed of result.openCodeProject.removed) {
+                    console.log(`    - 清理 orphan：${removed}`);
                 }
             }
             console.log(`  新安装：${result.installed.length} 个`);

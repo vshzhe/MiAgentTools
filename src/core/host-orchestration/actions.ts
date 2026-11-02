@@ -95,7 +95,7 @@ export function renderLoadSkill(host: HostId, mode: OrchestrationMode, action: L
         return `经 V2 \`skill\` 工具加载 \`${id}\``;
     }
     if (host === 'codex') {
-        return `读取 \`${id}\` 的 SKILL.md（Codex 无宿主级技能调用工具，本地执行且不构成委派）`;
+        return `以 \`$${id}\` 引用加载技能 SKILL.md（skills-only，本地执行且不构成委派）`;
     }
     if (mode === 'strict') {
         return `加载 Pi 技能 \`${id}\``;
