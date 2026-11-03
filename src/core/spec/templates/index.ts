@@ -80,15 +80,27 @@ export const TASKS_TEMPLATE = `# Tasks: <change-name>
      [测试] 子标注：层级 [单元]/[功能] + 优先级 [P0]/[P1]/[P2]，形如 \`- [ ] [测试][单元][P0] 1.2 <任务描述>\`
      补充文档类（非 [代码]/[测试]）MUST 含 \`产出:\` 字段指定输出路径 -->
 
+<!-- 追溯引用规范形态（每个任务 MUST 标注，推荐拆成两行）：
+     Spec Ref：<capability> / <Requirement>
+     Scenario Ref：<capability> / <Requirement> / <Scenario>
+     只写 <capability> 不是有效 Spec Ref —— 缺少 Requirement 会被报 spec-ref-missing-requirement，必须补 Requirement 名。
+     等价写法（解析器接受，规范形态仍是上面两行）：一行同时给出两者，用 → 与 Requirement: / Scenario: 标签，
+     例如 HTML 注释式：Spec Ref: <capability> → Requirement: "<Requirement>" → Scenario: "<Scenario>"
+     历史写法（裸 Requirement / Scenario 名）保持兼容，但新任务 MUST 使用规范形态。 -->
+
 ## 1. <任务组名>
 
 - [ ] 1.1 [代码] <任务描述>
   - 文件：\`<file-path>\`
   - 验证：<验证方式>
+  - Spec Ref：<capability> / <Requirement>
+  - Scenario Ref：<capability> / <Requirement> / <Scenario>
 
 - [ ] 1.2 [测试][单元][P0] <测试任务描述>
   - 文件：\`<test-file-path>\`
   - 验证：<验证方式>
+  - Spec Ref：<capability> / <Requirement>
+  - Scenario Ref：<capability> / <Requirement> / <Scenario>
 `;
 
 // ── JSON 模板（JSON-primary 真源示例：change.json 段落 / tasks.json）────

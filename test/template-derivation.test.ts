@@ -181,6 +181,9 @@ describe('模板派生一致性（文档桥 / debug 决策护栏）', () => {
         expect(derived).toContain('文档状态跨阶段传递');
         expect(derived).toContain('skipped-by-user');
         expect(derived).toContain('requirementDocStatus');
+        // 交付桥合并后派生版仍保留合并后的单门表述
+        expect(derived).toContain('交付桥');
+        expect(derived).toContain('实现 + 测试桥');
     });
 
     it('auto-workflow 指令版保留唯一文档桥与测试门护栏', () => {

@@ -109,6 +109,12 @@ export const ORCHESTRATION_DELEGATIONS: Readonly<Record<string, readonly string[
  *
  * `allowedTools` 只承载「委派目标」，不承载参数；参数表 MUST 与模板正文的委派语句
  * 同源同值，未声明的目标 MUST NOT 被填充任何模式参数。
+ *
+ * **门账本通道（变更 improve-delegation-gate-ledger / D6）**：父级确认门后把门承载 id
+ * 写入 handoff 包的 `## 已确认门` 段，被委派方在 `gate-skip` 丢失时据此兜底。账本路径由
+ * change-name 确定性派生（`gateLedgerPath(changeName)` = `.openspec-tmp/pipeline-<change>/handoff-pack.md`），
+ * MUST NOT 作为委派参数键传入 —— 参数表仍只有 `mode` / `gate-skip` 两轴（`auto-mode` 为兼容写法），
+ * `resolveDelegationContract` 的 `KNOWN_PARAMS` MUST NOT 新增账本键。
  */
 export const DELEGATION_PARAMETERS: Readonly<
     Record<string, Readonly<Record<string, Readonly<Record<string, string>>>>>

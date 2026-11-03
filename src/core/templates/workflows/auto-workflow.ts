@@ -96,6 +96,10 @@ Phase 2 的探索文件迁移与全部制品生成 SHALL 委派阶段 \`iagent_s
   - **跳过** → 不生成，状态 \`skipped-by-user\`
   - **状态持久化**：写入变更 \`exploration.md\` 的 \`## 需求文档状态\` 段（字段 \`requirementDocStatus\`，取值仅 \`skipped-by-user\` / \`generation-failed\` / \`generated\`；段缺失即 \`absent\`）。写入失败 → 自动重试同一写入**一次** → 仍失败即停止：MUST NOT 报告已持久化、MUST NOT 委派生成、MUST NOT 进入 Phase 4，输出含目标路径与原因的 WARN + 恢复指引
   - **回执交付**：桥结果同时写入 verify 阶段回执的 \`requirementDocStatus\`（与 \`iagent_workflow\` / \`iagent_debug\` 同一口径）—— 缺失该字段的回执视为无效，MUST NOT 据此推进到 Phase 4
+  - **门账本写入（U4，委派前强制）**：文档桥收束后**立即**把门承载 id \`design-confirmation\` 写入变更级 handoff 包 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\` 的 \`## 已确认门\` 段（Markdown 表格行 \`| design-confirmation | verify |\`；只追加、不改写既有条目），并在**委派前校验该段与条目存在**：
+    - 写入失败或校验失败（工作区不可写 / 文件写入异常 / 段缺失）→ **停止并报告期望路径与原因，MUST NOT 进入 Phase 4、MUST NOT 自动委派**
+    - 账本条目 MUST NOT 超出本阶段回执 \`confirmedGates\` 声明的已确认门；本阶段回执 SHALL 携带 \`confirmedGates: ['design-confirmation']\`
+    - 条目取值 MUST 收敛到 \`GATE_SKIP_IDS\`（门承载语义）—— MUST NOT 写入父级阶段门 id（\`requirement-doc-bridge\` 不在域内，写入即触发 \`invalid-receipt\`）；路径由 change-name 派生，MUST NOT 作为委派参数键传入
   - **验证 FAIL 或深度复查未收束时 MUST NOT 展示该桥、MUST NOT 委派需求文档技能**
 - **自动转入 Phase 4**：需求文档桥收束（生成成功 / 生成失败 / 跳过）后，自动进入 Phase 4（自动实现）—— 不再出现对该阶段技能的调用确认询问
 
@@ -111,6 +115,8 @@ Phase 2 的探索文件迁移与全部制品生成 SHALL 委派阶段 \`iagent_s
 
 **handoff 包（阶段入口）**：Phase 4 起始只读复用 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\`（MUST NOT 重新蒸馏 proposal/specs/design 重产整包）；指纹不一致 → 重建并记 WARN；收尾时只向 \`## 阶段结论\` 追加一行（phase=apply）；MUST NOT 另立包格式。
 
+**门账本校验（委派前强制）**：委派前校验该包的 \`## 已确认门\` 段与 \`design-confirmation\` 条目存在（Phase 3 文档桥收束时已写入）。\`gate-skip\` 是**主通道**（权威），账本是参数丢失时的**兜底**：两者皆缺 → 被委派 apply 的设计确认门照常触发，MUST NOT 报告为「全自动无停顿」；账本写入 / 校验失败 → 停止并报告期望路径与原因，MUST NOT 继续自动委派。账本条目 MUST NOT 超出回执 \`confirmedGates\`（上游真源），不一致视为未确认并记 WARN。
+
 ### 4.1 自动执行实现
 
 验证通过（≥90%）、深度复查收束且需求文档桥收束后：
@@ -119,6 +125,7 @@ Phase 2 的探索文件迁移与全部制品生成 SHALL 委派阶段 \`iagent_s
 - 构造实现上下文，包含：
   - \`${renderGateSkipOption(GATE_SKIP_IDS)}\` —— 门承载参数，跳过设计确认门（与 iagent_spec_apply 一致：Input 传该参数后跳过 Step 5.5 确认门，直接进入 Step 6 批次调度；\`${LEGACY_AUTO_MODE_PARAM}=true\` 为兼容等价写法）
   - \`change-name\` —— 来自工作流上下文的当前变更名
+  - **门账本** —— 委派前已校验 handoff 包 \`## 已确认门\` 含 \`design-confirmation\`（兜底通道；\`gate-skip\` 为主通道），阶段回执携带 \`confirmedGates: ['design-confirmation']\`
 - **委派阶段**：以 \`${renderGateSkipOption(GATE_SKIP_IDS)}\` + \`change-name\` 调用 \`iagent_spec_apply\` skill；被委派技能完整承载 apply 协议
   - **handoff 包** —— 唯一必读制品 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\`（六节 + 可选 \`## 阶段结论\`），一次性产出、跨阶段只读复用、逐批追加
   - **产出登记表** —— 包内 \`## 已产出（跨单元可见）\` 段，由协调器在每批之后追加
@@ -217,7 +224,7 @@ Phase 4 继承 \`iagent_spec_apply\` 的**测试执行门**并**自动**通过 �
 - **继承并自动通过测试执行门** —— Phase 4 执行 iagent_spec_apply §9 且仅限变更范围内；范围内失败自动重试至多 3 次，随后暂停并报告；既有的变更范围外失败仅 WARN；项目无测试框架 → WARN 并跳过
 - **测试门失败时不得静默通过** —— 范围内的测试门失败 MUST 在归档前暂停；全自动语义绝不构成跳过该门或跳过归档阻断的理由
 - **深度复查后收束** —— 全部通过后调用 \`iagent_proposal_review\` 做深度复查（不可用则内联深度复查 + WARN），随后展示**一次**需求文档"生成 / 跳过"桥（生成 → 直接非交互委派 \`iagent_requirement_doc\`，失败记 \`generation-failed\` + WARN 并继续；跳过 → 记 \`skipped-by-user\`），再自动转入 Phase 4
-- **文档桥是本阶段唯一阻塞门** —— 验证阶段仅有该桥 1 个流程级阻塞门；桥后 MUST NOT 追加对下一阶段技能的调用确认（宿主权限与 strict/degraded 检查仍独立生效）
+- **文档桥是本阶段唯一阻塞门** —— 验证阶段仅有该桥 1 个流程级阻塞门；桥后 MUST NOT 追加对下一阶段技能的调用确认（宿主权限与 strict/degraded 检查仍独立生效）；本链 MUST NOT 复用 \`iagent_workflow\` 的「交付桥合并」语义（文档桥保留为独立门，MUST NOT 新增阻塞门），门账本只是把「桥已确认」传到 apply 的通道
 - **FAIL 不出文档桥** —— 验证 FAIL 或深度复查未收束时 MUST NOT 展示生成/跳过桥、MUST NOT 委派需求文档技能
 - **文档状态持久化** —— 桥结果写入变更 \`exploration.md\` 的 \`## 需求文档状态\` 段（\`requirementDocStatus\`）；写入失败重试一次仍失败即停止（不委派生成、不进入 Phase 4、不伪报持久化），并输出 WARN + 恢复指引
 - **MUST 先建探索文件再追问** —— Phase 1 检查点为强制

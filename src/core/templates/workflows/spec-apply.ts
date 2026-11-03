@@ -22,15 +22,16 @@ const BATCH_SCHEDULING_FULL = `6. **实现任务（批调度循环，直至完�
    - **头部固定元信息**：\`change: <name>\` / \`producedBy: propose|apply\` / \`producedAt: <ISO>\` / \`sourceFingerprint: <hash>\`
    - **指纹校验**：阶段入口比对当前制品（proposal / design / specs / tasks）的内容指纹；与 \`sourceFingerprint\` 不一致 → 重建整包并记 WARN，MUST NOT 静默沿用陈旧包
    - handoff 包是子代理**唯一**必读的制品：每个子代理只读该包（+ 自己单元的任务清单），变更目录中的其他内容一律不读
-   - 包内章节固定为六节 + 可选 \`## 阶段结论\`（顺序如下）：
+   - 包内章节固定为六节 + \`## 已确认门\`（门账本，**与六节并列、不计入六节**）+ 可选 \`## 阶段结论\`（六节顺序如下）：
      - \`## 变更摘要\` — 从 proposal.md 蒸馏出的变更要点（why/whatChanges）：本变更做什么、为什么
      - \`## 契约\` — 从 specs + design 蒸馏出的接口签名 / 数据结构 / 表字段
      - \`## 规范要点\` — 编排器一次性蒸馏出的 \`.iagent/rules/coding-rules.md\` 关键护栏（绝不由各子代理分别蒸馏）
      - \`## 文件归属表\` — 派发单元 → 该单元允许修改的文件
      - \`## Codebase 摘要\` — 预扫描 / 探查摘要结论（分层 / 依赖事实，否则子代理需重新推导）
      - \`## 已产出（跨单元可见）\` — 产出登记表：已产出文件 + 公开签名，每批结束后追加
+     - \`## 已确认门\`（门账本；**不是第七个内容节**，不改变六节语义与相对顺序）— 每行一个已确认门：Markdown 表格行 \`| <门承载 id> | <确认阶段> |\`（表头 \`| 门 id | 确认阶段 |\` 与分隔行 \`| --- | --- |\` 由解析侧跳过）。门 id 值域收敛到 \`GATE_SKIP_IDS\`（当前仅 \`design-confirmation\`），条目只表达「该门已由父级承载」，MUST NOT 记录业务决策正文、MUST NOT 写入父级阶段门 id；父级在门确认后立即写、委派前校验存在，本技能（及 verify / archive）**只读**该段，MUST NOT 改写既有条目
      - \`## 阶段结论\`（可选，**只追加不改写**）— 每阶段一条，四列：\`phase\` / \`status\` / \`artifact\` / \`nextAllowed\`
-   - 产出后编排器 MUST NOT 重产整包 —— 只允许向 \`## 已产出（跨单元可见）\` 与 \`## 阶段结论\` **追加**内容（见批后步骤）
+   - 产出后编排器 MUST NOT 重产整包 —— 只允许向 \`## 已产出（跨单元可见）\`、\`## 已确认门\`（仅追加新条目，MUST NOT 改写父级既有条目）与 \`## 阶段结论\` **追加**内容（见批后步骤）
 
    **派发前加载并发上限：**
    - 从 \`openspec/config.yaml\` 读取 \`apply.concurrency\`（正整数）
@@ -306,13 +307,15 @@ ${renderDelegationModeContract()}
    \`\`\`
    解析 JSON 以了解：
    - \`schemaName\`：正在使用的工作流（如 "spec-driven"）
-   - \`planningHome\`、\`changeRoot\` 与 \`actionContext\`：规划范围与编辑约束
+   - \`planningHome\`、\`changeRoot\` 与 \`artifactPaths\`：规划范围与编辑约束（编辑范围即 \`changeRoot\`；路径 MUST 取自 CLI 字段，不得自行拼接）
    - \`progress\`：任务总数、已完成数、剩余数
    - 哪个制品承载任务（spec-driven 通常为 "tasks"，其他类型以状态输出为准）
 
-   **工作区护栏：** 若状态 JSON **报告** \`actionContext.mode: "workspace-planning"\`（字段存在且为该值）时，说明本切片不支持完整工作区 apply —— 把关联仓库与目录视为只读上下文，请用户通过显式实现工作流选择受影响区域，并在编辑文件前 STOP。\`actionContext\` / \`allowedEditRoots\` **均非必需字段**（\`getChangeStatus\` 不返回它们）：字段缺失时按 \`changeRoot\` / \`contextFiles\` 继续并记 WARN，MUST NOT 因此把变更判为不可实现。
-
    **跳过制品（skipped）处理：** 若状态报告某制品为 \`skipped\`（变更声明了 \`skip_specs\`），不要把它当作缺失 —— 其依赖视为已满足，其余制品照常实现。此类制品不会在 Step 3 返回的 \`instruction\` 状态中被标为未完成。
+
+   **范围字段非必需：** \`allowedEditRoots\` 等范围扩展字段**均非必需字段**（\`getChangeStatus\` 不返回它们）：字段缺失时按 \`changeRoot\` / \`contextFiles\` 继续并记 WARN，MUST NOT 因此把变更判为不可实现。
+
+   **可选制品（optional）处理：** \`design\` 状态为 \`optional\` 表示未创建且不阻塞实现，MUST NOT 因其缺失把调度判为 blocked，也 MUST NOT 为补足状态而临时创建 design.md。
 
 3. **获取任务清单与上下文文件**
 
@@ -365,7 +368,13 @@ ${renderDelegationModeContract()}
 
    读完上下文文件后、实现任何任务前，先构建统一并发批计划、展示设计方案摘要，并等待用户确认：
 
-   **门承载参数检查**：若 apply 以 \`${renderGateSkipOption(GATE_SKIP_IDS)}\` 调用（兼容写法 \`${LEGACY_AUTO_MODE_PARAM}=true\`；来自 workflow / auto-workflow 自动 apply 上下文），跳过整个 Step 5.5 确认门 —— 直接进入 Step 6（批调度）。批计划仍在内部构建用于执行，但不向用户展示。该参数**仅**作用于本门，其余门与停点照常生效。
+   **门承载参数检查（三级降级链，顺序强制 —— 主通道 → 兜底 → 门照常执行）**：
+
+   1. **主通道 \`${renderGateSkipOption(GATE_SKIP_IDS)}\`（权威）**：若 apply 以 \`${renderGateSkipOption(GATE_SKIP_IDS)}\` 调用（兼容写法 \`${LEGACY_AUTO_MODE_PARAM}=true\`；来自 workflow / auto-workflow 自动 apply 上下文），跳过整个 Step 5.5 确认门 —— 直接进入 Step 6（批调度）。批计划仍在内部构建用于执行，但不向用户展示。该参数**仅**作用于本门，其余门与停点照常生效。主通道存在时 MUST NOT 读取账本作覆盖（\`gate-skip\` 是唯一权威）。
+   2. **兜底通道 —— 门账本**：未传 \`gate-skip\` 时，只读变更级 handoff 包（\`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\`，路径用 \`path.join()\` 构造，MUST NOT 作为委派参数传入）的 \`## 已确认门\` 段。段内声明 \`design-confirmation\` 且与父级阶段回执的 \`confirmedGates\` 一致 → 跳过 Step 5.5 并记 WARN「使用了门账本兜底通道」（否则无法区分「参数生效」与「账本兜底」）。账本条目 MUST NOT 超出回执声明的已确认门：**不一致 / 条目过期（伪造、人工改写）→ 记 WARN 并视为未确认**，回到第 3 级。
+   3. **两者皆缺 —— 门照常执行（fail-safe）**：既无 \`gate-skip\` 也无账本条目（段缺失 / 段内无该门）时，Step 5.5 MUST 照常执行并等待用户显式确认；MUST NOT 静默跳过、MUST NOT 以「父流程不会重复确认」推断为已确认。
+
+   **门账本只表达门承载语义**：条目取值域收敛到 \`GATE_SKIP_IDS\`（当前仅 \`design-confirmation\`），MUST NOT 写入父级阶段门 id（\`implementation-bridge\` / \`requirement-doc-bridge\` 不在域内，写入即触发 \`invalid-receipt\`）；解析跳过表头行与分隔行、剥离首尾 \`|\`，未知门 id 忽略 + WARN；账本段缺失**不产生 WARN**（无账本属合法 fail-safe 状态）。本技能只读账本，MUST NOT 改写父级已写入的条目，只允许向 \`## 阶段结论\` 追加行。
 
    **先构建统一并发批计划：**
    - iagent CLI 不返回 \`batchPlan\` —— 需从 design.md 推断所有任务的依赖（架构分层、模块依赖）；无依赖标注的任务视为同组内相互独立
@@ -410,8 +419,8 @@ ${renderDelegationModeContract()}
 
    - 若用户回复 **"确认"**：一次确认覆盖**全部**批 —— 进入 Step 6 开始批调度
    - 若用户回复 **"修改设计"** 或 **"取消"**：STOP 并等待设计更新（不实现任何任务）
-   - **门承载参数覆盖**：\`${renderGateSkipOption(GATE_SKIP_IDS)}\`（兼容写法 \`${LEGACY_AUTO_MODE_PARAM}=true\`）时整道门被跳过 —— 不展示蓝图，直接进入 Step 6。未设置该参数或其为 false 时**不能**跳过本门。
-   - 本门**不能**跳过 —— 未经显式确认不得继续（除非门承载参数生效）
+   - **门承载参数覆盖**：\`${renderGateSkipOption(GATE_SKIP_IDS)}\`（兼容写法 \`${LEGACY_AUTO_MODE_PARAM}=true\`）时整道门被跳过 —— 不展示蓝图，直接进入 Step 6。未设置该参数或其为 false 时**不能**跳过本门（唯一例外：Step 5.5 第 2 级的账本兜底通道命中 —— 段内声明 \`design-confirmation\` 且与回执 \`confirmedGates\` 一致 → 跳过并记 WARN「使用了门账本兜底通道」；不一致 / 过期 → 视为未确认，本门照常执行）。
+   - 本门**不能**跳过 —— 未经显式确认不得继续（除非主通道参数或账本兜底通道生效）
 
    **临时工作区协议（流程级，由主代理管理）：**
    - 用户确认设计后（或门承载参数生效时）、派发任何批**之前**，创建流程级临时工作区 —— **优先项目内**：项目根下的 \`.openspec-tmp/pipeline-<change-name>/\`（路径用 path.join 构建以保证跨平台）。若项目 \`.gitignore\` 中尚无 \`.openspec-tmp/\` 条目则补上，使该工作区不会污染 git status；清理后保留该条目供后续运行使用。若项目根不可写，降级到系统临时目录 \`iagent-pipeline-<change-name>/\` 并记录 WARN 说明降级位置

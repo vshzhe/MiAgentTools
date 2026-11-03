@@ -7,7 +7,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { SPEC_DRIVEN_SCHEMA } from './schema.js';
+import { SPEC_DRIVEN_SCHEMA, isOptionalArtifact } from './schema.js';
 import { detectCompleted, parseTaskProgress } from './status.js';
 
 /** 归档预览信息（无 --yes 时的展示内容） */
@@ -42,7 +42,10 @@ export function previewArchive(projectRoot: string, changeName: string): Archive
     }
     const warnings: string[] = [];
     const completed = detectCompleted(changeRoot);
-    const artifactsIncomplete = SPEC_DRIVEN_SCHEMA.artifacts.filter((a) => !completed.has(a.id)).map((a) => a.id);
+    // 可选制品（`design?`）缺失不构成「未完成」，否则无 design 的变更归档时会被误报
+    const artifactsIncomplete = SPEC_DRIVEN_SCHEMA.artifacts
+        .filter((a) => !isOptionalArtifact(a.id) && !completed.has(a.id))
+        .map((a) => a.id);
     if (artifactsIncomplete.length > 0) {
         warnings.push(`存在未完成的规划制品：${artifactsIncomplete.join(' / ')}`);
     }

@@ -114,7 +114,7 @@ iagent spec status --json
 
 1. **定位并读取既有制品作为上下文**
    - 运行 `iagent spec status --change "<name>" --json`。
-   - 使用状态 JSON 中的 `changeRoot`、`artifactPaths` 与 `actionContext`。
+   - 使用状态 JSON 中的 `changeRoot` 与 `artifactPaths`（路径 MUST 取自 CLI 字段，不得臆断或自行拼接）。
    - 从 `artifactPaths.<artifact>.existingOutputPaths` 读取既有文件。
 
 2. **在对话中自然地引用它们**

@@ -7,6 +7,83 @@
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-11-03
+
+### Fixed
+
+- **`iagent version bump` 的同名选项被父命令吞掉**：`--level` / `--from` / `--json` 同时定义在
+  `version` 与 `version bump` 上，Commander 把子命令名之后的同名选项解析到父命令，导致
+  `version bump --level minor` 静默退化为自动判定、`--json` 也不生效。现由 `bump` 的 action
+  显式合并父级 opts（子级优先），并补 3 条 CLI 回归用例（`--level` / `--from` / 父命令未回归）。
+- **`ARCHIVE-INDEX.md` 两条归档记录错位**：`improve-template-dual-layer-optimization`（2026-10-10）
+  与 `improve-artifact-full-json-primary`（2026-10-12）曾被追加在「模块统计」之后形成孤立表块，
+  现移入归档变更列表的时间序位置，孤立块删除。
+- **`workflow-suite-skills` 规范场景重名**：`白名单无幽灵条目` 在两个 Requirement 下同名，
+  后者改名为 `白名单无幽灵条目（auto-workflow 委派授权）`，消除场景名冲突。
+- **handoff 包 `sourceFingerprint` 派生规则缺失**：`iagent_spec_propose` 的 5.5 节现显式声明
+  唯一派生算法（排序后的 `<相对路径>:<sha256>` 连接串再取 sha256 前 16 字符）与参考实现命令，
+  消费方据此可确定性复算，避免每阶段无据 WARN。
+
+### Added
+
+- **门账本（gate ledger）与阶段回执确认门字段**：新增 `src/core/host-orchestration/gate-ledger.ts`
+  （`gateLedgerPath` 确定性派生 `.openspec-tmp/pipeline-<change>/handoff-pack.md`、`parseGateLedger`
+  跳过表头/分隔行、`renderGateLedgerEntry` 拒绝父级阶段门 id、`resolveGateLedgerConfirmation`
+  以回执为上游真源）；`Receipt.confirmedGates` 为可选字段（**不进入** `DEFAULT_RECEIPT_FIELDS`，
+  缺失即无账本、门照常触发），`validateReceipt` 校验其形状与取值域（`GATE_SKIP_IDS`），
+  非法即 `invalid-receipt` 阻断推进。
+- handoff 包新增并列段 `## 已确认门`（不计入六节、不改变 `## 阶段结论` 只追加语义），
+  spec-apply / spec-verify / spec-archive 只读复用。
+- **`iagent spec validate` 起草期模式**：新增 `--partial`（缺失制品记 `incomplete` 而非 `error`，
+  支持 specs / design / tasks 并行起草）与 `--artifact <id>`（单制品校验；未知 id 返回
+  `valid:false` 并列出合法 id、退出码 1）；strict 模式保留全量终检语义，新增 `missing-specs`
+  诊断并**带 `skip_specs` 豁免**（与既有 `missing-design` 同口径）。
+- **Spec Ref 多形态解析**：`tasks.md` 的 `Spec Ref` / `Scenario Ref` 规范形态为
+  `capability / Requirement` 与 `capability / Requirement / Scenario`，解析器同时兼容
+  `- 字段：` 行式、`<!-- 字段: ... -->` HTML 注释式、`→` 箭头 + `Requirement:` / `Scenario:`
+  标签与一行双引用；`TASKS_TEMPLATE` 补规范示例。
+- **CLI JSON 契约补齐**：`instructions apply --json` 与 `status --json` 返回
+  `planningHome` / `artifactPaths`，并新增 `artifacts` / `applyRequires` / `isPlanningComplete`；
+  `instructions <id>.resolvedOutputPath` 的 specs 路径改为**可直接写入的目录**（不再是 glob 字面量）。
+- **追溯诊断细分**：新增 `spec-ref-missing-requirement`（含「缺少 Requirement」提示）/
+  `scenario-ref-missing-scenario` / `pending-ref`（`--partial` 且 specs 未完成时降级为 warning）。
+
+### Changed
+
+- **workflow 交付桥合并**：原 Phase 3.5 需求文档桥并入「实现 + 测试桥」，一次呈现「提案摘要 +
+  验证评分 + 深度复查结论 + 实现方案 + 测试计划预告 + 是否生成需求文档」，五出口为
+  确认（实现 + 生成文档）/ 确认（仅实现）/ **仅生成文档（停在规划边界）** / 修改 / 拒绝；
+  `WORKFLOW_PROTOCOLS.workflow` 的 VERIFY 退回无门（文档选项由 APPLY 的 `implementation-bridge`
+  承载），`requirement-doc-bridge` 锚点与 `PHASE_GATE_CATEGORY` 保留给 auto-workflow / debug，
+  5 类白名单与锚点集合逐字不变。
+- **auto-workflow 保留文档桥为唯一门并接账本**：桥收束后写 `design-confirmation`、
+  委派前校验存在，`gate-skip` 主通道 + 账本兜底，两者皆缺时设计门照常触发。
+- **spec-apply 门承载三级降级链**：`gate-skip`（主通道，权威）→ handoff 包门账本（兜底，
+  记 WARN「使用了门账本兜底通道」）→ 两者皆缺时 Step 5.5 照常执行；账本与回执不一致视为未确认。
+- `APPLY_PHASE.handoff` 新增 `confirmedGates`；`DELEGATION_PARAMETERS` 仅加注释声明账本通道
+  （MUST NOT 新增第三参数键）
+- **`design` 改为可选制品**：`tasks.requires` 由 `['specs','design']` 改为 `['specs','design?']`，
+  `design` 仅在存在时校验、不参与 `isPlanningComplete` 与必需闭包；`getBuildOrder` 只按必需依赖
+  排序，`missingDeps` 只含必需依赖，`previewArchive` 排除可选制品。
+- **spec-propose 起草循环收敛**：改由 `instructions apply` 初检 → 每制品 `instructions <id>` →
+  `instructions apply` 终检驱动，去除独立 `status --json` 调用与每制品重复调用。
+- **模板路径字段去耦**：删除 6 个模板中不存在的 `actionContext` 引用（含 workspace 范围
+  IMPORTANT 句），`grep -rn actionContext src/` 归零；修正 `formatValidationResult` 的字面
+  `\n`，文本校验报告正确换行。
+- **debug 双轨入口与门合并（D7 / D6 / U7 / U9）**：Phase 1 新增**复现契约** ——
+  `reproductionStatus`（`reproduced` / `not-reproduced` / `intermittent` / `static-only`）与
+  `evidenceType`（`failing-test` / `manual-steps` / `log-trace` / `static-proof` / `review-finding`）；
+  **复现优先仍是默认轨道**（「复现步骤 Repro」维与 `reproductionStatus` 联合判定，无法判定 → 复现优先），
+  证据优先仅在无复现条件且具备 `文件:行` / 日志 / 测试硬证据时启用（`intermittent` 须 ≥ 1 条可重复证据），
+  两轨均无硬证据时只报告候选、不修复；变更归属判定**前移**到 2.4 之前，2.4 扩为「诊断 + 方案」
+  **单次确认包**，4.0 降级为**回退路径**条件门（仅多方案触发），概览「每次修复后询问」降级为
+  **非阻塞提示**（N35 自造门），Guardrails 三行按双轨 / 合并包口径改写
+- **debug 门合并的协议与规范同步**：`DEBUG_INVESTIGATE.handoff` 追加 `fixDecision`（既有四项顺序不变），
+  `DEBUG_FIX` 门声明与 `protocol.ts` 的 `GATE_WHITELIST` / `GATE_WHITELIST_ANCHORS` /
+  `PHASE_GATE_CATEGORY` **零改动**（5 类白名单与锚点集合逐字不变）；同步 `workflow-suite-skills` 的
+  「debug 强制复现与根因确认门」（20 Scenario）与「debug 修复方案确认与回归测试职责」（9 Scenario）
+  及 `host-orchestration` 的「debug host protocol 拆分 fix 与 verify-close」（9 Scenario）。
+
 ## [3.2.0] - 2026-11-02
 
 ### Added
@@ -1545,7 +1622,8 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v3.2.0...HEAD
+[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v3.3.0...HEAD
+[3.3.0]: https://github.com/vshzhe/MiAgentTools/compare/v3.2.0...v3.3.0
 [3.2.0]: https://github.com/vshzhe/MiAgentTools/compare/v3.1.0...v3.2.0
 [3.1.0]: https://github.com/vshzhe/MiAgentTools/compare/v3.0.0...v3.1.0
 [2.0.0]: https://github.com/mi-agent-tools/compare/v1.0.2...v2.0.0

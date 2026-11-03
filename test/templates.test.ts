@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { fileURLToPath } from 'node:url';
 import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { getSkillTemplates, getCommandTemplates, deriveCommandId, countSkillsByType } from '../src/core/templates/index.js';
 import { SKILL_PREFIX, SKILL_TYPE_IDS, isSkillType } from '../src/core/config.js';
 import {
@@ -300,6 +301,19 @@ describe('文档桥单一确认面（4.1）', () => {
         }
     });
 
+    it('workflow 交付桥合并：文档选项并入实现桥，无第二次文档停点', () => {
+        const body = skillCorpus('iagent_workflow');
+        expect(body).toContain('交付桥');
+        expect(body).toContain('实现 + 测试桥');
+        expect(body).toContain('单次业务桥');
+        expect(body).toContain('是否生成需求文档');
+        expect(body).toContain('仅生成文档');
+        // 旧的两段式停点已消失（验证阶段不再单独停一次文档桥）
+        expect(body).not.toContain('收束 —— 需求文档桥（⚠️ 单次业务桥，强制）');
+        // 拒绝回退范围在同一门内显式
+        expect(body).toContain('拒绝（记录未确认状态并停止，不进入实现）');
+    });
+
     it('debug 的文档桥是唯一文档确认面（不重复询问是否调用技能）', () => {
         const body = allSkills.find((s) => s.template.name === 'iagent_debug')?.template.instructions ?? '';
         expect(body).toContain('debug 唯一的文档确认面');
@@ -321,11 +335,37 @@ describe('debug 决策与回归测试职责（4.3）', () => {
     const debug = skillCorpus('iagent_debug');
     const debugMain = allSkills.find((s) => s.template.name === 'iagent_debug')?.template.instructions ?? '';
 
-    it('输入校验与复现闸门：不可复现不得修改代码', () => {
-        expect(debugMain).toContain('在修改任何代码之前必须复现该 bug');
-        expect(debugMain).toContain('无法建立复现时');
-        expect(debugMain).toContain('MUST NOT 在假设下修复一个不可复现的 bug');
+    it('双轨入口：复现契约四状态五证据类型，默认复现优先', () => {
+        // 复现契约字段与取值（D7 / U3）
+        expect(debugMain).toContain('reproductionStatus');
+        for (const status of ['`reproduced`', '`not-reproduced`', '`intermittent`', '`static-only`']) {
+            expect(debugMain, `复现状态缺失：${status}`).toContain(status);
+        }
+        expect(debugMain).toContain(
+            '`failing-test` / `manual-steps` / `log-trace` / `static-proof` / `review-finding`'
+        );
+        // 默认轨道与联合判定
+        expect(debugMain).toContain('默认轨道 = 复现优先');
+        expect(debugMain).toContain('无法判定时默认复现优先');
         expect(debugMain).toContain('复现确认之前不应用任何修复');
+        // 旧的无条件「不可复现一律停止」口径已被证据门槛取代（双轨落地后互斥）
+        expect(debugMain).not.toContain('在修改任何代码之前必须复现该 bug');
+        expect(debugMain).not.toContain('MUST NOT 在假设下修复一个不可复现的 bug');
+    });
+
+    it('证据优先轨道仅在无复现条件时启用，且须满足证据门槛', () => {
+        expect(debugMain).toContain('### 1.3 证据优先轨道（仅在无复现条件时启用）');
+        expect(debugMain).toContain('仅在无复现条件时启用');
+        expect(debugMain).toContain('`文件:行`');
+        expect(debugMain).toContain('至少一条**可重复**的证据');
+        expect(debugMain).toContain('MUST NOT 凭单次偶然现象进入修复');
+    });
+
+    it('无证据时只报告候选并停止，且与非缺陷退出语义区分', () => {
+        expect(debugMain).toContain('只报告**候选根因 / 候选缺陷**');
+        expect(debugMain).toContain('MUST NOT 修改代码');
+        expect(debugMain).toContain('不凭假设修复');
+        expect(debugMain).toContain('与 1.3 证据不足出口的区别');
     });
 
     it('非缺陷分支：输出诊断报告且不新建变更、不修改代码', () => {
@@ -340,21 +380,41 @@ describe('debug 决策与回归测试职责（4.3）', () => {
         expect(debug).toContain('MUST NOT 作为跳过 CodeGraph 的捷径');
     });
 
-    it('诊断确认包合并根因与链路并只确认一次，拒绝即终止修复', () => {
-        expect(debugMain).toContain('根因与缺陷链路诊断确认包');
+    it('2.4 是「诊断 + 方案」单包：一次确认同时确认根因与方案，拒绝即终止修复', () => {
+        expect(debugMain).toContain('### 2.4 根因与修复方案诊断确认包');
+        expect(debugMain).toContain('「诊断 + 方案」单一确认包');
         expect(debugMain).toContain('**同一个**确认包中一次呈现，等待**一次**确认');
+        expect(debugMain).toContain('MUST NOT 再停一次方案确认门');
+        // 包内必备四部分：根因证据 / 缺陷链路 / 修复方案 / 变更归属
+        expect(debugMain).toContain('**修复方案**（唯一方案须给出唯一性证据');
+        expect(debugMain).toContain('`changeName` + `affectedSymbols`');
         expect(debugMain).toContain('| 拒绝 | **终止修复**并输出诊断报告');
         expect(debugMain).toContain('MUST NOT 自动按推断继续、MUST NOT 标记可归档');
     });
 
-    it('多候选根因先选根因再确认链路，未完成前不改代码', () => {
+    it('Phase 3 变更归属前移到 2.4 之前（顺序回归锁）', () => {
+        const association = debugMain.indexOf('### 2.3.5 变更归属判定');
+        const pkg = debugMain.indexOf('### 2.4 根因与修复方案诊断确认包');
+        expect(association).toBeGreaterThan(-1);
+        expect(pkg).toBeGreaterThan(association);
+        // 3.6 收束（产出 changeName / affectedSymbols / fixDecision）整体在 2.4 之前
+        expect(debugMain.indexOf('#### 3.6 变更归属收束')).toBeLessThan(pkg);
+        // 回退条件原句
+        expect(debugMain).toContain('多变更候选');
+        expect(debugMain).toContain('归档来源追溯');
+        expect(debugMain).toContain('范围待定');
+        expect(debugMain).toContain('仅在存在多个可行方案时');
+    });
+
+    it('多候选根因先选根因，再在同一包内确认链路与方案', () => {
         expect(debugMain).toContain('先 STOP，呈现候选清单');
-        expect(debugMain).toContain('选定后再呈现据此生成的缺陷链路确认包');
+        expect(debugMain).toContain('同一**确认包内呈现据此生成的缺陷链路与修复方案');
         expect(debugMain).toContain('未完成前 MUST NOT 修改任何代码');
     });
 
-    it('多方案阻塞、唯一证据方案直通，DB/schema 确认保留', () => {
-        expect(debugMain).toContain('4.0 可行修复方案数量判定');
+    it('合并包已含方案时不停 4.0；回退路径下多方案阻塞、唯一证据方案直通', () => {
+        expect(debugMain).toContain('### 4.0 可行修复方案数量判定（回退路径条件门）');
+        expect(debugMain).toContain('仅在**回退路径**下生效，且仅存在多个可行方案时触发');
         expect(debugMain).toContain('修复方案确认门（强制停止）');
         expect(debugMain).toContain('说明唯一性依据后**直通实现**');
         expect(debugMain).toContain('唯一性证据不足');
@@ -387,6 +447,44 @@ describe('debug 决策与回归测试职责（4.3）', () => {
         expect(debugMain).toContain('重跑仍失败时');
         expect(debugMain).toContain('没有跳过直接实现的路径');
         expect(debugMain).toContain('[1] 手动编辑，[2] 返回探索，[3] 查看详细差异报告');
+    });
+
+    it('N35 自造门：概览为非阻塞提示，正文无该停点', () => {
+        // 概览第 5 条降级为非阻塞提示
+        expect(debugMain).toContain('非阻塞提示，不构成确认门');
+        expect(debugMain).not.toContain('每次修复后询问用户是否还有相关 bug');
+        // 正文收束小节显式声明非门
+        expect(debugMain).toContain('### 4.3 修复后收束（调试循环的非阻塞出口）');
+        expect(debugMain).toContain('不构成确认门');
+        expect(debugMain).toContain('MUST NOT 作为停点');
+        // Guardrails 禁止声明白名单外确认门
+        expect(debugMain).toContain('MUST NOT 声明门白名单之外的确认门');
+    });
+
+    it('证据优先轨道的回归测试为 characterization test', () => {
+        expect(debugMain).toContain('characterization test');
+        expect(debugMain).toContain('无法建立可执行断言时');
+        // 两轨共用分级（分级在证据优先轨道不得跳过）
+        expect(debug).toContain('两轨同等生效');
+        expect(debug).toContain('MUST NOT 改变分级信号、路径选择或排查步骤');
+    });
+
+    it('Guardrails 与双轨 / 合并包口径一致（P0 护栏改写）', () => {
+        // 不再含无条件「没有确认的复现就不修复」
+        expect(debugMain).not.toContain('没有确认的复现（失败测试或用户确认的步骤）就不修复');
+        expect(debugMain).toContain('**默认复现优先、证据优先须硬证据（双轨）**');
+        expect(debugMain).toContain('MUST NOT 凭假设修复');
+        // 4.0 阻塞仅限回退路径 + 多方案
+        expect(debugMain).not.toContain('4.0 的修复方案确认门 MUST 阻塞并等待用户确认');
+        expect(debugMain).toContain('**方案在 2.4 合并包内一次确认**');
+        expect(debugMain).toContain('4.0 的修复方案确认门才 MUST 阻塞并等待用户确认');
+        // 唯一方案证据的生效位置为 2.4 合并包
+        expect(debugMain).toContain('**唯一方案需证据（生效位置为 2.4 合并包）**');
+        expect(debugMain).toContain('唯一性证据 MUST 随 2.4 合并包一并呈现');
+        // 未在本次范围内改动的护栏仍在（零猜测 / 归档只读 / 循环出口）
+        expect(debugMain).toContain('- **零猜测**：多个候选根因 → STOP 并让用户选择；绝不猜测');
+        expect(debugMain).toContain('- **归档只读**：MUST NOT 修改 `openspec/changes/archive/`');
+        expect(debugMain).toContain('- **循环退出保留已完成工作**');
     });
 });
 
@@ -1200,5 +1298,131 @@ describe('7.7 归档步骤序（探索记忆同步 → 需求文档只读报告 
         // 两个检查点都显式声明「移动变更目录前」完成（顺序约束的正文依据）
         expect(body).toContain('系统 MUST 在移动变更目录前完成探索记忆同步');
         expect(body).toContain('系统 MUST 在移动变更目录前完成需求文档只读报告');
+    });
+});
+
+// ── improve-proposal-validation-and-spec-ref：D3 追溯规范形态 / D9a 起草循环 / D9b 路径字段 ──
+describe('提案链路契约：D3 规范形态与 D9b 路径字段', () => {
+    /** 取技能正文（缺失即失败，避免静默跳过） */
+    function bodyOf(commandId: string): string {
+        const entry = allSkills.find((item) => item.commandId === commandId);
+        expect(entry, `技能模板缺失：${commandId}`).toBeDefined();
+        return entry!.template.instructions;
+    }
+
+    it('spec-propose 起草循环以 instructions apply 初检与终检，无独立 status --json', () => {
+        const body = bodyOf('spec-propose');
+        expect(body).not.toContain('iagent spec status --change "<name>" --json');
+        expect(body).toContain('iagent spec instructions apply --change "<name>" --json');
+        expect(body).toContain('初检');
+        expect(body).toContain('strict 终检');
+        expect(body).toContain('--partial');
+    });
+
+    it('spec-propose 允许并行起草且声明 design 可选', () => {
+        const body = bodyOf('spec-propose');
+        expect(body).toContain('可并行起草');
+        expect(body).toContain('design 可选');
+        expect(body).toContain('optional');
+    });
+
+    it('spec-propose 路径字段来自 CLI（changeRoot / planningHome / artifactPaths / resolvedOutputPath）', () => {
+        const body = bodyOf('spec-propose');
+        for (const field of ['changeRoot', 'planningHome', 'artifactPaths', 'resolvedOutputPath']) {
+            expect(body, `缺少路径字段 ${field}`).toContain(field);
+        }
+        expect(body).not.toContain('actionContext');
+    });
+
+    it('src 内 actionContext 已彻底清除（含 workspace 护栏句）', () => {
+        const offenders: string[] = [];
+        const walk = (dir: string): void => {
+            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                const entryPath = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    walk(entryPath);
+                } else if (entry.isFile() && entry.name.endsWith('.ts')) {
+                    if (fs.readFileSync(entryPath, 'utf8').includes('actionContext')) {
+                        offenders.push(path.relative(process.cwd(), entryPath));
+                    }
+                }
+            }
+        };
+        walk(path.join(process.cwd(), 'src'));
+        expect(offenders).toEqual([]);
+    });
+
+    it('spec-verify-proposal 的 D3 声明规范形态与 capability-only 反例', () => {
+        const body = bodyOf('spec-verify-proposal');
+        expect(body).toContain('Spec Ref = <capability> / <Requirement>');
+        expect(body).toContain('Scenario Ref = <capability> / <Requirement> / <Scenario>');
+        expect(body).toContain('缺少 Requirement');
+        expect(body).toContain('不计覆盖');
+        // 不再把维度定义散落到其它技能（唯一真源）
+        expect(body).toContain('唯一真源');
+    });
+
+    it('spec-propose 的追溯契约与 D3 使用同一规范形态', () => {
+        const body = bodyOf('spec-propose');
+        expect(body).toContain('capability / Requirement / Scenario');
+        expect(body).toContain('spec-ref-missing-requirement');
+        expect(body).toContain('缺少 Requirement');
+    });
+
+    it('归档类技能声明 optional 制品不构成未完成', () => {
+        for (const commandId of ['spec-archive']) {
+            expect(bodyOf(commandId)).toContain('optional');
+        }
+    });
+});
+
+// ── feat-debug-dual-track-entry 覆盖缺口：轨道联合判定 / 证据门槛按状态分层 / 两轨共用标准 ──
+describe('debug 双轨判定与证据门槛（缺口补齐）', () => {
+    const debugMain =
+        allSkills.find((s) => s.template.name === 'iagent_debug')?.template.instructions ?? '';
+
+    it('轨道判定 MUST 联合两个信号，MUST NOT 只看 reproductionStatus', () => {
+        expect(debugMain).toContain('MUST 联合两个信号');
+        expect(debugMain).toContain('MUST NOT 只看其中一个');
+        // 两个信号：提示词校验门的复现步骤维 + reproductionStatus
+        const section = debugMain.slice(
+            debugMain.indexOf('**默认轨道 = 复现优先。**'),
+            debugMain.indexOf('### 1.1'),
+        );
+        expect(section).toContain('复现步骤 Repro');
+        expect(section).toContain('reproductionStatus');
+    });
+
+    it('证据门槛按状态分层：not-reproduced / static-only 同一门槛，intermittent 另需可重复证据', () => {
+        const start = debugMain.indexOf('**证据门槛**');
+        expect(start).toBeGreaterThanOrEqual(0);
+        const gate = debugMain.slice(start, debugMain.indexOf('**无证据出口**'));
+        // 两类「无复现」状态并入同一硬证据门槛
+        expect(gate).toContain('`not-reproduced` / `static-only` MUST 具备');
+        expect(gate).toContain('`文件:行`');
+        // 时好时坏另立要求：至少一条可重复证据 + 记录复现条件
+        expect(gate).toContain('`intermittent`');
+        expect(gate).toContain('至少一条**可重复**的证据');
+        expect(gate).toContain('记录复现条件');
+    });
+
+    it('证据优先轨道启用条件为「无复现条件」且「有硬证据」同时满足', () => {
+        const start = debugMain.indexOf('**启用条件（同时满足）**');
+        expect(start).toBeGreaterThanOrEqual(0);
+        const condition = debugMain.slice(start, debugMain.indexOf('**证据门槛**'));
+        expect(condition).toContain('不存在可执行的复现条件');
+        expect(condition).toContain('硬证据');
+        expect(condition).toContain('文件:行');
+    });
+
+    it('两轨共用分级 / 2.4 合并包 / 回归口径，轨道只决定证据形态', () => {
+        const start = debugMain.indexOf('两条轨道 MUST 共用');
+        expect(start).toBeGreaterThanOrEqual(0);
+        const shared = debugMain.slice(start, debugMain.indexOf('### 1.1'));
+        for (const sharedItem of ['2.2.3.5', '2.4「诊断 + 方案」确认包', '4.2 回归测试口径']) {
+            expect(shared, `两轨共用项缺失：${sharedItem}`).toContain(sharedItem);
+        }
+        expect(shared).toContain('轨道只决定证据形态');
+        expect(shared).toContain('MUST NOT 改变排查与验收标准');
     });
 });

@@ -461,7 +461,7 @@ describe('init 蒸馏验收（D-Q1 基准）', () => {
             expect(files.impl, `coding-rules.md 缺蒸馏要点：${phrase}`).toContain(phrase);
         }
         // spec.md：Markdown-first 制品协议要点（D-5 spec 域要点）
-        for (const phrase of ['openspec/changes/', 'proposal → specs/design → tasks', 'spec validate', 'change.json']) {
+        for (const phrase of ['openspec/changes/', '允许并行起草', 'spec validate', 'change.json']) {
             expect(files.spec, `spec.md 缺蒸馏要点：${phrase}`).toContain(phrase);
         }
         // testing-rules.md：无测试代码场景的占位兜底

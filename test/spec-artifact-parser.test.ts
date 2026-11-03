@@ -108,3 +108,177 @@ describe('spec/task parser and validator', () => {
         }
     });
 });
+
+/** 写一个能力规格（供追溯测试复用） */
+function writeDemoSpec(root: string): string {
+    return write(root, 'specs/demo/spec.md', `## ADDED Requirements\n\n### Requirement: Markdown source\n系统 SHALL 使用 Markdown。\n\n#### Scenario: Valid input\n- **WHEN** 读取文件\n- **THEN** 返回内容\n`);
+}
+
+describe('Spec Ref / Scenario Ref 多形态解析（D3）', () => {
+    it('Scenario: HTML 注释式引用被解析', () => {
+        const root = makeRoot();
+        try {
+            const tasksPath = write(
+                root,
+                'tasks.md',
+                '# Tasks\n\n- [ ] [代码] 1.1 实现\n  <!-- Spec Ref: demo → Requirement: "Markdown source" → Scenario: "Valid input" -->\n',
+            );
+            const parsed = parseTasks(tasksPath);
+            expect(parsed.tasks[0].specRefs).toEqual(['demo / Markdown source']);
+            expect(parsed.tasks[0].scenarioRefs).toEqual(['demo / Markdown source / Valid input']);
+            expect(parsed.diagnostics).toHaveLength(0);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('Scenario: 一行同时包含 Spec Ref 与 Scenario Ref', () => {
+        const root = makeRoot();
+        try {
+            const tasksPath = write(
+                root,
+                'tasks.md',
+                '# Tasks\n\n- [ ] [代码] 1.1 实现\n  <!-- Spec Ref: demo → Requirement: "Markdown source" → Scenario: "Valid input" -->\n',
+            );
+            const parsed = parseTasks(tasksPath);
+            expect(parsed.tasks[0].specRefs).toHaveLength(1);
+            expect(parsed.tasks[0].scenarioRefs).toHaveLength(1);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('Scenario: 旧行式与裸名引用保持兼容', () => {
+        const root = makeRoot();
+        try {
+            const tasksPath = write(
+                root,
+                'tasks.md',
+                '# Tasks\n\n- [ ] [代码] 1.1 实现\n  - Spec Ref：demo / Markdown source\n  - Scenario Ref：Valid input\n\n- [ ] [代码] 1.2 实现\n  * Scenario Ref: demo / Markdown source / Valid input\n',
+            );
+            const parsed = parseTasks(tasksPath);
+            expect(parsed.tasks[0].specRefs).toEqual(['demo / Markdown source']);
+            expect(parsed.tasks[0].scenarioRefs).toEqual(['Valid input']);
+            expect(parsed.tasks[1].scenarioRefs).toEqual(['demo / Markdown source / Valid input']);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('Scenario: 行式（非 HTML 注释）箭头引用同样被解析', () => {
+        const root = makeRoot();
+        try {
+            const tasksPath = write(
+                root,
+                'tasks.md',
+                '# Tasks\n\n- [ ] [代码] 1.1 实现\n  - Spec Ref: demo → Requirement: "Markdown source" → Scenario: "Valid input"\n',
+            );
+            const parsed = parseTasks(tasksPath);
+            expect(parsed.tasks[0].specRefs).toEqual(['demo / Markdown source']);
+            expect(parsed.tasks[0].scenarioRefs).toEqual(['demo / Markdown source / Valid input']);
+            expect(parsed.diagnostics).toHaveLength(0);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('Scenario: Scenario 标签行只到 Requirement 时同时产出 Spec Ref（一行双引用等价形态）', () => {
+        const root = makeRoot();
+        try {
+            const tasksPath = write(
+                root,
+                'tasks.md',
+                '# Tasks\n\n- [ ] [代码] 1.1 实现\n  - Scenario Ref: demo → Requirement: "Markdown source"\n',
+            );
+            const parsed = parseTasks(tasksPath);
+            // 规范形态残缺 → Scenario Ref 保留原值（由语义层报 scenario-ref-missing-scenario），
+            // 同时产出等价的 Spec Ref，避免消费者把整行误判为「仅 Scenario 覆盖」
+            expect(parsed.tasks[0].specRefs).toEqual(['demo / Markdown source']);
+            expect(parsed.tasks[0].scenarioRefs).toHaveLength(1);
+            expect(parsed.tasks[0].scenarioRefs[0]).toContain('demo');
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+});
+
+describe('追溯诊断分层（D3 / pending-ref）', () => {
+    function buildChange(root: string, tasksContent: string): ParsedChange {
+        const spec = parseSpec(writeDemoSpec(root));
+        const tasks = parseTasks(write(root, 'tasks.md', tasksContent));
+        return { changeName: 'demo', changeRoot: root, specs: [spec], tasks, diagnostics: [], warnings: [] };
+    }
+
+    it('Scenario: 有效规格引用不产生 invalid 诊断', () => {
+        const root = makeRoot();
+        try {
+            const change = buildChange(
+                root,
+                '# Tasks\n\n- [ ] [代码] 1.1 实现\n  - Spec Ref：demo / Markdown source\n  - Scenario Ref：demo / Markdown source / Valid input\n',
+            );
+            const result = validateParsedChange(change);
+            expect(result.diagnostics.some((item) => item.code === 'invalid-spec-ref')).toBe(false);
+            expect(result.diagnostics.some((item) => item.code === 'invalid-scenario-ref')).toBe(false);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('Scenario: 失效规格引用报 invalid-spec-ref', () => {
+        const root = makeRoot();
+        try {
+            const change = buildChange(root, '# Tasks\n\n- [ ] [代码] 1.1 实现\n  - Spec Ref：demo / Missing requirement\n');
+            const result = validateParsedChange(change);
+            expect(result.valid).toBe(false);
+            const diagnostic = result.diagnostics.find((item) => item.code === 'invalid-spec-ref');
+            expect(diagnostic?.severity).toBe('error');
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('Scenario: 仅 capability 的引用给出缺失 Requirement 诊断', () => {
+        const root = makeRoot();
+        try {
+            const change = buildChange(root, '# Tasks\n\n- [ ] [代码] 1.1 实现\n  - Spec Ref：demo\n');
+            const result = validateParsedChange(change);
+            const diagnostic = result.diagnostics.find((item) => item.code === 'spec-ref-missing-requirement');
+            expect(diagnostic?.message).toContain('缺少 Requirement');
+            expect(diagnostic?.message).toContain('<capability> / <Requirement>');
+            expect(diagnostic?.severity).toBe('error');
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('Scenario Ref 只到 Requirement：报 scenario-ref-missing-scenario', () => {
+        const root = makeRoot();
+        try {
+            const change = buildChange(root, '# Tasks\n\n- [ ] [代码] 1.1 实现\n  - Scenario Ref：demo / Markdown source\n');
+            const result = validateParsedChange(change);
+            const diagnostic = result.diagnostics.find((item) => item.code === 'scenario-ref-missing-scenario');
+            expect(diagnostic?.message).toContain('缺少 Scenario');
+            expect(diagnostic?.severity).toBe('error');
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it('Scenario: 起草期未匹配引用降级为 pending-ref', () => {
+        const root = makeRoot();
+        try {
+            const change = buildChange(root, '# Tasks\n\n- [ ] [代码] 1.1 实现\n  - Spec Ref：demo / Future requirement\n');
+            const result = validateParsedChange(change, { degradeUnmatchedRefs: true });
+            expect(result.valid).toBe(true);
+            const diagnostic = result.diagnostics.find((item) => item.code === 'pending-ref');
+            expect(diagnostic?.severity).toBe('warning');
+            expect(diagnostic?.message).toContain('pending-ref');
+            // 同一引用在 specs 完成后（不降级）仍为 error
+            const strict = validateParsedChange(change);
+            expect(strict.valid).toBe(false);
+            expect(strict.diagnostics.some((item) => item.code === 'invalid-spec-ref')).toBe(true);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+});

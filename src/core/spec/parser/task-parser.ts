@@ -10,6 +10,16 @@ const TASK_ID = /(?:^|\s)(\d+(?:\.\d+)+)(?=\s|$)/;
 const LABEL = /\[([^\]]+)\]/g;
 const KNOWN_KINDS = new Set(['代码', '测试', 'DB脚本', '使用说明']);
 
+/** Spec Ref / Scenario Ref 的标签别名（规范形态 + 中文别名） */
+const SPEC_REF_LABELS = ['Spec Ref', '规格引用'] as const;
+/** 所有追溯标签（用于切分同一行中的多个引用段） */
+const REF_LABEL_PATTERN = /(Spec Ref|规格引用|Scenario Ref|场景引用)\s*[：:]/gi;
+/** `→` 链式写法中的分段标签 */
+const CHAIN_REQUIREMENT_PATTERN = /^(?:Requirement|需求)\s*[：:]\s*(.+)$/i;
+const CHAIN_SCENARIO_PATTERN = /^(?:Scenario|场景)\s*[：:]\s*(.+)$/i;
+/** 引用值中需要剥离的包裹字符（HTML 注释标记 / 引号） */
+const REF_VALUE_NOISE = /<!--|-->|["'“”]/g;
+
 export function parseTasks(filePath: string): ParsedTasks {
     const document = readMarkdownDocument(filePath);
     const diagnostics: ArtifactDiagnostic[] = [];
@@ -166,14 +176,9 @@ function parseTaskFields(lines: readonly string[]): TaskFields {
         if (file !== undefined) {
             fields.files.push(...extractPaths(file));
         }
-        const specRef = readField(line, ['Spec Ref', '规格引用']);
-        if (specRef !== undefined) {
-            fields.specRefs.push(specRef);
-        }
-        const scenarioRef = readField(line, ['Scenario Ref', '场景引用']);
-        if (scenarioRef !== undefined) {
-            fields.scenarioRefs.push(scenarioRef);
-        }
+        const refs = readRefFields(line);
+        fields.specRefs.push(...refs.specRefs);
+        fields.scenarioRefs.push(...refs.scenarioRefs);
         const verification = readField(line, ['验证', 'Verification', 'Verify']);
         if (verification !== undefined) {
             fields.verification = verification;
@@ -184,6 +189,72 @@ function parseTaskFields(lines: readonly string[]): TaskFields {
         }
     }
     return fields;
+}
+
+interface RefFields {
+    specRefs: string[];
+    scenarioRefs: string[];
+}
+
+/**
+ * 解析一行中的 Spec Ref / Scenario Ref（多形态兼容）。
+ *
+ * 接受：行式 `- Spec Ref：...`、HTML 注释式 `<!-- Spec Ref: ... -->`、
+ * `→` 链式（`capability → Requirement: "R" → Scenario: "S"`，可带标签）、
+ * 同一行同时含两个标签、以及历史裸名（值原样保留，语义层再匹配）。
+ */
+function readRefFields(line: string): RefFields {
+    const result: RefFields = { specRefs: [], scenarioRefs: [] };
+    const matches = [...line.matchAll(REF_LABEL_PATTERN)];
+    if (matches.length === 0) return result;
+
+    for (let index = 0; index < matches.length; index += 1) {
+        const match = matches[index];
+        const label = match[1];
+        const start = (match.index ?? 0) + match[0].length;
+        const end = index + 1 < matches.length ? (matches[index + 1].index ?? line.length) : line.length;
+        const rawValue = line.slice(start, end).replace(REF_VALUE_NOISE, '').replace(/[；;，,]\s*$/, '').trim();
+        if (rawValue.length === 0) continue;
+        const isSpecLabel = (SPEC_REF_LABELS as readonly string[]).includes(label);
+        const { specRef, scenarioRef } = interpretRefValue(rawValue);
+        if (isSpecLabel) {
+            result.specRefs.push(specRef);
+            if (scenarioRef !== undefined) result.scenarioRefs.push(scenarioRef);
+        } else {
+            result.scenarioRefs.push(scenarioRef ?? rawValue);
+            // Scenario 标签行只写到 capability / Requirement 时，同样产出 specRef（一行双引用的等价形态）
+            if (scenarioRef === undefined && specRef !== rawValue) result.specRefs.push(specRef);
+        }
+    }
+    return result;
+}
+
+/** 把引用值解释为 `capability / Requirement` 与 `capability / Requirement / Scenario` */
+function interpretRefValue(value: string): { specRef: string; scenarioRef?: string } {
+    if (!value.includes('→')) {
+        return { specRef: value };
+    }
+    let capability = '';
+    let requirement = '';
+    let scenario = '';
+    for (const segment of value.split('→').map((item) => item.trim()).filter(Boolean)) {
+        const requirementMatch = CHAIN_REQUIREMENT_PATTERN.exec(segment);
+        if (requirementMatch !== null) {
+            requirement = requirementMatch[1].trim();
+            continue;
+        }
+        const scenarioMatch = CHAIN_SCENARIO_PATTERN.exec(segment);
+        if (scenarioMatch !== null) {
+            scenario = scenarioMatch[1].trim();
+            continue;
+        }
+        if (capability.length === 0) capability = segment;
+    }
+    const parts = [capability, requirement, scenario].filter((part) => part.length > 0);
+    if (parts.length === 0) return { specRef: value };
+    const specRef = capability && requirement ? `${capability} / ${requirement}` : parts[0];
+    const scenarioRef = capability && requirement && scenario ? `${capability} / ${requirement} / ${scenario}` : undefined;
+    return scenarioRef === undefined ? { specRef } : { specRef, scenarioRef };
 }
 
 function readField(line: string, labels: readonly string[]): string | undefined {

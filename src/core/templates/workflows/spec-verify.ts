@@ -15,7 +15,7 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
 
 验证实现是否与变更制品（specs / tasks / design）一致。
 
-**handoff 包（只读 + 追加）**：若 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\` 存在，本技能**只读**该包并在收尾时只向 \`## 阶段结论\` 追加一行（\`phase\` / \`status\` / \`artifact\` / \`nextAllowed\`）；MUST NOT 重产整包。包缺失时按需直接读取制品（不强制产包）；\`sourceFingerprint\` 与当前制品不一致时记 WARN，并以磁盘制品为准完成验证。
+**handoff 包（只读 + 追加）**：若 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\` 存在，本技能**只读**该包并在收尾时只向 \`## 阶段结论\` 追加一行（\`phase\` / \`status\` / \`artifact\` / \`nextAllowed\`）；MUST NOT 重产整包。包内 \`## 已确认门\`（门账本）同样**只读** —— MUST NOT 改写、删除或回填父级已写入的条目（账本条目表达门承载语义，取值域 = \`GATE_SKIP_IDS\`，与六节并列且不计入六节）。包缺失时按需直接读取制品（不强制产包）；\`sourceFingerprint\` 与当前制品不一致时记 WARN，并以磁盘制品为准完成验证。
 
 ${renderGateWhitelistSection()}
 
@@ -43,7 +43,7 @@ ${renderGateWhitelistSection()}
    \`\`\`
    解析 JSON 以理解：
    - \`schemaName\`：当前使用的工作流（例如 "spec-driven"）
-   - \`planningHome\`、\`changeRoot\`、\`artifactPaths\`、\`actionContext\`：路径与范围上下文
+   - \`planningHome\`、\`changeRoot\`、\`artifactPaths\`：路径与范围上下文
    - 该变更存在哪些制品
 
 3. **读取变更制品（Markdown 优先）**

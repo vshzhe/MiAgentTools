@@ -11,8 +11,17 @@ export interface ArtifactValidationResult {
     diagnostics: ArtifactDiagnostic[];
 }
 
+/** 校验选项（由 `iagent spec validate` 的模式透传） */
+export interface ArtifactValidationOptions {
+    /** 起草期降级：specs 尚未完成时把未匹配引用降级为 pending-ref warning */
+    degradeUnmatchedRefs?: boolean;
+}
+
 /** 对已经解析的 Markdown artifact 执行统一校验。 */
-export function validateParsedChange(change: ParsedChange): ArtifactValidationResult {
+export function validateParsedChange(
+    change: ParsedChange,
+    options: ArtifactValidationOptions = {},
+): ArtifactValidationResult {
     const diagnostics: ArtifactDiagnostic[] = [
         ...change.diagnostics,
         ...(change.proposal?.diagnostics ?? []),
@@ -23,7 +32,14 @@ export function validateParsedChange(change: ParsedChange): ArtifactValidationRe
 
     if (change.tasks !== undefined) {
         diagnostics.push(...validateTasks(change.tasks));
-        diagnostics.push(...buildTraceability(change.specs, change.tasks.tasks, change.tasks.filePath).diagnostics);
+        // 跨制品追溯只在 tasks 与 specs 同时可用时执行（单制品校验 / 起草期由调用方记 traceability-skipped）
+        if (change.specs.length > 0) {
+            diagnostics.push(
+                ...buildTraceability(change.specs, change.tasks.tasks, change.tasks.filePath, {
+                    degradeUnmatchedRefs: options.degradeUnmatchedRefs,
+                }).diagnostics,
+            );
+        }
     }
     for (const spec of change.specs) {
         diagnostics.push(...validateSpec(spec));

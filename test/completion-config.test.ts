@@ -280,7 +280,7 @@ describe('项目配置（.iagent/ 目录结构）', () => {
         expect(impl).toContain('仅在无父流程授权时独立执行确认');
         const spec = defaultRuleFileContent('spec');
         // spec 域蒸馏要点：Markdown-first 制品协议
-        for (const phrase of ['openspec/changes/', 'proposal → specs/design → tasks', 'spec validate', 'change.json']) {
+        for (const phrase of ['openspec/changes/', '允许并行起草', 'spec validate', 'change.json']) {
             expect(spec, `spec 缺蒸馏要点：${phrase}`).toContain(phrase);
         }
         for (const type of ['impl', 'test', 'spec'] as const) {

@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { fileURLToPath } from 'node:url';
-import { getBuildOrder, isValidArtifactId, getArtifactIds } from '../src/core/spec/schema.js';
+import { getBuildOrder, isValidArtifactId, getArtifactIds, optionalDeps, requiredClosure, requiredDeps, SPEC_DRIVEN_SCHEMA } from '../src/core/spec/schema.js';
 import { getChangeStatus, parseTaskProgress, detectCompleted } from '../src/core/spec/status.js';
 import { getArtifactInstructions } from '../src/core/spec/instructions.js';
 
@@ -98,17 +98,56 @@ describe('spec 状态判定（status）', () => {
         fs.rmSync(projectRoot, { recursive: true, force: true });
     });
 
-    it('仅 change.json proposal 段存在：proposal done，specs/design ready，tasks blocked', () => {
+    it('仅 change.json proposal 段存在：proposal done，specs ready，design optional，tasks blocked', () => {
         const changeDir = makeChange(projectRoot, 'change-a');
         writeChangeJson(changeDir, { proposal: true });
         const status = getChangeStatus(projectRoot, 'change-a');
         const byId = new Map(status.artifacts.map((a) => [a.id, a]));
         expect(byId.get('proposal')?.status).toBe('done');
         expect(byId.get('specs')?.status).toBe('ready');
-        expect(byId.get('design')?.status).toBe('ready');
+        // design 为可选依赖（design?）：缺失时既不是 ready 也不是 blocked
+        expect(byId.get('design')?.status).toBe('optional');
         expect(byId.get('tasks')?.status).toBe('blocked');
-        expect(byId.get('tasks')?.missingDeps).toEqual(['specs', 'design']);
+        // missingDeps 只含必需依赖
+        expect(byId.get('tasks')?.missingDeps).toEqual(['specs']);
         expect(status.isPlanningComplete).toBe(false);
+    });
+
+    it('依赖图可选语义：tasks.requires 声明 design? 且 design 不进入必需闭包', () => {
+        const tasks = SPEC_DRIVEN_SCHEMA.artifacts.find((artifact) => artifact.id === 'tasks');
+        expect(tasks?.requires).toEqual(['specs', 'design?']);
+        expect(requiredDeps(tasks!)).toEqual(['specs']);
+        expect(optionalDeps(tasks!)).toEqual(['design']);
+        expect(requiredClosure(['tasks'])).toEqual(['proposal', 'specs', 'tasks']);
+        expect(requiredClosure(['tasks'])).not.toContain('design');
+    });
+
+    it('无 design 的完整变更：isPlanningComplete 为 true（不要求 design）', () => {
+        const changeDir = makeChange(projectRoot, 'no-design');
+        writeChangeJson(changeDir, { proposal: true, specs: true });
+        writeTasksJson(changeDir, [{ id: '1', status: 'pending' }]);
+        const status = getChangeStatus(projectRoot, 'no-design');
+        const byId = new Map(status.artifacts.map((a) => [a.id, a]));
+        expect(byId.get('design')?.status).toBe('optional');
+        expect(byId.get('tasks')?.status).toBe('done');
+        expect(status.isPlanningComplete).toBe(true);
+    });
+
+    it('status JSON 含路径字段：planningHome 与 artifactPaths（specs 目录 + 实际文件）', () => {
+        const changeDir = makeChange(projectRoot, 'paths-change');
+        fs.mkdirSync(path.join(changeDir, 'specs', 'auth'), { recursive: true });
+        fs.writeFileSync(
+            path.join(changeDir, 'specs', 'auth', 'spec.md'),
+            '## ADDED Requirements\n\n### Requirement: Auth\n系统 SHALL 认证。\n\n#### Scenario: Login\n- **WHEN** 登录\n- **THEN** 成功\n',
+            'utf8',
+        );
+        const status = getChangeStatus(projectRoot, 'paths-change');
+        expect(status.planningHome).toBe(path.join(projectRoot, 'openspec'));
+        expect(status.artifactPaths.specs.resolvedOutputPath).toBe(path.join(changeDir, 'specs'));
+        expect(status.artifactPaths.specs.resolvedOutputPath).not.toContain('**');
+        expect(status.artifactPaths.specs.existingOutputPaths).toEqual([path.join(changeDir, 'specs', 'auth', 'spec.md')]);
+        expect(status.artifactPaths.tasks.resolvedOutputPath).toBe(path.join(changeDir, 'tasks.md'));
+        expect(status.artifactPaths.tasks.existingOutputPaths).toEqual([]);
     });
 
     it('change.json specs 段存在非空数组即判定 specs done（内容级检测）', () => {

@@ -6,6 +6,10 @@
  * 由 host-orchestration/hosts.ts 的适配器负责映射。
  */
 
+// `delegation-contract.ts` 为叶依赖（无 import），此处导入不构成循环：
+// `confirmedGates` 的取值域 MUST 收敛到 `GATE_SKIP_IDS`，MUST NOT 另立第二份取值表。
+import { GATE_SKIP_IDS } from './delegation-contract.js';
+
 /** 编排能力标识 */
 export type CapabilityId =
     | 'skill-load'      // 加载技能正文
@@ -254,6 +258,15 @@ export interface Receipt {
      * 仅作 handoff 镜像；跨会话依据仍是变更 `exploration.md` 的持久记录。
      */
     requirementDocStatus?: RequirementDocStatus;
+    /**
+     * 本阶段实际已确认的门（门账本回执镜像，变更 improve-delegation-gate-ledger）。
+     *
+     * 取值域 = `GATE_SKIP_IDS`（门承载语义，**不是**父级阶段门 id）。
+     * **可选**且 MUST NOT 进入 `DEFAULT_RECEIPT_FIELDS`：缺失即「无账本」，
+     * 门照常触发（fail-safe）；出现时由 `validateReceipt` 校验形状与取值。
+     * 回执是账本的**上游真源**：账本条目 MUST NOT 超出本字段声明的已确认门。
+     */
+    confirmedGates?: string[];
 }
 
 /** 回执校验结果 */
@@ -269,7 +282,9 @@ export interface ReceiptValidation {
  * 规则：
  *   - 必需字段齐全（phase / status 必须有非空值）；
  *   - status 必须是已知取值；
- *   - 非 ok 状态必须带 failure 说明（失败原因不得缺失）。
+ *   - 非 ok 状态必须带 failure 说明（失败原因不得缺失）；
+ *   - `confirmedGates` 出现时必须是「`GATE_SKIP_IDS` 内门 id 组成的字符串数组」
+ *     （非数组 / 元素非字符串 / 空串 / 未知门 id → 校验失败并附原因）。
  */
 export function validateReceipt(receipt: Partial<Receipt>, spec: ReceiptSpec): ReceiptValidation {
     const missing: string[] = [];
@@ -289,8 +304,40 @@ export function validateReceipt(receipt: Partial<Receipt>, spec: ReceiptSpec): R
             }
         }
     }
+    // 门账本回执镜像：只校验「出现时」的形状与取值 —— 缺失即无账本（门照常触发）
+    const confirmedGatesIssue = validateConfirmedGates(receipt.confirmedGates);
+    if (confirmedGatesIssue !== undefined) {
+        return { valid: false, missing, reason: confirmedGatesIssue };
+    }
     if (missing.length > 0) {
         return { valid: false, missing, reason: `回执缺少必需字段：${missing.join(', ')}` };
     }
     return { valid: true, missing: [] };
+}
+
+/**
+ * 校验 `Receipt.confirmedGates` 的形状与取值域。
+ *
+ * @returns 违规原因（合法或字段缺失时 undefined）
+ */
+function validateConfirmedGates(raw: string[] | undefined): string | undefined {
+    if (raw === undefined) {
+        return undefined;
+    }
+    const value: unknown = raw;
+    if (!Array.isArray(value)) {
+        return '回执 confirmedGates 必须是字符串数组';
+    }
+    for (const item of value as unknown[]) {
+        if (typeof item !== 'string') {
+            return `回执 confirmedGates 含非字符串元素：${String(item)}`;
+        }
+        if (item.trim() === '') {
+            return '回执 confirmedGates 含空串（MUST NOT 视为任何门已确认）';
+        }
+        if (!(GATE_SKIP_IDS as readonly string[]).includes(item)) {
+            return `回执 confirmedGates 含未知门 id：${item}（可选：${GATE_SKIP_IDS.join(' / ')}）`;
+        }
+    }
+    return undefined;
 }

@@ -6,8 +6,13 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { createChange } from '../src/core/spec/new-change.js';
 import { executeArchive, previewArchive } from '../src/core/spec/archive.js';
+import { getArtifactInstructions } from '../src/core/spec/instructions.js';
+import { runSpecValidate } from '../src/commands/spec.js';
+import { TASKS_TEMPLATE } from '../src/core/spec/templates/index.js';
 
 /** 创建临时项目根目录 */
 function makeTempProject(): string {
@@ -138,5 +143,166 @@ describe('iagent spec archive（previewArchive / executeArchive）', () => {
 
     it('变更不存在：报错', () => {
         expect(() => previewArchive(projectRoot, 'ghost-change')).toThrowError(/不存在/);
+    });
+
+    it('无 design 的完整变更：归档预览不报「未完成规划制品」', () => {
+        const changeDir = path.join(projectRoot, 'openspec', 'changes', 'no-design-change');
+        fs.mkdirSync(path.join(changeDir, 'specs', 'auth'), { recursive: true });
+        fs.writeFileSync(path.join(changeDir, 'proposal.md'), '# Proposal\n\n## Why\n原因\n\n## What Changes\n- 变更\n\n## Impact\n无\n');
+        fs.writeFileSync(path.join(changeDir, 'specs', 'auth', 'spec.md'), '## ADDED Requirements\n\n### Requirement: Auth\n系统 SHALL 认证。\n\n#### Scenario: Login\n- **WHEN** 登录\n- **THEN** 成功\n');
+        fs.writeFileSync(path.join(changeDir, 'tasks.md'), '# Tasks\n\n- [x] [代码] 1.1 实现\n  - Spec Ref：auth / Auth\n  - Scenario Ref：auth / Auth / Login\n');
+        const preview = previewArchive(projectRoot, 'no-design-change');
+        expect(preview.artifactsIncomplete).toEqual([]);
+        expect(preview.warnings.some((warning) => warning.includes('未完成的规划制品'))).toBe(false);
+    });
+});
+
+/** 写一个最小可用的标记变更（proposal + specs 可选 + tasks 可选，无 design） */
+function writeMarkdownChange(
+    projectRoot: string,
+    name: string,
+    options: { proposal?: boolean; specs?: boolean; tasks?: boolean },
+): string {
+    const changeDir = path.join(projectRoot, 'openspec', 'changes', name);
+    fs.mkdirSync(changeDir, { recursive: true });
+    fs.writeFileSync(path.join(changeDir, '.openspec.yaml'), 'schema: spec-driven\ncreated: 2026-11-03\n');
+    if (options.proposal !== false) {
+        fs.writeFileSync(path.join(changeDir, 'proposal.md'), '# Proposal\n\n## Why\n测试\n\n## What Changes\n- 变更\n\n## Capabilities\n\n### New Capabilities\n- `demo`: 演示\n\n## Impact\n无\n');
+    }
+    if (options.specs) {
+        fs.mkdirSync(path.join(changeDir, 'specs', 'demo'), { recursive: true });
+        fs.writeFileSync(path.join(changeDir, 'specs', 'demo', 'spec.md'), '## ADDED Requirements\n\n### Requirement: Markdown source\n系统 SHALL 使用 Markdown。\n\n#### Scenario: Valid input\n- **WHEN** 读取\n- **THEN** 返回\n');
+    }
+    if (options.tasks) {
+        fs.writeFileSync(path.join(changeDir, 'tasks.md'), '# Tasks\n\n- [ ] [代码] 1.1 实现\n  - Spec Ref：demo / Markdown source\n  - Scenario Ref：demo / Markdown source / Valid input\n');
+    }
+    return changeDir;
+}
+
+describe('instructions 可选依赖与可写路径（D2 / D9a）', () => {
+    let projectRoot: string;
+
+    beforeEach(() => {
+        projectRoot = makeTempProject();
+    });
+
+    afterEach(() => {
+        fs.rmSync(projectRoot, { recursive: true, force: true });
+    });
+
+    it('tasks 的 dependencies 标记 design 为 optional，unlocks 只含必需边', () => {
+        writeMarkdownChange(projectRoot, 'instruct-change', { proposal: true });
+        const info = getArtifactInstructions(projectRoot, 'instruct-change', 'tasks');
+        const byId = new Map(info.dependencies.map((dependency) => [dependency.id, dependency]));
+        expect(byId.get('design')?.optional).toBe(true);
+        expect(byId.get('specs')?.optional).toBe(false);
+        expect(info.dependencies.map((dependency) => dependency.id)).toEqual(['specs', 'design']);
+    });
+
+    it('resolvedOutputPath 可直接写入：specs 为目录，其余为单文件（不含 glob）', () => {
+        const changeDir = writeMarkdownChange(projectRoot, 'paths-change', { proposal: true });
+        const specs = getArtifactInstructions(projectRoot, 'paths-change', 'specs');
+        expect(specs.resolvedOutputPath).not.toContain('**');
+        expect(specs.resolvedOutputPath).toBe(path.join(changeDir, 'specs'));
+        for (const artifactId of ['proposal', 'design', 'tasks']) {
+            const info = getArtifactInstructions(projectRoot, 'paths-change', artifactId);
+            expect(info.resolvedOutputPath).toBe(path.join(changeDir, info.outputPath));
+            expect(info.resolvedOutputPath).not.toContain('*');
+        }
+    });
+});
+
+describe('TASKS_TEMPLATE 示例自身可解析', () => {
+    let projectRoot: string;
+
+    beforeEach(() => {
+        projectRoot = makeTempProject();
+    });
+
+    afterEach(() => {
+        fs.rmSync(projectRoot, { recursive: true, force: true });
+    });
+
+    it('模板含规范两行示例并声明 capability-only 无效', () => {
+        expect(TASKS_TEMPLATE).toContain('- Spec Ref：<capability> / <Requirement>');
+        expect(TASKS_TEMPLATE).toContain('- Scenario Ref：<capability> / <Requirement> / <Scenario>');
+        expect(TASKS_TEMPLATE).toContain('只写 <capability> 不是有效 Spec Ref');
+        expect(TASKS_TEMPLATE).toContain('spec-ref-missing-requirement');
+        expect(TASKS_TEMPLATE).toContain('→ Requirement:');
+    });
+
+    it('示例填入占位值后校验不产生 invalid-spec-ref / invalid-scenario-ref', () => {
+        const changeDir = writeMarkdownChange(projectRoot, 'template-change', { proposal: true, specs: true });
+        const filled = TASKS_TEMPLATE
+            .replaceAll('<capability>', 'demo')
+            .replaceAll('<Requirement>', 'Markdown source')
+            .replaceAll('<Scenario>', 'Valid input');
+        fs.writeFileSync(path.join(changeDir, 'tasks.md'), filled, 'utf8');
+        const result = runSpecValidate(projectRoot, 'template-change');
+        const codes = result.diagnostics.map((item) => item.code);
+        expect(codes).not.toContain('invalid-spec-ref');
+        expect(codes).not.toContain('invalid-scenario-ref');
+        expect(result.valid).toBe(true);
+    });
+});
+
+describe('spec validate CLI 端到端（起草期 / 终检 / 文本报告）', () => {
+    const binPath = fileURLToPath(new URL('../bin/iagent.js', import.meta.url));
+    let projectRoot: string;
+
+    beforeEach(() => {
+        projectRoot = makeTempProject();
+    });
+
+    afterEach(() => {
+        fs.rmSync(projectRoot, { recursive: true, force: true });
+    });
+
+    function execCli(args: string[]): { status: number | null; stdout: string; stderr: string } {
+        const result = spawnSync(process.execPath, [binPath, ...args], {
+            cwd: projectRoot,
+            encoding: 'utf8',
+            env: { ...process.env },
+        });
+        return { status: result.status, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
+    }
+
+    it('Scenario: --partial 退出码 0、strict 退出码非零', () => {
+        writeMarkdownChange(projectRoot, 'draft-change', { proposal: true });
+        const partial = execCli(['spec', 'validate', '--change', 'draft-change', '--partial', '--json']);
+        expect(partial.status).toBe(0);
+        const payload = JSON.parse(partial.stdout);
+        expect(payload.mode).toBe('partial');
+        expect(payload.valid).toBe(true);
+
+        const strict = execCli(['spec', 'validate', '--change', 'draft-change', '--json']);
+        expect(strict.status).not.toBe(0);
+        expect(JSON.parse(strict.stdout).valid).toBe(false);
+    });
+
+    it('Scenario: 并行起草（proposal + specs 无 tasks）--partial 通过、strict 报 missing-tasks', () => {
+        writeMarkdownChange(projectRoot, 'parallel-change', { proposal: true, specs: true });
+        expect(execCli(['spec', 'validate', '--change', 'parallel-change', '--partial']).status).toBe(0);
+        const strict = execCli(['spec', 'validate', '--change', 'parallel-change', '--json']);
+        expect(strict.status).not.toBe(0);
+        expect(JSON.parse(strict.stdout).diagnostics.some((item: { code?: string }) => item.code === 'missing-tasks')).toBe(true);
+    });
+
+    it('Scenario: design 可选变更 apply-ready（strict 通过 + apply state ready）', () => {
+        writeMarkdownChange(projectRoot, 'no-design-ready', { proposal: true, specs: true, tasks: true });
+        expect(execCli(['spec', 'validate', '--change', 'no-design-ready']).status).toBe(0);
+        const apply = execCli(['spec', 'instructions', 'apply', '--change', 'no-design-ready', '--json']);
+        const payload = JSON.parse(apply.stdout);
+        expect(payload.instruction.state).toBe('ready');
+        expect(payload.isPlanningComplete).toBe(true);
+        expect(payload.artifacts.find((item: { id: string }) => item.id === 'design').status).toBe('optional');
+    });
+
+    it('Scenario: 文本报告按行输出诊断（无字面 \\n）', () => {
+        writeMarkdownChange(projectRoot, 'text-report', { proposal: true });
+        const result = execCli(['spec', 'validate', '--change', 'text-report']);
+        expect(result.status).not.toBe(0);
+        expect(result.stdout).not.toContain('\\n');
+        expect(result.stdout.trim().split('\n').length).toBeGreaterThan(1);
     });
 });

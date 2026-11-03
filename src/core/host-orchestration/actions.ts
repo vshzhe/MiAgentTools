@@ -37,6 +37,9 @@ function hostSkillId(workflowId: string): string {
  * 经 `resolveDelegationContract` 归一化：只渲染 `mode`（显式传入时）与
  * `gate-skip`（归一化后的门列表）；未知 gate id 被忽略（WARN 由解析契约记录），
  * 参数表未声明时 MUST NOT 凭空填充模式参数。
+ *
+ * 门账本不是参数（变更 improve-delegation-gate-ledger / D6）：其路径由 change-name
+ * 派生，故本函数 MUST NOT 渲染账本分支，也不得新增第三轴。
  */
 function renderOptions(options?: Record<string, string>): string {
     if (!options) {

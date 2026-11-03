@@ -312,10 +312,22 @@ D2 Score = (matched tech choices / total tech choices) * 100%
 
 ### Dimension 3: 任务完整性
 
-**Check**：\`specs/**/*.md\` 中每条需求 → \`tasks.md\` 中至少有一个 \`Spec Ref\` 与其匹配的任务。
+**Check**：\`specs/**/*.md\` 中每条需求 → \`tasks.md\` 中至少有一个**规范形态** \`Spec Ref\` 与其匹配的任务。
+
+**规范引用形态**（与 \`artifact-markdown-source\` 的 Spec-to-task 追溯契约同一口径，本维度为提案验证侧的唯一真源）：
+- \`Spec Ref = <capability> / <Requirement>\`
+- \`Scenario Ref = <capability> / <Requirement> / <Scenario>\`
+
+等价写法（**与两行写法等价计分**，覆盖率 MUST NOT 因书写形态下降）：HTML 注释式 \`<!-- Spec Ref: <capability> → Requirement: "<R>" → Scenario: "<S>" -->\`、一行同时给出 Spec + Scenario、历史裸 Requirement / Scenario 名。
+
+**capability-only 不计覆盖**：只写 capability（如 \`- Spec Ref：checkout-flow\`）的引用 MUST NOT 匹配到任一 Requirement，也不计入覆盖；应报告「缺少 Requirement」诊断，示例：
+
+\`\`\`
+D3 FAIL：'checkout-flow' 缺少 Requirement（期望形态 checkout-flow / <Requirement>），不计入覆盖
+\`\`\`
 
 **PASS 条件**：
-- 每条 spec 需求都有任务引用它
+- 每条 spec 需求都有规范形态引用它的任务
 - 所有场景都被任务覆盖
 
 **覆盖率计算**：
@@ -325,6 +337,7 @@ D3 Score = (requirements with tasks / total requirements) * 100%
 
 **FAIL 示例**：
 - "缺失任务：'用户可导出数据' 需求没有实现任务"
+- "缺 Requirement：\`- Spec Ref：checkout-flow\` 只到 capability，无法计入覆盖"
 
 ### Dimension 4: 边界覆盖
 
@@ -546,7 +559,7 @@ iagent spec status --json
 iagent spec status --change "<name>" --json
 \`\`\`
 
-使用 status 的 \`artifactPaths\` 在变更目录中查找 \`exploration.md\`。
+使用 status 的 \`changeRoot\` / \`artifactPaths\`（\`artifactPaths.<id>.existingOutputPaths\`）在变更目录中定位 \`exploration.md\` 与各制品，MUST NOT 自行拼接或猜测路径。
 先读取结构化证据：\`<change-dir>/proposal.md\`、\`design.md\`、\`specs/**/*.md\` 与 \`tasks.md\`；缺失时降级为存量 JSON 并记 WARN。
 <!-- /CMD:SKIP -->
 

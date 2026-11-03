@@ -4,8 +4,11 @@
  * 按 ADR-0001：iagent spec 命令组不读取外部 schema.yaml，
  * 依赖关系在此处以常量形式定义，new/status/instructions/archive 四命令共享引用。
  *
- * 依赖图：proposal（无依赖）→ specs / design（依赖 proposal）→ tasks（依赖 specs + design）
+ * 依赖图：proposal（无依赖）→ specs / design（依赖 proposal）→ tasks（依赖 specs + design?）
  * apply 门槛：requires=[tasks]，进度跟踪文件 tracks=tasks.md
+ *
+ * 可选依赖用 `id?` 后缀声明（如 `design?`）：缺失时不阻塞下游、不计入 missingDeps，
+ * 也不参与 requiredClosure；解析 MUST 走本文件的 helper，消费点 MUST NOT 各自判断后缀。
  */
 
 /** 单个 artifact 的定义 */
@@ -72,7 +75,7 @@ export const SPEC_DRIVEN_SCHEMA: SpecSchema = {
             id: 'tasks',
             description: '实现任务清单：带类型标签的可勾选任务列表',
             outputPath: 'tasks.md',
-            requires: ['specs', 'design'],
+            requires: ['specs', 'design?'],
             instruction:
                 '直接创建 openspec/changes/<name>/tasks.md（Markdown 是唯一真源），将规格映射为实现任务：每个任务含类型标签（代码/测试/DB脚本/使用说明）、描述与文件；[测试] 任务 MUST 带层级（单元/功能）与优先级（P0/P1/P2）；可测规格场景 MUST 产出对应 [测试] 任务，不可测场景也 MUST 产出 [测试] 任务记录"已评估、判定无需测试"的依据；每个任务标注 Spec Ref/Scenario Ref。',
         },
@@ -83,16 +86,71 @@ export const SPEC_DRIVEN_SCHEMA: SpecSchema = {
     },
 };
 
-/** 按声明顺序的拓扑构建序（Kahn 算法，兄弟节点按声明序而非字母序） */
+/** 可选依赖标记的后缀（`design?` 表示 design 为可选依赖） */
+export const OPTIONAL_DEP_SUFFIX = '?';
+
+/** 去掉可选依赖后缀，得到 artifact id */
+export function depIdOf(raw: string): string {
+    return raw.endsWith(OPTIONAL_DEP_SUFFIX) ? raw.slice(0, -OPTIONAL_DEP_SUFFIX.length) : raw;
+}
+
+/** 该依赖标记是否为可选依赖 */
+export function isOptionalDep(raw: string): boolean {
+    return raw.endsWith(OPTIONAL_DEP_SUFFIX);
+}
+
+/** artifact 的必需依赖 id 列表（已去掉 `?` 后缀） */
+export function requiredDeps(artifact: ArtifactSpec): string[] {
+    return artifact.requires.filter((dep) => !isOptionalDep(dep)).map(depIdOf);
+}
+
+/** artifact 的可选依赖 id 列表（已去掉 `?` 后缀） */
+export function optionalDeps(artifact: ArtifactSpec): string[] {
+    return artifact.requires.filter(isOptionalDep).map(depIdOf);
+}
+
+/** 按 id 取 artifact 定义 */
+export function findArtifact(artifactId: string): ArtifactSpec | undefined {
+    return SPEC_DRIVEN_SCHEMA.artifacts.find((artifact) => artifact.id === artifactId);
+}
+
+/** 该 artifact 是否被声明为任一制品的可选依赖（可选制品缺失不阻塞下游） */
+export function isOptionalArtifact(artifactId: string): boolean {
+    return SPEC_DRIVEN_SCHEMA.artifacts.some((artifact) => optionalDeps(artifact).includes(artifactId));
+}
+
+/**
+ * 必需依赖的传递闭包（含给定 id 自身），按构建序返回。
+ *
+ * 可选依赖（`id?`）MUST NOT 进入闭包 —— 供 apply-ready / apply started 判定共用，
+ * 避免 tasks 已 done 而 specs 未写时因 `applyRequires` 只列 tasks 而早停。
+ */
+export function requiredClosure(ids: readonly string[]): string[] {
+    const closure = new Set<string>();
+    const queue = [...ids];
+    while (queue.length > 0) {
+        const id = queue.shift() as string;
+        if (closure.has(id)) continue;
+        closure.add(id);
+        const artifact = findArtifact(id);
+        if (artifact === undefined) continue;
+        for (const dep of requiredDeps(artifact)) {
+            if (!closure.has(dep)) queue.push(dep);
+        }
+    }
+    return getBuildOrder().filter((id) => closure.has(id));
+}
+
+/** 按声明顺序的拓扑构建序（Kahn 算法，兄弟节点按声明序而非字母序；只按必需依赖排序） */
 export function getBuildOrder(): string[] {
     const order: string[] = [];
     const completed = new Set<string>();
     const pending = SPEC_DRIVEN_SCHEMA.artifacts.map((a) => a.id);
     while (pending.length > 0) {
-        // 每轮取第一个依赖已全部满足的 artifact（保持声明顺序）
+        // 每轮取第一个依赖已全部满足的 artifact（保持声明顺序）；可选依赖不参与阻塞判定
         const nextIndex = pending.findIndex((id) => {
             const spec = SPEC_DRIVEN_SCHEMA.artifacts.find((a) => a.id === id);
-            return spec !== undefined && spec.requires.every((dep) => completed.has(dep));
+            return spec !== undefined && requiredDeps(spec).every((dep) => completed.has(dep));
         });
         if (nextIndex < 0) {
             // 依赖图中存在环（常量定义错误，防御性抛出）

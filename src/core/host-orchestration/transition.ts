@@ -101,9 +101,17 @@ export function evaluatePhaseTransition(input: PhaseTransitionInput): PhaseTrans
     }
 
     // 3. 回执校验（缺失或不通过即阻塞）
+    //    `confirmedGates`（门账本回执镜像）形状 / 取值非法同样归入 invalid-receipt：
+    //    非法说明写入方违约（伪造 / 版本不一致），MUST NOT 忽略后继续推进；
+    //    字段缺失不构成非法（缺失即「无账本」，门照常触发，属 fail-safe 方向）。
     const receiptCheck = validateReceipt(input.receipt ?? {}, input.phase.receipt);
     if (!receiptCheck.valid) {
         blockedBy.push(TRANSITION_BLOCKERS.receipt);
+        if (receiptCheck.reason?.includes('confirmedGates')) {
+            warnings.push(
+                `WARN: 回执 confirmedGates 校验失败（${receiptCheck.reason}），以 invalid-receipt 阻断推进`
+            );
+        }
     }
 
     return {

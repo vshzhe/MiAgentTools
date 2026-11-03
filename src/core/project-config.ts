@@ -402,7 +402,7 @@ const RULE_CONSTANT_LINES: Readonly<Partial<Record<SkillType, readonly string[]>
     test: ['（待补充）测试框架与既有用例保持一致'],
     spec: [
         '变更真源为 openspec/changes/ 下的 Markdown（proposal.md / design.md / specs/**/*.md / tasks.md）',
-        '按依赖序生成：proposal → specs/design → tasks',
+        '允许并行起草：proposal 完成后 specs / design / tasks 可并行生成（design 可选），终检按依赖序',
         '写入后运行 `iagent spec validate` 校验循环，失败则修正 Markdown 并重跑',
         '不创建 change.json / tasks.json（JSON 制品已弃用，MUST NOT 重新引入）',
         '提案实现前须通过评分门（阈值 90%）',

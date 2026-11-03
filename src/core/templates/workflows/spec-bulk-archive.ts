@@ -66,10 +66,8 @@ ${renderGateWhitelistSection()}
    对每个已选变更收集：
 
    a. **制品状态** - 运行 \`iagent spec status --change "<name>" --json\`
-      - 解析 \`schemaName\`、\`artifacts\`、\`planningHome\`、\`changeRoot\`、\`artifactPaths\` 与 \`actionContext\`
-      - 记录哪些制品为 \`done\`、哪些为其他状态
-
-      若任一已选变更报告 \`actionContext.mode: "workspace-planning"\`，说明本切片不支持工作区批量归档，并在同步规格或移动变更前 STOP。不得降级为仓库内路径，也不得编辑关联仓库。
+      - 解析 \`schemaName\`、\`artifacts\`、\`planningHome\`、\`changeRoot\` 与 \`artifactPaths\`
+      - 记录哪些制品为 \`done\`、哪些为其他状态（\`optional\` 为可选制品缺失，不构成未完成）
 
    b. **任务完成度** - 从状态 JSON 读取 \`artifactPaths.tasks.existingOutputPaths\`
       - 统计 \`- [ ]\`（未完成）与 \`- [x]\`（已完成）
@@ -285,8 +283,6 @@ ${renderGateWhitelistSection()}
    \`\`\`
 
 10. **批量索引更新**
-
-   **IMPORTANT**：workspace 范围的变更（actionContext.mode: "workspace-planning"）跳过本步骤。
 
    归档索引文件位于 \`openspec/changes/archive/ARCHIVE-INDEX.md\`。
 

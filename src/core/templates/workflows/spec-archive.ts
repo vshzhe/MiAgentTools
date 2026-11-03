@@ -17,7 +17,7 @@ export function getSpecArchiveChangeSkillTemplate(): SkillTemplate {
 
 在变更工作流中归档一个已完成的变更。
 
-**handoff 包（只读 + 追加）**：若 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\` 存在，本技能**只读**该包并在收尾时只向 \`## 阶段结论\` 追加一行（\`phase=archive\` / \`status\` / \`artifact\` / \`nextAllowed\`）；MUST NOT 重产整包。包缺失时按需直接读取制品；\`sourceFingerprint\` 与当前制品不一致时记 WARN 并以磁盘制品为准。
+**handoff 包（只读 + 追加）**：若 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\` 存在，本技能**只读**该包并在收尾时只向 \`## 阶段结论\` 追加一行（\`phase=archive\` / \`status\` / \`artifact\` / \`nextAllowed\`）；MUST NOT 重产整包。包内 \`## 已确认门\`（门账本）同样**只读** —— MUST NOT 改写、删除或回填父级已写入的条目（账本条目表达门承载语义，取值域 = \`GATE_SKIP_IDS\`，与六节并列且不计入六节）。包缺失时按需直接读取制品；\`sourceFingerprint\` 与当前制品不一致时记 WARN 并以磁盘制品为准。
 
 ${renderGateWhitelistSection()}
 
@@ -42,10 +42,10 @@ ${renderGateWhitelistSection()}
 
    解析 JSON 以了解：
    - \`schemaName\`：正在使用的工作流
-   - \`planningHome\`、\`changeRoot\`、\`artifactPaths\` 与 \`actionContext\`：路径与范围上下文
-   - \`artifacts\`：制品清单及其状态（\`done\` 或其他）
+   - \`planningHome\`、\`changeRoot\`、\`artifactPaths\`：路径与范围上下文
+   - \`artifacts\`：制品清单及其状态（\`done\` / \`optional\` 或其他）
 
-   若状态报告 \`actionContext.mode: "workspace-planning"\`，说明本切片不支持工作区归档并 STOP。不得把工作区变更移入仓库内归档目录，也不得编辑关联仓库。
+   \`design\` 为可选制品：状态 \`optional\`（缺失）不构成未完成，MUST NOT 因其阻断归档。
 
    **若有制品状态不是 \`done\`：**
    - 展示告警并列出未完成的制品
@@ -220,8 +220,6 @@ ${renderGateWhitelistSection()}
       - CodeGraph 同步独立于 \`--skip-specs\` / \`--no-validate\` / 跳过校验的选择执行
 
 7. **更新或创建 ARCHIVE-INDEX.md（纯追加）**
-
-   **IMPORTANT**：workspace 范围的变更（actionContext.mode: "workspace-planning"）跳过本步骤。
 
    归档索引文件位于 \`openspec/changes/archive/ARCHIVE-INDEX.md\`。维护方式为**纯追加本批条目** —— MUST NOT 全量重建或整体覆盖。
 

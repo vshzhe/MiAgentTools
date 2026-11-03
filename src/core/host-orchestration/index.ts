@@ -100,3 +100,21 @@ export {
     type PhaseTransitionInput,
     type PhaseTransitionResult,
 } from './transition.js';
+
+export {
+    GATE_LEDGER_HEADER_ROW,
+    GATE_LEDGER_SECTION,
+    GATE_LEDGER_SEPARATOR_ROW,
+    HANDOFF_PACK_FILE_NAME,
+    PIPELINE_WORKSPACE_PREFIX,
+    PIPELINE_WORKSPACE_ROOT,
+    gateLedgerPath,
+    isGateSkipId,
+    parseGateLedger,
+    renderGateLedgerEntry,
+    renderGateLedgerSection,
+    resolveGateLedgerConfirmation,
+    type GateLedger,
+    type GateLedgerConfirmation,
+    type GateLedgerEntry,
+} from './gate-ledger.js';

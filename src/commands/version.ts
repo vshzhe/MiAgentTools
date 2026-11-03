@@ -622,9 +622,15 @@ export function buildVersionCommand(): Command {
         .option('--no-changelog', '不归档 CHANGELOG.md')
         .option('--no-readme', '不同步 README.md 中的版本示例')
         .option('--json', '以 JSON 输出（供程序处理）')
-        .action((options: VersionCommandOptions) => {
-            const result = runVersion(process.cwd(), options, true);
-            console.log(options.json ? JSON.stringify(result, null, 2) : renderVersionReport(result));
+        .action(function (this: Command, options: VersionCommandOptions) {
+            // `--level` / `--from` / `--json` 与父命令 `version` 同名：Commander 把子命令名
+            // 之后的同名选项解析到**父命令**（`version._optionValues`），`bump` 自身的 opts
+            // 里拿不到，导致 `version bump --level minor` 静默退化为自动判定、`--json` 失效。
+            // 这里显式合并父级 opts（子级优先），保证三项在 `version bump` 下生效。
+            const parentOptions = (this.parent?.opts() ?? {}) as VersionCommandOptions;
+            const merged: VersionCommandOptions = { ...parentOptions, ...options };
+            const result = runVersion(process.cwd(), merged, true);
+            console.log(merged.json ? JSON.stringify(result, null, 2) : renderVersionReport(result));
         });
 
     return command;

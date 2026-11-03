@@ -6,8 +6,14 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { SPEC_DRIVEN_SCHEMA, getArtifactIds, isValidArtifactId } from './schema.js';
-import { detectCompleted } from './status.js';
+import {
+    SPEC_DRIVEN_SCHEMA,
+    depIdOf,
+    getArtifactIds,
+    isOptionalDep,
+    isValidArtifactId,
+} from './schema.js';
+import { detectCompleted, resolveWritablePath } from './status.js';
 import {
     DESIGN_TEMPLATE,
     PROPOSAL_TEMPLATE,
@@ -20,6 +26,8 @@ export interface ArtifactDependency {
     id: string;
     /** 该依赖是否已完成（文件存在性判定） */
     done: boolean;
+    /** 是否为可选依赖（声明为 `id?`，缺失时不阻塞本制品） */
+    optional: boolean;
     /** 输出路径（相对变更目录） */
     path: string;
     description: string;
@@ -78,16 +86,21 @@ export function getArtifactInstructions(
         throw new Error(`artifact 定义缺失：${artifactId}`);
     }
     const completed = detectCompleted(changeDir);
-    const dependencies: ArtifactDependency[] = artifact.requires.map((depId) => {
+    const dependencies: ArtifactDependency[] = artifact.requires.map((rawDep) => {
+        const depId = depIdOf(rawDep);
         const dep = SPEC_DRIVEN_SCHEMA.artifacts.find((a) => a.id === depId);
         return {
             id: depId,
             done: completed.has(depId),
+            optional: isOptionalDep(rawDep),
             path: dep?.outputPath ?? depId,
             description: dep?.description ?? '',
         };
     });
-    const unlocks = SPEC_DRIVEN_SCHEMA.artifacts.filter((a) => a.requires.includes(artifactId)).map((a) => a.id);
+    // unlocks 走 depIdOf 归一化：`design?` 之类的可选依赖同样算作解锁关系
+    const unlocks = SPEC_DRIVEN_SCHEMA.artifacts
+        .filter((a) => a.requires.some((dep) => depIdOf(dep) === artifactId))
+        .map((a) => a.id);
 
     return {
         changeName,
@@ -95,7 +108,8 @@ export function getArtifactInstructions(
         schemaName: SPEC_DRIVEN_SCHEMA.schemaName,
         changeDir,
         outputPath: artifact.outputPath,
-        resolvedOutputPath: path.join(changeDir, artifact.outputPath),
+        // 可直接写入的目标：specs 为 <changeDir>/specs 目录，其余为单文件绝对路径（不含 glob）
+        resolvedOutputPath: resolveWritablePath(changeDir, artifact.outputPath),
         description: artifact.description,
         instruction: artifact.instruction,
         template: TEMPLATES[artifactId] ?? '',

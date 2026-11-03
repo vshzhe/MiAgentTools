@@ -319,6 +319,9 @@ describe('A7 workflow 提案 / 修订重验 / 实现桥出口（N4–N17）', ()
 
     it('N12 实现 + 测试桥三出口：修改 / 拒绝不得调用 apply', () => {
         expect(body).toContain('实现 + 测试桥');
+        // 交付桥合并：实现确认与需求文档选项在同一门内一次呈现
+        expect(body).toContain('交付桥');
+        expect(body).toContain('仅生成文档');
         expect(body).toContain('出口：确认（进入 Phase 4，含条件测试生成）');
         expect(body).toContain('拒绝（记录未确认状态并停止，不进入实现）');
         // 实现桥确认后 apply 以 auto-mode 直通（不追加“是否调用技能”确认）

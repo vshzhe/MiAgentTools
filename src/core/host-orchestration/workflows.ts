@@ -69,10 +69,15 @@ const VERIFY_PHASE: PhaseSpec = {
 const DOC_BRIDGE_GATE: GateSpec = { id: 'requirement-doc-bridge', blocking: true };
 
 /**
- * 带需求文档桥的验证阶段（workflow / auto-workflow 共用）。
+ * 带需求文档桥的验证阶段（**仅 auto-workflow 使用**，变更 improve-delegation-gate-ledger / U8）。
  *
- * 两编排链的模板正文本就声明「验证阶段收束于需求文档桥」，协议此前缺失该门 →
- * 协议与模板漂移；此处补齐，MUST NOT 改变 `GateSpec` 形状与条件门语义。
+ * 原为 workflow / auto-workflow 共用；workflow 的文档桥已并入实现阶段的交付桥
+ * （`implementation-bridge` 承载文档选项），故 `WORKFLOW_PROTOCOLS.workflow` 退回无门的
+ * `VERIFY_PHASE`，本常量仅供 auto-workflow（其文档桥仍是唯一流程级阻塞门）。
+ *
+ * MUST NOT 删除本常量或其 auto-workflow 声明：`GATE_WHITELIST` 的
+ * `requirement-doc-bridge` 锚点与 `PHASE_GATE_CATEGORY` 映射同时保留给 auto-workflow
+ * 与 debug `verify-close`；`GateSpec` 形状与条件门语义不变。
  */
 const VERIFY_WITH_BRIDGE: PhaseSpec = {
     ...VERIFY_PHASE,
@@ -84,7 +89,8 @@ const APPLY_PHASE: PhaseSpec = {
     id: 'apply',
     input: { required: ['changeName'], optional: ['autoMode', 'requirementDocStatus'] },
     requiredCapabilities: ['delegate', 'receipt', 'state'],
-    handoff: ['tasksCompleted', 'compileResult', 'receipts', 'requirementDocStatus'],
+    // `confirmedGates`：交付桥确认后写入门账本的事实随回执交付（门承载语义，非阶段门 id）
+    handoff: ['tasksCompleted', 'compileResult', 'receipts', 'requirementDocStatus', 'confirmedGates'],
     receipt: RECEIPT,
     gate: { id: 'implementation-bridge', blocking: true },
     retry: { maxAttempts: 3, on: ['compile-failed', 'test-failed'] },
@@ -124,12 +130,17 @@ const AUTO_ARCHIVE_PHASE: PhaseSpec = {
     retry: { maxAttempts: 2, on: ['sync-failed'] },
 };
 
-/** 调试：根因调查阶段（含诊断确认包与变更归属判定） */
+/**
+ * 调试：根因调查阶段（含「诊断 + 方案」合并确认包与变更归属判定）
+ *
+ * 变更归属（`changeName` / `affectedSymbols`）在 2.4 之前判定，修复方案（`fixDecision`）
+ * 在 2.4 的同一确认包内随根因一并确认 —— 故方案决策同属 investigate 的收束产物。
+ */
 const DEBUG_INVESTIGATE: PhaseSpec = {
     id: 'investigate',
     input: { required: ['bugDescription'] },
     requiredCapabilities: ['skill-load', 'delegate', 'receipt', 'gate'],
-    handoff: ['rootCause', 'defectChain', 'changeName', 'affectedSymbols'],
+    handoff: ['rootCause', 'defectChain', 'changeName', 'affectedSymbols', 'fixDecision'],
     receipt: RECEIPT,
     gate: { id: 'diagnostic-confirmation', blocking: true },
     retry: { maxAttempts: 2, on: ['investigation-inconclusive'] },
@@ -186,11 +197,12 @@ const MIGRATION_CHECK: PhaseSpec = {
 export const WORKFLOW_PROTOCOLS: Readonly<Record<string, WorkflowProtocol>> = {
     workflow: {
         workflowId: 'workflow',
-        phases: [EXPLORE_PHASE, PROPOSE_PHASE, VERIFY_WITH_BRIDGE, APPLY_PHASE, ARCHIVE_PHASE],
+        // 交付桥合并（U8）：验证阶段无阻塞门，文档选项由 APPLY 的 implementation-bridge 承载
+        phases: [EXPLORE_PHASE, PROPOSE_PHASE, VERIFY_PHASE, APPLY_PHASE, ARCHIVE_PHASE],
     },
     'auto-workflow': {
         workflowId: 'auto-workflow',
-        // 自动管线：APPLY / ARCHIVE 无阻塞门；VERIFY 的唯一阻塞门是需求文档桥
+        // 自动管线：APPLY / ARCHIVE 无阻塞门；VERIFY 的唯一阻塞门是需求文档桥（保留，不合并）
         phases: [EXPLORE_PHASE, PROPOSE_PHASE, VERIFY_WITH_BRIDGE, AUTO_APPLY_PHASE, AUTO_ARCHIVE_PHASE],
     },
     debug: {

@@ -157,66 +157,71 @@ ${renderGateWhitelistSection()}
 
    **按项目侧制品协议 \`.iagent/rules/spec.md\` 执行制品生成。** 该文件缺失时以本章内联要点为准并记 WARN，MUST NOT 阻断生成。
 
-3. **获取制品构建顺序**
+3. **获取起草期状态（初检：instructions apply）**
    \`\`\`bash
-   iagent spec status --change "<name>" --json
+   iagent spec instructions apply --change "<name>" --json
    \`\`\`
    解析 JSON 以获取：
    - \`applyRequires\`：实现前所需的制品 ID 数组（例如 \`["tasks"]\`）
-   - \`artifacts\`：全部制品及其状态与依赖列表（解析为 \`applyRequires\` ∪ \`requires\` 的传递闭包）
-   - \`planningHome\`、\`changeRoot\`、\`artifactPaths\` 与 \`actionContext\`：路径与范围上下文。使用这些字段，不得臆断仓库本地路径。
+   - \`artifacts\`：全部制品及其状态（\`done\`/\`ready\`/\`blocked\`/\`invalid\`/\`optional\`/\`skipped\`/\`conflict\`）与 \`requires\` 声明（\`design?\` 后缀表示**可选依赖**）
+   - \`isPlanningComplete\`：必需依赖闭包是否全部完成（可选依赖不计入）
+   - \`planningHome\`、\`changeRoot\`、\`artifactPaths\`：路径与范围上下文。使用这些字段，不得臆断仓库本地路径。
+   - **必需集**：按 \`requires\` 边构建 \`applyRequires\` 的**必需依赖传递闭包**（可选依赖 \`id?\` MUST NOT 计入闭包，防 tasks 已 done 而 specs 未写时早停）
+   MUST NOT 在本阶段以独立的 \`iagent spec status --json\` 作为起草期状态来源（同一状态集已并入 \`instructions apply\`）。
 
-4. **按顺序创建制品直至 apply-ready**
+4. **按依赖关系起草制品直至 apply-ready**
 
-   使用 **TodoWrite tool** 跟踪制品创建进度。
+   使用 **TodoWrite tool** 跟踪制品创建进度。制品顺序由 \`artifacts[].requires\` 决定（无待办必需依赖的制品优先）：
 
-   按依赖顺序遍历制品（无待办依赖的制品优先）：
-
-   a. **对每个 \`ready\`（依赖已满足）的制品**：
-      - 获取指令：
-        \`\`\`bash
-        iagent spec instructions <artifact-id> --change "<name>" --json
-        \`\`\`
-      - instructions JSON 包含：
-        - \`template\`：OpenSpec Markdown 结构模板
-        - \`outputPath\` / \`resolvedOutputPath\`：当前制品的 Markdown 路径
-        - \`dependencies\`：需要重新读取的已完成制品
+   a. **先生成 proposal**（\`status: ready\` 时）：
+      - \`iagent spec instructions proposal --change "<name>" --json\` 取 \`template\` 与 \`resolvedOutputPath\`
+      - **写入 Markdown 真源**：\`resolvedOutputPath\` 即可直接写入的目标（proposal → proposal.md；specs → specs 目录；design → design.md；tasks → tasks.md），MUST NOT 再做 glob 展开或路径猜测
+      - 写入后运行 \`iagent spec validate --change "<name>" --partial\`，修复路径/行号诊断；MUST NOT 通过生成 JSON 副本绕过校验
       - **从磁盘重新读取依赖制品**：生成新制品需读取已完成的依赖制品时，从磁盘重新读取最新内容，不依赖会话缓存
-      - 读取任何已完成的依赖文件作为上下文
-      - **写入 Markdown 真源**：proposal → proposal.md；specs → specs/<capability>/spec.md；design → design.md；tasks → tasks.md
-      - 写入后运行 \`iagent spec validate --change "<name>"\`，修复路径/行号诊断；MUST NOT 通过生成 JSON 副本绕过校验
-      - 简要展示进度："已创建 <artifact-id>"
 
-   b. **持续直到全部必需制品完成（apply-ready = applyRequires 传递闭包）**
-      - 停止条件：按 requires 边构建 applyRequires 的传递闭包作为必需集（applyRequires ∪ 其传递依赖），所有必需制品状态均为 "done" 才视为 apply-ready
-      - 防止早停：tasks 已 done 而 specs 未写时，applyRequires 只列 tasks 不能视为完成；闭包展开后 specs 也属必需
-      - 每创建一个制品后重新运行 \`iagent spec status --change "<name>" --json\`
-      - 检查 \`applyRequires\` 传递闭包中的每个制品 ID 在 artifacts 数组中的状态是否为 \`"done"\`
-      - 必需制品（闭包）全部 done 时停止
+   b. **proposal 完成后，\`specs\` / \`design\` / \`tasks\` 可并行起草**：
+      - proposal 的 Capabilities 清单稳定后，三者之间再无必需依赖（\`tasks.requires = ["specs", "design?"]\`，design 为可选），可派发子代理并行生成或按能力并行生成 delta spec
+      - 每个制品都用 \`iagent spec instructions <artifact-id> --change "<name>" --json\` 取模板与 \`resolvedOutputPath\`（MUST NOT 每制品重复调用 \`status --json\`）
+      - **每次写入后**运行 \`iagent spec validate --change "<name>" --partial\`：\`incomplete\` 表示「还没写」，不是错误；已存在但 \`invalid\` 的制品 MUST 修复而非直接覆盖
+      - 并行子代理失败时：主工作流串行重新生成该制品
 
-   c. **若某制品需要用户输入**（上下文不清晰）：
+   c. **design 可选**：无跨切面设计（纯配置/文档变更）时 MUST NOT 强制创建 \`design.md\`；\`status: optional\` 表示可生成但不阻塞 \`tasks\` 与 apply-ready
+
+   d. **若某制品需要用户输入**（上下文不清晰）：
       - 使用 **AskUserQuestion tool** 澄清
       - 然后继续创建
-
-   d. **并行生成 delta spec（仅多能力）**：
-      - 当 \`specs\` 制品可供生成，且变更涉及两个及以上能力（依据提案的 Capabilities 段）时：为每个能力派发一个子代理（Task 工具）并行生成该能力的 delta spec —— 每个子代理以已完成的 proposal.md 与能力上下文为输入
-      - 在按依赖顺序推进到下一制品前，合并所有已生成的 delta spec（proposal → specs → design → tasks 链路不变）
-      - 单能力变更：在制品循环中直接生成 delta spec（自动串行降级，不派发）
-      - 子代理失败时：主工作流串行重新生成该能力的 delta spec
 
    e. **skipped 制品处理（skipped 联动）**：
       - 状态报告为 \`skipped\` 的制品（如变更声明 \`skip_specs\` 后的 specs）不创建文件
       - 其依赖视为满足，继续推进后续制品
       - 在 TodoWrite 中标记该制品为 skipped 而非 done
 
-5. **展示最终状态**
+5. **展示最终状态（文本展示；非状态来源）**
    \`\`\`bash
    iagent spec status --change "<name>"
    \`\`\`
 
+5.1 **终检（强制：strict validate + instructions apply）**
+   \`\`\`bash
+   iagent spec validate --change "<name>"
+   iagent spec instructions apply --change "<name>" --json
+   \`\`\`
+   - \`validate\` 不带 \`--partial\` 即 **strict 终检**：\`missing-specs\` / \`missing-tasks\` 为 error，\`design\` 缺失不报错；结构错误与未匹配引用 MUST 在进入验证门前修复
+   - \`instructions apply\` 复核 \`instruction.state\`：\`blocked\` 时按 \`missingDeps\` 继续生成（必需集未完成），MUST NOT 直接进入 Phase 3 验证；\`ready\` / \`all_done\` 才可继续
+
 5.5 **产出变更级 handoff 包（供 verify / apply / archive 只读复用）**
 
    - 在全部 \`applyRequires\` 制品定稿后，于 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\`（用 \`path.join()\` 构造）产出**一次**六节 handoff 包：\`## 变更摘要\` / \`## 契约\` / \`## 规范要点\` / \`## 文件归属表\` / \`## Codebase 摘要\` / \`## 已产出（跨单元可见）\`；头部固定元信息 \`change:\` / \`producedBy: propose\` / \`producedAt:\` / \`sourceFingerprint:\`（覆盖 proposal / design / specs / tasks 的内容指纹）
+   - **\`sourceFingerprint\` 派生规则（唯一算法，MUST 写入包内 \`## 契约\` 或头部注释，供消费方复算）**：
+     1. 制品集合 = \`proposal.md\`、\`design.md\`（存在时）、\`specs/**/*.md\`（相对变更目录的路径按字典序）、\`tasks.md\`
+     2. 对每个文件计算 \`sha256(字节内容)\`，得到一行 \`<相对路径>:<sha256 十六进制>\`，路径统一用正斜杠
+     3. 按相对路径字典序排序，用单个换行连接为串 \`S\`
+     4. \`sourceFingerprint = "sha256:" + sha256(S) 十六进制的前 16 字符\`
+     参考实现（Windows / macOS / Linux 通用）：
+     \`\`\`bash
+     node -e "const fs=require('fs'),c=require('crypto'),p=require('path');const r=process.argv[1];const f=[];(function w(d){for(const e of fs.readdirSync(d,{withFileTypes:true})){const x=p.join(d,e.name);if(e.isDirectory()){if(e.name!=='attachments')w(x)}else if(/\\\\.md$/.test(x))f.push(x)}})(r);const rel=f.map(x=>p.relative(r,x).replaceAll('\\\\\\\\','/')).sort();const h=c.createHash('sha256');for(const k of rel)h.update(k+':'+c.createHash('sha256').update(fs.readFileSync(p.join(r,k))).digest('hex')+'\\\\n');console.log('sha256:'+h.digest('hex').slice(0,16))" openspec/changes/<change-name>
+     \`\`\`
+     5. 消费方（verify / apply / archive）读到指纹后按同一算法复算：一致即复用；不一致 MUST 重建该包一次并记 WARN；算法缺失或无法复算时以磁盘制品为准并记 WARN（MUST NOT 静默判定一致）
    - 下游 \`iagent_spec_verify\` / \`iagent_spec_apply\` / \`iagent_spec_archive\` **只读复用**该包并只追加 \`## 阶段结论\`，MUST NOT 重产整包；指纹不一致时由消费方重建并记 WARN
    - Phase 3 自动修复若改动制品，MUST 在验证通过后按新指纹**重建该包一次**，保持 \`sourceFingerprint\` 与制品一致
    - **产出失败只记 WARN 并继续**（不阻断提案）：下游包缺失时按同一六节协议自行产出一次，或降级为内联注入
@@ -299,10 +304,12 @@ ${renderGateWhitelistSection()}
 严格遵循**项目规范** \`.iagent/rules/spec.md\` 的制品协议要点（G1-G7）：
 
 - proposal / specs / design 直接写入 OpenSpec Markdown，tasks 直接写入 tasks.md。
-- 使用 \`iagent spec status --change "<name>" --json\` 和 \`iagent spec instructions <artifact-id> --change "<name>" --json\` 获取状态、路径和模板摘要。
+- 使用 \`iagent spec instructions apply --change "<name>" --json\`（初检 / 终检）与 \`iagent spec instructions <artifact-id> --change "<name>" --json\` 获取状态、路径和模板摘要；MUST NOT 以独立 \`status --json\` 作为起草期状态来源。
 - 不创建或更新 \`change.json\` / \`tasks.json\` 作为新变更真源；CLI JSON 仅为运行时响应。
-- 每次写入后运行 \`iagent spec validate --change "<name>"\`，按文件路径和行号修正 invalid。
+- 每次写入后运行 \`iagent spec validate --change "<name>" --partial\`（起草期：缺失制品记 \`incomplete\`，非错误），定稿后用 strict \`iagent spec validate --change "<name>"\` 终检，按文件路径和行号修正 invalid。
 - 每个可测 Scenario 必须在 tasks.md 有实现或测试任务，并标注 \`Spec Ref\` / \`Scenario Ref\`。
+
+**追溯规范形态（与 spec-verify-proposal 的 D3 同一口径）**：\`Spec Ref = capability / Requirement\`、\`Scenario Ref = capability / Requirement / Scenario\`。只写 capability 不是有效 Spec Ref（缺少 Requirement，会被报 \`spec-ref-missing-requirement\`），MUST NOT 计为 Requirement 覆盖；HTML 注释式与一行双引用等价计分，但规范形态仍是两行。
 - 依赖文件必须从磁盘重新读取；context/rules 只作为本技能约束，不复制进制品。
 
 **任务类型标签**：\`[代码]\` / \`[测试][单元|功能][P0|P1|P2]\` / \`[DB脚本]\` / \`[使用说明]\`。补充文档任务写 \`产出:\`，测试任务不走 attachments 路径。

@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:7329042cdcc516ff8964db6494802240928efcdfa812af2b8103518ba46d0f27"
+  generatedFingerprint: "sha256:4b2bedd525cef6241aae5ff0efc3c767ca2779a2255a499a35621c71be845d00"
 ---
 
 
@@ -21,8 +21,8 @@ metadata:
 本工作流将引导你完成：
 1. **探索阶段** - 持久化探索文件 + grill-with-docs 追问
 2. **提案阶段** - 创建变更并生成全部制品
-3. **验证阶段** - 自动质量校验（D1-D10）+ 深度复查 + 需求文档桥（生成 / 跳过）
-4. **实现阶段** - 确认桥 → 委派 iagent-spec-apply（条件测试子阶段）
+3. **验证阶段** - 自动质量校验（D1-D10）+ 深度复查
+4. **实现阶段** - 交付桥（实现 + 测试桥：实现方案 + 测试计划预告 + 需求文档生成 / 跳过选项）→ 委派 iagent-spec-apply（条件测试子阶段）
 5. **归档阶段** - 确认桥 → 委派 iagent-spec-archive（携带需求文档状态）
 
 阶段之间直接推进（无委派断层），验证通过后委派阶段实现与归档，阶段间以确认桥保证完整性。区别于 iagent-auto-workflow（全自动无门）。
@@ -206,7 +206,7 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 
 **⚠️ 提案制品生成完成后本阶段立即开始 —— 不停顿、不宣告、不向用户提问。**
 
-**委派的 iagent-spec-propose 完成后 Phase 3 自动执行。Phase 3 运行验证超集（iagent-spec-verify-proposal + iagent-proposal-review + 需求文档"生成 / 跳过"桥）；被委派的 spec_propose 已抑制自身的 Phase 3 以避免重复评分，且其独立调用不生成需求文档（文档桥只属于本父流程）。**
+**委派的 iagent-spec-propose 完成后 Phase 3 自动执行。Phase 3 运行验证超集（iagent-spec-verify-proposal + iagent-proposal-review）；需求文档的「生成 / 跳过」选项与实现确认合并为 Phase 3.7 的交付桥（一次呈现、一次确认），Phase 3 自身不再单独停文档桥。被委派的 spec_propose 已抑制自身的 Phase 3 以避免重复评分，且其独立调用不生成需求文档（文档选项只属于本父流程）。**
 
 **TodoWrite 跟踪**：把 Phase 3 事项加入 TodoWrite：
 ```
@@ -222,36 +222,48 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 
 > **Phase 3 细则下沉**：自动执行、量化评分、技术栈检测、通过/失败处理见 `references/verification-protocol.md`；执行 Phase 3 前 MUST 先 `Read` 该文件。
 
-## Phase 3.7: 实现 + 测试桥（强制检查点）
+## Phase 3.7: 交付桥（实现 + 测试桥，强制检查点）
 
-**⛔ GATE: 实现 + 测试桥（强制停止，单一阻塞门）** — 验证与深度复查收束后，**一次呈现**「提案摘要 + 验证评分 + 深度复查结论 + 实现方案 + 测试计划预告」，等待用户**一次确认**后进入实现（含条件测试生成）。MUST NOT 在实现阶段再设第二个确认门（测试计划确认已并入本桥）。
+**⛔ GATE: 实现 + 测试桥（强制停止，单一阻塞门）— 即本阶段唯一确认面「交付桥」** — 验证与深度复查收束后，**一次呈现**「提案摘要 + 验证评分 + 深度复查结论 + 实现方案 + 测试计划预告 + 是否生成需求文档」，等待用户**一次确认**后进入实现（含条件测试生成）。Phase 3.5 的文档桥（原「需求文档桥」）已并入本桥：本桥是同一阶段内**唯一**的业务确认面（单次业务桥）；MUST NOT 在验证阶段先单独停一次文档桥、再在实现阶段停第二次，也 MUST NOT 在实现阶段再设第二个确认门（测试计划确认已并入本桥）。
 
 - 就绪检查：proposal.md / design.md / specs/**/*.md / tasks.md 齐全；验证 PASS（≥90%）；深度复查完成；apply instruction 状态 = ready（`iagent spec instructions apply --change "<name>" --json`；CLI 不可用读 tasks.md 推断）
-- workspace-planning 变更不支持 apply/archive：在此停止，仅保留探索+提案+深度复查结果
+- **五出口（一次呈现，禁止拆成多次停顿）**：① 确认（实现 + 生成文档）→ 以非交互模式委派 `iagent-requirement-doc`（传 change-name，文档写入 `openspec/changes/<change-name>/需求文档.md`）后进入 Phase 4，状态 `generated`；② 确认（仅实现，跳过文档）→ 状态 `skipped-by-user`，进入 Phase 4；③ **仅生成文档** → 生成后**停在规划边界**（状态 `generated`），MUST NOT 委派 `iagent-spec-apply`、不进入实现，后续实现 MUST 由用户单独发起 `/iagent:spec-apply`；④ 修改 → 回 Phase 2 调整制品或回 Phase 1 补决策，MUST NOT 进入实现；⑤ 拒绝 → 记录未确认状态并停止，不进入实现
 - 出口：确认（进入 Phase 4，含条件测试生成）／修改（回 Phase 2 调整制品或回 Phase 1 补决策）／拒绝（记录未确认状态并停止，不进入实现）
-- 需求文档桥已在 Phase 3.5 收束（`generated` / `skipped-by-user` / `generation-failed` 已持久化），本桥不重复询问文档，且不因文档失败而阻塞；状态写入失败时已在 Phase 3.5 停止，不得进入本桥
+- 文档生成分支委派失败 → 状态 `generation-failed` + WARN（含原因），继续原流程（不重试、不阻断）；委派成功 → `generated`
+- **FAIL 不出文档桥**：验证 FAIL、重验循环中或深度复查未收束时 MUST NOT 呈现本桥、MUST NOT 生成需求文档
+- **状态持久化失败即停止**：写入 `## 需求文档状态` 失败（重试一次仍失败）→ MUST NOT 报告阶段完成、MUST NOT 进入实现，输出含目标路径与原因的 WARN 与恢复指引
+- 交付桥确认后 MUST 先写门账本再委派（见 Phase 4 首段）
 
 ---
 ## Phase 4: 实现（委派 iagent-spec-apply）
 
-**⚠️ Phase 3.7 实现桥确认后本阶段立即开始 —— 不停顿、不宣告、不向用户提问。** MUST NOT 再输出对该技能的调用确认询问（确认已由 3.7 桥承载）。
+**⚠️ Phase 3.7 交付桥确认后本阶段立即开始 —— 不停顿、不宣告、不向用户提问。** MUST NOT 再输出对该技能的调用确认询问（确认已由 3.7 交付桥承载）。
+
+**门账本写入（U4，委派前强制）**：交付桥确认实现后**立即**把门承载 id `design-confirmation` 写入变更级 handoff 包 `.openspec-tmp/pipeline-<change-name>/handoff-pack.md` 的 `## 已确认门` 段（Markdown 表格行 `| design-confirmation | verify |`；只追加、不改写既有条目），并在**委派前校验该段与条目存在**：
+
+- 写入失败或校验失败（工作区不可写 / 文件写入异常 / 段缺失）→ **停止并报告期望路径与原因，MUST NOT 委派**（禁止出现「既无参数也无账本」的静默跳过）
+- 账本条目 MUST NOT 超出本阶段回执 `confirmedGates` 声明的已确认门；本阶段回执 SHALL 携带 `confirmedGates: ['design-confirmation']`
+- 条目取值 MUST 收敛到 `GATE_SKIP_IDS`（门承载语义）—— MUST NOT 写入父级阶段门 id（`implementation-bridge` / `requirement-doc-bridge` 不在域内，写入即触发 `invalid-receipt`）
+- 账本路径由 change-name 确定性派生（`.openspec-tmp/pipeline-<change-name>/handoff-pack.md`），MUST NOT 作为委派参数键传入
 
 **委派 `iagent-spec-apply` 技能**执行实现：
-- 传入 change-name + `gate-skip=design-confirmation`（门承载参数：跳过 apply 内部的设计确认门——确认已由 Phase 3.7 实现桥承载，避免重复确认；`auto-mode=true` 为兼容等价写法）
+- 传入 change-name + `gate-skip=design-confirmation`（门承载参数：跳过 apply 内部的设计确认门——确认已由 Phase 3.7 交付桥承载，避免重复确认；`auto-mode=true` 为兼容等价写法）
+- `gate-skip` 是**主通道**（权威），门账本是参数丢失时的**兜底**；两者皆缺时被委派 apply 的设计确认门照常触发，MUST NOT 静默跳过
 - 该参数**仅**跳过设计确认门；测试执行门、范围蔓延确认与共享资源协议照常生效
 - apply 内部完成：分层代码生成（Entity/DTO → Mapper/DAO → Service → Controller）、tasks.md 勾选更新、编译检查
 - 后端架构规则由 apply 按 `.iagent/rules/coding-rules.md` 自行处理，workflow 不干预
 
-### 4.1 条件测试子阶段（tasks.md 含 `[测试]` 任务时；计划已在 3.7「实现 + 测试桥」一次确认）
+### 4.1 条件测试子阶段（tasks.md 含 `[测试]` 任务时；计划已在 3.7「交付桥（实现 + 测试桥）」一次确认）
 
 - 委派 `iagent-test` 技能（多 schema 自动检测 Java/Node）
-- **计划确认已在 Phase 3.7 实现 + 测试桥完成**：本子阶段 MUST NOT 再设独立确认门，直接生成测试代码
+- **计划确认已在 Phase 3.7 交付桥（实现 + 测试桥）完成**：本子阶段 MUST NOT 再设独立确认门，直接生成测试代码
 - 输出测试代码到项目测试源树并运行验证
 
 ### 4.2 实现错误处理
 
 - 编译失败（apply 自动修复 `maxRetries` 次后仍为 `fail`，证据 `status=fail`）：暂停等待用户，不进入归档
-- 测试生成阶段拒绝：回退到 Phase 3.7 实现 + 测试桥重新确认实现范围
+- 测试生成阶段拒绝：回退到 Phase 3.7 交付桥重新确认实现范围
+- 门账本写入 / 校验失败：停止并报告期望路径与原因，MUST NOT 委派
 - 子代理失败：retry 一次，仍失败暂停报告
 
 ### 4.3 实现验证桥接（apply → archive 之间，强制）
@@ -275,7 +287,7 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 
 ### 5.2 委派 `iagent-spec-archive`
 
-- 传入 change-name（跳过选择提示）与 `requirementDocStatus`（Phase 3.5 桥的持久状态：`generated` / `skipped-by-user` / `generation-failed` / `absent`）—— archive **只把它当作报告输入**（需求文档存在性报告与跨会话追溯），MUST NOT 用它触发生成 / 对齐 / 迁移
+- 传入 change-name（跳过选择提示）与 `requirementDocStatus`（交付桥（Phase 3.7）的持久状态：`generated` / `skipped-by-user` / `generation-failed` / `absent`）—— archive **只把它当作报告输入**（需求文档存在性报告与跨会话追溯），MUST NOT 用它触发生成 / 对齐 / 迁移
 - archive 内部完成：delta spec 合并主规格、CONTEXT.md 同步、探索记忆同步到 `specs/<cap>/explorations.md`、需求文档存在性**只读报告**（不改写、不迁出）、目录迁移 `archive/`、ARCHIVE-INDEX.md 纯追加、归档只读校验、流程级工作区清理
 - sync 检查点非阻断（失败 WARN 不阻断）
 
@@ -469,11 +481,12 @@ All artifacts ready! Proceeding to the Phase 4 implementation bridge...
 - **记录检查点状态** - 告知用户文件创建、校验与迁移状态
 - **注入能力记忆** - Phase 1 在 specs/<capability>/explorations.md 存在时读取它
 - **用 CodeGraph 扫描其他项目** - 探索上下文含其他项目路径时，派发子代理用 CodeGraph 的 projectPath 参数扫描；失败时降级为 Glob/Grep
-- **深度复查后收束** - 全量通过（D1-D5 + 深度复查）后展示**一次**需求文档"生成 / 跳过"桥：生成 → 直接非交互委派 `iagent-requirement-doc`（失败记 `generation-failed` + WARN 并继续）、跳过 → 记 `skipped-by-user`；状态写入变更 `exploration.md` 的 `## 需求文档状态` 段（写入失败重试一次仍失败即停止，不进入 Phase 3.7），随后进入 Phase 3.7 实现桥
+- **深度复查后收束** - 全量通过（D1-D5 + 深度复查）后进入**交付桥**（Phase 3.7，实现 + 测试桥：一次呈现「提案摘要 + 验证评分 + 深度复查结论 + 实现方案 + 测试计划预告 + 是否生成需求文档」，一次确认）：生成 → 直接非交互委派 `iagent-requirement-doc`（失败记 `generation-failed` + WARN 并继续）、跳过 → 记 `skipped-by-user`、仅生成文档 → 记 `generated` 并停在规划边界（不委派 apply）；状态写入变更 `exploration.md` 的 `## 需求文档状态` 段（写入失败重试一次仍失败即停止，不进入 Phase 4）
 - **FAIL 不出文档桥** - 验证失败或重验循环中 MUST NOT 生成需求文档、MUST NOT 展示生成/跳过桥
+- **委派前写门账本** - 交付桥确认后立即把 `design-confirmation` 写入 handoff 包 `## 已确认门` 并在委派前校验存在；写入 / 校验失败 → 停止并报告期望路径与原因，MUST NOT 委派；阶段回执携带 `confirmedGates: ['design-confirmation']`；`gate-skip` 仍是主通道（权威），账本仅为参数丢失时的兜底
 - **文档状态跨阶段传递** - 桥结果（`generated` / `skipped-by-user` / `generation-failed` / `absent`）持久化于变更探索文件并经 apply 传至 archive；archive 仅把它当作报告输入（跨会话追溯），MUST NOT 据其生成 / 就地增量对齐 / 迁出，也不存在“文件存在优先 / 状态裁决缺失分支”
 - **对委派执行退出守卫** - 委派的阶段子技能（spec_apply / spec_archive / test）完成后 MUST NOT 自行进入 plan 模式 / 设计模式或推进阶段；workflow 是唯一有权判定阶段完成并推进下一阶段（桥梁）的角色
-- **向 apply 传门承载参数** - Phase 4 向 spec_apply 传 `gate-skip=design-confirmation`（兼容写法 `auto-mode=true`），由 Phase 3.7 实现桥承载确认；仅跳过设计确认门，其余门与停点照常生效
+- **向 apply 传门承载参数** - Phase 4 向 spec_apply 传 `gate-skip=design-confirmation`（兼容写法 `auto-mode=true`），由 Phase 3.7 交付桥承载确认；仅跳过设计确认门，其余门与停点照常生效
 - **向 archive 传 change-name** - Phase 5 向 spec_archive 传 change-name 跳过选择
-- **条件委派测试** - tasks.md 含 `[测试]` 任务时委派 iagent-test；测试计划已在 Phase 3.7 实现 + 测试桥一次确认，MUST NOT 再设独立门
+- **条件委派测试** - tasks.md 含 `[测试]` 任务时委派 iagent-test；测试计划已在 Phase 3.7 交付桥（实现 + 测试桥）一次确认，MUST NOT 再设独立门
 

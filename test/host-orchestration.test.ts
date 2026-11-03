@@ -319,8 +319,16 @@ describe('debug 三阶段协议与条件修复门（4.4）', () => {
         expect(GATE_CONDITION_IDS).toContain('multiple-fix-options');
     });
 
-    it('investigate 交付 fix 所需输入（rootCause / defectChain / changeName / affectedSymbols）', () => {
+    it('investigate 交付 fix 所需输入（含 fixDecision，既有四项顺序不变）', () => {
         const investigate = debug.phases.find((phase) => phase.id === 'investigate')!;
+        // 合并包把方案决策前移到 investigate：handoff 追加 fixDecision，前四项顺序不变
+        expect(investigate.handoff).toEqual([
+            'rootCause',
+            'defectChain',
+            'changeName',
+            'affectedSymbols',
+            'fixDecision',
+        ]);
         for (const field of ['rootCause', 'defectChain', 'changeName', 'affectedSymbols']) {
             expect(investigate.handoff).toContain(field);
         }
@@ -328,6 +336,41 @@ describe('debug 三阶段协议与条件修复门（4.4）', () => {
         for (const field of ['rootCause', 'defectChain', 'changeName', 'fixDecision']) {
             expect(fix.input.required).toContain(field);
         }
+    });
+
+    it('合并包已交付 fixDecision 时 fix 方案门不适用（不制造第二次停点）', () => {
+        const fix = debug.phases.find((phase) => phase.id === 'fix')!;
+        const result = evaluatePhaseTransition({
+            phase: fix,
+            receipt: {
+                phase: 'fix',
+                status: 'ok',
+                artifact: 'fix.md',
+                nextAllowed: 'verify-close',
+            } as never,
+            gateConfirmed: false,
+            gateConditions: { 'multiple-fix-options': false },
+            negotiation: negotiateCapabilities('claude', 'strict'),
+        });
+        expect(result.advance).toBe(true);
+    });
+
+    it('回退路径下多方案仍阻塞 fix（条件门置真）', () => {
+        const fix = debug.phases.find((phase) => phase.id === 'fix')!;
+        const result = evaluatePhaseTransition({
+            phase: fix,
+            receipt: {
+                phase: 'fix',
+                status: 'ok',
+                artifact: 'fix.md',
+                nextAllowed: 'verify-close',
+            } as never,
+            gateConfirmed: false,
+            gateConditions: { 'multiple-fix-options': true },
+            negotiation: negotiateCapabilities('claude', 'strict'),
+        });
+        expect(result.advance).toBe(false);
+        expect(result.blockedBy).toContain(TRANSITION_BLOCKERS.gate);
     });
 
     it('verify-close 消费 fix 结果并交付文档状态', () => {
@@ -828,18 +871,51 @@ describe('3.7 协议门与白名单对齐 + surface 门兜底', () => {
         expect(verify.requiredCapabilities).not.toContain('gate');
     });
 
-    it('workflow verify 与 debug verify-close 同声明文档桥门', () => {
-        for (const [workflowId, phaseId] of [
-            ['workflow', 'verify'],
-            ['debug', 'verify-close'],
-        ] as const) {
-            const phase = getWorkflowProtocol(workflowId)!.phases.find((item) => item.id === phaseId)!;
-            expect(phase.gate?.id).toBe('requirement-doc-bridge');
-            expect(phase.requiredCapabilities).not.toContain('gate');
-        }
-        // debug verify-close 阻塞门数量仍为 1
+    it('workflow verify 不再声明文档桥门，debug verify-close 仍声明', () => {
+        // 交付桥合并（U8）：workflow 的验证阶段阻塞门为 0，文档选项由 apply 的交付桥承载
+        const verify = getWorkflowProtocol('workflow')!.phases.find(
+            (phase) => phase.id === 'verify'
+        )!;
+        expect(verify.gate).toBeUndefined();
+        const apply = getWorkflowProtocol('workflow')!.phases.find((phase) => phase.id === 'apply')!;
+        expect(apply.gate?.id).toBe('implementation-bridge');
+        expect(apply.gate?.blocking).toBe(true);
+        // debug verify-close 仍声明文档桥（锚点保留的直接消费者），阻塞门数量仍为 1
         const close = getWorkflowProtocol('debug')!.phases.find((phase) => phase.id === 'verify-close')!;
+        expect(close.gate?.id).toBe('requirement-doc-bridge');
+        expect(close.requiredCapabilities).not.toContain('gate');
         expect([close.gate].filter(Boolean)).toHaveLength(1);
+    });
+
+    it('协议门清单：workflow verify 无门 + apply 实现桥，auto-workflow verify 文档桥', () => {
+        const workflowVerify = getWorkflowProtocol('workflow')!.phases.find((p) => p.id === 'verify')!;
+        const workflowApply = getWorkflowProtocol('workflow')!.phases.find((p) => p.id === 'apply')!;
+        expect(workflowVerify.gate).toBeUndefined();
+        expect(workflowApply.gate?.id).toBe('implementation-bridge');
+        const autoVerify = getWorkflowProtocol('auto-workflow')!.phases.find((p) => p.id === 'verify')!;
+        expect(autoVerify.gate?.id).toBe('requirement-doc-bridge');
+        // 每阶段至多 1 个阻塞门（账本不新增门类别与门预算）
+        for (const [workflowId, protocol] of Object.entries(WORKFLOW_PROTOCOLS)) {
+            for (const phase of protocol.phases) {
+                const blocking = [phase.gate].filter(
+                    (gate) => gate !== undefined && (gate.blocking ?? true)
+                );
+                expect(blocking.length, `${workflowId}/${phase.id} 超过门预算`).toBeLessThanOrEqual(1);
+            }
+        }
+        // 5 类白名单与锚点集合不变
+        expect(GATE_WHITELIST).toHaveLength(5);
+        expect(GATE_WHITELIST_ANCHORS).toEqual([
+            'prompt-gate',
+            'grill-batch-confirmation',
+            'diagnostic-confirmation',
+            'fix-option-confirmation',
+            'requirement-doc-bridge',
+            'flow-final-confirmation',
+            'implementation-bridge',
+            'archive-confirmation',
+        ]);
+        expect(auditGateWhitelistAlignment()).toEqual([]);
     });
 
     it('白名单仍为 5 类，且 requirement-doc-bridge 挂在需求澄清类别下', () => {
@@ -1017,5 +1093,62 @@ describe('DELEGATION_PARAMETERS 与模板正文一致', () => {
             expect(params['spec-propose']).toEqual({ mode: 'delegated' });
             expect(params['spec-apply']).toEqual({ 'gate-skip': 'design-confirmation' });
         }
+    });
+});
+
+// 变更 improve-delegation-gate-ledger / 任务 1.6 / 5.4：门账本回执镜像校验。
+describe('回执 confirmedGates（门账本镜像）', () => {
+    const spec = { fields: DEFAULT_RECEIPT_FIELDS };
+    const base = {
+        phase: 'apply',
+        status: 'ok' as const,
+        artifact: 'tasks.md',
+        nextAllowed: 'verify',
+    };
+
+    it('合法门承载 id 通过，且不进入默认必需字段', () => {
+        expect(DEFAULT_RECEIPT_FIELDS).not.toContain('confirmedGates');
+        const result = validateReceipt({ ...base, confirmedGates: ['design-confirmation'] }, spec);
+        expect(result.valid).toBe(true);
+    });
+
+    it('缺字段仍有效（缺失即无账本，门照常触发）', () => {
+        expect(validateReceipt({ ...base }, spec).valid).toBe(true);
+    });
+
+    it('非数组 / 元素非字符串 / 空串 / 未知门 id → 无效并附原因', () => {
+        const cases: unknown[] = [
+            'design-confirmation',
+            [123],
+            [''],
+            ['implementation-bridge'],
+            ['requirement-doc-bridge'],
+        ];
+        for (const value of cases) {
+            const result = validateReceipt(
+                { ...base, confirmedGates: value as string[] },
+                spec
+            );
+            expect(result.valid, `非法 confirmedGates 被放行：${JSON.stringify(value)}`).toBe(false);
+            expect(result.reason ?? '').toContain('confirmedGates');
+        }
+    });
+
+    it('回执 confirmedGates 非法时以 invalid-receipt 阻断推进并记 WARN', () => {
+        const phase = {
+            id: 'apply',
+            requiredCapabilities: [] as const,
+            handoff: ['x'],
+            receipt: { fields: DEFAULT_RECEIPT_FIELDS },
+        };
+        const result = evaluatePhaseTransition({
+            phase,
+            receipt: { ...base, confirmedGates: ['unknown-gate'] },
+            gateConfirmed: true,
+            negotiation: negotiateCapabilities('claude', 'strict'),
+        });
+        expect(result.advance).toBe(false);
+        expect(result.blockedBy).toContain(TRANSITION_BLOCKERS.receipt);
+        expect(result.warnings.join('\n')).toContain('confirmedGates');
     });
 });

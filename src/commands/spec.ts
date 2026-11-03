@@ -14,11 +14,24 @@
 
 import { Command } from 'commander';
 import { createChange } from '../core/spec/new-change.js';
-import { getChangeStatus, detectCompleted, hasDeltaSpecFiles, parseTaskProgress } from '../core/spec/status.js';
+import {
+    getChangeStatus,
+    detectCompleted,
+    hasDeltaSpecFiles,
+    parseTaskProgress,
+} from '../core/spec/status.js';
+import type { ArtifactPathMap } from '../core/spec/status.js';
 import { getArtifactInstructions } from '../core/spec/instructions.js';
 import { executeArchive, previewArchive } from '../core/spec/archive.js';
 import { listSubdirectories } from '../utils/file-system.js';
-import { SPEC_DRIVEN_SCHEMA } from '../core/spec/schema.js';
+import {
+    SPEC_DRIVEN_SCHEMA,
+    getArtifactIds,
+    isOptionalArtifact,
+    isValidArtifactId,
+    requiredClosure,
+    requiredDeps,
+} from '../core/spec/schema.js';
 import * as path from 'path';
 import * as fs from 'fs';
 import {
@@ -40,9 +53,9 @@ type ChangeStatusResult = ReturnType<typeof getChangeStatus>;
 /** 单个 artifact 状态类型 */
 type ArtifactStatus = ChangeStatusResult['artifacts'][number];
 
-/** 扩展 artifact 状态：在 done/ready/blocked 基础上增加 skipped/conflict（skip_specs 语义） */
+/** 扩展 artifact 状态：在 done/ready/blocked/optional 基础上增加 skipped/conflict（skip_specs 语义） */
 type ExtendedArtifactStatus = Omit<ArtifactStatus, 'status'> & {
-    status: 'done' | 'ready' | 'blocked' | 'invalid' | 'skipped' | 'conflict';
+    status: 'done' | 'ready' | 'blocked' | 'invalid' | 'optional' | 'skipped' | 'conflict';
 };
 
 /** 扩展变更状态结果（artifacts 使用扩展状态） */
@@ -88,6 +101,16 @@ export interface ApplyInstructionsResult {
     progress: { total: number; complete: number; remaining: number };
     taskList: TaskListItem[];
     instruction: ApplyInstruction;
+    /** 与 `status --json` 一致的制品状态集（含 optional / skipped / conflict） */
+    artifacts: ExtendedArtifactStatus[];
+    /** 进入实现前必须完成的 artifact id 列表（来自 apply.requires） */
+    applyRequires: string[];
+    /** applyRequires 必需依赖闭包是否全部完成（fail-safe 停止信号） */
+    isPlanningComplete: boolean;
+    /** 规划根目录（<projectRoot>/openspec） */
+    planningHome: string;
+    /** artifact id → 路径字段（与 status --json 形状一致） */
+    artifactPaths: ArtifactPathMap;
 }
 
 /** iagent spec render 支持的渲染类型（仅 tasks.md；proposal/specs/design 为 JSON-only，无 MD 产物） */
@@ -169,9 +192,14 @@ export function buildSpecCommand(): Command {
     spec.command('validate')
         .description('校验 OpenSpec Markdown 制品、任务依赖与规格追溯')
         .requiredOption('--change <name>', '目标变更名')
+        .option('--partial', '起草期模式：缺失制品记为 incomplete（不使校验失败）')
+        .option('--artifact <id>', '只校验指定制品（proposal / specs / design / tasks）')
         .option('--json', '以 JSON 输出（供程序处理）')
-        .action((options: { change: string; json?: boolean }) => {
-            const result = runSpecValidate(process.cwd(), options.change);
+        .action((options: { change: string; partial?: boolean; artifact?: string; json?: boolean }) => {
+            const result = runSpecValidate(process.cwd(), options.change, {
+                partial: options.partial,
+                artifact: options.artifact,
+            });
             console.log(options.json ? JSON.stringify(result, null, 2) : formatValidationResult(result));
             if (!result.valid) {
                 process.exitCode = 1;
@@ -372,6 +400,10 @@ export function runSpecStatus(
 interface SpecValidationOutput {
     changeName: string;
     changeRoot: string;
+    /** 校验模式：strict（终检）/ partial（起草期） */
+    mode: 'strict' | 'partial';
+    /** 单制品校验时的 artifact id，未指定为 null */
+    artifactId: string | null;
     valid: boolean;
     diagnostics: Array<{
         severity: string;
@@ -382,25 +414,68 @@ interface SpecValidationOutput {
     }>;
 }
 
+/** validate 命令选项（模式 + 单制品定位） */
+export interface SpecValidateOptions {
+    /** 起草期模式：缺失制品记 incomplete，MUST NOT 使 valid 为 false */
+    partial?: boolean;
+    /** 只校验指定 artifact（未知 id 以非零退出码失败并列出合法 id） */
+    artifact?: string;
+}
+
 /** 从 Markdown 构造统一运行时模型并校验。 */
-export function runSpecValidate(projectRoot: string, changeName: string): SpecValidationOutput {
+export function runSpecValidate(
+    projectRoot: string,
+    changeName: string,
+    options: SpecValidateOptions = {},
+): SpecValidationOutput {
     const changeRoot = path.join(projectRoot, 'openspec', 'changes', changeName);
+    const partial = options.partial === true;
+    const mode: 'strict' | 'partial' = partial ? 'partial' : 'strict';
+    const artifactId = options.artifact ?? null;
     if (!fs.existsSync(changeRoot)) {
         return {
             changeName,
             changeRoot,
+            mode,
+            artifactId,
             valid: false,
             diagnostics: [{ severity: 'error', code: 'missing-change', message: `变更不存在：${changeName}`, filePath: changeRoot, line: 1 }],
         };
     }
 
+    // 未知 artifact id：以非零退出码失败并列出合法 id（不做任何制品解析）
+    if (artifactId !== null && !isValidArtifactId(artifactId)) {
+        return {
+            changeName,
+            changeRoot,
+            mode,
+            artifactId,
+            valid: false,
+            diagnostics: [{
+                severity: 'error',
+                code: 'invalid-artifact-id',
+                message: `未知的 artifact id："${artifactId}"（合法 id：${getArtifactIds().join(' / ')}）`,
+                filePath: changeRoot,
+                line: 1,
+            }],
+        };
+    }
+
+    const wants = (id: string): boolean => artifactId === null || artifactId === id;
+    const missingSeverity = partial ? 'incomplete' : 'error';
+
     const proposalPath = path.join(changeRoot, 'proposal.md');
     const designPath = path.join(changeRoot, 'design.md');
-    const specs = findMarkdownFiles(path.join(changeRoot, 'specs')).map((filePath) => parseSpec(filePath));
     const tasksPath = path.join(changeRoot, 'tasks.md');
-    const proposal = fs.existsSync(proposalPath) ? parseProposal(proposalPath) : undefined;
-    const design = fs.existsSync(designPath) ? parseDesign(designPath) : undefined;
-    const tasks = fs.existsSync(tasksPath) ? parseTasks(tasksPath) : undefined;
+    const specs = wants('specs') ? findMarkdownFiles(path.join(changeRoot, 'specs')).map((filePath) => parseSpec(filePath)) : [];
+    const proposal = wants('proposal') && fs.existsSync(proposalPath) ? parseProposal(proposalPath) : undefined;
+    // design 为可选制品：仅在文件存在时校验，缺失 MUST NOT 产生 missing-design
+    const design = wants('design') && fs.existsSync(designPath) ? parseDesign(designPath) : undefined;
+    const tasks = wants('tasks') && fs.existsSync(tasksPath) ? parseTasks(tasksPath) : undefined;
+
+    // specs 是否已完成（有文件且结构无 error）——决定起草期未匹配引用能否降级
+    const specsCompleted = specs.length > 0 && specs.every((spec) => spec.diagnostics.every((item) => item.severity !== 'error'));
+
     const model: ParsedChange = {
         changeName,
         changeRoot,
@@ -411,18 +486,36 @@ export function runSpecValidate(projectRoot: string, changeName: string): SpecVa
         diagnostics: [],
         warnings: [],
     };
-    const result = validateParsedChange(model);
+    const result = validateParsedChange(model, { degradeUnmatchedRefs: partial && !specsCompleted });
     const diagnostics = [...result.diagnostics];
-    if (proposal === undefined) {
-        diagnostics.push({ severity: 'error', code: 'missing-proposal', message: '缺少 proposal.md', filePath: proposalPath, line: 1 });
+    if (wants('proposal') && proposal === undefined) {
+        diagnostics.push({ severity: missingSeverity, code: 'missing-proposal', message: '缺少 proposal.md', filePath: proposalPath, line: 1 });
     }
-    if (design === undefined && !readSkipSpecs(changeRoot)) {
-        diagnostics.push({ severity: 'error', code: 'missing-design', message: '缺少 design.md', filePath: designPath, line: 1 });
+    // skip_specs 豁免：声明跳过且 specs/ 下无文件时视为已满足，MUST NOT 报 error
+    if (wants('specs') && specs.length === 0 && !readSkipSpecs(changeRoot)) {
+        diagnostics.push({ severity: missingSeverity, code: 'missing-specs', message: '缺少 specs/**/*.md', filePath: path.join(changeRoot, 'specs'), line: 1 });
     }
-    if (tasks === undefined) {
-        diagnostics.push({ severity: 'error', code: 'missing-tasks', message: '缺少 tasks.md', filePath: tasksPath, line: 1 });
+    if (wants('tasks') && tasks === undefined) {
+        diagnostics.push({ severity: missingSeverity, code: 'missing-tasks', message: '缺少 tasks.md', filePath: tasksPath, line: 1 });
     }
-    return { changeName, changeRoot, valid: diagnostics.every((item) => item.severity !== 'error'), diagnostics };
+    // 单制品校验无法执行跨制品追溯时显式说明，避免被误读为「全局通过」
+    if (artifactId !== null && (tasks === undefined || specs.length === 0)) {
+        diagnostics.push({
+            severity: 'incomplete',
+            code: 'traceability-skipped',
+            message: '跨制品追溯未执行：Spec Ref / Scenario Ref 匹配需要 tasks 与 specs 同时可用',
+            filePath: changeRoot,
+            line: 1,
+        });
+    }
+    return {
+        changeName,
+        changeRoot,
+        mode,
+        artifactId,
+        valid: diagnostics.every((item) => item.severity !== 'error'),
+        diagnostics,
+    };
 }
 
 function formatValidationResult(result: SpecValidationOutput): string {
@@ -433,7 +526,7 @@ function formatValidationResult(result: SpecValidationOutput): string {
     for (const diagnostic of result.diagnostics) {
         lines.push(`  [${diagnostic.severity}] ${diagnostic.filePath}:${diagnostic.line} ${diagnostic.message}`);
     }
-    return lines.join('\\n');
+    return lines.join('\n');
 }
 
 /** 列出活跃变更名（openspec/changes/ 下排除 archive/） */
@@ -450,6 +543,7 @@ function renderStatusText(status: ExtendedChangeStatusResult): string {
             artifact.status === 'blocked' ? `（缺失依赖：${artifact.missingDeps?.join('、')}）` :
             artifact.status === 'conflict' ? '（冲突：skip_specs 与 specs 文件共存）' :
             artifact.status === 'skipped' ? '（已声明 skip_specs，跳过）' :
+            artifact.status === 'optional' ? '（可选制品，缺失不阻塞下游）' :
             '';
         lines.push(`  ${artifact.id.padEnd(10)} ${artifact.status}${suffix}`);
     }
@@ -522,35 +616,25 @@ function adjustStatusForSkipSpecs(status: ChangeStatusResult, warnings: string[]
             return { ...artifact, status: 'skipped' as const, missingDeps: [] };
         }
 
-        // 下游 artifact（design/tasks）：skipped 视为满足，conflict 视为未满足
-        const missingDeps = artifact.requires.filter((dep) => !satisfied.has(dep));
+        // 下游 artifact（design/tasks）：只按必需依赖判定（`design?` 视为不阻塞）
+        const definition = SPEC_DRIVEN_SCHEMA.artifacts.find((candidate) => candidate.id === artifact.id);
+        const missingDeps = definition === undefined ? [] : requiredDeps(definition).filter((dep) => !satisfied.has(dep));
         if (completed.has(artifact.id)) {
             return { ...artifact, status: 'done' as const, missingDeps: undefined };
         }
         if (missingDeps.length === 0) {
-            return { ...artifact, status: 'ready' as const, missingDeps: undefined };
+            // 可选制品（`design?`）缺失：既不是 ready 也不是 blocked
+            return isOptionalArtifact(artifact.id)
+                ? { ...artifact, status: 'optional' as const, missingDeps: undefined }
+                : { ...artifact, status: 'ready' as const, missingDeps: undefined };
         }
         return { ...artifact, status: 'blocked' as const, missingDeps };
     });
 
-    // 调整 isPlanningComplete：skipped specs 视为完成
-    const planningComplete = SPEC_DRIVEN_SCHEMA.artifacts.every((a) => {
-        if (a.id === 'specs' && skipped) {
-            return true;
-        }
-        return completed.has(a.id);
-    });
+    // isPlanningComplete：applyRequires 的必需依赖闭包全部满足（skipped specs 视为满足）
+    const planningComplete = requiredClosure(SPEC_DRIVEN_SCHEMA.apply.requires).every((id) => satisfied.has(id));
 
-    return {
-        changeName: status.changeName,
-        changeRoot: status.changeRoot,
-        schemaName: status.schemaName,
-        artifacts,
-        applyRequires: status.applyRequires,
-        progress: status.progress,
-        isPlanningComplete: planningComplete,
-        warnings: status.warnings,
-    };
+    return { ...status, artifacts, isPlanningComplete: planningComplete };
 }
 
 /**
@@ -624,52 +708,53 @@ export function getApplyInstructions(projectRoot: string, changeName: string): A
         throw new Error(`变更不存在：${changeName}（期望目录 ${changeRoot}）`);
     }
 
-    const completed = detectCompleted(changeRoot);
-    const skipSpecs = readSkipSpecs(changeRoot);
-    const specsFilesExist = hasDeltaSpecFiles(changeRoot);
-    const conflict = skipSpecs && specsFilesExist;
-    const skipped = skipSpecs && !specsFilesExist;
+    // 状态语义单一源：getChangeStatus + adjustStatusForSkipSpecs（与 status --json 逐项一致）
+    const warnings: string[] = [];
+    const status = adjustStatusForSkipSpecs(getChangeStatus(projectRoot, changeName, warnings), warnings);
+    const byId = new Map(status.artifacts.map((artifact) => [artifact.id, artifact]));
+    const specsStatus = byId.get('specs')?.status;
+    const conflict = specsStatus === 'conflict';
+    const isSatisfied = (artifactId: string): boolean => {
+        const artifactStatus = byId.get(artifactId)?.status;
+        return artifactStatus === 'done' || artifactStatus === 'skipped';
+    };
 
-    const satisfied = new Set(completed);
-    if (skipped) satisfied.add('specs');
-    if (conflict) satisfied.delete('specs');
-
+    const artifactPaths = status.artifactPaths;
     const contextFiles = {
-        proposal: fs.existsSync(path.join(changeRoot, 'proposal.md')) ? path.join(changeRoot, 'proposal.md') : '',
-        specs: specsFilesExist ? path.join(changeRoot, 'specs') : '',
-        design: fs.existsSync(path.join(changeRoot, 'design.md')) ? path.join(changeRoot, 'design.md') : '',
-        tasks: fs.existsSync(path.join(changeRoot, 'tasks.md')) ? path.join(changeRoot, 'tasks.md') : '',
+        proposal: artifactPaths.proposal?.existingOutputPaths[0] ?? '',
+        specs: (artifactPaths.specs?.existingOutputPaths.length ?? 0) > 0 ? artifactPaths.specs.resolvedOutputPath : '',
+        design: artifactPaths.design?.existingOutputPaths[0] ?? '',
+        tasks: artifactPaths.tasks?.existingOutputPaths[0] ?? '',
     };
 
     const rawProgress = parseTaskProgress(changeRoot);
     const progress = rawProgress ?? { total: 0, complete: 0, remaining: 0 };
     const taskList = parseTaskList(changeRoot);
-    const missingDeps: string[] = [];
+
+    // 必需集：applyRequires 的必需依赖闭包（可选依赖 `design?` 不计入），tasks 自身单独处理
+    const requiredIds = requiredClosure(status.applyRequires).filter((id) => id !== 'tasks');
+    const missingDeps = requiredIds.filter((id) => !isSatisfied(id));
+    if (missingDeps.length === 0 && !isSatisfied('tasks')) {
+        missingDeps.push('tasks');
+    }
+
     let state: 'blocked' | 'ready' | 'all_done';
     let text: string;
-
     if (conflict) {
         state = 'blocked';
         text = '检测到 skip_specs 声明与 specs/ 下文件共存。请先解决冲突（删除 specs/ 下文件 或 移除 skip_specs 声明）后再进入实现。';
-        missingDeps.push('specs');
+    } else if (missingDeps.length > 0) {
+        state = 'blocked';
+        text = `依赖未满足：${missingDeps.join('、')}。请先完成对应 artifact（使用 iagent spec instructions <artifact-id> --change ${changeName}）再进入实现。`;
+    } else if (progress.remaining > 0) {
+        state = 'ready';
+        text = '按 tasks.md 逐项实现，规格行为完整实现后将对应 checkbox 更新为 [x]。';
+    } else if (progress.total > 0) {
+        state = 'all_done';
+        text = `所有任务已完成，准备归档（iagent spec archive ${changeName} --yes）。`;
     } else {
-        if (!satisfied.has('specs')) missingDeps.push('specs');
-        if (!satisfied.has('design')) missingDeps.push('design');
-        if (missingDeps.length === 0 && !completed.has('tasks')) missingDeps.push('tasks');
-
-        if (missingDeps.length > 0) {
-            state = 'blocked';
-            text = `依赖未满足：${missingDeps.join('、')}。请先完成对应 artifact（使用 iagent spec instructions <artifact-id> --change ${changeName}）再进入实现。`;
-        } else if (progress.remaining > 0) {
-            state = 'ready';
-            text = '按 tasks.md 逐项实现，规格行为完整实现后将对应 checkbox 更新为 [x]。';
-        } else if (progress.total > 0) {
-            state = 'all_done';
-            text = `所有任务已完成，准备归档（iagent spec archive ${changeName} --yes）。`;
-        } else {
-            state = 'ready';
-            text = `tasks.md 无可识别任务。请先按 iagent spec instructions tasks --change ${changeName} 补充任务清单。`;
-        }
+        state = 'ready';
+        text = `tasks.md 无可识别任务。请先按 iagent spec instructions tasks --change ${changeName} 补充任务清单。`;
     }
 
     return {
@@ -683,6 +768,11 @@ export function getApplyInstructions(projectRoot: string, changeName: string): A
             text,
             missingDeps: missingDeps.length > 0 ? missingDeps : undefined,
         },
+        artifacts: status.artifacts,
+        applyRequires: status.applyRequires,
+        isPlanningComplete: status.isPlanningComplete,
+        planningHome: status.planningHome,
+        artifactPaths,
     };
 }
 

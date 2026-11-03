@@ -23,6 +23,8 @@ import {
     type VersionChangeSet,
 } from '../src/core/version-bump.js';
 import { renderVersionReport, runVersion } from '../src/commands/version.js';
+import { buildProgram } from '../src/cli/index.js';
+import { vi } from 'vitest';
 
 /** 造一个变更集（默认无信号） */
 function changeSet(overrides: Partial<VersionChangeSet> = {}): VersionChangeSet {
@@ -408,5 +410,54 @@ describe('iagent version 端到端（临时 Git 仓库）', () => {
         git(['add', '.']);
         git(['commit', '-q', '-m', 'chore(release): 1.1.0']);
         expect(() => runVersion(root, {}, true)).toThrow(/没有检测到变更/);
+    });
+});
+
+/**
+ * 回归：`version bump` 子命令与父命令 `version` 存在同名选项（`--level` / `--from` / `--json`）。
+ * Commander 默认把子命令名之后的同名选项解析到父命令，导致 `version bump --level minor`
+ * 静默退化为自动判定、`--json` 也被忽略（历史缺陷，本用例锁定修复后的合并行为）。
+ */
+describe('iagent version bump 子命令同名选项解析（CLI 回归）', () => {
+    /** 捕获一次 CLI 调用的 console.log 输出 */
+    async function runCli(argv: string[]): Promise<string> {
+        const logs: string[] = [];
+        const spy = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+            logs.push(args.map((arg) => String(arg)).join(' '));
+        });
+        try {
+            const program = buildProgram();
+            program.exitOverride();
+            await program.parseAsync(['node', 'iagent', ...argv], { from: 'node' });
+        } finally {
+            spy.mockRestore();
+        }
+        return logs.join('\n');
+    }
+
+    it('--level 与 --json 在 bump 子命令下生效（dry-run 不落盘）', async () => {
+        const output = await runCli(['version', 'bump', '--level', 'minor', '--dry-run', '--json']);
+        const payload = JSON.parse(output) as {
+            analysis: { level: string; nextVersion: string };
+            applied: boolean;
+        };
+        expect(payload.analysis.level).toBe('minor');
+        expect(payload.applied).toBe(false);
+    });
+
+    it('--from 在 bump 子命令下生效', async () => {
+        const head = execFileSync('git', ['rev-parse', '--short', 'HEAD'], {
+            cwd: process.cwd(),
+            encoding: 'utf8',
+        }).trim();
+        const output = await runCli(['version', 'bump', '--from', head, '--dry-run', '--json']);
+        const payload = JSON.parse(output) as { analysis: { baselineRef: string } };
+        expect(payload.analysis.baselineRef).toBe(head);
+    });
+
+    it('父命令 version 的 --level 仍生效（未回归）', async () => {
+        const output = await runCli(['version', '--level', 'major', '--json']);
+        const payload = JSON.parse(output) as { analysis: { level: string } };
+        expect(payload.analysis.level).toBe('major');
     });
 });

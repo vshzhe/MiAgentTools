@@ -11,7 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { getSkillTemplates } from '../src/core/templates/index.js';
+import { getSkillTemplates, getCommandTemplates } from '../src/core/templates/index.js';
 
 const WORKFLOWS_DIR = path.join(process.cwd(), 'src', 'core', 'templates', 'workflows');
 const PROMPT_GATE_FILE = path.join(process.cwd(), 'src', 'core', 'templates', 'prompt-gate.ts');
@@ -25,6 +25,23 @@ function skillBody(name: string): string {
     }
     return entry.template.instructions;
 }
+
+describe('提案链路路径字段与起草状态来源（D9a / D9b）', () => {
+    it('spec-propose 技能版与指令版均不引用 actionContext', () => {
+        const skill = skillBody('iagent_spec_propose');
+        const command = getCommandTemplates().find((entry) => entry.id === 'spec-propose');
+        expect(command, 'spec-propose 指令未注册').toBeDefined();
+        for (const content of [skill, command!.template.content]) {
+            expect(content).not.toContain('actionContext');
+        }
+    });
+
+    it('spec-propose 不把独立 status --json 当作起草期状态来源', () => {
+        for (const content of [skillBody('iagent_spec_propose'), getCommandTemplates().find((entry) => entry.id === 'spec-propose')!.template.content]) {
+            expect(content).not.toContain('iagent spec status --change "<name>" --json');
+        }
+    });
+});
 
 describe('调用类白名单与委派齐备', () => {
     it('每个 Skill(...) 条目在正文中被提及（无幽灵条目）', () => {
@@ -173,6 +190,8 @@ describe('探索内容分层、门预算与门合并', () => {
         const body = skillBody('iagent_workflow');
         expect(body).toContain('实现 + 测试桥');
         expect(body).toContain('单一阻塞门');
+        // 交付桥合并：需求文档选项并入同一门，验证阶段不再单独停一次
+        expect(body).toContain('交付桥');
         expect(body).not.toContain('测试计划确认门 = 桥梁点');
     });
 

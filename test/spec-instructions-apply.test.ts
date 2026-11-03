@@ -87,7 +87,7 @@ describe('iagent spec instructions apply（任务 2.1）', () => {
         fs.rmSync(projectRoot, { recursive: true, force: true });
     });
 
-    it('Scenario: apply 阻塞态 - tasks 依赖未满足（specs/design 未完成，tasks.json 不存在）', () => {
+    it('Scenario: apply 阻塞态 - tasks 依赖未满足（specs 未完成，design 可选不阻塞）', () => {
         const changeDir = makeChange(projectRoot, 'blocked-change');
         writeMetadata(changeDir);
         writeChangeJson(changeDir, { proposal: true });
@@ -96,7 +96,8 @@ describe('iagent spec instructions apply（任务 2.1）', () => {
 
         expect(result.instruction.state).toBe('blocked');
         expect(result.instruction.missingDeps).toContain('specs');
-        expect(result.instruction.missingDeps).toContain('design');
+        // design 是可选依赖（design?），缺失 MUST NOT 进入 missingDeps
+        expect(result.instruction.missingDeps).not.toContain('design');
         expect(result.progress).toEqual({ total: 0, complete: 0, remaining: 0 });
         expect(result.taskList).toEqual([]);
         expect(result.contextFiles.tasks).toBe('');
@@ -263,6 +264,66 @@ describe('skip_specs 冲突检测（任务 2.3）', () => {
         expect(result.instruction.text).toContain('冲突');
         expect(result.instruction.state).not.toBe('ready');
         expect(result.instruction.state).not.toBe('all_done');
+    });
+});
+
+describe('apply JSON 契约（D9a / D9b）', () => {
+    let projectRoot: string;
+
+    beforeEach(() => {
+        projectRoot = makeTempProject();
+    });
+
+    afterEach(() => {
+        fs.rmSync(projectRoot, { recursive: true, force: true });
+    });
+
+    it('Scenario: apply JSON 返回 artifacts / applyRequires / 路径字段', () => {
+        const changeDir = makeChange(projectRoot, 'apply-json');
+        writeMetadata(changeDir);
+        writeChangeJson(changeDir, { proposal: true, specs: true });
+        writeTasksMixed(changeDir);
+
+        const result = getApplyInstructions(projectRoot, 'apply-json');
+
+        expect(result.applyRequires).toEqual(['tasks']);
+        expect(result.planningHome).toBe(path.join(projectRoot, 'openspec'));
+        expect(result.artifactPaths.tasks.resolvedOutputPath).toBe(path.join(changeDir, 'tasks.md'));
+        expect(result.artifactPaths.specs.resolvedOutputPath).toBe(path.join(changeDir, 'specs'));
+        expect(result.isPlanningComplete).toBe(true);
+        expect(result.artifacts.map((artifact) => artifact.id)).toEqual(['proposal', 'specs', 'design', 'tasks']);
+        for (const artifact of result.artifacts) {
+            expect(artifact.requires.length).toBeGreaterThanOrEqual(0);
+            expect(typeof artifact.status).toBe('string');
+        }
+        expect(result.taskList).toHaveLength(8);
+    });
+
+    it('Scenario: apply 与 status 的 skip_specs 语义一致', () => {
+        const changeDir = makeChange(projectRoot, 'skip-consistency');
+        writeMetadata(changeDir, { skipSpecs: true });
+        writeChangeJson(changeDir, { proposal: true });
+        writeTasksMixed(changeDir);
+
+        const payload = JSON.parse(runSpecStatus(projectRoot, { change: 'skip-consistency', json: true }).output);
+        const apply = getApplyInstructions(projectRoot, 'skip-consistency');
+        const statusSpecs = payload.artifacts.find((artifact: { id: string }) => artifact.id === 'specs');
+        const applySpecs = apply.artifacts.find((artifact) => artifact.id === 'specs');
+        expect(applySpecs?.status).toBe('skipped');
+        expect(applySpecs?.status).toBe(statusSpecs.status);
+        expect(apply.isPlanningComplete).toBe(payload.isPlanningComplete);
+    });
+
+    it('可选 design 缺失：instruction.state 不为 blocked（design 可选不阻塞 apply-ready）', () => {
+        const changeDir = makeChange(projectRoot, 'no-design-apply');
+        writeMetadata(changeDir);
+        writeChangeJson(changeDir, { proposal: true, specs: true });
+        writeTasksMixed(changeDir);
+
+        const result = getApplyInstructions(projectRoot, 'no-design-apply');
+        expect(result.artifacts.find((artifact) => artifact.id === 'design')?.status).toBe('optional');
+        expect(result.instruction.state).toBe('ready');
+        expect(result.instruction.missingDeps ?? []).not.toContain('design');
     });
 });
 

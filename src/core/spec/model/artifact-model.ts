@@ -4,7 +4,13 @@
  * 这些类型只表示解析结果，不对应任何持久化 JSON 文件；Markdown 仍是唯一真源。
  */
 
-export type DiagnosticSeverity = 'error' | 'warning';
+/**
+ * 诊断严重度：
+ * - `error`：结构/语义错误，使 `valid` 为 false；
+ * - `warning`：提示，不影响 `valid`；
+ * - `incomplete`：起草期「制品尚未创建」的事实，不影响 `valid`（`iagent spec validate --partial`）。
+ */
+export type DiagnosticSeverity = 'error' | 'warning' | 'incomplete';
 
 export interface ArtifactDiagnostic {
     severity: DiagnosticSeverity;
@@ -132,7 +138,14 @@ export interface ParsedChange {
 }
 
 export interface TraceabilityIssue {
-    kind: 'missing-task' | 'invalid-spec-ref' | 'invalid-scenario-ref' | 'untested-scenario';
+    kind:
+        | 'missing-task'
+        | 'invalid-spec-ref'
+        | 'invalid-scenario-ref'
+        | 'spec-ref-missing-requirement'
+        | 'scenario-ref-missing-scenario'
+        | 'pending-ref'
+        | 'untested-scenario';
     message: string;
     filePath: string;
     line: number;
