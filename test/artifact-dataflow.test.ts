@@ -57,13 +57,6 @@ function entries(name: string): string[] {
         .filter((item) => item.length > 0);
 }
 
-/** 取正文中同时含全部关键词的行（用于「同句」语义判定） */
-function linesContaining(body: string, keywords: readonly string[]): string[] {
-    return body
-        .split('\n')
-        .filter((line) => keywords.every((keyword) => line.includes(keyword)));
-}
-
 /** 取派生后的指令正文（command 版） */
 function commandContent(id: string): string {
     const entry = commands.find((command) => command.id === id);
