@@ -302,9 +302,9 @@ describe('A6 生成能力收敛到验证阶段 + 归档阶段对齐', () => {
 describe('A7 workflow 提案 / 修订重验 / 实现桥出口（N4–N17）', () => {
     const body = corpus('iagent_workflow');
 
-    it('N4 委派 spec-propose 生成制品且不内联生成', () => {
-        expect(body).toContain('委派阶段 `iagent_spec_propose`');
-        expect(body).toContain('MUST NOT 内联生成提案制品');
+    it('N4 由主 agent 内联执行 spec-propose 生成制品（不派发子代理）', () => {
+        expect(body).toContain('内联执行阶段 `iagent_spec_propose`');
+        expect(body).toContain('MUST NOT 派发');
     });
 
     it('N5 FAIL → N6 自动修复并重跑验证，重跑仍失败不进入实现', () => {

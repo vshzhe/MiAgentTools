@@ -1,14 +1,14 @@
 ---
 name: iagent-spec-apply
 description: "实现变更。当 openspec/changes/ 下已有变更制品（proposal/specs/design/tasks），需要基于规格驱动实现任务清单时使用；触发词\"实现变更 / apply / 执行任务 / 按规格实现\"；NOT for 无变更制品时直接描述需求（改用 iagent-workflow 引导生成制品后再实现）。"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(yarn:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(ant:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), Skill(iagent-test), Agent, Task
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(yarn:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(ant:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), Skill(iagent-test)
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）。
 metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:883772f1d64bca3edd9e4c6fd102bfdb7b3a8fc233920d9fe1488a924a1cca44"
+  generatedFingerprint: "sha256:ea833920f7b1e1155da6d2b29ff56d81633a7b9c439edcab89931df80f892c5f"
 ---
 
 **实现前先阅读 .iagent/rules/coding-rules.md 的 AI 编码护栏。** 禁止猜测数据库字段、API 参数或业务规则 —— 标 **[待确认]** 并询问用户。
@@ -45,7 +45,7 @@ metadata:
 
 **执行方式与增量复验（强制）**：
 
-- 本阶段默认经前台 Agent 子代理执行，回执声明 executionMode=subagent；iagent-test 子阶段经子代理。
+- 本阶段由**主 agent 内联**执行，回执声明 `executionMode=inline` / `independence=self` / `readScope`；MUST NOT 派发 `Agent` / `Task` 子代理；兼容窗内旧 `subagent` 回执记 deprecation WARN。`iagent-test` 子阶段以 Skill 工具内联调用。
 - 子代理 MUST FIRST 读 handoff 包「## 制品清单」，按锚点增量读取；回执写 readScope。
 - handoff 包内并列节 `## 硬约束` 只读复用（MUST NOT 写入或改写）；本技能 MUST NOT 新增 grill 纸迹校验、术语写入或 ADR 判定逻辑。
 - 增量复验：验证 FAIL 修复后新开只读代理，传 fixDiff + 上轮 reportPath；只验证增量并对未覆盖范围输出 residual 清单；禁止 resume 充当复验（contextReplay=true 记 WARN）。

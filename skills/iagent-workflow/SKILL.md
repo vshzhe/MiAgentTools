@@ -1,14 +1,14 @@
 ---
 name: iagent-workflow
-description: "一站式引导工作流：从探索到归档。创建持久化探索文件，追问澄清直至明确（grill-with-docs、L1-L5 逐级门），经前台 Agent 子代理委派制品生成（iagent-spec-propose），主 agent 单轮内联验证（D1-D10 + B1-B7 + 证据），再委派实现（iagent-spec-apply）并内联归档（iagent-spec-archive），阶段间以确认桥衔接。当用户需要带追问（grill-with-docs）问答与自动质量验证的引导式端到端管道时使用；触发词\"一站式引导工作流 / guided workflow / workflow from exploration / 引导式全流程\"；NOT for 全自动无门管道（改用 iagent-auto-workflow）、单一阶段探索（改用 iagent-spec-explore）或调试（改用 iagent-debug）。"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(git:*), Bash(ls:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(iagent-spec-explore), Skill(iagent-spec-propose), Skill(iagent-spec-verify-proposal), Skill(iagent-proposal-review), Skill(iagent-spec-apply), Skill(iagent-spec-verify), Skill(iagent-test), Skill(iagent-spec-archive), Agent, Task
+description: "一站式引导工作流：从探索到归档。创建持久化探索文件，追问澄清直至明确（grill-with-docs、L1-L5 逐级门），由主 agent 内联执行制品生成（iagent-spec-propose），主 agent 单轮内联验证（D1-D10 + B1-B7 + 证据），再内联实现（iagent-spec-apply）并内联归档（iagent-spec-archive），阶段间以确认桥衔接。当用户需要带追问（grill-with-docs）问答与自动质量验证的引导式端到端管道时使用；触发词\"一站式引导工作流 / guided workflow / workflow from exploration / 引导式全流程\"；NOT for 全自动无门管道（改用 iagent-auto-workflow）、单一阶段探索（改用 iagent-spec-explore）或调试（改用 iagent-debug）。"
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(git:*), Bash(ls:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(iagent-spec-explore), Skill(iagent-spec-propose), Skill(iagent-spec-verify-proposal), Skill(iagent-proposal-review), Skill(iagent-spec-apply), Skill(iagent-spec-verify), Skill(iagent-test), Skill(iagent-spec-archive)
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）与阶段技能（iagent-spec-apply / iagent-spec-archive，条件 iagent-test）；CLI 缺失时探索/提案降级为 AI 内联生成（CLI-degraded generation）。
 metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:b11d060741c3ae002a98d09af428813c58be924b54e81cdb96f2edbbf19ac40e"
+  generatedFingerprint: "sha256:6a218e9979df57edaef59a46e5b1dce05cee6eaae7fead724d2340773b63904b"
 ---
 
 
@@ -58,11 +58,11 @@ metadata:
 
 **handoff 包（跨阶段只读复用）**：`iagent-spec-propose` 在 Phase 2 定稿时产出 `.openspec-tmp/pipeline-<change-name>/handoff-pack.md`；Phase 3 / 4 / 5 的阶段入口读取该包（`sourceFingerprint` 与制品不一致 → 重建 + WARN），各阶段收尾只向 `## 阶段结论` 追加一行（`phase` / `status` / `artifact` / `nextAllowed`）；MUST NOT 另立包格式或重产整包。`exploration.md` 是探索→提案阶段的**唯一过桥载体**（Phase 2 委派 MUST 传 `explorationFile`，MUST NOT 以对话摘要 / 回执正文替代）；`flowBaselineConfirmed` / `paperTrailStatus` 原样透传（MUST NOT 补默认值），父级复核纸迹自证（MUST NOT 静默采信子级自证）与唯一停点口径见 `references/paper-trail-handoff.md`；包内 `## 硬约束` 为并列节、只读复用。
 
-**执行方式与增量复验（强制）**：分级执行：Phase 1 内联；Phase 2 提案 / Phase 4 实现子代理；Phase 3 验证与 Phase 5 归档由主 agent 内联（`executionMode=inline`），验证**一次**完成（合并 D1-D10 + B1-B7 清单），MUST NOT 派生验证子代理。兼容窗：verify / archive 的旧 `subagent` 回执记 deprecation WARN 并允许推进，下个 major 收紧。增量复验：验证 FAIL 后**在同一主上下文**按 fixDiff 增量重跑清单（≤3 次），禁止新开验证代理、禁止重读未改动制品与全量重读；禁止 resume 充当复验（contextReplay=true 记 WARN）。只读验证以固定清单 + 每条结论 `文件:行` 证据 + 报告落盘承担可信度。子代理先读 handoff 包「## 制品清单」并按锚点增量读取，回执写 readScope；「## 阶段结论」5 列（tokens 可用时填 tokens=<数值>，不可得填 —）。
+**执行方式与增量复验（强制）**：分级执行：Phase 1 / Phase 2 提案 / Phase 3 验证 / Phase 4 实现 / Phase 5 归档均由主 agent 内联（`executionMode=inline`）；仅 `spec-bulk-archive` 内部并行单元保留子代理。验证**一次**完成（合并 D1-D10 + B1-B7 清单），MUST NOT 派生验证子代理。兼容窗：propose / apply / verify / archive 的旧 `subagent` 回执记 deprecation WARN 并允许推进，下个 major 收紧。增量复验：验证 FAIL 后**在同一主上下文**按 fixDiff 增量重跑清单（≤3 次），禁止新开验证代理、禁止重读未改动制品与全量重读；禁止 resume 充当复验（contextReplay=true 记 WARN）。只读验证以固定清单 + 每条结论 `文件:行` 证据 + 报告落盘承担可信度。iagent-test 为 Phase 4 条件子阶段（主 agent 内联调用）。内联执行前先读 handoff 包「## 制品清单」并按锚点增量读取，回执写 readScope；「## 阶段结论」5 列（tokens 可用时填 tokens=<数值>，不可得填 —）。
 
 ## Phase 1: 探索（委派 iagent-spec-explore，交互阶段）
 
-Phase 1 SHALL 经 **Skill 工具内联**委派阶段 `iagent-spec-explore`（传 `mode=delegated`）执行强制检查点体系探索（强制建探索文件、提示词校验门、CONTEXT.md 检查、CodeGraph 基础扫描含多项目派发与深度分析、L1-L5 grill 追问、功能流程图与流程最终确认门、聚合一致性门、探索完成检测），MUST NOT 内联执行探索逻辑。探索是**交互阶段**，MUST NOT 放入隔离子代理（提示词门 / 流程门需与用户交互）。
+Phase 1 SHALL 由主 agent 内联委派阶段 `iagent-spec-explore`（传 `mode=delegated`）执行强制检查点体系探索（强制建探索文件、提示词校验门、CONTEXT.md 检查、CodeGraph 基础扫描含多项目派发与深度分析、L1-L5 grill 追问、功能流程图与流程最终确认门、聚合一致性门、探索完成检测），MUST NOT 内联执行探索逻辑。探索是**交互阶段**，MUST NOT 放入隔离子代理（提示词门 / 流程门需与用户交互）。
 
 委派完成后 SHALL 消费 `iagent-spec-explore` 输出的**结构化 handoff**（探索文件路径、提示词基线、流程基准确认状态 `flowBaselineConfirmed`、Pending 影响符号），并**在同一用户回合内**推进 Phase 2 —— 回执是中间状态，MUST NOT 以回执结束回合。
 
@@ -201,7 +201,7 @@ Phase 2.0 影响面分析完成（或跳过）后：
 
 ### 2.3 提案生成（委派 iagent-spec-propose，自动阶段）
 
-Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部制品生成（proposal.md / specs/**/*.md / design.md / tasks.md）SHALL 经**前台 Agent 子代理**委派阶段 `iagent-spec-propose`（传 `mode=delegated` + `exploration-file=<Phase 1 探索文件路径>`）完成，MUST NOT 内联生成提案制品。制品生成遵循**项目规范** `.iagent/rules/spec.md` 的制品协议要点（Markdown-first 共享协议；该文件缺失时以 spec_propose 的内联要点为准并记 WARN，MUST NOT 阻断）。规则注入、schema 验证与 CLI 降级由 `spec_propose` 承担。
+Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部制品生成（proposal.md / specs/**/*.md / design.md / tasks.md）SHALL 由主 agent 内联执行阶段 `iagent-spec-propose`（传 `mode=delegated` + `exploration-file=<Phase 1 探索文件路径>`）完成；MUST NOT 派发 `Agent` / `Task` 子代理（兼容窗内旧 subagent 回执记 deprecation WARN）。制品生成遵循**项目规范** `.iagent/rules/spec.md` 的制品协议要点（Markdown-first 共享协议；该文件缺失时以 spec_propose 的内联要点为准并记 WARN，MUST NOT 阻断）。规则注入、schema 验证与 CLI 降级由 `spec_propose` 承担。
 
 **Stage Envelope**：只传 `changeName` / `changeRoot` / `explorationFile` / `handoffPackPath` / `mode` / `resume` / `configPath` / `rulesPath`；MUST NOT 内联制品正文或完整 SKILL.md。子代理先读 handoff 包（若已存在），再按需增量读取探索文件。
 
@@ -249,7 +249,7 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 - 条目取值 MUST 收敛到 `GATE_SKIP_IDS`（门承载语义）—— MUST NOT 写入父级阶段门 id（`implementation-bridge` 不在域内，写入即触发 `invalid-receipt`）
 - 账本路径由 change-name 确定性派生（`.openspec-tmp/pipeline-<change-name>/handoff-pack.md`），MUST NOT 作为委派参数键传入
 
-**委派 `iagent-spec-apply` 技能**执行实现（经**前台 Agent 子代理**）：
+**由主 agent 内联执行 `iagent-spec-apply` 技能**实现（MUST NOT 派发 `Agent` / `Task`；兼容窗内旧 subagent 回执记 deprecation WARN）：
 - 传入 change-name + Stage Envelope（handoff 包路径 / 门账本 / `resume`）+ `gate-skip=design-confirmation`（门承载参数：跳过 apply 内部的设计确认门——确认已由 Phase 3.7 交付桥承载，避免重复确认；`auto-mode=true` 为兼容等价写法）
 - `gate-skip` 是**主通道**（权威），门账本是参数丢失时的**兜底**；两者皆缺时被委派 apply 的设计确认门照常触发，MUST NOT 静默跳过
 - 该参数**仅**跳过设计确认门；测试执行门、范围蔓延确认与共享资源协议照常生效
@@ -259,7 +259,7 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 
 ### 4.1 条件测试子阶段（tasks.md 含 `[测试]` 任务时；计划已在 3.7「实现 + 测试桥」一次确认）
 
-- 经**前台 Agent 子代理**委派 `iagent-test` 技能（多 schema 自动检测 Java/Node）
+- 由主 agent 内联调用 `iagent-test` 技能（多 schema 自动检测 Java/Node；不派发子代理）
 - **计划确认已在 Phase 3.7 实现 + 测试桥完成**：本子阶段 MUST NOT 再设独立确认门，直接生成测试代码
 - 输出测试代码到项目测试源树并运行验证；子代理返回后 MUST 在同一用户回合内继续实现验证
 
@@ -292,7 +292,7 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 
 ### 5.2 内联执行 `iagent-spec-archive`（主 agent，Skill 工具）
 
-- **执行方式（强制）**：单变更归档 SHALL 由**主 agent 内联**以 **Skill 工具内联**执行 `iagent-spec-archive` 的归档协议（`executionMode=inline`），MUST NOT 派生归档子代理；兼容窗内旧的 `subagent` 回执记 deprecation WARN 并允许推进（下个 major 收紧为仅 `inline`）
+- **执行方式（强制）**：单变更归档 SHALL 由**主 agent 内联**由主 agent 内联执行 `iagent-spec-archive` 的归档协议（`executionMode=inline`），MUST NOT 派生归档子代理；兼容窗内旧的 `subagent` 回执记 deprecation WARN 并允许推进（下个 major 收紧为仅 `inline`）
 - 传入 change-name（跳过选择提示）+ Stage Envelope（handoff 包路径 / `compile-report.md` 路径 / `resume`）；MUST NOT 传已移除的需求文档状态字段
 - archive 内部完成：delta spec 合并主规格、CONTEXT.md 同步、探索记忆同步到 `specs/<cap>/explorations.md`、目录迁移 `archive/`、归档索引维护（根入口 `ARCHIVE-INDEX.md` 的月份导航 + 全局模块统计；当月月度索引 `ARCHIVE-INDEX-YYYY-MM.md` 的纯追加）、归档只读校验、流程级工作区清理
 - **回执续跑**：内联执行结果 SHALL 含 `archivePath` / `specsSynced`；父级校验通过后完成流程

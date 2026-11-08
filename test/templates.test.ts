@@ -1556,10 +1556,10 @@ describe('11.1-11.7 auto-migration 内联复查与上下文阈值', () => {
         expect(migration).toContain('上下文阈值');
     });
 
-    it('11.3 Phase 3 保留子代理（apply 语义）', () => {
-        expect(migration).toContain('每个派发单元一个子代理');
-        expect(migration).toContain('Phase 3 实现保留子代理');
-        expect(migration).toContain('语义等同 apply');
+    it('11.3 Phase 3 改为主 agent 分批内联（与 apply 一致）', () => {
+        expect(migration).toContain('由主 agent 单 agent 分批实现');
+        expect(migration).toContain('不再派发子代理');
+        expect(migration).not.toContain('每个派发单元一个子代理');
     });
 
     it('11.4 复查失败降级链（串行重试一次 → WARN 完成）', () => {

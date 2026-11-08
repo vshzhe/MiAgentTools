@@ -132,8 +132,9 @@ export function evaluatePhaseTransition(input: PhaseTransitionInput): PhaseTrans
  *
  * 规则（变更 inline-orchestration-delegation / D5，取代 improve-orchestration-execution-mode 的 D1）：
  *   - `PhaseSpec.execution` 缺省 → 不校验（旧阶段兼容）；
- *   - strict 且 `allowed` 不含 `inline`（写阶段）→ `executionMode` 缺失或不匹配即 `invalid-receipt`；
- *   - strict 且 `allowed` 含 `inline`（交互 / 只读验证 / 收尾）→ 缺失记 WARN，不匹配仍阻断；
+ *   - strict 且 `allowed` 不含 `inline`（仅显式要求子代理的阶段）→ `executionMode` 缺失或不匹配即 `invalid-receipt`；
+ *   - strict 且 `allowed` 含 `inline`（全部编排阶段：探索 / 提案 / 实现 / 验证 / 归档 / 修复 / 迁移）→
+ *     缺失记 WARN，不匹配仍阻断；
  *   - 兼容窗（`allowed` 同时含 `inline` 与 `subagent`）内回执为 `subagent` → 记 deprecation WARN
  *     并允许推进（下个 major 收紧为仅 `inline`）；
  *   - 内联验证按 `execution.independence` 映射：`self-allowed` 下 `self` 记 WARN 且允许推进

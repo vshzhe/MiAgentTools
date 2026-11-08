@@ -51,49 +51,49 @@ describe('A1–A4 · spec-apply 共享资源协议（单一源正文）', () => 
         // 制品名与流程级工作区路径
         expect(body).toContain('handoff-pack.md');
         expect(body).toContain('.openspec-tmp/pipeline-<change-name>/');
-        // 包是子代理唯一必读制品
-        expect(body).toContain('handoff 包是子代理**唯一**必读的制品');
+        // 包是实现的只读输入面
+        expect(body).toContain('包是实现的**只读输入面**');
         // 文件内不得再出现旧路径 / 旧文件名作为正向协议路径
         expect(body).not.toContain('context-pack.md');
     });
 
     it('A1 一次性产出 + 逐批追加（不重产整包）+ 阶段结论只追加', () => {
-        expect(body).toContain('只在首次派发前产出');
+        expect(body).toContain('按同一六节协议产出一次');
         expect(body).toContain('MUST NOT 重产整包');
         // 跨阶段复用 propose 产出的包
         expect(body).toContain('跨阶段复用');
         expect(body).toContain('独立调用时（包不存在）');
-        // 阶段结论只追加不改写，四列
+        // 阶段结论只追加不改写
         expect(body).toContain('## 阶段结论');
-        expect(body).toContain('只追加不改写');
+        expect(body).toContain('只追加');
         // 追加动作与批后集中勾选同段
-        expect(body).toContain('把本批的产出文件与公开签名追加到包');
+        expect(body).toContain('追加本批产出文件与公开签名');
     });
 
-    it('A2 调度指令不再内联规范摘要，改为引用包', () => {
-        // 反向断言：旧的内联规范摘要条目已消失
-        expect(body).not.toContain('A summary of the key AI coding guardrails from openspec/rules/ai-coding.md');
-        // 正向断言：改为引用 + 明文禁止内联
-        expect(body).toContain('指令 MUST NOT 内联完整护栏摘要');
-        expect(body).toContain('## 规范要点');
+    it('A2 派发协议改为主 agent 分批（不再每单元一个子代理）', () => {
+        expect(body).not.toContain('每单元派发一个子代理');
+        expect(body).not.toContain('每个派发单元一个子代理');
+        expect(body).toContain('主 agent 单 agent 分批实现');
+        expect(body).toContain('批内并行只读');
     });
 
-    it('A3 禁止项、缺口回执、公开签名定义与空值处置', () => {
-        expect(body).toContain('MUST NOT 重读 proposal/specs/design');
+    it('A3 禁止项、缺口补查、公开签名定义与空值处置', () => {
+        expect(body).toContain('MUST NOT 重读 handoff 包已覆盖的 proposal / specs / design');
         expect(body).toContain('MUST NOT 重跑包已覆盖的 CodeGraph 查询');
-        expect(body).toContain('包缺口回执');
+        expect(body).toContain('缺什么、补查了什么');
         expect(body).toContain('公开签名');
         // 空值处置：不留空、不编造
         expect(body).toContain('MUST NOT 留空');
         expect(body).toContain('MUST NOT 编造');
         // 反幻觉：包是蒸馏视图而非替代品
-        expect(body).toContain('包是蒸馏视图，不是制品的替代品');
+        expect(body).toContain('包是蒸馏视图');
     });
 
-    it('A4 调度指令共享前缀固定顺序且字节一致', () => {
-        expect(body).toContain('共享前缀');
-        expect(body).toContain('单元差异部分');
-        expect(body).toContain('逐字节一致');
+    it('A4 单 agent 分批的进度与写入规则', () => {
+        expect(body).toContain('apply-progress.md');
+        expect(body).toContain('进度登记表');
+        expect(body).toContain('同一文件');
+        expect(body).toContain('串行');
     });
 });
 
@@ -189,7 +189,7 @@ describe('A8 · auto-migration 规范要点写入共享包（skill + command 两
     const REQUIRED = [
         'MUST 写入 handoff 包的 `## 规范要点` 段',
         'MUST NOT 全文内联规范要点',
-        '降级为逐子代理内联注入',
+        '降级为内联注入',
     ];
 
     it('skill 版：写入包 + 不内联 + 退化分支', () => {
@@ -305,20 +305,20 @@ describe('6.9–6.11 · handoff 包跨阶段协议', () => {
         }
     });
 
-    it('6.11 派发协议既有行为逐条仍可定位', () => {
+    it('6.11 单 agent 分批协议逐条可定位', () => {
         const apply = skillBody('iagent_spec_apply');
         const scenarios: [string, string][] = [
-            ['调度指令瘦身', '指令 MUST NOT 内联完整护栏摘要'],
+            ['主 agent 分批', '主 agent 单 agent 分批实现'],
+            ['批内并行只读', '批内并行只读'],
             ['产出登记表跨批共享', '## 已产出（跨单元可见）'],
-            ['回执最小化', '回执 MUST NOT 粘贴代码正文'],
-            ['共享指令前缀字节一致', '共享前缀 MUST 逐字节一致'],
+            ['进度登记表', 'apply-progress.md'],
             ['禁止重读与重跑', 'MUST NOT 重跑包已覆盖的 CodeGraph 查询'],
             ['空值处置', 'MUST NOT 留空'],
-            ['包缺口回执与回填', '包缺口回执'],
+            ['缺什么补查什么', '缺什么、补查了什么'],
             ['auto-mode 不豁免', 'auto-mode'],
-            ['派发单元与并发上限', 'MUST NOT 超过并发上限'],
-            ['跨单元同文件拆出', '从并发组中拆出'],
-            ['无子代理降级', '降级为由你串行实现全部任务'],
+            ['每批单元数', '每批单元数'],
+            ['跨单元同文件拆出', '同一文件'],
+            ['不派发子代理', 'MUST NOT 派发'],
             ['任务勾选集中管理', '由你集中更新 tasks.md'],
         ];
         for (const [name, text] of scenarios) {

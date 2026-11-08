@@ -40,8 +40,9 @@ const EXPLORE_PHASE: PhaseSpec = {
 const PROPOSE_PHASE: PhaseSpec = {
     id: 'propose',
     input: EXPLORATION_INPUT,
-    requiredCapabilities: ['skill-load', 'delegate', 'receipt'],
-    execution: { allowed: ['subagent'] },
+    // 提案由主 agent 内联执行；兼容窗接受旧 subagent 回执并记 deprecation WARN。
+    requiredCapabilities: ['skill-load', 'receipt'],
+    execution: { allowed: ['inline', 'subagent'] },
     // `explorationFile` / `handoffPackPath` / `sourceFingerprint`：供父级以磁盘路径推进后续阶段，
     // MUST NOT 依赖会话缓存（见 spec host-orchestration / Shared workflow protocol）。
     handoff: ['changeName', 'artifacts', 'applyReady', 'explorationFile', 'handoffPackPath', 'sourceFingerprint'],
@@ -66,8 +67,9 @@ const VERIFY_PHASE: PhaseSpec = {
 const APPLY_PHASE: PhaseSpec = {
     id: 'apply',
     input: { required: ['changeName'], optional: ['autoMode'] },
-    requiredCapabilities: ['delegate', 'receipt', 'state'],
-    execution: { allowed: ['subagent'] },
+    // 实现由主 agent 单 agent 分批执行；兼容窗接受旧 subagent 回执。
+    requiredCapabilities: ['receipt', 'state'],
+    execution: { allowed: ['inline', 'subagent'] },
     // `confirmedGates`：交付桥确认后写入门账本的事实随回执交付（门承载语义，非阶段门 id）
     handoff: ['tasksCompleted', 'compileResult', 'receipts', 'confirmedGates'],
     receipt: RECEIPT,
@@ -95,8 +97,9 @@ const ARCHIVE_PHASE: PhaseSpec = {
 const AUTO_APPLY_PHASE: PhaseSpec = {
     id: 'apply',
     input: { required: ['changeName'], optional: ['autoMode'] },
-    requiredCapabilities: ['delegate', 'receipt', 'state'],
-    execution: { allowed: ['subagent'] },
+    // 自动实现同样由主 agent 内联分批执行（兼容窗同 APPLY_PHASE）。
+    requiredCapabilities: ['receipt', 'state'],
+    execution: { allowed: ['inline', 'subagent'] },
     handoff: ['tasksCompleted', 'compileResult', 'receipts', 'confirmedGates'],
     receipt: RECEIPT,
     retry: { maxAttempts: 3, on: ['compile-failed', 'test-failed'] },

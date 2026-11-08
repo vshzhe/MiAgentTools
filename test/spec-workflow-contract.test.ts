@@ -331,10 +331,13 @@ describe('spec-apply 既有门承载行为与停点回归（任务 2.4 / 6.1–6
         expect(corpus('spec-apply')).toContain('共享资源协议 MUST NOT 因该参数而豁免');
     });
 
-    it('批调度协议不变（派发单元 = 同组任务 / 并发上限 / 滑动窗口）', () => {
-        expect(corpus('spec-apply')).toContain('apply.concurrency');
-        expect(corpus('spec-apply')).toContain('采用滑动窗口派发');
-        expect(corpus('spec-apply')).toContain('每个派发单元一个子代理');
+    it('批调度协议改为主 agent 分批（单元 = 同组任务 / 每批单元数 / 批内并行只读）', () => {
+        const text = corpus('spec-apply');
+        expect(text).toContain('apply.concurrency');
+        expect(text).toContain('每批单元数');
+        expect(text).toContain('批内并行只读');
+        expect(text).toContain('MUST NOT 派发');
+        expect(text).not.toContain('每个派发单元一个子代理');
     });
 
     it('编译硬门四值终态与无跳过出口', () => {

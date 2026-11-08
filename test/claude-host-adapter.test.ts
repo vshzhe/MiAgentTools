@@ -183,14 +183,15 @@ describe('3.2 执行方式与增量复验契约渲染', () => {
         expect(section).toContain('inline 阶段不要求 delegate');
     });
 
-    it('strict 段分级策略：探索内联、写阶段子代理、验证与收尾内联优先', () => {
+    it('strict 段分级策略：全部编排阶段内联、仅批量归档并行保留子代理', () => {
         // Given / When
         const section = renderHostOrchestrationSection(strict, 'auto-workflow');
 
         // Then: 分级执行表逐项可见
-        expect(section).toContain('探索 / debug investigate / verify-close 内联');
-        expect(section).toContain('propose / apply 子代理');
-        expect(section).toContain('verify / archive / fix / migration 内联优先');
+        expect(section).toContain('全部编排阶段');
+        expect(section).toContain('默认内联');
+        expect(section).toContain('spec-bulk-archive');
+        expect(section).toContain('批内并行只读');
         expect(section).toContain('只读验证以固定清单');
         expect(section).toContain('为 apply / fix 子阶段');
     });

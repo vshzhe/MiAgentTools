@@ -148,7 +148,7 @@ export function getDebugSkillTemplate(): SkillTemplate {
 1. **复现阶段（双轨入口）** —— 默认轨道为复现优先（失败测试或用户确认的显式步骤作为验收判据）；仅在无复现条件且具备 \`文件:行\` / 日志 / 测试硬证据时启用证据优先轨道，证据类型记入 \`evidenceType\`；两轨均无硬证据时只报告候选、不修复
 2. **排查阶段** —— 能力记忆注入 + CodeGraph 根因分析 + 排查深度分级（2.2.3.5：按影响半径 / 跨模块 / 根因清晰度选轻量或深度路径）+ grill-with-docs 纪律
 3. **关联变更判定阶段** —— 判定 bug 归属哪个变更（进行中 / 新建修复变更 / 已归档来源 / 非缺陷），并在 2.4 之前收束出 \`changeName\` 与 \`affectedSymbols\`
-4. **修复阶段** —— 「诊断 + 方案」合并包内一次确认方案（多方案在包内选定；唯一方案给唯一性证据后随包直通；回退路径下方案门仅多方案时阻塞）→ 精准修复 → 以 **Skill 工具内联**调用 \`iagent_test\` 生成回归测试并验收
+4. **修复阶段** —— 「诊断 + 方案」合并包内一次确认方案（多方案在包内选定；唯一方案给唯一性证据后随包直通；回退路径下方案门仅多方案时阻塞）→ 精准修复 → 由主 agent 内联调用 \`iagent_test\` 生成回归测试并验收
 5. **调试循环** —— 每次修复后可继续报告相关 bug（**非阻塞提示，不构成确认门**；用户主动提出时才追加循环），否则进入统一的 P5-P7
 6. **编译检查阶段** —— 复用 iagent_spec_apply 技能的编译检查约定（覆盖所有循环修复）
 7. **同步阶段** —— 更新变更制品并持久化所有根因分析（覆盖所有循环修复）
@@ -218,7 +218,7 @@ ${renderGateWhitelistSection()}
 ---
 ## 执行方式与增量复验（强制）
 
-investigate / verify-close 内联；fix（修复 + 编译检查 + 范围内测试）由主 agent 内联执行，共用既有重试预算（≤3）；iagent_test 以 **Skill 工具内联**调用（不改为子代理）。增量复验：验证 FAIL 修复后**在同一主上下文**按 fixDiff 与上轮 reportPath 增量重跑清单，禁止新开验证代理、禁止重读未改动制品或全量重读；禁止 resume 充当复验（contextReplay=true 记 WARN）；循环上限 3 次。verify-close 内验证 / 复查均为内联（覆盖 D1-D10 + B1-B7 清单，每条结论带 \`文件:行\` 证据）。内联执行前先读 handoff 包「## 制品清单」并按锚点增量读取，回执写 readScope；「## 阶段结论」5 列（tokens 可用时填 tokens=<数值>，不可得填 —）。
+investigate / verify-close 内联；fix（修复 + 编译检查 + 范围内测试）由主 agent 内联执行，共用既有重试预算（≤3）；iagent_test 由主 agent 内联调用（不改为子代理）。增量复验：验证 FAIL 修复后**在同一主上下文**按 fixDiff 与上轮 reportPath 增量重跑清单，禁止新开验证代理、禁止重读未改动制品或全量重读；禁止 resume 充当复验（contextReplay=true 记 WARN）；循环上限 3 次。verify-close 内验证 / 复查均为内联（覆盖 D1-D10 + B1-B7 清单，每条结论带 \`文件:行\` 证据）。内联执行前先读 handoff 包「## 制品清单」并按锚点增量读取，回执写 readScope；「## 阶段结论」5 列（tokens 可用时填 tokens=<数值>，不可得填 —）。
 
 ## Phase 1: 复现（双轨入口：默认复现优先，证据优先为条件轨道）
 
@@ -416,7 +416,7 @@ bug 无法用自动化测试捕获时（环境相关行为 / 时序 / 仅 UI）�
 
 **编写动作（内联 Skill 调用，强制）**
 
-- 回归测试的编写 SHALL 由主 agent 经 **Skill 工具内联调用** \`iagent_test\`，向其提供：已确认的缺陷链路（2.4）、Phase 1 的复现证据、测试级别/优先级与变更名；Stage Envelope 只传路径与结构化字段，MUST NOT 内联制品正文或完整 SKILL.md；MUST NOT 为回归测试编写派生 Agent 子代理
+- 回归测试的编写 SHALL 由主 agent 由主 agent 内联调用 \`iagent_test\`，向其提供：已确认的缺陷链路（2.4）、Phase 1 的复现证据、测试级别/优先级与变更名；Stage Envelope 只传路径与结构化字段，MUST NOT 内联制品正文或完整 SKILL.md；MUST NOT 为回归测试编写派生 Agent 子代理
 - \`iagent_test\` 是测试生成规则（框架探测、项目既有风格对齐、用例设计、反模式防护）的**唯一来源**；debug MUST NOT 再维护与之冲突的内联框架检测或测试生成规则
 - **Phase 1 内联临时测试的边界**：Phase 1 MAY 以内联临时测试建立失败证据，但该测试**不构成**回归测试；MUST NOT 仅以 Phase 1 临时测试充当唯一回归测试 —— 正式回归测试 SHALL 由 \`iagent_test\` 生成或改造落库
 - **能力缺失**：strict 模式无法调用 \`iagent_test\`（Skill 工具不可用）时 SHALL 按能力协商**阻断并报告**；MUST NOT 以"自写 + WARN"绕过。仅在宿主显式协商 degraded 时才允许本地编写，并须透明记录"本阶段未发生内联技能调用"—— MUST NOT 伪装为 strict 内联调用完成
@@ -479,7 +479,7 @@ Markdown 是唯一真源 —— 直接更新 OpenSpec Markdown 制品；不得�
 
 ### 7.1 内联执行验证（主 agent）
 
-对变更 \`<name>\`，由**主 agent 内联**以 **Skill 工具内联**调用 \`iagent_spec_verify_proposal\` 技能执行验证；Stage Envelope 只传 \`changeName\` / \`changeRoot\` / 制品路径 / \`resume\`，MUST NOT 内联制品正文或完整 SKILL.md；MUST NOT 为验证派生 Agent 子代理（\`executionMode=inline\` / \`independence=self\`）：
+对变更 \`<name>\`，由**主 agent 内联**由主 agent 内联调用 \`iagent_spec_verify_proposal\` 技能执行验证；Stage Envelope 只传 \`changeName\` / \`changeRoot\` / 制品路径 / \`resume\`，MUST NOT 内联制品正文或完整 SKILL.md；MUST NOT 为验证派生 Agent 子代理（\`executionMode=inline\` / \`independence=self\`）：
 
 - \`iagent_spec_verify_proposal\` 是技能名，不是有效的 \`iagent spec instructions\` 制品 ID —— MUST NOT 将其作为 CLI 指令运行
 - 该技能通过读取制品与 exploration.md 执行 D1-D5 核心 + D6-D10 条件评分
@@ -502,7 +502,7 @@ Markdown 是唯一真源 —— 直接更新 OpenSpec Markdown 制品；不得�
 
 验证通过后：
 
-1. **由主 agent 内联复查**：以 **Skill 工具内联** 调用 \`iagent_proposal_review\` 技能，对提案做只读深度复查（超出 D1-D5 核心 + D6-D10 条件评分的深度一致性与覆盖率审计）。复查内联运行（不弹 [Yes/No] 提示），MUST NOT 派生嵌套子代理（\`executionMode=inline\`）。用户 MAY 中断以跳过；否则照常运行。
+1. **由主 agent 内联复查**：由主 agent 内联 调用 \`iagent_proposal_review\` 技能，对提案做只读深度复查（超出 D1-D5 核心 + D6-D10 条件评分的深度一致性与覆盖率审计）。复查内联运行（不弹 [Yes/No] 提示），MUST NOT 派生嵌套子代理（\`executionMode=inline\`）。用户 MAY 中断以跳过；否则照常运行。
    - **降级（回退）（技能不可用）**：技能未安装或调用失败时，降级为主 agent 内联只读深度复查并 WARN："iagent_proposal_review 技能不可用，降级为内联复查"。MUST NOT 静默跳过深度复查。
    - 回执 SHALL 含 \`reviewSummary\` / 可选 \`reportPath\`；完整报告 MUST NOT 内联进回执。
    - **同上下文修复重跑**：复查 FAIL 时在同一主上下文按 \`fixDiff\` 增量重跑，MUST NOT 新开验证代理或全量重读；循环上限 3 次。

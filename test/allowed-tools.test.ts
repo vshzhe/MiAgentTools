@@ -325,14 +325,11 @@ describe('调用类白名单条目（MCP / Skill 委派 / 子代理派发）', (
         const dispatching = skills.filter(({ template }) =>
             parseEntries(template.allowedTools).includes('Agent')
         );
-        // 派发技能集合（回归锁）：debug 修复内联 ⇒ 退出子代理派发面（7 → 6）
+        // 派发技能集合（回归锁）：propose / apply 内联 ⇒ 仅 migration（阈值降级）与
+        // spec-bulk-archive（并行单元）保留子代理
         expect(dispatching.map((s) => s.commandId).sort()).toEqual([
-            'auto-workflow',
             'migration',
-            'spec-apply',
             'spec-bulk-archive',
-            'spec-propose',
-            'workflow',
         ]);
         for (const { template } of dispatching) {
             expectSubagentDispatchPaired(template);

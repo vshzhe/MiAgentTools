@@ -4,7 +4,7 @@
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
 import { GATE_PROTOCOL_PREAMBLE, renderGateWhitelistSection } from '../prompt-gate.js';
-import { SUBAGENT_DISPATCH, skillDelegation } from '../tool-whitelist.js';
+import { skillDelegation } from '../tool-whitelist.js';
 import {
     GATE_SKIP_IDS,
     LEGACY_AUTO_MODE_PARAM,
@@ -17,7 +17,7 @@ export function getSpecProposeSkillTemplate(): SkillTemplate {
     return {
         name: 'iagent_spec_propose',
         description: '创建变更提案。当用户要快速描述想构建的内容并一步生成包含设计、规格和任务的完整提案时使用；触发词"提案 / propose / 创建变更 / 生成规格"；NOT for 直接实现变更（改用 iagent_spec_apply）或一站式引导全流程（改用 iagent_workflow）。',
-        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), ${skillDelegation(['spec_verify_proposal'])}, ${SUBAGENT_DISPATCH}`,
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), ${skillDelegation(['spec_verify_proposal'])}`,
         type: 'spec',
         instructions: `提出新变更 —— 一步创建变更并生成全部制品。
 
@@ -181,10 +181,10 @@ ${renderGateWhitelistSection()}
       - **从磁盘重新读取依赖制品**：生成新制品需读取已完成的依赖制品时，从磁盘重新读取最新内容，不依赖会话缓存
 
    b. **proposal 完成后，\`specs\` / \`design\` / \`tasks\` 可并行起草**：
-      - proposal 的 Capabilities 清单稳定后，三者之间再无必需依赖（\`tasks.requires = ["specs", "design?"]\`，design 为可选），可派发子代理并行生成或按能力并行生成 delta spec
+      - proposal 的 Capabilities 清单稳定后，三者之间再无必需依赖（\`tasks.requires = ["specs", "design?"]\`，design 为可选），可由主 agent 在同一回合按能力并行**读取**、按依赖序**生成** delta spec（MUST NOT 派发子代理）
       - 每个制品都用 \`iagent spec instructions <artifact-id> --change "<name>" --json\` 取模板与 \`resolvedOutputPath\`（MUST NOT 每制品重复调用 \`status --json\`）
       - **每次写入后**运行 \`iagent spec validate --change "<name>" --partial\`：\`incomplete\` 表示「还没写」，不是错误；已存在但 \`invalid\` 的制品 MUST 修复而非直接覆盖
-      - 并行子代理失败时：主工作流串行重新生成该制品
+      - 并行读取失败时：串行重试该制品的生成
 
    c. **design 可选**：无跨切面设计（纯配置/文档变更）时 MUST NOT 强制创建 \`design.md\`；\`status: optional\` 表示可生成但不阻塞 \`tasks\` 与 apply-ready
 
@@ -240,7 +240,7 @@ ${renderGateWhitelistSection()}
    > **delegated 模式分支**：若 \`${renderDelegationModeOption('delegated')}\`，**抑制本节**——不调用 \`iagent_spec_verify_proposal\`、不生成需求文档（编排器的 Phase 3 为其超集，含 \`proposal_review\` 深度复查），直接输出结构化回执交回编排器；回执是中间状态，父编排在同一用户回合内继续。\`interactive\` 模式照常执行本节。
    全部 \`applyRequires\` 制品完成后，自动进入 Phase 3 验证（不得在验证前以 "准备就绪，可进入实现" 结束工作流）：
    - 调用 \`iagent_spec_verify_proposal\` **skill** 执行 D1-D5 评分。（\`iagent_spec_verify_proposal\` 是技能名，而非合法的 \`iagent spec instructions\` 制品 ID —— 不得把它当作 CLI 指令运行。）
-   - **验证复查子代理**：派发一个独立的只读复查子代理（Task 工具，subagent_type: "general-purpose"）执行 D1-D5 评分 —— 该子代理读取变更制品但不修改。子代理派发失败时：降级（回退）到主工作流内联评分并记录 WARN 日志（绝不静默跳过验证）。
+   - **验证复查（主 agent 内联）**：由主 agent 内联执行 D1-D5 评分与固定清单检查（\`executionMode=inline\` / \`independence=self\`），MUST NOT 派发子代理；每条结论 MUST 带 \`文件:行\` 或章节锚点证据。失败时记录 WARN 并在同一上下文重跑（绝不静默跳过验证）。
    - **PASS (≥90%)**：验证通过后可对提案做一次内联深度复查（由主工作流在通过后直接执行一次只读复查，不依赖专门技能名）。深度复查收束后**停止** —— 输出验证与复查结论即完成规划边界：MUST NOT 生成需求文档、MUST NOT 呈现“生成 / 跳过”桥；需求文档只由独立 \`iagent-requirement-doc\` 技能按需生成，用户 MAY 之后手工调用。
    - **FAIL (<90%)**：自动生成修复、应用、重跑；若仍 FAIL，提供 [手动编辑] / [返回探索 (/iagent:spec-explore)] / [查看差异]（无跳过直接实现的通道）。
    - 技能不可用时降级（回退）：AI 内联 D1-D5 评分 + WARN 日志；绝不静默跳过。

@@ -7,6 +7,19 @@
 
 ## [Unreleased]
 
+## [4.5.0] - 2026-11-08
+
+### Added
+
+- `propose` / `apply` 改为主 agent 内联：单 agent 分批（同 `group` 聚单元、批内并行只读、写同一文件串行），进度落盘 `apply-progress.md`；`apply.concurrency` 语义改为每批单元数。
+- `migration` Phase 3 同步内联；上下文阈值（300 文件 / 15k 行）保留为唯一子代理降级逃生口。
+
+### Changed
+
+- 全部编排阶段默认内联；仅 `spec-bulk-archive` 内部并行单元保留子代理（≤3）。
+- `propose` / `apply` 进入兼容窗 `['inline','subagent']`，`subagent` 回执记 deprecation WARN；inline 阶段移除 `delegate` 能力要求。
+- `workflow` / `auto-workflow` / `debug` 的 `allowedTools` 移除 `Agent` / `Task`；`migration` 仅阈值降级保留。
+
 ## [4.4.0] - 2026-11-08
 
 ### Added
@@ -1702,7 +1715,8 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.4.0...HEAD
+[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.5.0...HEAD
+[4.5.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.4.0...v4.5.0
 [4.4.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.3.0...v4.4.0
 [4.3.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.2.0...v4.3.0
 [4.2.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.1.0...v4.2.0

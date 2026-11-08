@@ -229,12 +229,16 @@ node bin/iagent.js version bump  # 递增版本并写回 package.json / CHANGELO
   技能正文 MUST NOT 硬编码 Claude 专属委派机制词（`经 Skill 工具` / `Agent 工具` 等）——机制由生成期按宿主渲染
   （`renderDelegate` / `adaptSkillContentForHost`）。能力缺失时 strict MUST 阻断（`evaluatePhaseTransition`），
   degradation 由 `negotiateCapabilities` 显式标记，MUST NOT 把本地执行伪装为委派完成
-- **分级执行（inline-orchestration-delegation）**：子代理 = `propose` / `apply` / `spec-bulk-archive`
-  内部并行单元；主 agent 内联 = `verify` / `archive`（单变更）/ `debug fix` / `debug verify-close` 内的验证与复查 /
-  `migration source-scan` 与 Phase 4 复查（Phase 3 实现保留子代理，语义等同 apply）。
-  `verify` / `archive` / `fix` / `migration` 的 `execution.allowed` 为 `['inline','subagent']` 兼容窗，
-  `subagent` 回执记 deprecation WARN（下个 major 收紧为 `['inline']`）；inline 阶段 `requiredCapabilities`
-  MUST NOT 含 `delegate`。验证内联以**固定清单（D1-D10 + B1-B7）+ 每条结论 `文件:行` 证据 + 报告落盘
+- **分级执行（inline-propose-apply-parallel）**：**全部编排阶段默认主 agent 内联** ——
+  `propose` / `apply` / `verify` / `archive` / `debug fix` / `migration`（source-scan、Phase 3、Phase 4）。
+  子代理仅用于 `spec-bulk-archive` 的内部并行单元（≤3），以及 `migration` 的上下文阈值降级逃生口。
+  `propose` / `apply` / `verify` / `archive` / `fix` / `migration` 的 `execution.allowed` 为
+  `['inline','subagent']` 兼容窗，`subagent` 回执记 deprecation WARN（下个 major 收紧为 `['inline']`）；
+  inline 阶段 `requiredCapabilities` MUST NOT 含 `delegate`。
+  **propose / apply 为单 agent 分批**：同一 `group` 聚为单元；批内独立只读调用可并行，写同一文件串行；
+  进度落盘 `.openspec-tmp/pipeline-<change>/apply-progress.md`；`apply.concurrency` 语义为「每批单元数」。
+  「单 agent 并行」MUST NOT 被表述为独立上下文的并行代码生成。
+  验证内联以**固定清单（D1-D10 + B1-B7）+ 每条结论 `文件:行` 证据 + 报告落盘
   `.openspec-tmp/pipeline-<change>/verify-report.md`** 承担可信度（`independence=self` 记 WARN）；FAIL 后在同一
   主上下文按 `fixDiff` 重跑（≤3），MUST NOT 新开验证代理或全量重读。迁移内联阈值：计划读取文件数 > 300 或
   制品总行数 > 15k → 降级子代理 + WARN

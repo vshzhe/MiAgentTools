@@ -1257,16 +1257,15 @@ describe('阶段推进校验执行方式（2.4）', () => {
         ...extra,
     });
 
-    it('strict apply 返回 executionMode=inline → advance=false 且 blockedBy 含 invalid-receipt', () => {
+    it('strict apply 返回 executionMode=inline → advance=true（写阶段已内联）', () => {
         const result = evaluatePhaseTransition({
             phase: workflowApply(),
             receipt: okReceipt('apply', { executionMode: 'inline' }),
             gateConfirmed: true,
             negotiation: negotiateCapabilities('claude', 'strict'),
         });
-        expect(result.advance).toBe(false);
-        expect(result.blockedBy).toContain(TRANSITION_BLOCKERS.receipt);
-        expect(result.warnings.join('\n')).toContain('executionMode=inline');
+        expect(result.advance).toBe(true);
+        expect(result.blockedBy).toEqual([]);
     });
 
     it('verify 内联 independence=self → WARN 且仍可推进', () => {
@@ -1317,7 +1316,7 @@ describe('分级执行契约（2.5）', () => {
         'state',
     ]);
 
-    it('strict 缺少 delegate 时变更类阶段以 missing-capabilities 阻断', () => {
+    it('strict 缺少 delegate 时 apply 仍可内联推进（不再要求 delegate）', () => {
         const apply = getWorkflowProtocol('workflow')!.phases.find((phase) => phase.id === 'apply')!;
         const result = evaluatePhaseTransition({
             phase: apply,
@@ -1326,14 +1325,13 @@ describe('分级执行契约（2.5）', () => {
                 status: 'ok',
                 artifact: 'tasks.md',
                 nextAllowed: 'verify',
-                executionMode: 'subagent',
+                executionMode: 'inline',
             },
             gateConfirmed: true,
             negotiation: noDelegate,
         });
-        expect(result.advance).toBe(false);
-        expect(result.blockedBy).toContain(TRANSITION_BLOCKERS.capabilities);
-        expect(result.missingCapabilities).toContain('delegate');
+        expect(result.advance).toBe(true);
+        expect(result.blockedBy).not.toContain(TRANSITION_BLOCKERS.capabilities);
     });
 
     it('explore / investigate / verify-close 声明 inline 且不要求 delegate，缺委派能力仍可推进', () => {
@@ -1428,12 +1426,12 @@ describe('分级执行契约（2.5）', () => {
         }
     });
 
-    it('写阶段（propose / apply）不进入兼容窗：subagent 为唯一允许值且保留 delegate', () => {
+    it('写阶段（propose / apply）进入兼容窗：inline 优先且不要求 delegate', () => {
         for (const workflowId of ['workflow', 'auto-workflow']) {
             for (const phaseId of ['propose', 'apply']) {
                 const phase = getWorkflowProtocol(workflowId)!.phases.find((item) => item.id === phaseId)!;
-                expect(phase.execution?.allowed, `${workflowId}/${phaseId}`).toEqual(['subagent']);
-                expect(phase.requiredCapabilities, `${workflowId}/${phaseId}`).toContain('delegate');
+                expect(phase.execution?.allowed, `${workflowId}/${phaseId}`).toEqual(['inline', 'subagent']);
+                expect(phase.requiredCapabilities, `${workflowId}/${phaseId}`).not.toContain('delegate');
             }
         }
     });

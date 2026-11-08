@@ -5,7 +5,7 @@
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
 import { GATE_PROTOCOL_PREAMBLE, renderGateWhitelistSection } from '../prompt-gate.js';
-import { CODEGRAPH_MCP, SUBAGENT_DISPATCH, skillDelegation } from '../tool-whitelist.js';
+import { CODEGRAPH_MCP, skillDelegation } from '../tool-whitelist.js';
 import {
     GATE_SKIP_IDS,
     LEGACY_AUTO_MODE_PARAM,
@@ -38,11 +38,11 @@ ${renderGateWhitelistSection()}
 ---
 ## 执行方式与增量复验（强制）
 
-分级执行：Phase 1 内联；Phase 2 提案 / Phase 4 实现子代理；Phase 3 验证与 Phase 5 归档由主 agent 内联（\`executionMode=inline\`），验证**一次**完成（合并 D1-D10 + B1-B7 清单），MUST NOT 派生验证子代理。兼容窗：verify / archive 的旧 \`subagent\` 回执记 deprecation WARN 并允许推进，下个 major 收紧。增量复验：验证 FAIL 后**在同一主上下文**按 fixDiff 增量重跑清单（≤3 次），禁止新开验证代理、禁止重读未改动制品与全量重读；禁止 resume 充当复验（contextReplay=true 记 WARN）。只读验证以固定清单 + 每条结论 \`文件:行\` 证据 + 报告落盘承担可信度。iagent_test 为 Phase 4 条件子阶段（Skill 工具内联调用）。子代理先读 handoff 包「## 制品清单」并按锚点增量读取，回执写 readScope；「## 阶段结论」5 列（tokens 可用时填 tokens=<数值>，不可得填 —）。
+分级执行：Phase 1 / Phase 2 提案 / Phase 3 验证 / Phase 4 实现 / Phase 5 归档均由主 agent 内联（\`executionMode=inline\`）；仅 \`spec-bulk-archive\` 内部并行单元保留子代理。验证**一次**完成（合并 D1-D10 + B1-B7 清单），MUST NOT 派生验证子代理。兼容窗：propose / apply / verify / archive 的旧 \`subagent\` 回执记 deprecation WARN 并允许推进，下个 major 收紧。增量复验：验证 FAIL 后**在同一主上下文**按 fixDiff 增量重跑清单（≤3 次），禁止新开验证代理、禁止重读未改动制品与全量重读；禁止 resume 充当复验（contextReplay=true 记 WARN）。只读验证以固定清单 + 每条结论 \`文件:行\` 证据 + 报告落盘承担可信度。iagent_test 为 Phase 4 条件子阶段（主 agent 内联调用）。内联执行前先读 handoff 包「## 制品清单」并按锚点增量读取，回执写 readScope；「## 阶段结论」5 列（tokens 可用时填 tokens=<数值>，不可得填 —）。
 
 ## Phase 1: Exploration（委派 iagent_spec_explore，交互阶段）
 
-Phase 1 SHALL 经 **Skill 工具内联**委派阶段 \`iagent_spec_explore\`（传 \`${renderDelegationModeOption('delegated')}\`）执行强制检查点体系探索（强制建探索文件、提示词校验门、CONTEXT.md 检查、CodeGraph 基础扫描含多项目派发与深度分析、L1-L5 grill 追问、功能流程图与流程最终确认门、聚合一致性门、探索完成检测），MUST NOT 内联执行探索逻辑。探索是**交互阶段**，MUST NOT 放入隔离子代理（提示词门 / 流程门需与用户交互）。
+Phase 1 SHALL 由主 agent 内联委派阶段 \`iagent_spec_explore\`（传 \`${renderDelegationModeOption('delegated')}\`）执行强制检查点体系探索（强制建探索文件、提示词校验门、CONTEXT.md 检查、CodeGraph 基础扫描含多项目派发与深度分析、L1-L5 grill 追问、功能流程图与流程最终确认门、聚合一致性门、探索完成检测），MUST NOT 内联执行探索逻辑。探索是**交互阶段**，MUST NOT 放入隔离子代理（提示词门 / 流程门需与用户交互）。
 
 委派完成后 SHALL 消费 \`iagent_spec_explore\` 输出的**结构化 handoff**（探索文件路径、提示词基线、流程基准确认状态 \`flowBaselineConfirmed\`、Pending 影响符号），并**在同一用户回合内**推进 Phase 2 —— 回执是中间状态，MUST NOT 以回执结束回合。
 
@@ -71,7 +71,7 @@ mcp__codegraph__codegraph_impact --symbol <symbol> --direction upstream
 
 ### 2.1 提案生成（委派 iagent_spec_propose，自动阶段）
 
-Phase 2 的探索文件迁移与全部制品生成 SHALL 经**前台 Agent 子代理**委派阶段 \`iagent_spec_propose\`（传 \`${renderDelegationModeOption('delegated')}\` + \`exploration-file=<Phase 1 探索文件路径>\`）完成，MUST NOT 内联生成提案制品。委派完成后再进入 Phase 3 自动验证。
+Phase 2 的探索文件迁移与全部制品生成 SHALL 由主 agent 内联执行阶段 \`iagent_spec_propose\`（传 \`${renderDelegationModeOption('delegated')}\` + \`exploration-file=<Phase 1 探索文件路径>\`）完成；MUST NOT 派发 \`Agent\` / \`Task\` 子代理（兼容窗内旧 subagent 回执记 deprecation WARN）。内联完成后再进入 Phase 3 自动验证。
 
 **Stage Envelope**：只传 \`changeName\` / \`changeRoot\` / \`explorationFile\` / \`handoffPackPath\`（尚无时传预期路径）/ \`mode\` / \`resume\` / \`configPath\` / \`rulesPath\`；MUST NOT 内联制品正文或完整 SKILL.md。子代理先读 handoff 包（若已存在），再按需增量读取探索文件。
 
@@ -135,7 +135,7 @@ Phase 2 的探索文件迁移与全部制品生成 SHALL 经**前台 Agent 子�
   - \`${renderGateSkipOption(GATE_SKIP_IDS)}\` —— 门承载参数，跳过设计确认门（与 iagent_spec_apply 一致：Input 传该参数后跳过 Step 5.5 确认门，直接进入 Step 6 批次调度；\`${LEGACY_AUTO_MODE_PARAM}=true\` 为兼容等价写法）
   - \`change-name\` —— 来自工作流上下文的当前变更名
   - **门账本** —— 委派前已校验 handoff 包 \`## 已确认门\` 含 \`design-confirmation\`（兜底通道；\`gate-skip\` 为主通道），阶段回执携带 \`confirmedGates: ['design-confirmation']\`
-- **委派阶段**：经**前台 Agent 子代理**以 \`${renderGateSkipOption(GATE_SKIP_IDS)}\` + \`change-name\` + Stage Envelope（handoff 包路径 / 门账本 / \`resume\`）执行 \`iagent_spec_apply\` 技能；被委派技能完整承载 apply 协议
+- **内联执行阶段**：由主 agent 内联以 \`${renderGateSkipOption(GATE_SKIP_IDS)}\` + \`change-name\` + Stage Envelope（handoff 包路径 / 门账本 / \`resume\`）执行 \`iagent_spec_apply\` 技能；MUST NOT 派生 Agent 子代理（兼容窗内旧 subagent 回执记 deprecation WARN）；被调用技能完整承载 apply 协议
   - **handoff 包** —— 唯一必读制品 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\`（六节 + 可选 \`## 阶段结论\`），一次性产出、跨阶段只读复用、逐批追加
   - **产出登记表** —— 包内 \`## 已产出（跨单元可见）\` 段，由协调器在每批之后追加
   - **最小回执** —— 固定四列回执 \`<task id> | <status> | <output file> | <public signature>\`，不粘贴代码正文
@@ -163,7 +163,7 @@ Phase 4 继承 \`iagent_spec_apply\` 的**测试执行门**并**自动**通过 �
 - **3 次尝试后仍失败** → 暂停并向用户报告。MUST NOT 静默通过，MUST NOT 进入归档
 - 项目无测试框架 → 记录 WARN，跳过该门，继续
 
-**条件测试子阶段**：变更 \`tasks.md\` 含 \`[测试]\` 任务时，在测试执行门前经**前台 Agent 子代理**委派阶段 \`iagent_test\` skill 生成变更范围测试；门判定仍然适用（范围内失败自动重试后暂停）。子代理返回后 MUST 在同一用户回合内继续测试门判定。
+**条件测试子阶段**：变更 \`tasks.md\` 含 \`[测试]\` 任务时，在测试执行门前由主 agent 内联调用 \`iagent_test\` skill 生成变更范围测试；门判定仍然适用（范围内失败自动重试后暂停）。内联调用返回后 MUST 在同一用户回合内继续测试门判定。
 
 ### 4.4 实现验证桥（主 agent 内联，强制）
 
@@ -195,7 +195,7 @@ Phase 4 继承 \`iagent_spec_apply\` 的**测试执行门**并**自动**通过 �
 - 构造归档上下文，包含：
   - \`change-name\` —— 当前变更名（跳过变更选择提示）
   - **Stage Envelope** —— handoff 包路径 / \`compile-report.md\` 路径 / \`resume\`；MUST NOT 内联制品正文
-- **主 agent 内联执行归档**：以 \`change-name\` 以 **Skill 工具内联**执行 \`iagent_spec_archive\` 的归档协议（\`executionMode=inline\`，MUST NOT 派生归档子代理；兼容窗内旧 \`subagent\` 回执记 deprecation WARN）；归档协议（delta spec 同步、CONTEXT.md 同步、CodeGraph 检查、探索记忆同步、目录移动、归档索引维护——根入口 \`ARCHIVE-INDEX.md\` 的月份导航 + 全局模块统计与当月月度索引 \`ARCHIVE-INDEX-YYYY-MM.md\` 的纯追加、归档只读校验、流程级工作区清理）—— 本技能 MUST NOT 重复声明或内联该协议正文
+- **主 agent 内联执行归档**：以 \`change-name\` 由主 agent 内联执行 \`iagent_spec_archive\` 的归档协议（\`executionMode=inline\`，MUST NOT 派生归档子代理；兼容窗内旧 \`subagent\` 回执记 deprecation WARN）；归档协议（delta spec 同步、CONTEXT.md 同步、CodeGraph 检查、探索记忆同步、目录移动、归档索引维护——根入口 \`ARCHIVE-INDEX.md\` 的月份导航 + 全局模块统计与当月月度索引 \`ARCHIVE-INDEX-YYYY-MM.md\` 的纯追加、归档只读校验、流程级工作区清理）—— 本技能 MUST NOT 重复声明或内联该协议正文
 - 全部归档步骤在内联执行的 \`iagent_spec_archive\` 协议内部自动完成
 - **回执续跑**：内联执行结果 SHALL 含 \`archivePath\` / \`specsSynced\`；父级校验通过后完成流程
 
@@ -255,7 +255,7 @@ Phase 4 继承 \`iagent_spec_apply\` 的**测试执行门**并**自动**通过 �
 - **MUST NOT 进入 plan 模式** —— 子代理完成分配任务后 MUST NOT 进入 plan 模式 / 设计模式 / 提出后续步骤；Phase 4 的门承载参数仅跳过设计确认门，MUST NOT 免除退出守卫或共享资源协议
 - **MUST FIRST 读取共享 handoff 包** —— 子代理 MUST 先读 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\` 再做增量查询；MUST NOT 绕过包重读 proposal/specs/design 或重跑已覆盖的 CodeGraph 查询
 `,
-        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(mvn:*), Bash(gradle:*), Bash(ant:*), Bash(go:*), Bash(cargo:*), Bash(git:*), Bash(ls:*), Bash(mv:*), ${CODEGRAPH_MCP}, ${skillDelegation(['spec_explore', 'spec_propose', 'spec_verify_proposal', 'proposal_review', 'spec_apply', 'spec_verify', 'test', 'spec_archive'])}, ${SUBAGENT_DISPATCH}`,
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(mvn:*), Bash(gradle:*), Bash(ant:*), Bash(go:*), Bash(cargo:*), Bash(git:*), Bash(ls:*), Bash(mv:*), ${CODEGRAPH_MCP}, ${skillDelegation(['spec_explore', 'spec_propose', 'spec_verify_proposal', 'proposal_review', 'spec_apply', 'spec_verify', 'test', 'spec_archive'])}`,
         type: 'impl',
         license: 'MIT',
         compatibility: '依赖 iagent CLI（spec 命令组）与 spec 系列技能（iagent_spec_apply / iagent_spec_archive）；CLI 缺失时降级为 AI 内联生成。',

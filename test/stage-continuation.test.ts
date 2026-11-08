@@ -323,24 +323,22 @@ describe('5.8 编排模板分级执行与增量复验关键字', () => {
         expect(getDebugSkillTemplate().instructions).toContain('investigate / verify-close 内联');
     });
 
-    it('探索 / 交互阶段内联，写阶段子代理，验证与收尾内联优先', () => {
-        // Given: auto-workflow / workflow 的 Phase 1 与 Phase 2/4/5
+    it('全部编排阶段内联，仅批量归档并行保留子代理', () => {
+        // Given: auto-workflow / workflow 的阶段执行方式
         const auto = getAutoWorkflowSkillTemplate().instructions;
         const wf = getWorkflowSkillTemplate().instructions;
-        // Then: 阶段所有者执行方式与规格一致（写阶段子代理，验证 / 归档内联）
-        expect(auto).toContain('Phase 1 内联');
-        expect(auto).toContain('Phase 4 实现子代理');
-        expect(auto).toContain('Phase 5 归档由主 agent 内联');
-        expect(wf).toContain('Phase 1 内联');
-        expect(wf).toContain('Phase 4 实现子代理');
-        expect(wf).toContain('Phase 5 归档由主 agent 内联');
+        // Then: 全部阶段内联，仅 bulk 并行单元保留子代理
+        for (const body of [auto, wf]) {
+            expect(body).toContain('Phase 2 提案 / Phase 3 验证 / Phase 4 实现 / Phase 5 归档均由主 agent 内联');
+            expect(body).toContain('spec-bulk-archive');
+        }
 
         // Given: debug 的 investigate / verify-close 与 fix
         const debug = getDebugSkillTemplate().instructions;
         // Then: 交互 / 收束 / 修复均内联
         expect(debug).toContain('investigate / verify-close 内联');
         expect(debug).toContain('fix（修复 + 编译检查 + 范围内测试）由主 agent 内联执行');
-        expect(debug).toContain('iagent_test 以 **Skill 工具内联**调用');
+        expect(debug).toContain('iagent_test 由主 agent 内联调用');
     });
 
     it('无「内联执行变更类阶段」的肯定表述', () => {
@@ -460,7 +458,7 @@ describe('5.10 分级执行模板与协议断言', () => {
         expect(explore.requiredCapabilities).not.toContain('delegate');
         // And: 模板正文同步声明
         for (const [name, text] of ORCHESTRATOR_BODIES) {
-            const marker = name === 'debug' ? 'investigate / verify-close 内联' : 'Phase 1 内联';
+            const marker = name === 'debug' ? 'investigate / verify-close 内联' : '均由主 agent 内联';
             expect(text, `${name} 缺探索内联`).toContain(marker);
         }
     });

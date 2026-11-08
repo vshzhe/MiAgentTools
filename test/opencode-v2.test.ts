@@ -278,12 +278,12 @@ describe('4.2 OpenCode 权限翻译完整性', () => {
     });
 
     it('派发型 worker 获得 subagent，非派发型不获得', () => {
-        expect(hasDispatchEntry(stageOf('spec-apply').allowedTools)).toBe(true);
-        const dispatching = renderWorkerAgent('spec-apply', '实现变更', { grantSubagent: true });
+        expect(hasDispatchEntry(stageOf('migration').allowedTools)).toBe(true);
+        const dispatching = renderWorkerAgent('migration', '功能迁移', { grantSubagent: true });
         expect(dispatching).toContain('action: subagent');
         expect(dispatching).toContain('"iagent-*"');
 
-        const nonDispatch = renderWorkerAgent('spec-explore', '探索阶段', { grantSubagent: false });
+        const nonDispatch = renderWorkerAgent('spec-apply', '实现变更', { grantSubagent: false });
         expect(nonDispatch).not.toContain('action: subagent');
     });
 
@@ -293,6 +293,7 @@ describe('4.2 OpenCode 权限翻译完整性', () => {
             const result = writeOpenCodeProjectArtifacts(root, [
                 stageOf('spec-apply'),
                 stageOf('spec-explore'),
+                stageOf('migration'),
             ]);
             // MCP 缺口诊断（不生成猜测性规则）
             expect(result.warnings.join('\n')).toContain('MCP 权限缺口');
@@ -317,9 +318,15 @@ describe('4.2 OpenCode 权限翻译完整性', () => {
                 'utf8'
             );
             expect(worker).toContain('resource: "iagent-test"');
-            expect(worker).toContain('action: subagent');
+            expect(worker).not.toContain('action: subagent');
             expect(worker).toContain('action: shell');
             expect(worker).toContain('resource: "pnpm "');
+
+            const migrationWorker = fs.readFileSync(
+                path.join(root, OPENCODE_AGENTS_DIR, `${openCodeAgentId('migration')}.md`),
+                'utf8'
+            );
+            expect(migrationWorker).toContain('action: subagent');
         } finally {
             fs.rmSync(root, { recursive: true, force: true });
         }

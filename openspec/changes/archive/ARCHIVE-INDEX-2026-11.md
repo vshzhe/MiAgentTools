@@ -19,6 +19,8 @@
 | 2026-11-08 | improve-orchestration-execution-mode | templates | 编排执行方式提升为一等契约：`Receipt` 扩展 `executionMode` / `independence` / `usage` / `readScope` / `dependsOn` / `contextReplay` 并由 `validateReceipt` 校验取值域；分级执行（探索与交互收束内联、变更类与 test 子阶段子代理、只读验证允许非作者内联）；`evaluatePhaseTransition` 按 `PhaseSpec.execution` 校验执行方式与独立性；修复后增量复验（新开只读代理 + `fixDiff`，禁止 resume 充当复验）；`iagent spec fingerprint` 复算制品指纹（算法单一源，末尾无换行）+ 补全表同步；handoff 包 `## 制品清单`、proposal-review 串联 verify 报告、`## 阶段结论` 记录 tokens。不发散门白名单与业务确认语义。[含测试] |
 | 2026-11-08 | improve-grill-with-docs-paper-trail | templates | iagent 对 grill-with-docs 的自持集成补齐纸迹保真与硬约束载体 [含测试] |
 | 2026-11-08 | improve-archive-index-monthly | spec | 归档索引按月份分片：根入口 + 月度索引，防止单文件膨胀。[含测试] |
+| 2026-11-08 | inline-orchestration-delegation | orchestration | 验证与收尾阶段改为主代理内联：verify / archive / debug fix / migration 内联优先（兼容窗 subagent WARN），propose / apply 保留子代理；验证改为单轮内联清单 + `文件:行` 证据 + 报告落盘。[含测试] |
+| 2026-11-08 | inline-propose-apply-parallel | orchestration | propose / apply 改为主 agent 内联与单 agent 分批（批内并行只读、同文件串行、进度落盘）；仅 `spec-bulk-archive` 并行单元与 migration 阈值降级保留子代理；propose / apply 进入兼容窗。[含测试] |
 
 ---
 
@@ -27,7 +29,7 @@
 | 模块 | 归档数 | 变更列表 |
 |------|-------|---------|
 | templates | 4 | fix-multi-agent-skill-command-generation (2026-11-02), improve-requirement-doc-review-readiness (2026-11-08), improve-orchestration-execution-mode (2026-11-08), improve-grill-with-docs-paper-trail (2026-11-08) |
-| orchestration | 3 | fix-mode-delegation-host-parity (2026-11-01), improve-delegation-gate-ledger (2026-11-03), skill-bridge-optimize (2026-11-08) |
+| orchestration | 5 | fix-mode-delegation-host-parity (2026-11-01), improve-delegation-gate-ledger (2026-11-03), skill-bridge-optimize (2026-11-08), inline-orchestration-delegation (2026-11-08), inline-propose-apply-parallel (2026-11-08) |
 | debug | 1 | feat-debug-dual-track-entry (2026-11-03) |
 | spec | 2 | improve-proposal-validation-and-spec-ref (2026-11-03), improve-archive-index-monthly (2026-11-08) |
 | workflow | 1 | improve-compile-gate-and-archive-readonly (2026-11-01) |
