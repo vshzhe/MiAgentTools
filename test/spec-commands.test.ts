@@ -223,11 +223,14 @@ describe('TASKS_TEMPLATE 示例自身可解析', () => {
         fs.rmSync(projectRoot, { recursive: true, force: true });
     });
 
-    it('模板含规范两行示例并声明 capability-only 无效', () => {
+    it('模板含规范两行示例（Scenario Ref 为叶子名）并声明能力/歧义诊断', () => {
         expect(TASKS_TEMPLATE).toContain('- Spec Ref：<capability> / <Requirement>');
-        expect(TASKS_TEMPLATE).toContain('- Scenario Ref：<capability> / <Requirement> / <Scenario>');
+        expect(TASKS_TEMPLATE).toContain('- Scenario Ref：<Scenario>');
+        expect(TASKS_TEMPLATE).toContain('场景叶子名');
         expect(TASKS_TEMPLATE).toContain('只写 <capability> 不是有效 Spec Ref');
         expect(TASKS_TEMPLATE).toContain('spec-ref-missing-requirement');
+        expect(TASKS_TEMPLATE).toContain('scenario-ref-missing-context');
+        expect(TASKS_TEMPLATE).toContain('ambiguous-scenario-ref');
         expect(TASKS_TEMPLATE).toContain('→ Requirement:');
     });
 

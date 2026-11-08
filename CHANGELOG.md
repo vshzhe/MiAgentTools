@@ -7,6 +7,19 @@
 
 ## [Unreleased]
 
+## [4.6.0] - 2026-11-08
+
+### Added
+
+- tasks.md 追溯引用新增 `scenario-ref-missing-context` / `ambiguous-scenario-ref` 两类 fail-safe 诊断；`--partial` 起草期一并降级为 `pending-ref` warning。
+- 新增 `src/core/spec/parser/reference-resolver.ts`：场景叶子名判定与同任务 Spec Ref 补全（纯函数、无 I/O）。
+
+### Changed
+
+- `Scenario Ref` 规范形态改为场景叶子名（`Spec Ref` 两段 + `Scenario Ref: <Scenario>`），消除与 Spec Ref 重复的路径前缀；历史全路径 / HTML 注释式 / 一行双引用继续兼容。
+- `TASKS_TEMPLATE`、`spec-propose`、`spec-verify-proposal` 同步新形态与诊断说明；格式真源保持单点。
+- `matchesScenarioRef` 移除「裸场景名全局相等」兜底，改为按同一任务 Spec Ref 绑定，避免跨 Requirement / capability 误匹配。
+
 ## [4.5.0] - 2026-11-08
 
 ### Added
@@ -1715,7 +1728,8 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.5.0...HEAD
+[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.6.0...HEAD
+[4.6.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.5.0...v4.6.0
 [4.5.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.4.0...v4.5.0
 [4.4.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.3.0...v4.4.0
 [4.3.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.2.0...v4.3.0

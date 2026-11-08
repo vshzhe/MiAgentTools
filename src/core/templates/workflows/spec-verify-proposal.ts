@@ -323,9 +323,11 @@ D2 Score = (matched tech choices / total tech choices) * 100%
 
 **规范引用形态**（与 \`artifact-markdown-source\` 的 Spec-to-task 追溯契约同一口径，本维度为提案验证侧的唯一真源）：
 - \`Spec Ref = <capability> / <Requirement>\`
-- \`Scenario Ref = <capability> / <Requirement> / <Scenario>\`
+- \`Scenario Ref = <Scenario>\`（场景叶子名：只写 \`#### Scenario:\` 的名称，由同一任务的 Spec Ref 补全 \`capability / Requirement / Scenario\` 全路径后匹配）
 
-等价写法（**与两行写法等价计分**，覆盖率 MUST NOT 因书写形态下降）：HTML 注释式 \`<!-- Spec Ref: <capability> → Requirement: "<R>" → Scenario: "<S>" -->\`、一行同时给出 Spec + Scenario、历史裸 Requirement / Scenario 名。
+**上下文缺失与歧义（fail-safe）**：任务无 \`Spec Ref\` 却写叶子名 \`Scenario Ref\` → 报「缺少上下文」（\`scenario-ref-missing-context\`）；任务有 ≥2 条 \`Spec Ref\` 且场景为叶子名 → 报「歧义」（\`ambiguous-scenario-ref\`）；两者 MUST 要求写全路径 \`<capability> / <Requirement> / <Scenario>\`，MUST NOT 猜测归属。
+
+等价写法（**与两行写法等价计分**，覆盖率 MUST NOT 因书写形态下降）：叶子名（经同一任务 Spec Ref 补全）、HTML 注释式 \`<!-- Spec Ref: <capability> → Requirement: "<R>" → Scenario: "<S>" -->\`、一行同时给出 Spec + Scenario、历史全路径场景名与裸 Requirement / Scenario 名。
 
 **capability-only 不计覆盖**：只写 capability（如 \`- Spec Ref：checkout-flow\`）的引用 MUST NOT 匹配到任一 Requirement，也不计入覆盖；应报告「缺少 Requirement」诊断，示例：
 

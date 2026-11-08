@@ -1458,21 +1458,42 @@ describe('提案链路契约：D3 规范形态与 D9b 路径字段', () => {
         expect(offenders).toEqual([]);
     });
 
-    it('spec-verify-proposal 的 D3 声明规范形态与 capability-only 反例', () => {
+    it('spec-verify-proposal 的 D3 声明叶子名规范形态、上下文/歧义诊断与 capability-only 反例', () => {
         const body = bodyOf('spec-verify-proposal');
         expect(body).toContain('Spec Ref = <capability> / <Requirement>');
-        expect(body).toContain('Scenario Ref = <capability> / <Requirement> / <Scenario>');
+        expect(body).toContain('Scenario Ref = <Scenario>');
+        expect(body).toContain('场景叶子名');
+        expect(body).toContain('scenario-ref-missing-context');
+        expect(body).toContain('ambiguous-scenario-ref');
+        expect(body).toContain('缺少上下文');
+        expect(body).toContain('歧义');
         expect(body).toContain('缺少 Requirement');
         expect(body).toContain('不计覆盖');
         // 不再把维度定义散落到其它技能（唯一真源）
         expect(body).toContain('唯一真源');
     });
 
-    it('spec-propose 的追溯契约与 D3 使用同一规范形态', () => {
+    it('spec-propose 的追溯契约与 D3 使用同一规范形态（叶子名 + 两类 fail-safe 诊断）', () => {
         const body = bodyOf('spec-propose');
+        expect(body).toContain('Spec Ref = capability / Requirement');
+        expect(body).toContain('Scenario Ref = <Scenario>');
         expect(body).toContain('capability / Requirement / Scenario');
+        expect(body).toContain('scenario-ref-missing-context');
+        expect(body).toContain('ambiguous-scenario-ref');
+        expect(body).toContain('缺少上下文');
+        expect(body).toContain('歧义');
         expect(body).toContain('spec-ref-missing-requirement');
         expect(body).toContain('缺少 Requirement');
+    });
+
+    it('格式真源单点：workflow / auto-workflow / debug 不新增第二份追溯规范形态声明', () => {
+        for (const commandId of ['workflow', 'auto-workflow', 'debug']) {
+            const body = bodyOf(commandId);
+            expect(body, `${commandId} 不应重复声明 Spec Ref 规范形态`).not.toContain('Spec Ref = ');
+            expect(body, `${commandId} 不应重复声明 Scenario Ref 规范形态`).not.toContain('Scenario Ref = ');
+            expect(body, `${commandId} 不应重复声明叶子名补全规则`).not.toContain('scenario-ref-missing-context');
+            expect(body, `${commandId} 不应重复声明歧义诊断`).not.toContain('ambiguous-scenario-ref');
+        }
     });
 
     it('归档类技能声明 optional 制品不构成未完成', () => {

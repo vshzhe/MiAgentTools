@@ -4,6 +4,7 @@ import type {
     ParsedTask,
     TraceabilityIssue,
 } from '../model/artifact-model.js';
+import { normalizeRef, resolveScenarioRefs, type ScenarioRefResolution } from '../parser/reference-resolver.js';
 
 export interface TraceabilityResult {
     issues: TraceabilityIssue[];
@@ -23,11 +24,17 @@ export interface TraceabilityOptions {
  * 建立可读的 Spec Ref / Scenario Ref 覆盖关系。
  * 引用不做模糊猜测；只按 capability、Requirement、Scenario 的稳定文本匹配。
  *
+ * Scenario Ref 支持场景叶子名：用**同一任务**的 Spec Ref 补全为
+ * `capability / Requirement / Scenario` 全路径后参与匹配（D2，补全见 `reference-resolver.ts`）；
+ * 叶子名无法消歧时报 `scenario-ref-missing-context` / `ambiguous-scenario-ref`，MUST NOT 猜测归属。
+ *
  * 语义层诊断分层（D3）：
  * - 引用只到 capability → `spec-ref-missing-requirement`（消息含「缺少 Requirement」）；
  * - Scenario Ref 只到 `capability / Requirement` → `scenario-ref-missing-scenario`；
+ * - 叶子名无 Spec Ref → `scenario-ref-missing-context`（含「缺少上下文」）；
+ * - 叶子名 + ≥2 条 Spec Ref → `ambiguous-scenario-ref`（含「歧义」）；
  * - 其余未匹配 → `invalid-spec-ref` / `invalid-scenario-ref`；
- * - `degradeUnmatchedRefs` 下上述四类降级为 `pending-ref` warning。
+ * - `degradeUnmatchedRefs` 下上述除 `untested-scenario` 外的诊断均降级为 `pending-ref` warning。
  */
 export function buildTraceability(
     specs: readonly ParsedSpec[],
@@ -39,53 +46,90 @@ export function buildTraceability(
     const diagnostics: ArtifactDiagnostic[] = [];
     const requirements = specs.flatMap((spec) => spec.requirements.map((requirement) => ({ spec, requirement })));
 
+    // 每个任务的 Scenario Ref 只解析一次，覆盖匹配与诊断共用同一结果
+    const resolutions = new Map<ParsedTask, readonly ScenarioRefResolution[]>();
     for (const task of tasks) {
+        resolutions.set(task, resolveScenarioRefs(task.specRefs, task.scenarioRefs));
+    }
+
+    for (const task of tasks) {
+        // 同一任务内按「诊断码 + 归一化目标」去重：混合写法（全路径 + 叶子名）只报一次
+        const reported = new Set<string>();
+        const pushIssue = (kind: TraceabilityIssue['kind'], target: string, message: string): void => {
+            const key = `${kind}|${normalizeRef(target)}`;
+            if (reported.has(key)) return;
+            reported.add(key);
+            issues.push({ kind, message, filePath: tasksFilePath, line: task.line });
+        };
+
         for (const ref of task.specRefs) {
             if (findRequirement(ref, requirements)) continue;
             if (isCapabilityOnly(ref, specs)) {
-                issues.push({
-                    kind: 'spec-ref-missing-requirement',
-                    message:
-                        `任务 ${task.id} 的 Spec Ref 缺少 Requirement：${ref}`
-                        + `（期望形态：<capability> / <Requirement>，只写 capability 不是有效 Spec Ref）`,
-                    filePath: tasksFilePath,
-                    line: task.line,
-                });
+                pushIssue(
+                    'spec-ref-missing-requirement',
+                    ref,
+                    `任务 ${task.id} 的 Spec Ref 缺少 Requirement：${ref}`
+                    + `（期望形态：<capability> / <Requirement>，只写 capability 不是有效 Spec Ref）`,
+                );
                 continue;
             }
-            issues.push({
-                kind: 'invalid-spec-ref',
-                message: `任务 ${task.id} 的 Spec Ref 无法匹配：${ref}`,
-                filePath: tasksFilePath,
-                line: task.line,
-            });
+            pushIssue('invalid-spec-ref', ref, `任务 ${task.id} 的 Spec Ref 无法匹配：${ref}`);
         }
-        for (const ref of task.scenarioRefs) {
-            if (findScenario(ref, requirements)) continue;
-            if (isRequirementOnly(ref, requirements)) {
-                issues.push({
-                    kind: 'scenario-ref-missing-scenario',
-                    message:
-                        `任务 ${task.id} 的 Scenario Ref 缺少 Scenario：${ref}`
-                        + '（期望形态：<capability> / <Requirement> / <Scenario>）',
-                    filePath: tasksFilePath,
-                    line: task.line,
-                });
-                continue;
+
+        for (const resolution of resolutions.get(task) ?? []) {
+            switch (resolution.kind) {
+                case 'missing-context':
+                    pushIssue(
+                        'scenario-ref-missing-context',
+                        resolution.ref,
+                        `任务 ${task.id} 的 Scenario Ref 缺少上下文：${resolution.ref}`
+                        + '（场景叶子名需要同一任务的 Spec Ref 补全；请写全路径 <capability> / <Requirement> / <Scenario>）',
+                    );
+                    break;
+                case 'ambiguous':
+                    pushIssue(
+                        'ambiguous-scenario-ref',
+                        resolution.ref,
+                        `任务 ${task.id} 的 Scenario Ref 存在歧义：${resolution.ref}`
+                        + `（任务有 ${resolution.specRefCount} 条 Spec Ref，场景叶子名无法消歧；`
+                        + '请写全路径 <capability> / <Requirement> / <Scenario>）',
+                    );
+                    break;
+                default: {
+                    const resolved = resolution.resolved;
+                    if (findScenario(resolved, requirements)) continue;
+                    if (isRequirementOnly(resolved, requirements)) {
+                        pushIssue(
+                            'scenario-ref-missing-scenario',
+                            resolved,
+                            `任务 ${task.id} 的 Scenario Ref 缺少 Scenario：${resolution.ref}`
+                            + '（期望形态：<capability> / <Requirement> / <Scenario>）',
+                        );
+                        continue;
+                    }
+                    pushIssue(
+                        'invalid-scenario-ref',
+                        resolved,
+                        `任务 ${task.id} 的 Scenario Ref 无法匹配：${resolution.ref}`,
+                    );
+                    break;
+                }
             }
-            issues.push({
-                kind: 'invalid-scenario-ref',
-                message: `任务 ${task.id} 的 Scenario Ref 无法匹配：${ref}`,
-                filePath: tasksFilePath,
-                line: task.line,
-            });
         }
     }
 
     for (const entry of requirements) {
         for (const scenario of entry.requirement.scenarios) {
             const covered = tasks.some((task) =>
-                task.scenarioRefs.some((ref) => matchesScenarioRef(ref, entry.spec.capability, entry.requirement.name, scenario.name)),
+                (resolutions.get(task) ?? []).some((resolution) =>
+                    (resolution.kind === 'full-path' || resolution.kind === 'leaf-resolved')
+                    && matchesScenarioRef(
+                        resolution.resolved,
+                        entry.spec.capability,
+                        entry.requirement.name,
+                        scenario.name,
+                    ),
+                ),
             );
             if (!covered) {
                 issues.push({
@@ -155,11 +199,10 @@ function findScenario(
     ));
 }
 
+/**
+ * Scenario 匹配只接受完整全路径（叶子名已由补全层转换）。
+ * MUST NOT 退回「裸场景名全局相等」—— 那会跨 Requirement / capability 误匹配。
+ */
 function matchesScenarioRef(ref: string, capability: string, requirement: string, scenario: string): boolean {
-    return normalizeRef(ref) === normalizeRef(`${capability} / ${requirement} / ${scenario}`)
-        || normalizeRef(ref) === normalizeRef(scenario);
-}
-
-function normalizeRef(value: string): string {
-    return value.replaceAll('`', '').replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ').trim().toLowerCase();
+    return normalizeRef(ref) === normalizeRef(`${capability} / ${requirement} / ${scenario}`);
 }

@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:e4c1f57daf60d556f318da45a3095f00030be7ccf1aab15b47fb4b4228817cf3"
+  generatedFingerprint: "sha256:44dd039ffe7b814ea56cc87f45e8ea9e9892c198c9e7cbcd6b361c751069c220"
 ---
 
 提出新变更 —— 一步创建变更并生成全部制品。
@@ -346,7 +346,7 @@ metadata:
 - 每次写入后运行 `iagent spec validate --change "<name>" --partial`（起草期：缺失制品记 `incomplete`，非错误），定稿后用 strict `iagent spec validate --change "<name>"` 终检，按文件路径和行号修正 invalid。
 - 每个可测 Scenario 必须在 tasks.md 有实现或测试任务，并标注 `Spec Ref` / `Scenario Ref`。
 
-**追溯规范形态（与 spec-verify-proposal 的 D3 同一口径）**：`Spec Ref = capability / Requirement`、`Scenario Ref = capability / Requirement / Scenario`。只写 capability 不是有效 Spec Ref（缺少 Requirement，会被报 `spec-ref-missing-requirement`），MUST NOT 计为 Requirement 覆盖；HTML 注释式与一行双引用等价计分，但规范形态仍是两行。
+**追溯规范形态（与 spec-verify-proposal 的 D3 同一口径）**：`Spec Ref = capability / Requirement`、`Scenario Ref = <Scenario>`（场景叶子名，只写 `#### Scenario:` 的名称，由同一任务的 Spec Ref 补全 `capability / Requirement / Scenario` 全路径后参与覆盖校验）。只写 capability 不是有效 Spec Ref（缺少 Requirement，会被报 `spec-ref-missing-requirement`），MUST NOT 计为 Requirement 覆盖；任务无 Spec Ref 却写叶子名时报 `scenario-ref-missing-context`（缺少上下文），任务有 ≥2 条 Spec Ref 且场景为叶子名时报 `ambiguous-scenario-ref`（歧义），两者 MUST 写全路径，MUST NOT 猜测归属；HTML 注释式与一行双引用等价计分，但规范形态仍是两行。
 - 依赖文件必须从磁盘重新读取；context/rules 只作为本技能约束，不复制进制品。
 
 **任务类型标签**：`[代码]` / `[测试][单元|功能][P0|P1|P2]` / `[DB脚本]` / `[使用说明]`。补充文档任务写 `产出:`，测试任务不走 attachments 路径。

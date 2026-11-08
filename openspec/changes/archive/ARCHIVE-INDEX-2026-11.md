@@ -21,6 +21,7 @@
 | 2026-11-08 | improve-archive-index-monthly | spec | 归档索引按月份分片：根入口 + 月度索引，防止单文件膨胀。[含测试] |
 | 2026-11-08 | inline-orchestration-delegation | orchestration | 验证与收尾阶段改为主代理内联：verify / archive / debug fix / migration 内联优先（兼容窗 subagent WARN），propose / apply 保留子代理；验证改为单轮内联清单 + `文件:行` 证据 + 报告落盘。[含测试] |
 | 2026-11-08 | inline-propose-apply-parallel | orchestration | propose / apply 改为主 agent 内联与单 agent 分批（批内并行只读、同文件串行、进度落盘）；仅 `spec-bulk-archive` 并行单元与 migration 阈值降级保留子代理；propose / apply 进入兼容窗。[含测试] |
+| 2026-11-08 | improve-task-ref-dedup | spec | tasks.md 追溯引用去重：Scenario Ref 改为场景叶子名，由同任务 Spec Ref 补全全路径；历史写法兼容。[含测试/使用说明] |
 
 ---
 
@@ -31,7 +32,7 @@
 | templates | 4 | fix-multi-agent-skill-command-generation (2026-11-02), improve-requirement-doc-review-readiness (2026-11-08), improve-orchestration-execution-mode (2026-11-08), improve-grill-with-docs-paper-trail (2026-11-08) |
 | orchestration | 5 | fix-mode-delegation-host-parity (2026-11-01), improve-delegation-gate-ledger (2026-11-03), skill-bridge-optimize (2026-11-08), inline-orchestration-delegation (2026-11-08), inline-propose-apply-parallel (2026-11-08) |
 | debug | 1 | feat-debug-dual-track-entry (2026-11-03) |
-| spec | 2 | improve-proposal-validation-and-spec-ref (2026-11-03), improve-archive-index-monthly (2026-11-08) |
+| spec | 3 | improve-proposal-validation-and-spec-ref (2026-11-03), improve-archive-index-monthly (2026-11-08), improve-task-ref-dedup (2026-11-08) |
 | workflow | 1 | improve-compile-gate-and-archive-readonly (2026-11-01) |
 
 ---

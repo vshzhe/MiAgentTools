@@ -144,6 +144,8 @@ export interface TraceabilityIssue {
         | 'invalid-scenario-ref'
         | 'spec-ref-missing-requirement'
         | 'scenario-ref-missing-scenario'
+        | 'scenario-ref-missing-context'
+        | 'ambiguous-scenario-ref'
         | 'pending-ref'
         | 'untested-scenario';
     message: string;

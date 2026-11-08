@@ -82,11 +82,15 @@ export const TASKS_TEMPLATE = `# Tasks: <change-name>
 
 <!-- 追溯引用规范形态（每个任务 MUST 标注，推荐拆成两行）：
      Spec Ref：<capability> / <Requirement>
-     Scenario Ref：<capability> / <Requirement> / <Scenario>
+     Scenario Ref：<Scenario>（场景叶子名：只写 #### Scenario: 的名称，不重复 capability / Requirement 前缀）
+     叶子名由同一任务的 Spec Ref 补全全路径后参与覆盖校验；任务无 Spec Ref 时报 scenario-ref-missing-context
+     （缺少上下文），任务有 ≥2 条 Spec Ref 时报 ambiguous-scenario-ref（歧义），此时 MUST 写全路径
+     <capability> / <Requirement> / <Scenario>，MUST NOT 猜测归属。
      只写 <capability> 不是有效 Spec Ref —— 缺少 Requirement 会被报 spec-ref-missing-requirement，必须补 Requirement 名。
      等价写法（解析器接受，规范形态仍是上面两行）：一行同时给出两者，用 → 与 Requirement: / Scenario: 标签，
      例如 HTML 注释式：Spec Ref: <capability> → Requirement: "<Requirement>" → Scenario: "<Scenario>"
-     历史写法（裸 Requirement / Scenario 名）保持兼容，但新任务 MUST 使用规范形态。 -->
+     Scenario Ref 值本身含 / 或 → 时视为全路径 / 链式写法，不做叶子补全。
+     历史写法（全路径场景名 / 裸 Requirement / Scenario 名）保持兼容，但新任务 MUST 使用规范形态。 -->
 
 ## 1. <任务组名>
 
@@ -94,13 +98,13 @@ export const TASKS_TEMPLATE = `# Tasks: <change-name>
   - 文件：\`<file-path>\`
   - 验证：<验证方式>
   - Spec Ref：<capability> / <Requirement>
-  - Scenario Ref：<capability> / <Requirement> / <Scenario>
+  - Scenario Ref：<Scenario>
 
 - [ ] 1.2 [测试][单元][P0] <测试任务描述>
   - 文件：\`<test-file-path>\`
   - 验证：<验证方式>
   - Spec Ref：<capability> / <Requirement>
-  - Scenario Ref：<capability> / <Requirement> / <Scenario>
+  - Scenario Ref：<Scenario>
 `;
 
 // ── JSON 模板（JSON-primary 真源示例：change.json 段落 / tasks.json）────
