@@ -8,11 +8,11 @@ export {
     GATE_CONDITION_IDS,
     GATE_WHITELIST,
     GATE_WHITELIST_ANCHORS,
-    PERSISTED_REQUIREMENT_DOC_STATUSES,
-    REQUIREMENT_DOC_STATUS_FIELD,
-    REQUIREMENT_DOC_STATUS_IO_ATTEMPTS,
+    HANDOFF_PACK_SECTION_MAX_LINES,
+    STAGE_ENVELOPE_MAX_BYTES,
+    STAGE_RECEIPT_MAX_BYTES,
+    STAGE_RECEIPT_MAX_LINES,
     isWhitelistedGate,
-    normalizeRequirementDocStatus,
     protocolDeclaresCapabilities,
     validateReceipt,
     type CapabilityId,
@@ -26,7 +26,6 @@ export {
     type ReceiptSpec,
     type ReceiptStatus,
     type ReceiptValidation,
-    type RequirementDocStatus,
     type RetryPolicy,
     type WorkflowProtocol,
 } from './protocol.js';
@@ -87,6 +86,8 @@ export {
 } from './delegation-contract.js';
 
 export {
+    INTERACTIVE_STAGE_WORKFLOW_IDS,
+    isInteractiveStage,
     renderDelegate,
     renderDelegationList,
     renderLoadSkill,

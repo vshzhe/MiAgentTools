@@ -107,48 +107,59 @@ describe('A1 探索文件移动语义（成功删源 / 失败保留）', () => {
     });
 });
 
-describe('A2 归档阶段需求文档只读报告', () => {
-    /** 两个归档技能各自的预归档只读报告步骤标识 */
-    const CHECKPOINTS: Record<string, RegExp> = {
-        iagent_spec_archive: /4\.8 \*\*归档前需求文档只读报告/,
-        iagent_spec_bulk_archive: /a\.6 \*\*需求文档只读报告/,
+describe('A2 归档阶段不再读取 / 报告需求文档', () => {
+    /** 两个归档技能各自已移除的预归档只读报告步骤标识 */
+    const REMOVED_CHECKPOINTS: Record<string, RegExp> = {
+        iagent_spec_archive: /4\.8 \*\*（已移除）\*\*/,
+        iagent_spec_bulk_archive: /a\.6 \*\*（已移除）\*\*/,
     };
 
-    it('只读报告步骤存在且只报告存在性（无写入分支）', () => {
-        for (const [name, marker] of Object.entries(CHECKPOINTS)) {
+    it('预归档只读报告步骤标记为已移除，且不再产出存在性报告', () => {
+        for (const [name, marker] of Object.entries(REMOVED_CHECKPOINTS)) {
             const body = instructions(name);
-            expect(body, `${name} 缺少预归档需求文档只读报告步骤`).toMatch(marker);
-            // 只进摘要：两种固定措辞
-            expect(body, `${name} 缺少「已存在（未改写）」措辞`).toContain('已存在（未改写）');
-            expect(body, `${name} 缺少「缺失」措辞`).toContain('缺失');
-            expect(body, `${name} 未声明结果只进摘要`).toMatch(/只进入\*{0,2}(该变更的)?摘要报告/);
+            expect(body, `${name} 缺少已移除标记`).toMatch(marker);
+            expect(body, `${name} 未声明需求文档桥整体移除`).toContain('整体移除');
+            // 旧报告步骤的存在性措辞与状态字段不应再作为步骤契约保留
+            expect(body, `${name} 仍声明「已存在（未改写）」报告步骤`).not.toMatch(
+                /4\.8 \*\*归档前需求文档只读报告|a\.6 \*\*需求文档只读报告/
+            );
+            expect(body, `${name} 仍以 requirementDocStatus 作为报告输入`).not.toContain(
+                'requirementDocStatus'
+            );
             // 写入分支已删除：无就地增量对齐 / 无生成技能委派
             expect(body, `${name} 残留就地增量对齐`).not.toMatch(/in-place|就地增量对齐更新/);
             expect(body, `${name} 残留需求文档委派`).not.toMatch(/委派 `iagent_requirement_doc` 技能/);
         }
     });
 
-    it('需求文档状态字段保留（仅作报告输入）', () => {
-        for (const name of Object.keys(CHECKPOINTS)) {
+    it('历史需求文档随变更目录原样保留（不读取、不处理）', () => {
+        for (const name of Object.keys(REMOVED_CHECKPOINTS)) {
             const body = instructions(name);
-            expect(body, `${name} 未声明持久字段 requirementDocStatus`).toContain('requirementDocStatus');
-            expect(body, `${name} 未声明仅作报告输入`).toMatch(/报告输入|只用于报告/);
+            expect(body, `${name} 未声明原样保留`).toMatch(/原样保留|随目录一起移动/);
+            expect(body, `${name} 未声明不读取 / 不处理`).toMatch(/不读取|不再读取/);
         }
     });
 });
 
-describe('A3 三父流程验证后文档桥（原 debug 禁令已反转为桥）', () => {
-    it('workflow / auto-workflow / debug 均在验证收束后提供生成 / 跳过桥', () => {
+describe('A3 三父流程验证后不再提供需求文档桥', () => {
+    it('workflow / auto-workflow / debug 均声明桥已移除且不委派生成技能', () => {
         for (const name of PARENT_FLOWS) {
             const body = corpus(name);
-            expect(body, `${name} 缺少需求文档桥`).toContain('需求文档桥');
-            expect(body, `${name} 桥未提供生成 / 跳过出口`).toMatch(/生成\s*\/\s*跳过/);
-            expect(body, `${name} 缺少需求文档技能委派`).toContain('iagent_requirement_doc');
+            expect(body, `${name} 未声明需求文档桥已移除`).toMatch(
+                /需求文档桥[^\n]*移除|无需求文档桥/
+            );
+            // 旧的“生成 / 跳过”桥标题与文档状态跨阶段传递不得保留为正向契约
+            expect(body, `${name} 残留桥标题`).not.toContain('收束 —— 需求文档桥');
+            expect(body, `${name} 残留文档状态跨阶段传递`).not.toContain('文档状态跨阶段传递');
+            // 出现技能名时只能是“MUST NOT 委派”的否定语境
+            expect(body, `${name} 正向委派需求文档技能`).not.toMatch(
+                /委派 `iagent_requirement_doc` 技能/
+            );
+            expect(body, `${name} 未禁止委派需求文档技能`).toMatch(/MUST NOT 委派需求文档技能/);
         }
     });
 
-    it('debug 不再残留「需求文档不在范围内」禁令，改由用户桥约束', () => {
-        // 旧语义断言（禁令存在）反转为：旧禁令短语必须消失，且由桥的正向约束取代
+    it('debug 保留旧禁令的移除口径，并提示手工调用独立技能', () => {
         const body = instructions('iagent_debug');
         for (const abolished of [
             '需求文档不在范围内（强制禁止）',
@@ -158,18 +169,18 @@ describe('A3 三父流程验证后文档桥（原 debug 禁令已反转为桥）
         ]) {
             expect(body, `debug 仍残留旧禁令「${abolished}」`).not.toContain(abolished);
         }
-        const bridge = linesContaining(body, ['需求文档桥']);
-        expect(bridge.length, 'debug 缺少需求文档桥段').toBeGreaterThan(0);
-        // 正向约束：禁止的是「未经用户确认自动生成」，不是委派本身
-        expect(body).toContain('MUST NOT 未经用户确认自动生成');
+        expect(body).toContain('MUST NOT 展示需求文档桥');
+        expect(body).toContain('MUST NOT 生成需求文档');
+        // 手工调用保留：debug 不再自动委派，但提示用户按需单独调用
+        expect(body).toContain('请按需单独调用 iagent-requirement-doc');
     });
 
-    it('debug 文档已存在时禁用生成分支（避免静默覆盖人工内容）', () => {
+    it('debug 不再有“文档已存在”生成分支', () => {
         const body = instructions('iagent_debug');
-        expect(body).toContain('文档已存在');
-        expect(body).toContain('禁用生成分支');
-        expect(body).toContain('出口仅「跳过 / 手工编辑」');
-        expect(body).toContain('归档只做存在性只读报告');
+        expect(body).not.toContain('文档已存在');
+        expect(body).not.toContain('禁用生成分支');
+        expect(body).not.toContain('出口仅「跳过 / 手工编辑」');
+        expect(body).not.toContain('归档只做存在性只读报告');
     });
 
     it('独立 verifier 不生成文档、不持有该桥', () => {
@@ -179,39 +190,32 @@ describe('A3 三父流程验证后文档桥（原 debug 禁令已反转为桥）
     });
 });
 
-describe('A4 白名单委派面与正文一致', () => {
-    /** 验证阶段 + debug 文档桥：委派需求文档技能（归档侧已移除） */
-    const WITH_REQUIREMENT_DOC = [
-        'iagent_auto_workflow',
-        'iagent_workflow',
-        'iagent_debug',
-    ];
-
-    /** 独立调用不生成 / 不委派该技能（含两个归档技能） */
+describe('A4 白名单委派面与正文一致（无需求文档委派）', () => {
+    /** 本变更后全部不得持有需求文档委派条目的技能（三父流程 + spec / 归档侧） */
     const WITHOUT_REQUIREMENT_DOC = [
+        'iagent_workflow',
+        'iagent_auto_workflow',
+        'iagent_debug',
         'iagent_spec_propose',
         'iagent_spec_verify_proposal',
         'iagent_spec_archive',
         'iagent_spec_bulk_archive',
     ];
 
-    it('验证阶段与 debug 桥含 canonical Skill(iagent-requirement-doc) 且正文确提及', () => {
-        for (const name of WITH_REQUIREMENT_DOC) {
-            // 白名单条目为 canonical 宿主技能 ID（入参裸名由 skillDelegation() 归一化）
-            expect(entries(name), `${name} 白名单缺少需求文档委派条目`).toContain(
+    it('三父流程与 spec / 归档技能均不含 Skill(iagent-requirement-doc)', () => {
+        for (const name of WITHOUT_REQUIREMENT_DOC) {
+            expect(entries(name), `${name} 白名单残留需求文档委派条目`).not.toContain(
                 'Skill(iagent-requirement-doc)'
-            );
-            // 授权委派的前提是正文确有委派动作，避免幽灵授权
-            expect(instructions(name), `${name} 正文未提及被委派技能`).toContain(
-                'iagent_requirement_doc'
             );
         }
     });
 
-    it('spec-propose 与独立 verifier 不含该委派条目', () => {
-        for (const name of WITHOUT_REQUIREMENT_DOC) {
-            expect(entries(name), `${name} 白名单残留需求文档委派条目`).not.toContain(
-                'Skill(iagent-requirement-doc)'
+    it('三父流程正文只以否定语境提及需求文档技能（移除而非委派）', () => {
+        for (const name of PARENT_FLOWS) {
+            const body = corpus(name);
+            expect(body, `${name} 缺少禁止委派声明`).toContain('MUST NOT 委派需求文档技能');
+            expect(body, `${name} 残留正向委派语句`).not.toMatch(
+                /委派 `iagent_requirement_doc` 技能/
             );
         }
     });
@@ -241,12 +245,9 @@ describe('A5 DEPS 注入口径', () => {
         expect(resolveWorkflows(['spec-bulk-archive']).injected).toEqual(['spec-verify']);
     });
 
-    it('调试技能注入提案评分与需求文档技能（文档桥生成分支无条件委派）', () => {
-        expect(resolveWorkflows(['debug']).injected).toEqual([
-            'spec-verify-proposal',
-            'requirement-doc',
-        ]);
-        expect(resolveWorkflows(['debug']).workflows).toContain('requirement-doc');
+    it('调试技能仅注入提案评分技能（文档桥已移除，不再注入 requirement-doc）', () => {
+        expect(resolveWorkflows(['debug']).injected).toEqual(['spec-verify-proposal']);
+        expect(resolveWorkflows(['debug']).workflows).not.toContain('requirement-doc');
     });
 
     it('未配置时默认集无注入项（8 项）', () => {
@@ -256,27 +257,29 @@ describe('A5 DEPS 注入口径', () => {
 });
 
 describe('A6 生成能力收敛到验证阶段 + 归档阶段对齐', () => {
-    it('workflow 正文声明验证收束阶段经桥生成需求文档（含下沉细则）', () => {
+    it('workflow 正文声明验证收束后直接进入实现桥（无需求文档桥）', () => {
         const body = corpus('iagent_workflow');
-        expect(body, 'workflow 未声明验证阶段需求文档桥').toContain('iagent_requirement_doc');
-        // 桥细则位于 references/verification-protocol.md（Phase 3 细则下沉）
-        const protocol = corpus('iagent_workflow');
-        expect(protocol, 'workflow 未声明桥的单次业务约束').toContain('单次业务桥');
-        expect(protocol, 'workflow 未声明生成分支状态').toContain('generated');
-        expect(protocol, 'workflow 未声明跳过分支状态').toContain('skipped-by-user');
+        expect(body, 'workflow 未声明需求文档桥已移除').toContain('需求文档桥已整体移除');
+        expect(body, 'workflow 未禁止展示文档选项').toContain('MUST NOT 展示文档选项');
+        expect(body, 'workflow 未禁止委派需求文档技能').toContain('MUST NOT 委派需求文档技能');
+        // 被移除的桥约束不再作为契约保留
+        expect(body, 'workflow 残留单次业务桥').not.toContain('单次业务桥');
+        expect(body, 'workflow 残留文档状态跨阶段传递').not.toContain('文档状态跨阶段传递');
+        expect(body, 'workflow 残留生成分支状态').not.toContain('skipped-by-user');
     });
 
-    it('auto-workflow 的 Phase 5 归档描述为只读报告语义且无已移除分支', () => {
+    it('auto-workflow 的 Phase 5 直接委派归档且无需求文档报告', () => {
         const body = instructions('iagent_auto_workflow');
-        expect(body).toContain('需求文档存在性**只读报告**');
         expect(body).toContain('iagent_spec_archive');
+        expect(body).not.toContain('需求文档存在性');
+        expect(body).not.toContain('requirementDocStatus');
         // 已移除的写入分支不得残留
         expect(body).not.toContain('4.8');
         expect(body).not.toContain('迁移至 devdocs');
         expect(body).not.toContain('需求文档对齐 step');
     });
 
-    it('只读报告标题只在两个归档技能中定义', () => {
+    it('只读报告标题已整体移除，两个归档技能的步骤标记为已移除', () => {
         const owners = skills
             .filter(({ template }) =>
                 /4\.8 \*\*归档前需求文档只读报告|a\.6 \*\*需求文档只读报告/.test(
@@ -285,20 +288,21 @@ describe('A6 生成能力收敛到验证阶段 + 归档阶段对齐', () => {
             )
             .map((s) => s.template.name)
             .sort();
-        // 锁定：除两个归档技能外，任何技能不得再定义一份报告正文
-        expect(owners).toEqual(['iagent_spec_archive', 'iagent_spec_bulk_archive']);
+        // 锁定：任何技能不得再定义一份需求文档只读报告正文
+        expect(owners).toEqual([]);
+        expect(instructions('iagent_spec_archive')).toMatch(/4\.8 \*\*（已移除）\*\*/);
+        expect(instructions('iagent_spec_bulk_archive')).toMatch(/a\.6 \*\*（已移除）\*\*/);
     });
 
-    it('人工域章节提及面受控：归档侧已无写入分支，仅剩需求文档模板本体与 debug 护栏', () => {
+    it('人工域章节只由需求文档模板本体定义（debug 不再承载桥护栏）', () => {
         const mentions = skills
             .filter(({ template }) => template.instructions.includes('## 八、评审记录'))
             .map((s) => s.template.name)
             .sort();
-        expect(mentions).toEqual(['iagent_debug', 'iagent_requirement_doc']);
-        // 护栏语境自证：debug 保护人工撰写字段且桥由用户确认
+        expect(mentions).toEqual(['iagent_requirement_doc']);
         const debugBody = instructions('iagent_debug');
-        expect(debugBody).toContain('人工撰写字段受保护');
-        expect(debugBody).toContain('iagent_requirement_doc');
+        expect(debugBody).not.toContain('人工撰写字段受保护');
+        expect(debugBody).toContain('MUST NOT 展示需求文档桥');
     });
 });
 
@@ -317,36 +321,43 @@ describe('A7 workflow 提案 / 修订重验 / 实现桥出口（N4–N17）', ()
         expect(body).toContain('无跳过直接 apply 的路径');
     });
 
-    it('N12 实现 + 测试桥三出口：修改 / 拒绝不得调用 apply', () => {
+    it('N12 实现 + 测试桥三出口：无文档选项，修改 / 拒绝不得调用 apply', () => {
         expect(body).toContain('实现 + 测试桥');
-        // 交付桥合并：实现确认与需求文档选项在同一门内一次呈现
         expect(body).toContain('交付桥');
-        expect(body).toContain('仅生成文档');
-        expect(body).toContain('出口：确认（进入 Phase 4，含条件测试生成）');
-        expect(body).toContain('拒绝（记录未确认状态并停止，不进入实现）');
-        // 实现桥确认后 apply 以 auto-mode 直通（不追加“是否调用技能”确认）
+        // 需求文档选项已移除：只保留确认 / 修改 / 拒绝三出口
+        expect(body).toContain('三出口');
+        expect(body).toContain('① 确认 → 进入 Phase 4');
+        expect(body).toContain('② 修改 → 回 Phase 2');
+        expect(body).toContain('③ 拒绝 → 记录未确认状态并停止');
+        expect(body).toContain('MUST NOT 提供文档生成选项');
+        expect(body).not.toContain('仅生成文档');
+        expect(body).not.toContain('出口：确认（进入 Phase 4，含条件测试生成）');
+        // 实现桥确认后 apply 以 gate-skip 直通（不追加“是否调用技能”确认）
         expect(body).toContain('auto-mode=true');
         expect(body).toContain('跳过 apply 内部的设计确认门');
     });
 
     it('N15 实现验证失败回到修复，MUST NOT 进入归档', () => {
-        expect(body, 'workflow 未声明实现验证阶段').toContain('MUST 委派 `iagent_spec_verify` 技能验证实现与制品');
+        expect(body, 'workflow 未声明实现验证阶段').toContain(
+            '委派 `iagent_spec_verify` 技能验证实现与制品'
+        );
         expect(body).toContain('失败 → 回 Phase 4 修复，MUST NOT 进入归档');
     });
 
-    it('N16 归档桥拒绝时回实现、N17 归档携带文档状态（仅报告输入）', () => {
+    it('N16 归档桥拒绝时回实现、N17 不再传递需求文档状态', () => {
         expect(body).toContain('归档确认门');
         expect(body).toContain('拒绝（返回 Phase 4 继续实现，不归档）');
-        expect(body).toContain('requirementDocStatus');
-        expect(body).toContain('只把它当作报告输入');
-        expect(body).toContain('MUST NOT 用它触发生成 / 对齐 / 迁移');
+        expect(body).not.toContain('requirementDocStatus');
+        expect(body).toContain('MUST NOT 传已移除的需求文档状态字段');
     });
 
-    it('命令派生版保留实现桥出口与文档状态传递（防护语句永不裁剪）', () => {
+    it('命令派生版保留实现桥三出口且无文档状态（防护语句永不裁剪）', () => {
         const derived = commandContent('workflow');
-        expect(derived).toContain('拒绝（记录未确认状态并停止，不进入实现）');
-        expect(derived).toContain('requirementDocStatus');
-        expect(derived).toContain('FAIL 不出文档桥');
+        expect(derived).toContain('三出口');
+        expect(derived).toContain('拒绝 → 记录未确认状态并停止，不进入实现');
+        expect(derived).toContain('MUST NOT 提供文档生成选项');
+        expect(derived).not.toContain('requirementDocStatus');
+        expect(derived).not.toContain('FAIL 不出文档桥');
     });
 });
 
@@ -354,20 +365,21 @@ describe('A8 auto-workflow 文档桥与自动阶段（N18–N20）', () => {
     const entry = byName.get('iagent_auto_workflow');
     const body = instructions('iagent_auto_workflow');
 
-    it('description 与阶段说明披露唯一文档桥，不再声称该阶段无需确认', () => {
+    it('description 与阶段说明披露无文档桥，不再声称该阶段需要确认', () => {
         const description = entry?.template.description ?? '';
-        expect(description).toContain('需求文档桥');
-        expect(description).toMatch(/除验证阶段的需求文档桥外全自动/);
+        expect(description).toContain('无需求文档桥');
         expect(description, '自述仍残留“无需任何用户确认”口径').not.toMatch(
             /无需任何用户确认|全自动无停顿/
         );
-        expect(body).toContain('该桥是本阶段唯一的流程级阻塞门');
-        expect(body).toContain('本阶段唯一的用户业务选择');
+        expect(body).toContain('需求文档桥已移除，本阶段无用户确认门');
+        expect(body).not.toContain('该桥是本阶段唯一的流程级阻塞门');
+        expect(body).not.toContain('本阶段唯一的用户业务选择');
     });
 
-    it('桥后直接进入 Phase 4，不追加调用确认', () => {
-        expect(body).toContain('不再出现对该阶段技能的调用确认询问');
-        expect(body).toContain('Phase 4 无其他用户确认');
+    it('验证通过后同回合直接进入 Phase 4，不追加调用确认', () => {
+        expect(body).toContain('在同一用户回合内继续（自动实现），不追加对该阶段技能的调用确认');
+        expect(body).toContain('自动转入 Phase 4');
+        expect(body).not.toContain('不再出现对该阶段技能的调用确认询问');
     });
 
     it('N19 测试执行门与实现验证不可跳过，失败按既有预算处理', () => {
@@ -378,8 +390,8 @@ describe('A8 auto-workflow 文档桥与自动阶段（N18–N20）', () => {
         expect(body).toContain('iagent_spec_verify');
     });
 
-    it('N20 自动归档携带文档状态且失败不伪报完成', () => {
-        expect(body).toContain('requirementDocStatus');
+    it('N20 自动归档不携带文档状态且失败不伪报完成', () => {
+        expect(body).not.toContain('requirementDocStatus');
         expect(body).toContain('iagent_spec_archive');
         expect(body).toMatch(/自动归档错误处理|测试门失败时不得静默通过/);
     });
@@ -404,24 +416,27 @@ describe('A9 spec-propose 独立调用不生成需求文档', () => {
     });
 });
 
-describe('A10 归档需求文档只读报告（单变更与批量同义）', () => {
+describe('A10 归档不再读取 / 报告需求文档（单变更与批量同义）', () => {
     const ARCHIVE_SKILLS = ['iagent_spec_archive', 'iagent_spec_bulk_archive'];
 
-    it('两技能一致：只报告存在性，不生成 / 不对齐 / 不迁出', () => {
+    it('两技能一致：不读取 / 不报告 / 不生成 / 不对齐 / 不迁出', () => {
         for (const name of ARCHIVE_SKILLS) {
             const body = instructions(name);
-            expect(body, `${name} 未声明「已存在（未改写）」`).toContain('已存在（未改写）');
-            expect(body, `${name} 未声明「缺失」报告`).toContain('缺失');
-            expect(body, `${name} 未禁止生成`).toContain('MUST NOT 生成');
-            expect(body, `${name} 未禁止迁出 devdocs`).toContain('MUST NOT 迁出到 `openspec/devdocs/`');
-            expect(body, `${name} 白名单残留需求文档委派条目`).not.toContain(
+            expect(body, `${name} 未声明需求文档桥与只读报告已移除`).toMatch(
+                /需求文档桥与只读报告已/
+            );
+            expect(body, `${name} 仍读取或报告需求文档状态`).not.toContain('requirementDocStatus');
+            expect(body, `${name} 未禁止生成 / 读取 / 迁出`).toMatch(
+                /不读取|MUST NOT 读取/
+            );
+            expect(body, `${name} 未声明原样保留`).toMatch(/原样保留|原样移动/);
+            expect(entries(name), `${name} 白名单残留需求文档委派条目`).not.toContain(
                 'Skill(iagent-requirement-doc)'
             );
-            expect(body, `${name} 未声明状态仅用于报告`).toMatch(/报告输入|只用于报告/);
         }
     });
 
-    it('写入分支已删除：无就地增量对齐 / 无历史兼容生成 / 无 devdocs 迁移动作', () => {
+    it('写入 / 报告分支已删除：无就地增量对齐 / 无历史兼容生成 / 无 devdocs 迁移动作', () => {
         for (const name of ARCHIVE_SKILLS) {
             const body = instructions(name);
             expect(body, `${name} 残留就地增量对齐`).not.toMatch(/in-place|就地增量对齐更新/);
@@ -432,10 +447,13 @@ describe('A10 归档需求文档只读报告（单变更与批量同义）', () 
         }
     });
 
-    it('读取失败不阻断归档', () => {
-        expect(instructions('iagent_spec_archive')).toContain('该报告失败 MUST NOT 阻断归档');
-        expect(instructions('iagent_spec_bulk_archive')).toMatch(
-            /MUST NOT 中止该变更单元或整批|MUST NOT 中止该变更单元/
-        );
+    it('不再读取因此无需求文档读取失败分支（旧失败处理契约已移除）', () => {
+        expect(instructions('iagent_spec_archive')).not.toContain('该报告失败 MUST NOT 阻断归档');
+        for (const name of ARCHIVE_SKILLS) {
+            // 其他归档步骤的失败处理仍可保留，但不得再有“需求文档读取失败”语义
+            expect(instructions(name), `${name} 残留需求文档读取失败处理`).not.toMatch(
+                /需求文档[^\n]*(失败|中止|阻断)/
+            );
+        }
     });
 });

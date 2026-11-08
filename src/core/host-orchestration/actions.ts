@@ -26,6 +26,19 @@ export interface LoadSkillAction {
     workflowId: string;
 }
 
+/**
+ * 交互阶段（需要与用户交互的阶段）。
+ *
+ * Claude 宿主对交互阶段使用 `Skill` 内联加载（确认门可在主 agent 中呈现）；
+ * 其余委派阶段使用前台 `Agent` 子代理执行（父级拿到 `tool_result` 后继续）。
+ */
+export const INTERACTIVE_STAGE_WORKFLOW_IDS: readonly string[] = ['spec-explore'];
+
+/** 给定 canonical workflowId 是否为交互阶段 */
+export function isInteractiveStage(workflowId: string): boolean {
+    return INTERACTIVE_STAGE_WORKFLOW_IDS.includes(workflowId);
+}
+
 /** 宿主技能 ID（canonical kebab-case） */
 function hostSkillId(workflowId: string): string {
     return `iagent-${workflowId}`;
@@ -59,7 +72,7 @@ function renderOptions(options?: Record<string, string>): string {
 /**
  * 渲染宿主原生的「委派阶段」指令。
  *
- * - Claude Code：Skill / Agent 子代理
+ * - Claude Code：交互阶段用 `Skill` 内联，自动阶段用前台 `Agent` 子代理
  * - OpenCode V2：subagent + 项目级 agent
  * - Pi strict：Runtime Extension
  * - Pi degraded / Codex（skills-only）：本地执行，显式声明**不构成委派**
@@ -72,7 +85,11 @@ export function renderDelegate(
     const id = hostSkillId(action.workflowId);
     const opts = renderOptions(action.options);
     if (host === 'claude') {
-        return `经 Skill 工具委派 \`${id}\`${opts}`;
+        if (isInteractiveStage(action.workflowId)) {
+            return `经 Skill 工具加载 \`${id}\`${opts}（交互阶段，保留确认门）`;
+        }
+        const skillPath = `.claude/skills/${id}/SKILL.md`;
+        return `经前台 Agent 子代理执行 \`${id}\`${opts}（子代理优先经 Skill 加载该技能；不可用时 Read \`${skillPath}\`；完成后返回结构化回执并遵守 EXIT GUARD）`;
     }
     if (host === 'opencode') {
         return `经 V2 \`subagent\` 启动项目 agent \`${id}\`${opts}`;

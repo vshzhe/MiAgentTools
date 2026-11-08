@@ -15,9 +15,14 @@ import { renderDelegate, renderLoadSkill } from '../src/core/host-orchestration/
 
 describe('Claude 协议动作渲染', () => {
     it('委派使用 Skill/Agent 原生语义并保留 canonical skill id', () => {
-        const text = renderDelegate('claude', 'strict', { workflowId: 'spec-apply' });
-        expect(text).toContain('Skill 工具委派');
-        expect(text).toContain('iagent-spec-apply');
+        // 交互阶段（spec-explore）经 Skill 内联加载
+        const interactive = renderDelegate('claude', 'strict', { workflowId: 'spec-explore' });
+        expect(interactive).toContain('经 Skill 工具加载');
+        expect(interactive).toContain('iagent-spec-explore');
+        // 自动阶段（spec-apply）经前台 Agent 子代理执行
+        const automated = renderDelegate('claude', 'strict', { workflowId: 'spec-apply' });
+        expect(automated).toContain('经前台 Agent 子代理执行');
+        expect(automated).toContain('iagent-spec-apply');
     });
 
     it('技能加载使用 Skill 工具', () => {
@@ -72,21 +77,26 @@ describe('Claude 产物契约（init 端到端）', () => {
         expect(debug).toContain('- `verify-close`：能力');
         // nextAllowed 直接委派契约
         expect(debug).toContain('唯一 `nextAllowed` 技能 SHALL 直接委派');
-        // 文档与测试委派获得精确 canonical 白名单条目（无通配）
+        // 验证/复查与测试委派获得精确 canonical 白名单条目（无通配）
         expect(debug).toMatch(/^allowed-tools: .*/m);
-        expect(debug).toContain('Skill(iagent-requirement-doc)');
+        expect(debug).toContain('Skill(iagent-spec-verify-proposal)');
+        expect(debug).toContain('Skill(iagent-proposal-review)');
         expect(debug).toContain('Skill(iagent-test)');
+        // 需求文档桥已移除：不再持有该委派条目
+        expect(debug).not.toContain('Skill(iagent-requirement-doc)');
         expect(debug).not.toContain('Skill(*)');
     });
 
-    it('Claude 权限载体聚合 debug 的文档/测试委派条目', () => {
+    it('Claude 权限载体聚合 debug 的验证/复查/测试委派条目', () => {
         const settings = path.join(root, '.claude', 'settings.json');
         const parsed = JSON.parse(fs.readFileSync(settings, 'utf8')) as {
             permissions?: { allow?: string[] };
         };
         const allow = parsed.permissions?.allow ?? [];
-        expect(allow).toContain('Skill(iagent-requirement-doc)');
+        expect(allow).toContain('Skill(iagent-spec-verify-proposal)');
+        expect(allow).toContain('Skill(iagent-proposal-review)');
         expect(allow).toContain('Skill(iagent-test)');
+        expect(allow).not.toContain('Skill(iagent-requirement-doc)');
     });
 });
 

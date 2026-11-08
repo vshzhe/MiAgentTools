@@ -142,26 +142,23 @@ export const DELEGATION_PARAMETERS: Readonly<
  * 以及 `project-init → feature-doc` 的自行扫描降级），
  * 两类情形均 MUST NOT 伪装为 strict 委派完成。
  *
- * `debug` 的 `spec-verify-proposal` / `requirement-doc` **不在此列**：它们由 `DEPS.debug`
- * 随装且正文未声明可替代路径 —— 属无条件必需委派，缺口按能力阻断（见 `DEPS` 响应）。
+ * `debug` 的 `spec-verify-proposal` **不在此列**：它由 `DEPS.debug` 随装且正文未声明
+ * 可替代路径 —— 属无条件必需委派，缺口按能力阻断（见 `DEPS` 响应）。
  */
 export const CONDITIONAL_DELEGATIONS: Readonly<Record<string, readonly string[]>> = {
     workflow: [
         'spec-verify-proposal',
         'proposal-review',
-        'requirement-doc',
         'spec-verify',
         'test',
     ],
     'auto-workflow': [
         'spec-verify-proposal',
         'proposal-review',
-        'requirement-doc',
         'spec-verify',
         'test',
     ],
-    // debug：仅 proposal-review（内联只读复查）与 test（仅显式 degraded 本地编写）声明了降级路径；
-    // spec-verify-proposal / requirement-doc 由 DEPS 随装，属无条件必需委派（缺口按能力阻断）。
+    // debug：仅 proposal-review（内联只读复查）与 test（仅显式 degraded 本地编写）声明了降级路径。
     debug: ['proposal-review', 'test'],
     // project-init：委派 feature-doc 生成文档，不可得时正文已声明自行扫描（降级路径）。
     'project-init': ['feature-doc'],
@@ -191,6 +188,9 @@ export function renderHostOrchestrationSection(
         lines.push(`- 确认门：${negotiation.native.gate}`);
         lines.push('- 回执契约：阶段 MUST 返回 `phase` / `status` / 产物位置 / 下一步允许动作 / 失败原因');
         lines.push('- 回执缺失或不通过校验时 MUST NOT 自动推进下一阶段');
+        lines.push('- 续跑契约：阶段回执是**中间状态**；`status=ok` 且校验通过后 MUST 在同一用户回合内继续下一阶段；只有门白名单内的确认门是合法停点');
+        lines.push('- 失败 / 阻塞：`blocked` / `failed` / `incomplete` MUST NOT 继续；按重试策略暂停并报告 `failure` / `blockedGate` / `blockedReason`');
+        lines.push('- 子代理数据：只传 Stage Envelope（路径 + 结构化字段），MUST NOT 内联制品正文或完整 SKILL.md；子代理先读 handoff 包，回执只含 Stage Receipt（≤40 行 / ≤2KB）');
     } else {
         lines.push('本次产物为 **degraded 单 agent 模式**（宿主严格编排能力不可用）。');
         lines.push('');
@@ -204,6 +204,7 @@ export function renderHostOrchestrationSection(
         }
         lines.push('- MUST NOT 把本地串行执行标记为委派完成、子代理回执或严格 gate 通过');
         lines.push('- 每个被跳过的委派 / 回执 / 门控 MUST 记录原因');
+        lines.push('- 续跑契约：阶段回执是**中间状态**；本地阶段完成后 MUST 在同一用户回合内继续下一阶段；只有门白名单内的确认门是合法停点');
         lines.push('- 恢复 strict 需安装或配置宿主运行时后重新执行 iagent init / update');
     }
     for (const note of negotiation.notes) {

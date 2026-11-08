@@ -137,7 +137,7 @@ export function renderDelegationModeContract(): string {
     return [
         '**委托模式契约（双轴正交，不可互换）**',
         '',
-        `- 轴一 \`${DELEGATION_MODE_PARAM}\`（执行归属；指“委托模式 delegation mode”，MUST NOT 与宿主原生 \`mode\` 字段混同）：${modes}。\`delegated\` = 抑制结尾停点、抑制被委派技能自身验证、输出结构化回执、禁止「等待用户确认」停点；**不豁免任何业务确认门**。`,
+        `- 轴一 \`${DELEGATION_MODE_PARAM}\`（执行归属；指“委托模式 delegation mode”，MUST NOT 与宿主原生 \`mode\` 字段混同）：${modes}。\`delegated\` = 抑制结尾停点、抑制被委派技能自身验证、输出结构化回执、**回执后父编排在同一用户回合内继续**、禁止「等待用户确认」停点；**不豁免任何业务确认门**。`,
         `- 轴二 \`${GATE_SKIP_PARAM}=<gate-id>\`（门承载；概念轴名 \`gate-policy\` 不是参数键）：声明已由父级确认的门，当前取值 ${gates}；未知 gate id 拒绝或忽略并记 WARN。`,
         `- \`${LEGACY_AUTO_MODE_PARAM}=true\` **仅**映射到门承载轴（≡ \`${renderGateSkipOption(GATE_SKIP_IDS)}\`），\`${DELEGATION_MODE_PARAM}\` 保持调用方原值；MUST NOT 视为 \`${DELEGATION_MODE_PARAM}=delegated\` 的等价别名。`,
         `- 两轴正交：仅传 \`${DELEGATION_MODE_PARAM}=delegated\` 时设计确认门等业务门照常触发；仅传 \`${GATE_SKIP_PARAM}\` 时停点与自验证照常生效。`,

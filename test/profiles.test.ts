@@ -97,13 +97,15 @@ describe('resolveWorkflows', () => {
         ]);
     });
 
-    it('workflow 注入验证/实现/归档/文档技能并连带补全传递依赖', () => {
+    it('workflow 注入验证/实现/归档技能并连带补全传递依赖（不再注入 requirement-doc）', () => {
         const result = resolveWorkflows(['workflow']);
         expect(result.workflows).toContain('workflow');
-        // 7 个显式依赖：探索 + 提案生成 + 验证评分门 + 深度复查 + 实现 + 归档 + 文档桥
-        for (const dep of ['spec-explore', 'spec-propose', 'spec-verify-proposal', 'proposal-review', 'spec-apply', 'spec-archive', 'requirement-doc']) {
+        // 6 个显式依赖：探索 + 提案生成 + 验证评分门 + 深度复查 + 实现 + 归档
+        for (const dep of ['spec-explore', 'spec-propose', 'spec-verify-proposal', 'proposal-review', 'spec-apply', 'spec-archive']) {
             expect(result.workflows).toContain(dep);
         }
+        // 需求文档桥已移除：不再随装需求文档技能
+        expect(result.workflows).not.toContain('requirement-doc');
         // 传递注入：test（via spec-apply）与 spec-verify（via spec-archive）
         expect(result.workflows).toContain('spec-verify');
         expect(result.workflows).toContain('test');
@@ -114,17 +116,16 @@ describe('resolveWorkflows', () => {
             'proposal-review',
             'spec-apply',
             'spec-archive',
-            'requirement-doc',
             'test',
             'spec-verify',
         ]);
     });
 
-    it('auto-workflow 连带补全传递依赖（不动点迭代）', () => {
+    it('auto-workflow 连带补全传递依赖（不动点迭代，无 requirement-doc）', () => {
         const result = resolveWorkflows(['auto-workflow']);
         expect(result.workflows).toContain('auto-workflow');
         expect(result.workflows).not.toContain('workflow');
-        expect(result.workflows).toContain('requirement-doc');
+        expect(result.workflows).not.toContain('requirement-doc');
         expect(result.workflows).toContain('proposal-review');
         expect(result.workflows).toContain('spec-apply');
         expect(result.workflows).toContain('spec-archive');
@@ -136,47 +137,41 @@ describe('resolveWorkflows', () => {
             'proposal-review',
             'spec-apply',
             'spec-archive',
-            'requirement-doc',
             'test',
             'spec-verify',
         ]);
     });
 
-    it('debug 注入提案评分与需求文档技能（文档桥生成分支无条件委派）', () => {
+    it('debug 仅注入提案评分技能（需求文档桥已整体移除）', () => {
         const result = resolveWorkflows(['debug']);
         expect(result.workflows).toContain('debug');
         expect(result.workflows).toContain('spec-verify-proposal');
-        // 旧断言「需求文档不在 debug 范围内」反转为：桥生成分支无条件委派该技能，
-        // 未随装即形成指向未安装技能的死引用，故必须由 DEPS 注入。
-        expect(result.workflows).toContain('requirement-doc');
-        expect(result.injected).toEqual(['spec-verify-proposal', 'requirement-doc']);
+        expect(result.workflows).not.toContain('requirement-doc');
+        expect(result.injected).toEqual(['spec-verify-proposal']);
     });
 
-    it('debug 注入结果稳定：生效集为 debug + spec-verify-proposal + requirement-doc', () => {
+    it('debug 注入结果稳定：生效集为 debug + spec-verify-proposal', () => {
         const result = resolveWorkflows(['debug']);
-        expect(result.workflows).toEqual([
-            'debug',
-            'spec-verify-proposal',
-            'requirement-doc',
-        ]);
+        expect(result.workflows).toEqual(['debug', 'spec-verify-proposal']);
         // test 属条件委派（正文已声明 degraded 本地编写路径），不触发注入
         expect(result.workflows).not.toContain('test');
     });
 
-    it('DEPS.debug 明确覆盖 requirement-doc（无条件委派随装）', () => {
-        expect(DEPS.debug).toEqual(['spec-verify-proposal', 'requirement-doc']);
+    it('DEPS.debug 仅含 spec-verify-proposal（无 requirement-doc）', () => {
+        expect(DEPS.debug).toEqual(['spec-verify-proposal']);
     });
 
-    it('归档类 DEPS 只含 spec-verify；workflow / auto-workflow 显式声明 requirement-doc', () => {
+    it('归档类 DEPS 只含 spec-verify；三父流程均不再声明 requirement-doc', () => {
         expect(DEPS['spec-archive']).toEqual(['spec-verify']);
         expect(DEPS['spec-bulk-archive']).toEqual(['spec-verify']);
-        expect(DEPS['workflow']).toContain('requirement-doc');
-        expect(DEPS['auto-workflow']).toContain('requirement-doc');
+        expect(DEPS['workflow']).not.toContain('requirement-doc');
+        expect(DEPS['auto-workflow']).not.toContain('requirement-doc');
+        expect(DEPS.debug).not.toContain('requirement-doc');
     });
 
     it('已含 debug 依赖项时不重复注入', () => {
-        const result = resolveWorkflows(['debug', 'spec-verify-proposal', 'requirement-doc']);
+        const result = resolveWorkflows(['debug', 'spec-verify-proposal']);
         expect(result.injected).toEqual([]);
-        expect(result.workflows).toEqual(['debug', 'spec-verify-proposal', 'requirement-doc']);
+        expect(result.workflows).toEqual(['debug', 'spec-verify-proposal']);
     });
 });

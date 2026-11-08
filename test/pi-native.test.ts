@@ -265,7 +265,6 @@ describe('编排阶段 agent 的嵌套委派授予（4.4 / 4.5）', () => {
         'debug',
         'spec-verify-proposal',
         'proposal-review',
-        'requirement-doc',
         'test',
     ];
 
@@ -274,13 +273,12 @@ describe('编排阶段 agent 的嵌套委派授予（4.4 / 4.5）', () => {
         expect(result.allowed).toEqual([
             'iagent-spec-verify-proposal',
             'iagent-proposal-review',
-            'iagent-requirement-doc',
             'iagent-test',
         ]);
         expect(result.gap).toBeUndefined();
     });
 
-    it('workflow / auto-workflow 的完整委派清单可全部授予（含 requirement-doc / spec-verify / test）', () => {
+    it('workflow / auto-workflow 的完整委派清单可全部授予（无 requirement-doc）', () => {
         const installed = [
             'workflow',
             'auto-workflow',
@@ -288,7 +286,6 @@ describe('编排阶段 agent 的嵌套委派授予（4.4 / 4.5）', () => {
             'spec-propose',
             'spec-verify-proposal',
             'proposal-review',
-            'requirement-doc',
             'spec-apply',
             'spec-verify',
             'test',
@@ -302,16 +299,16 @@ describe('编排阶段 agent 的嵌套委派授予（4.4 / 4.5）', () => {
                 'iagent-spec-propose',
                 'iagent-spec-verify-proposal',
                 'iagent-proposal-review',
-                'iagent-requirement-doc',
                 'iagent-spec-apply',
                 'iagent-spec-verify',
                 'iagent-test',
                 'iagent-spec-archive',
             ]);
+            expect(result.allowed).not.toContain('iagent-requirement-doc');
         }
     });
 
-    it('workflow / auto-workflow 缺 requirement-doc / spec-verify / test 时归入条件委派（按正文降级路径）', () => {
+    it('workflow / auto-workflow 缺 spec-verify / test 时归入条件委派（按正文降级路径）', () => {
         const partial = [
             'workflow',
             'spec-explore',
@@ -322,16 +319,15 @@ describe('编排阶段 agent 的嵌套委派授予（4.4 / 4.5）', () => {
             'spec-archive',
         ];
         const workflow = resolvePiNestingDelegations('workflow', partial);
-        expect(workflow.gap?.missing).toEqual(['requirement-doc', 'spec-verify', 'test']);
-        // 三者正文均声明 fallback（生成失败 WARN / 省略声明 / 条件测试子阶段）→ 条件委派
-        expect(workflow.gap?.conditional).toEqual(['requirement-doc', 'spec-verify', 'test']);
+        expect(workflow.gap?.missing).toEqual(['spec-verify', 'test']);
+        // 两者正文均声明 fallback（省略声明 / 条件测试子阶段）→ 条件委派
+        expect(workflow.gap?.conditional).toEqual(['spec-verify', 'test']);
         expect(workflow.gap?.required).toEqual([]);
 
         const auto = resolvePiNestingDelegations('auto-workflow', ['auto-workflow']);
         expect(auto.gap?.conditional).toEqual([
             'spec-verify-proposal',
             'proposal-review',
-            'requirement-doc',
             'spec-verify',
             'test',
         ]);
@@ -344,9 +340,9 @@ describe('编排阶段 agent 的嵌套委派授予（4.4 / 4.5）', () => {
     });
 
     it('未安装的委派按必需/条件两类记入 nestingGaps（不伪装严格可用）', () => {
-        const result = resolvePiNestingDelegations('debug', ['debug', 'requirement-doc']);
+        const result = resolvePiNestingDelegations('debug', ['debug']);
         // 未安装目标不进入 allowed_subagents
-        expect(result.allowed).toEqual(['iagent-requirement-doc']);
+        expect(result.allowed).toEqual([]);
         expect(result.gap).toBeDefined();
         expect(result.gap?.missing).toEqual([
             'spec-verify-proposal',
@@ -364,11 +360,10 @@ describe('编排阶段 agent 的嵌套委派授予（4.4 / 4.5）', () => {
         expect(result.gap).toBeDefined();
         // spec-explore / spec-apply / spec-archive 正文无降级路径 → 无条件必需
         expect(result.gap?.required).toEqual(['spec-explore', 'spec-apply', 'spec-archive']);
-        // 验证评分/深度复查/需求文档/实现验证/条件测试均声明了降级路径 → 条件委派
+        // 验证评分/深度复查/实现验证/条件测试均声明了降级路径 → 条件委派
         expect(result.gap?.conditional).toEqual([
             'spec-verify-proposal',
             'proposal-review',
-            'requirement-doc',
             'spec-verify',
             'test',
         ]);
@@ -386,39 +381,49 @@ describe('编排阶段 agent 的嵌套委派授予（4.4 / 4.5）', () => {
         const root = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-pi-nesting-'));
         try {
             const result = writePiNativeAgents(root, [
-                { workflowId: 'debug', description: '调试阶段' },
-                { workflowId: 'requirement-doc', description: '需求文档' },
+                { workflowId: 'workflow', description: '引导工作流' },
             ]);
-            expect(result.nestingGaps.map((gap) => gap.workflowId)).toEqual(['debug']);
-            // test 属条件委派 → 条件缺口 WARN
-            expect(result.nestingGaps[0].conditional).toContain('test');
+            expect(result.nestingGaps.map((gap) => gap.workflowId)).toEqual(['workflow']);
+            // 条件委派缺口（验证评分 / 深度复查 / 实现验证 / 条件测试）→ 条件缺口 WARN
+            expect(result.nestingGaps[0].conditional).toEqual([
+                'spec-verify-proposal',
+                'proposal-review',
+                'spec-verify',
+                'test',
+            ]);
             expect(
                 result.warnings.some(
                     (warning) => warning.includes('条件委派未安装') && warning.includes('test')
                 )
             ).toBe(true);
-            // spec-verify-proposal 属无条件必需委派 → 必需缺口 WARN
-            expect(result.nestingGaps[0].required).toEqual(['spec-verify-proposal']);
+            // 无条件必需委派缺口（探索 / 提案 / 实现 / 归档）→ 必需缺口 WARN
+            expect(result.nestingGaps[0].required).toEqual([
+                'spec-explore',
+                'spec-propose',
+                'spec-apply',
+                'spec-archive',
+            ]);
             expect(
                 result.warnings.some(
                     (warning) =>
                         warning.includes('无条件必需委派未安装') &&
-                        warning.includes('spec-verify-proposal')
+                        warning.includes('spec-archive')
                 )
             ).toBe(true);
 
+            // 无任何委派目标已安装 → 不生成 allowed_subagents 字段
             const content = fs.readFileSync(
-                path.join(root, '.pi/agents/iagent-debug.md'),
+                path.join(root, '.pi/agents/iagent-workflow.md'),
                 'utf8'
             );
-            expect(content).toContain('allowed_subagents: iagent-requirement-doc');
-            expect(content).not.toContain('allowed_subagents: iagent-test');
+            expect(content).not.toMatch(/^allowed_subagents:/m);
+            expect(content).not.toContain('iagent-requirement-doc');
         } finally {
             fs.rmSync(root, { recursive: true, force: true });
         }
     });
 
-    it('init 端到端：debug 阶段 agent 的 allowed_subagents 含 requirement-doc 并报告缺口', () => {
+    it('init 端到端：debug 阶段 agent 的 allowed_subagents 仅含随装的 spec-verify-proposal', () => {
         const root = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-pi-debug-e2e-'));
         try {
             ensureProjectConfig(root);
@@ -429,8 +434,10 @@ describe('编排阶段 agent 的嵌套委派授予（4.4 / 4.5）', () => {
                 path.join(root, '.pi/agents/iagent-debug.md'),
                 'utf8'
             );
-            // DEPS 注入 requirement-doc → 必须可嵌套委派
-            expect(content).toContain('allowed_subagents: iagent-spec-verify-proposal, iagent-requirement-doc');
+            // DEPS 注入 spec-verify-proposal → 必须可嵌套委派
+            expect(content).toContain('allowed_subagents: iagent-spec-verify-proposal');
+            // 需求文档桥已移除：不授予 requirement-doc；test 属条件委派且未安装
+            expect(content).not.toContain('iagent-requirement-doc');
             expect(content).not.toContain('iagent-test');
 
             // proposal-review / test 未安装 → 缺口诊断（条件委派，不一律阻断）
@@ -439,6 +446,7 @@ describe('编排阶段 agent 的嵌套委派授予（4.4 / 4.5）', () => {
                 'proposal-review',
                 'test',
             ]);
+            expect(result.piNative?.nestingGaps[0].required).toEqual([]);
             expect(result.piNative?.warnings.length).toBeGreaterThan(0);
         } finally {
             fs.rmSync(root, { recursive: true, force: true });

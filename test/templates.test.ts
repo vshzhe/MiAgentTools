@@ -290,43 +290,48 @@ function skillCorpus(name: string): string {
     return `${entry?.template.instructions ?? ''}\n${refs}`;
 }
 
-describe('文档桥单一确认面（4.1）', () => {
-    it('三父流程均声明「单次业务桥」且不追加调用确认', () => {
+describe('需求文档桥已移除（4.1）', () => {
+    it('三父流程均声明桥已移除且不追加调用确认', () => {
         for (const name of ['iagent_workflow', 'iagent_auto_workflow', 'iagent_debug']) {
             const body = skillCorpus(name);
-            expect(body, `${name} 未声明单次业务桥`).toMatch(/单次业务桥/);
-            expect(body, `${name} 桥未声明直接委派（不追加确认）`).toMatch(
-                /不追加[^\n]*调用确认|不再出现[^\n]*询问|不追加"是否调用该技能"确认/
+            expect(body, `${name} 未声明需求文档桥已移除`).toMatch(
+                /需求文档桥[^\n]*移除|无需求文档桥/
+            );
+            expect(body, `${name} 未声明直接续跑（不追加确认）`).toMatch(
+                /不追加[^\n]*调用确认|不再出现[^\n]*询问|不追加"是否调用该技能"确认|直接续跑|自动转入 Phase 4|同一用户回合内继续/
             );
         }
     });
 
-    it('workflow 交付桥合并：文档选项并入实现桥，无第二次文档停点', () => {
+    it('workflow 交付桥三出口：无文档选项、无第二次文档停点', () => {
         const body = skillCorpus('iagent_workflow');
         expect(body).toContain('交付桥');
         expect(body).toContain('实现 + 测试桥');
-        expect(body).toContain('单次业务桥');
-        expect(body).toContain('是否生成需求文档');
-        expect(body).toContain('仅生成文档');
+        expect(body).toContain('三出口');
+        expect(body).toContain('MUST NOT 提供文档生成选项');
+        expect(body).not.toContain('是否生成需求文档');
+        expect(body).not.toContain('仅生成文档');
         // 旧的两段式停点已消失（验证阶段不再单独停一次文档桥）
         expect(body).not.toContain('收束 —— 需求文档桥（⚠️ 单次业务桥，强制）');
         // 拒绝回退范围在同一门内显式
-        expect(body).toContain('拒绝（记录未确认状态并停止，不进入实现）');
+        expect(body).toContain('拒绝 → 记录未确认状态并停止');
     });
 
-    it('debug 的文档桥是唯一文档确认面（不重复询问是否调用技能）', () => {
+    it('debug 不再持有需求文档桥确认面', () => {
         const body = allSkills.find((s) => s.template.name === 'iagent_debug')?.template.instructions ?? '';
-        expect(body).toContain('debug 唯一的文档确认面');
-        expect(body).toContain('不是"是否调用该技能"的二次确认');
+        expect(body).not.toContain('debug 唯一的文档确认面');
+        expect(body).not.toContain('不是"是否调用该技能"的二次确认');
+        expect(body).toContain('MUST NOT 展示需求文档桥');
+        // 手工调用路径仍保留提示
+        expect(body).toContain('请按需单独调用 iagent-requirement-doc');
     });
 
-    it('验证 FAIL 或复查未收束时三父流程均禁止展示桥', () => {
+    it('验证 FAIL 或复查未收束时三父流程均无跳过直接实现的路径', () => {
         for (const name of ['iagent_workflow', 'iagent_auto_workflow', 'iagent_debug']) {
             const body = skillCorpus(name);
-            const failGuard = body
-                .split('\n')
-                .filter((line) => line.includes('FAIL') && line.includes('MUST NOT 展示'));
-            expect(failGuard.length, `${name} 缺少 FAIL 不出桥护栏`).toBeGreaterThan(0);
+            expect(body, `${name} 缺少 FAIL 不跳过的护栏`).toMatch(
+                /FAIL 不进入实现|无跳过直接|不提供跳过直接|没有跳过直接/
+            );
         }
     });
 });
@@ -556,12 +561,13 @@ describe('2.11 spec-explore 既有探索协议回归', () => {
 describe('4.7 spec-archive 归档只读与只读报告', () => {
     const archive = skillCorpus('iagent_spec_archive');
 
-    it('4.8 改为只读报告：只报告存在性，不生成 / 不对齐 / 不委派', () => {
-        expect(archive).toContain('4.8 **归档前需求文档只读报告');
-        expect(archive).toContain('已存在（未改写）');
-        expect(archive).toContain('需求文档：缺失');
-        expect(archive).toContain('该报告失败 MUST NOT 阻断归档');
-        expect(archive).toContain('MUST NOT 生成需求文档');
+    it('4.8 已移除：不生成 / 不对齐 / 不委派 / 不再读取报告', () => {
+        expect(archive).toContain('4.8 **（已移除）**');
+        expect(archive).not.toMatch(/4\.8 \*\*归档前需求文档只读报告/);
+        expect(archive).not.toContain('该报告失败 MUST NOT 阻断归档');
+        // 存在性报告不再作为步骤契约（成功输出样例中的旧行不构成读取契约）
+        expect(archive).not.toContain('需求文档：缺失');
+        expect(archive).toContain('MUST NOT 读取');
         expect(archive).not.toMatch(/in-place|就地增量对齐更新/);
         expect(archive).not.toMatch(/委派 `iagent_requirement_doc` 技能/);
         // 旧的四值分流分支已删除
@@ -573,7 +579,9 @@ describe('4.7 spec-archive 归档只读与只读报告', () => {
     it('Step 6 删除：需求文档不再迁出 devdocs，文件随目录留在 archive/', () => {
         expect(archive).not.toContain('把需求文档移入 devdocs');
         expect(archive).not.toContain('devdocs/YYYY-MM-DD');
-        expect(archive).toContain('MUST NOT 迁出到 `openspec/devdocs/`');
+        expect(archive).not.toContain('MUST NOT 迁出到 `openspec/devdocs/`');
+        // 新语义：文件随目录原样保留，不读取、不处理
+        expect(archive).toMatch(/原样保留|随目录一起移动/);
     });
 
     it('归档只读护栏存在（整目录移动不属于改写）', () => {
@@ -892,9 +900,10 @@ describe('3.3 父流程编译证据就绪检查', () => {
         expect(body).not.toContain('archive 以文件存在优先');
         expect(body).not.toContain('状态裁决缺失分支，不因新会话');
         expect(body).not.toContain('兼容生成');
-        // 新语义：只作报告输入，且不得据其写入
-        expect(body).toContain('仅把它当作报告输入');
-        expect(body).toContain('MUST NOT 据其生成 / 就地增量对齐 / 迁出');
+        // 新语义：不再传递 / 读取 / 报告需求文档状态
+        expect(body).not.toContain('仅把它当作报告输入');
+        expect(body).toContain('MUST NOT 传已移除的需求文档状态字段');
+        expect(body).toContain('需求文档桥已整体移除');
     });
 
     it('编译终态与回执状态词汇不混用', () => {
@@ -938,15 +947,19 @@ describe('7.1 debug 共享编译检查缺省语义与作用域声明', () => {
 // 任务 5.6：spec-bulk-archive 归档只读与只读报告断言。
 describe('5.6 spec-bulk-archive 归档只读', () => {
     const bulk = skillCorpus('iagent_spec_bulk_archive');
-    const a6 = bulk.slice(bulk.indexOf('a.6 **需求文档只读报告'), bulk.indexOf('b. **执行归档**'));
+    const a6Start = bulk.indexOf('a.6 **（已移除）**');
+    const a6 = bulk.slice(a6Start, bulk.indexOf('b. **执行归档**'));
     const b5 = bulk.slice(bulk.indexOf('b.5 **探索记忆同步**'), bulk.indexOf('c. **归档只读校验'));
 
-    it('a.6 只读报告：无写入分支、无生成技能委派', () => {
-        expect(a6).toContain('需求文档：已存在（未改写）');
-        expect(a6).toContain('需求文档：缺失');
+    it('a.6 已移除：无只读报告、无写入分支、无生成技能委派', () => {
+        expect(a6Start).toBeGreaterThanOrEqual(0);
+        expect(a6).toContain('整体移除');
+        expect(a6).toContain('不再读取');
+        expect(a6).not.toContain('需求文档：已存在（未改写）');
+        expect(a6).not.toContain('需求文档：缺失');
         expect(a6).not.toContain('in-place');
         expect(a6).not.toMatch(/委派 `iagent_requirement_doc` 技能/);
-        expect(a6).toContain('MUST NOT 中止该变更单元');
+        expect(a6).not.toContain('MUST NOT 中止该变更单元');
     });
 
     it('b.5 仅保留探索记忆同步（不再迁出 devdocs）', () => {
@@ -972,7 +985,7 @@ describe('5.6 spec-bulk-archive 归档只读', () => {
         const STEPS = [
             'a. **同步规格**',
             'a.5 **CONTEXT.md 同步',
-            'a.6 **需求文档只读报告',
+            'a.6 **（已移除）**',
             'b. **执行归档**',
             'b.5 **探索记忆同步**',
             'c. **归档只读校验 + 流程级工作区清理**',
@@ -1011,7 +1024,8 @@ describe('5.6 spec-bulk-archive 归档只读', () => {
     it('摘要模板含只读校验与清理结果', () => {
         expect(bulk).toContain('Archive read-only check');
         expect(bulk).toContain('Pipeline workspace cleanup');
-        expect(bulk).toContain('Requirement document report');
+        // 需求文档报告已移除：摘要模板不再含该行
+        expect(bulk).not.toContain('Requirement document report');
     });
 
     it('SUBAGENT_DISPATCH 保留（批量并行仍属子代理派发）', () => {
@@ -1264,11 +1278,11 @@ describe('7.7 归档步骤序回归', () => {
 });
 
 // spec-workflow-skills / 「spec-archive 归档技能」：归档步骤序（探索记忆同步 →
-// 需求文档只读报告 → 目录迁移 → ARCHIVE-INDEX）。顺序是协议约束，故断言文本相对位置。
-describe('7.7 归档步骤序（探索记忆同步 → 需求文档只读报告 → 目录迁移 → ARCHIVE-INDEX）', () => {
+// 需求文档只读报告已移除 → 目录迁移 → ARCHIVE-INDEX）。顺序是协议约束，故断言文本相对位置。
+describe('7.7 归档步骤序（探索记忆同步 → 需求文档报告已移除 → 目录迁移 → ARCHIVE-INDEX）', () => {
     const STEPS = [
         '4.7 **归档前探索记忆同步',
-        '4.8 **归档前需求文档只读报告',
+        '4.8 **（已移除）**',
         '5. **执行归档**',
         '7. **更新或创建 ARCHIVE-INDEX.md（纯追加）**',
     ];
@@ -1293,11 +1307,11 @@ describe('7.7 归档步骤序（探索记忆同步 → 需求文档只读报告 
         const move = body.indexOf('把 `changeRoot` 移动到');
 
         expect(move).toBeGreaterThan(body.indexOf('4.7 **归档前探索记忆同步'));
-        expect(move).toBeGreaterThan(body.indexOf('4.8 **归档前需求文档只读报告'));
+        expect(move).toBeGreaterThan(body.indexOf('4.8 **（已移除）**'));
         expect(move).toBeLessThan(body.indexOf('7. **更新或创建 ARCHIVE-INDEX.md（纯追加）**'));
-        // 两个检查点都显式声明「移动变更目录前」完成（顺序约束的正文依据）
+        // 探索记忆同步仍是移动前的强制检查点；需求文档只读报告已移除
         expect(body).toContain('系统 MUST 在移动变更目录前完成探索记忆同步');
-        expect(body).toContain('系统 MUST 在移动变更目录前完成需求文档只读报告');
+        expect(body).not.toContain('系统 MUST 在移动变更目录前完成需求文档只读报告');
     });
 });
 

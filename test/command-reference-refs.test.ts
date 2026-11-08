@@ -38,8 +38,8 @@ const CONDITIONAL_DELEGATIONS: Record<string, readonly string[]> = {
     iagent_auto_workflow: ['test'],
     // debug：深度复查委派 proposal_review，不可用时内联复查；回归测试委派 test，
     // strict 缺能阻断、仅显式 degraded 允许本地编写。
-    // spec-verify-proposal / requirement-doc 不在此列 —— 它们由 DEPS 随装、属无条件必需委派，
-    // 必须由 DEPS 覆盖（删除 DEPS 条目即触发下方覆盖校验失败）。
+    // spec-verify-proposal 不在此列 —— 它由 DEPS 随装、属无条件必需委派，必须由 DEPS 覆盖。
+    // requirement-doc 已随需求文档桥整体移除，不再出现在任何委派面。
     iagent_debug: ['proposal-review', 'test'],
 };
 
@@ -126,16 +126,17 @@ describe('模板正文指令引用单一源与死引用校验', () => {
         expect(offenders).toEqual([]);
     });
 
-    it('条件委派表与正文实际委派一致（debug 增列 test，spec-propose 移除 requirement-doc）', () => {
+    it('条件委派表与正文实际委派一致（debug 条件委派 test，三方均无 requirement-doc）', () => {
         const bySkillName = new Map(
             getSkillTemplates().map(({ template }) => [template.name, template])
         );
-        // debug 的正文确实条件委派 test 与 requirement_doc（白名单为 canonical 形态）
+        // debug 的正文确实条件委派 test 与 proposal_review（白名单为 canonical 形态）
         const debugTools = bySkillName.get('iagent_debug')?.allowedTools ?? '';
         expect(CONDITIONAL_DELEGATIONS.iagent_debug).toContain('test');
         expect(debugTools).toContain('Skill(iagent-test)');
-        expect(debugTools).toContain('Skill(iagent-requirement-doc)');
-        // spec-propose 独立调用不再委派需求文档技能（非目标收窄）
+        expect(debugTools).toContain('Skill(iagent-proposal-review)');
+        // 需求文档桥已移除：任何父流程都不再委派需求文档技能
+        expect(debugTools).not.toContain('Skill(iagent-requirement-doc)');
         expect(CONDITIONAL_DELEGATIONS.iagent_spec_propose).toBeUndefined();
         const proposeTools = bySkillName.get('iagent_spec_propose')?.allowedTools ?? '';
         expect(proposeTools).not.toContain('Skill(iagent-requirement-doc)');

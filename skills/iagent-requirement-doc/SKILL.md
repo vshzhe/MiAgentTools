@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: docs
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:7f89b3b45d8406bc5d79aca78250e9ef4a231f061d039b68f5555f4fccebae79"
+  generatedFingerprint: "sha256:09082fb9aeae2ba7a37c2a8e3d7414b2fb0466c3f2b276ea61c8de9c9a7bb996"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
@@ -45,7 +45,7 @@ metadata:
 - MUST NOT 提问。
 - 使用 Markdown 格式，基本信息用占位符。
 - 用户稍后可独立重跑本技能以补全细节。
-- **调用方说明（自动调用方 = 三父流程文档桥"生成"分支）**：自动调用本技能的是 `iagent-workflow` Phase 3.5 / `iagent-auto-workflow` Phase 3 / `iagent-debug` verify-close 三处需求文档桥的"生成"分支。`iagent-spec-verify-proposal` 保持纯验证职责、不调用本技能；`iagent-spec-propose` 独立调用在验证 PASS 后停止，MUST NOT 自动调用本技能（不提供文档桥）。**归档侧（`iagent-spec-archive` / `iagent-spec-bulk-archive`）只做需求文档存在性只读报告，MUST NOT 生成、MUST NOT 就地增量对齐、MUST NOT 迁出，故 MUST NOT 调用本技能。** 本技能 MUST NOT 写改变更 `exploration.md` 的需求文档状态 —— 该状态由父流程维护。**任何阶段都可手工调用** —— 下述独立模式保持不变。
+- **调用方说明（无自动调用方）**：需求文档桥已随 `skill-bridge-optimize` 整体移除；`iagent-workflow` / `iagent-auto-workflow` / `iagent-debug` / `iagent-spec-propose` / `iagent-spec-archive` / `iagent-spec-bulk-archive` MUST NOT 自动调用本技能。本技能只由用户手工调用（standalone 模式）；不再随三父流程自动注入安装。**任何阶段都可手工调用** —— 下述独立模式保持不变。
 
 ## Step 3: 读取变更制品
 

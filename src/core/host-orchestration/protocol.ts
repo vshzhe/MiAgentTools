@@ -104,7 +104,6 @@ export const GATE_WHITELIST: readonly GateWhitelistEntry[] = [
             'grill-batch-confirmation',
             'diagnostic-confirmation',
             'fix-option-confirmation',
-            'requirement-doc-bridge',
         ],
         conditional: true,
     },
@@ -142,46 +141,6 @@ export const GATE_WHITELIST_ANCHORS: readonly string[] = GATE_WHITELIST.flatMap(
 /** 给定阶段门 id 是否在白名单锚点集合内 */
 export function isWhitelistedGate(gateId: string): boolean {
     return GATE_WHITELIST_ANCHORS.includes(gateId);
-}
-
-/**
- * 需求文档状态（持久于变更 `exploration.md` 的 `## 需求文档状态` 段，字段
- * `requirementDocStatus`）。
- *
- * - `absent`：该段缺失或取值非法（**不落盘**，历史变更的兼容分支）
- * - `skipped-by-user` / `generation-failed` / `generated`：可持久化的显式决定
- */
-export type RequirementDocStatus = 'absent' | 'skipped-by-user' | 'generation-failed' | 'generated';
-
-/** 持久化字段名（`exploration.md` 的 `## 需求文档状态` 段） */
-export const REQUIREMENT_DOC_STATUS_FIELD = 'requirementDocStatus';
-
-/** 可落盘的显式状态（`absent` 不落盘：段缺失即代表该值） */
-export const PERSISTED_REQUIREMENT_DOC_STATUSES: readonly Exclude<
-    RequirementDocStatus,
-    'absent'
->[] = ['skipped-by-user', 'generation-failed', 'generated'];
-
-/**
- * 状态读取/写入的尝试次数（含首次）。
- *
- * 语义为「失败 → 自动重试同一操作一次 → 仍失败即停止」，MUST NOT 第二次或无限重试。
- */
-export const REQUIREMENT_DOC_STATUS_IO_ATTEMPTS = 2;
-
-/**
- * 把 `exploration.md` 读到的原始取值归一化为状态。
- *
- * 段缺失（`undefined` / 空串）或取值非法 → `absent`（MUST NOT 猜测为 skip 或 generated）。
- */
-export function normalizeRequirementDocStatus(raw: string | null | undefined): RequirementDocStatus {
-    if (typeof raw !== 'string') {
-        return 'absent';
-    }
-    const value = raw.trim();
-    return (PERSISTED_REQUIREMENT_DOC_STATUSES as readonly string[]).includes(value)
-        ? (value as RequirementDocStatus)
-        : 'absent';
 }
 
 /** 阶段输入契约 */
@@ -242,8 +201,24 @@ export const DEFAULT_RECEIPT_FIELDS: readonly string[] = [
     'nextAllowed',
 ];
 
-/** 回执状态 */
+/** 阶段回执状态 */
 export type ReceiptStatus = 'ok' | 'failed' | 'blocked' | 'incomplete';
+
+/**
+ * Stage Envelope 推荐上限（字节；不含子代理自行加载的技能正文）。
+ *
+ * 生成期文本与测试用于防止把制品正文 / 完整 SKILL.md 内联进委派指令。
+ */
+export const STAGE_ENVELOPE_MAX_BYTES = 2048;
+
+/** Stage Receipt 推荐上限（行数）。 */
+export const STAGE_RECEIPT_MAX_LINES = 40;
+
+/** Stage Receipt 推荐上限（字节）。 */
+export const STAGE_RECEIPT_MAX_BYTES = 2048;
+
+/** handoff 包每节推荐上限（行数；包是蒸馏视图而非制品副本）。 */
+export const HANDOFF_PACK_SECTION_MAX_LINES = 120;
 
 /** 阶段回执 */
 export interface Receipt {
@@ -253,11 +228,20 @@ export interface Receipt {
     nextAllowed?: string;
     failure?: string;
     /**
-     * 需求文档状态（debug `verify-close` 与父流程的文档桥回执携带）。
+     * 门阻塞：门白名单内的门 id（与 `blockedReason` 二选一）。
      *
-     * 仅作 handoff 镜像；跨会话依据仍是变更 `exploration.md` 的持久记录。
+     * 可选且 MUST NOT 进入 `DEFAULT_RECEIPT_FIELDS`：缺失不代表阶段完成。
+     * 出现时由 `validateReceipt` 校验为非空字符串；白名单归属由父编排判定。
      */
-    requirementDocStatus?: RequirementDocStatus;
+    blockedGate?: string;
+    /** 非门类用户决策的阻塞原因（范围蔓延 / 材料性歧义 / 方案选择；与 `blockedGate` 二选一）。 */
+    blockedReason?: string;
+    /** 续跑提示（父级可原样放进下次 Stage Envelope 的 `resumeHint`）。 */
+    resumeHint?: string;
+    /** 复查 / 验证完整报告的路径（摘要见 `reviewSummary`；完整正文 MUST NOT 进入回执）。 */
+    reportPath?: string;
+    /** 复查 / 验证摘要（≤2KB）。 */
+    reviewSummary?: string;
     /**
      * 本阶段实际已确认的门（门账本回执镜像，变更 improve-delegation-gate-ledger）。
      *
@@ -309,10 +293,34 @@ export function validateReceipt(receipt: Partial<Receipt>, spec: ReceiptSpec): R
     if (confirmedGatesIssue !== undefined) {
         return { valid: false, missing, reason: confirmedGatesIssue };
     }
+    const optionalStringIssue = validateOptionalReceiptStrings(receipt);
+    if (optionalStringIssue !== undefined) {
+        return { valid: false, missing, reason: optionalStringIssue };
+    }
     if (missing.length > 0) {
         return { valid: false, missing, reason: `回执缺少必需字段：${missing.join(', ')}` };
     }
     return { valid: true, missing: [] };
+}
+
+/**
+ * 校验可选回执字段的形状（仅在字段出现时）。
+ *
+ * `blockedGate` 与 `blockedReason` 互斥：前者用于门白名单内的门，后者用于非门类
+ * 用户决策（范围蔓延 / 材料性歧义 / 方案选择）。
+ */
+function validateOptionalReceiptStrings(receipt: Partial<Receipt>): string | undefined {
+    const keys = ['blockedGate', 'blockedReason', 'resumeHint', 'reportPath', 'reviewSummary'] as const;
+    for (const key of keys) {
+        const value = receipt[key];
+        if (value !== undefined && (typeof value !== 'string' || value.trim() === '')) {
+            return `回执 ${key} 必须是非空字符串`;
+        }
+    }
+    if (receipt.blockedGate !== undefined && receipt.blockedReason !== undefined) {
+        return '回执 blockedGate 与 blockedReason 不可同时出现（二选一）';
+    }
+    return undefined;
 }
 
 /**

@@ -198,10 +198,8 @@ ${renderGateWhitelistSection()}
         "跳过 CONTEXT.md 同步：未找到变更制品"
       - **失败处理（非阻塞）**：不得因检查失败而阻塞归档 —— 记录日志并继续
 
-   a.6 **需求文档只读报告（归档前，位于目录移动之前）**：
-      - **判定范围**：仅 \`openspec/changes/<change-name>/需求文档.md\`（用 \`path.join()\`），并同时读取该变更 \`exploration.md\` 的 \`## 需求文档状态\` 段（字段 \`requirementDocStatus\`；段缺失即 \`absent\`）
-      - **只读报告（结果只进入该变更的摘要报告）**：文件存在（任一状态）→ 该变更摘要记「需求文档：已存在（未改写）」；文件缺失（任一状态，含 \`absent\`）→ 摘要记「需求文档：缺失」；读取失败 → 输出含路径与原因的 WARN + 摘要「需求文档：状态不可读」，继续（失败只记 WARN，MUST NOT 中止该变更单元或整批）
-      - **禁止写入**：MUST NOT 生成、MUST NOT 就地增量对齐、MUST NOT 迁出到 \`openspec/devdocs/\`，MUST NOT 委派 \`iagent_requirement_doc\`；\`requirementDocStatus\` 任一取值均只用于报告，MUST NOT 触发任何写入动作
+   a.6 **（已移除）**：
+      需求文档桥与只读报告已随 \`skill-bridge-optimize\` 整体移除；本技能不再读取、报告、生成、对齐或迁出 \`需求文档.md\`。文件随变更目录原样移动。
 
    b. **执行归档**：
       运行 iagent CLI 归档命令 —— 它一步完成状态检查与目录移动：
@@ -226,7 +224,7 @@ ${renderGateWhitelistSection()}
       - 某变更同步失败时：记录 WARN 并**继续**处理剩余变更（绝不中止整批）
 
    c. **归档只读校验 + 流程级工作区清理**（每个变更，位于结果记录之前）：
-      - **只读校验**：确认本单元未改写 \`openspec/changes/archive/**\` 下的既有内容（本单元自身的整目录移动与 ARCHIVE-INDEX 追加除外），亦未向 \`openspec/devdocs/\` 写入或迁移任何 \`需求文档.md\`；结果记入该变更摘要；发现越界 → 记录含变更名与路径的 WARN 并继续处理剩余变更（MUST NOT 中止整批，MUST NOT 静默忽略）
+      - **只读校验**：确认本单元未改写 \`openspec/changes/archive/**\` 下的既有内容（本单元自身的整目录移动与 ARCHIVE-INDEX 追加除外），亦未向 \`openspec/devdocs/\` 写入或迁移任何文件；结果记入该变更摘要；发现越界 → 记录含变更名与路径的 WARN 并继续处理剩余变更（MUST NOT 中止整批，MUST NOT 静默忽略）
       - **单元成功后清理流程级工作区**：清理该变更的 \`.openspec-tmp/pipeline-<change-name>/\`（同时识别旧 \`apply-\` 前缀），经 Bash 运行 \`node -e "fs.rmSync(<path>, { recursive: true, force: true })"\` 跨平台删除；清理失败 WARN 且不中止批次；**失败或跳过的单元保留工作区**供诊断（摘要注明保留位置，MUST NOT 删除）
 
    d. **记录结果**（每个变更）：
@@ -258,11 +256,6 @@ ${renderGateWhitelistSection()}
    Exploration memory summary:
    - 3 changes synced to capability memory files
    - 1 skipped (no exploration file)
-
-   Requirement document report:
-   - 2 changes: 需求文档：已存在（未改写）
-   - 2 changes: 需求文档：缺失（未生成）
-   - 0 changes: 状态不可读（WARN）
 
    Archive read-only check:
    - 4 changes passed（无越界写入）
@@ -450,7 +443,7 @@ No active changes found. Create a new change to get started.
 - 记录并报告全部结果（成功/跳过/失败）
 - 按变更同步探索记忆（步骤 b.5）；某个变更失败只记录告警，绝不中止整批
 - 按变更同步 CONTEXT.md（步骤 a.5）；制品缺失时跳过并记日志，绝不阻塞整批
-- 按变更（步骤 a.6，先于目录移动）只做**需求文档只读报告**：判定 \`需求文档.md\` 存在性与可选读取 \`requirementDocStatus\`，结果只进该变更摘要（「已存在（未改写）」/「缺失」/「状态不可读」）；MUST NOT 生成、MUST NOT 就地增量对齐、MUST NOT 迁出到 \`openspec/devdocs/\`、MUST NOT 委派 \`iagent_requirement_doc\`；失败只记录告警，绝不中止该变更单元或整批
+- 需求文档桥与只读报告已移除：本技能 MUST NOT 读取、报告、生成、对齐或迁出 \`需求文档.md\`；文件随变更目录原样保留
 - **归档只读**：MUST NOT 修改 \`openspec/changes/archive/\` 下的既有内容 —— 已归档变更是历史事实；整目录移动不属于改写，\`ARCHIVE-INDEX.md\` 的**追加**是显式例外；单元序列 c 步执行只读校验，越界只 WARN 且不中止批次
 - **单元成功后清理流程级工作区** \`.openspec-tmp/pipeline-<change-name>/\`（同时识别旧 \`apply-\` 前缀）；失败或跳过的单元保留工作区供诊断，清理失败只 WARN 且不中止批次
 - **索引纯追加**：结构损坏时保留原文 + 仅追加本批最小条目 + WARN 提示人工修复，MUST NOT 全量重建或整体覆盖

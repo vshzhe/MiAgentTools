@@ -10,7 +10,6 @@ import {
     DEFAULT_RECEIPT_FIELDS,
     GATE_WHITELIST,
     GATE_WHITELIST_ANCHORS,
-    type GateSpec,
     type GateWhitelistId,
     type PhaseSpec,
     type WorkflowProtocol,
@@ -24,17 +23,12 @@ const ARTIFACTS_INPUT = { required: ['changeName', 'artifacts'] } as const;
 /** 阶段回执字段 */
 const RECEIPT = { fields: DEFAULT_RECEIPT_FIELDS } as const;
 
-/** 状态回执：默认回执字段 + 需求文档状态 —— 验证阶段与 debug verify-close 共用同一“桥结果随回执交付”契约 */
-const STATUS_RECEIPT = {
-    fields: [...DEFAULT_RECEIPT_FIELDS, 'requirementDocStatus'],
-} as const;
-
 /** 探索阶段 */
 const EXPLORE_PHASE: PhaseSpec = {
     id: 'explore',
     input: TOPIC_INPUT,
     requiredCapabilities: ['skill-load', 'argument-passing', 'delegate', 'receipt', 'gate'],
-    handoff: ['explorationFile', 'promptBaseline', 'flowBaseline', 'pendingSymbols'],
+    handoff: ['explorationFile', 'promptBaseline', 'flowBaseline', 'flowBaselineConfirmed', 'pendingSymbols'],
     receipt: RECEIPT,
     gate: { id: 'flow-final-confirmation', blocking: true },
     retry: { maxAttempts: 2, on: ['delegation-failed', 'handoff-incomplete'] },
@@ -45,7 +39,9 @@ const PROPOSE_PHASE: PhaseSpec = {
     id: 'propose',
     input: EXPLORATION_INPUT,
     requiredCapabilities: ['skill-load', 'delegate', 'receipt'],
-    handoff: ['changeName', 'artifacts', 'applyReady'],
+    // `explorationFile` / `handoffPackPath` / `sourceFingerprint`：供父级以磁盘路径推进后续阶段，
+    // MUST NOT 依赖会话缓存（见 spec host-orchestration / Shared workflow protocol）。
+    handoff: ['changeName', 'artifacts', 'applyReady', 'explorationFile', 'handoffPackPath', 'sourceFingerprint'],
     receipt: RECEIPT,
     retry: { maxAttempts: 2, on: ['delegation-failed', 'artifact-invalid'] },
 };
@@ -55,42 +51,18 @@ const VERIFY_PHASE: PhaseSpec = {
     id: 'verify',
     input: ARTIFACTS_INPUT,
     requiredCapabilities: ['skill-load', 'delegate', 'receipt', 'state'],
-    handoff: ['score', 'deepReview', 'requirementDoc', 'requirementDocStatus'],
-    receipt: STATUS_RECEIPT,
+    handoff: ['score', 'deepReview', 'reviewSummary', 'reportPath'],
+    receipt: RECEIPT,
     retry: { maxAttempts: 2, on: ['score-below-threshold'] },
-};
-
-/**
- * 需求文档桥门（唯一取值锚定在 `requirement-clarification` 白名单类别内，5 类不变）。
- *
- * 属可条件豁免类别：阶段 MUST NOT 因此把 `gate` 加入 `requiredCapabilities`，
- * 否则 headless 下会先以缺失能力阻断，与门兜底矩阵冲突。
- */
-const DOC_BRIDGE_GATE: GateSpec = { id: 'requirement-doc-bridge', blocking: true };
-
-/**
- * 带需求文档桥的验证阶段（**仅 auto-workflow 使用**，变更 improve-delegation-gate-ledger / U8）。
- *
- * 原为 workflow / auto-workflow 共用；workflow 的文档桥已并入实现阶段的交付桥
- * （`implementation-bridge` 承载文档选项），故 `WORKFLOW_PROTOCOLS.workflow` 退回无门的
- * `VERIFY_PHASE`，本常量仅供 auto-workflow（其文档桥仍是唯一流程级阻塞门）。
- *
- * MUST NOT 删除本常量或其 auto-workflow 声明：`GATE_WHITELIST` 的
- * `requirement-doc-bridge` 锚点与 `PHASE_GATE_CATEGORY` 映射同时保留给 auto-workflow
- * 与 debug `verify-close`；`GateSpec` 形状与条件门语义不变。
- */
-const VERIFY_WITH_BRIDGE: PhaseSpec = {
-    ...VERIFY_PHASE,
-    gate: DOC_BRIDGE_GATE,
 };
 
 /** 实现阶段 */
 const APPLY_PHASE: PhaseSpec = {
     id: 'apply',
-    input: { required: ['changeName'], optional: ['autoMode', 'requirementDocStatus'] },
+    input: { required: ['changeName'], optional: ['autoMode'] },
     requiredCapabilities: ['delegate', 'receipt', 'state'],
     // `confirmedGates`：交付桥确认后写入门账本的事实随回执交付（门承载语义，非阶段门 id）
-    handoff: ['tasksCompleted', 'compileResult', 'receipts', 'requirementDocStatus', 'confirmedGates'],
+    handoff: ['tasksCompleted', 'compileResult', 'receipts', 'confirmedGates'],
     receipt: RECEIPT,
     gate: { id: 'implementation-bridge', blocking: true },
     retry: { maxAttempts: 3, on: ['compile-failed', 'test-failed'] },
@@ -99,23 +71,23 @@ const APPLY_PHASE: PhaseSpec = {
 /** 归档阶段 */
 const ARCHIVE_PHASE: PhaseSpec = {
     id: 'archive',
-    input: { required: ['changeName'], optional: ['requirementDocStatus'] },
+    input: { required: ['changeName'] },
     requiredCapabilities: ['delegate', 'receipt', 'state'],
-    handoff: ['archivePath', 'specsSynced', 'requirementDocAligned'],
+    handoff: ['archivePath', 'specsSynced'],
     receipt: RECEIPT,
     gate: { id: 'archive-confirmation', blocking: true },
     retry: { maxAttempts: 2, on: ['sync-failed'] },
 };
 
 /**
- * auto-workflow 专用实现阶段：模板声明 Phase 4 除已完成的需求文档桥外无用户确认，
+ * auto-workflow 专用实现阶段：模板声明 Phase 4 无用户确认，
  * 故 MUST NOT 声明阻塞门（与 `APPLY_PHASE` 的差异仅在于无门）。
  */
 const AUTO_APPLY_PHASE: PhaseSpec = {
     id: 'apply',
-    input: { required: ['changeName'], optional: ['autoMode', 'requirementDocStatus'] },
+    input: { required: ['changeName'], optional: ['autoMode'] },
     requiredCapabilities: ['delegate', 'receipt', 'state'],
-    handoff: ['tasksCompleted', 'compileResult', 'receipts', 'requirementDocStatus'],
+    handoff: ['tasksCompleted', 'compileResult', 'receipts', 'confirmedGates'],
     receipt: RECEIPT,
     retry: { maxAttempts: 3, on: ['compile-failed', 'test-failed'] },
 };
@@ -123,9 +95,9 @@ const AUTO_APPLY_PHASE: PhaseSpec = {
 /** auto-workflow 专用归档阶段：模板声明自动归档无用户确认，MUST NOT 声明阻塞门 */
 const AUTO_ARCHIVE_PHASE: PhaseSpec = {
     id: 'archive',
-    input: { required: ['changeName'], optional: ['requirementDocStatus'] },
+    input: { required: ['changeName'] },
     requiredCapabilities: ['delegate', 'receipt', 'state'],
-    handoff: ['archivePath', 'specsSynced', 'requirementDocAligned'],
+    handoff: ['archivePath', 'specsSynced'],
     receipt: RECEIPT,
     retry: { maxAttempts: 2, on: ['sync-failed'] },
 };
@@ -157,7 +129,7 @@ const DEBUG_FIX: PhaseSpec = {
     retry: { maxAttempts: 3, on: ['compile-failed', 'test-failed'] },
 };
 
-/** 调试：验证收束阶段（编译/同步/验证/复查/需求文档桥） */
+/** 调试：验证收束阶段（编译/同步/验证/复查；无需求文档桥） */
 const DEBUG_VERIFY_CLOSE: PhaseSpec = {
     id: 'verify-close',
     input: {
@@ -165,10 +137,8 @@ const DEBUG_VERIFY_CLOSE: PhaseSpec = {
         optional: ['regressionTests', 'compileResult'],
     },
     requiredCapabilities: ['skill-load', 'delegate', 'receipt', 'state'],
-    handoff: ['verificationResult', 'deepReview', 'requirementDocStatus', 'archiveReady'],
-    receipt: STATUS_RECEIPT,
-    // 模板 7.3 已含「需求文档桥（⛔ GATE 业务门，强制）」；协议补齐同一门（阶段门预算仍为 1）
-    gate: DOC_BRIDGE_GATE,
+    handoff: ['verificationResult', 'deepReview', 'archiveReady'],
+    receipt: RECEIPT,
     retry: { maxAttempts: 2, on: ['score-below-threshold'] },
 };
 
@@ -202,8 +172,8 @@ export const WORKFLOW_PROTOCOLS: Readonly<Record<string, WorkflowProtocol>> = {
     },
     'auto-workflow': {
         workflowId: 'auto-workflow',
-        // 自动管线：APPLY / ARCHIVE 无阻塞门；VERIFY 的唯一阻塞门是需求文档桥（保留，不合并）
-        phases: [EXPLORE_PHASE, PROPOSE_PHASE, VERIFY_WITH_BRIDGE, AUTO_APPLY_PHASE, AUTO_ARCHIVE_PHASE],
+        // 自动管线：需求文档桥已移除；VERIFY / APPLY / ARCHIVE 均无阻塞门
+        phases: [EXPLORE_PHASE, PROPOSE_PHASE, VERIFY_PHASE, AUTO_APPLY_PHASE, AUTO_ARCHIVE_PHASE],
     },
     debug: {
         workflowId: 'debug',
@@ -223,10 +193,10 @@ export function getWorkflowProtocol(workflowId: string): WorkflowProtocol | unde
 /**
  * 阶段门 id → 白名单类别（锚点映射）。
  *
- * `diagnostic-confirmation` / `fix-option-confirmation` / `requirement-doc-bridge`
- * 挂在**需求澄清**类别下（调试的诊断结论与修复方案选择、以及「是否生成评审用需求文档」
- * 的交付范围选择都属「需求 / 方案歧义」），其余阶段门各自挂同名类别。
- * 该映射只用于可校验对齐，MUST NOT 被理解为新增阶段门。
+ * `diagnostic-confirmation` / `fix-option-confirmation` 挂在**需求澄清**类别下
+ * （调试的诊断结论与修复方案选择属「需求 / 方案歧义」），其余阶段门各自挂同名类别。
+ * 需求文档桥已整体移除。该映射只用于可校验对齐，
+ * MUST NOT 被理解为新增阶段门。
  */
 export const PHASE_GATE_CATEGORY: Readonly<Record<string, GateWhitelistId>> = {
     'flow-final-confirmation': 'flow-final-confirmation',
@@ -234,7 +204,6 @@ export const PHASE_GATE_CATEGORY: Readonly<Record<string, GateWhitelistId>> = {
     'archive-confirmation': 'archive-confirmation',
     'diagnostic-confirmation': 'requirement-clarification',
     'fix-option-confirmation': 'requirement-clarification',
-    'requirement-doc-bridge': 'requirement-clarification',
 };
 
 /**

@@ -193,7 +193,7 @@
 | 4.5 CONTEXT.md 术语同步 | 存在则补充缺失术语；不存在则从 proposal（领域术语）+ design（技术术语）自动创建 | 无术语表机制 |
 | 4.6 CodeGraph 状态检查 | `codegraph status` 单一检测（禁止 Glob 预检 `.codegraph/`——dot 目录假阴性） | 无 |
 | 4.7 探索记忆同步 | 提取变更 exploration.md 的 Decisions/术语/边界场景，追加到 `specs/<capability>/explorations.md`；过时决策标"已过时"不删历史 | 无 |
-| 4.8 需求文档只读报告 | 仅判定存在性 + 可选读取 `requirementDocStatus`，结果只进摘要；不生成 / 不就地增量对齐 / 不迁出 devdocs（生成职责属父流程文档桥与人工调用）；读取失败 WARN 非阻断 | 无 |
+| 4.8 需求文档（已移除） | 需求文档桥与只读报告已随 `skill-bridge-optimize` 整体移除；归档不读取、不报告、不生成、不迁出 `需求文档.md`，文件随变更目录原样移动 | 无 |
 
 ### 5.2 CodeGraph 知识图谱同步 + 符号验证
 
@@ -208,13 +208,12 @@
   （扫描 tasks.md 类型标签）
 - **OpenSpec**：归档目录内无索引文件，变更历史需自行翻目录
 
-### 5.4 需求文档只读报告（不生成 / 不迁出）
+### 5.4 需求文档（已移出归档）
 
-- **iAgent**：归档阶段只做**存在性只读报告** —— 判定变更目录内 `需求文档.md` 是否存在
-  （可读 `requirementDocStatus` 供跨会话追溯），结果只进摘要；**不生成、不就地增量对齐、
-  不迁出 `openspec/devdocs/`**。需求文档的生成由提案验证后的文档桥
-  （workflow / auto-workflow / debug）或用户手工调用 `iagent_requirement_doc` 承担，
-  文件随变更目录留在 `archive/` 内可被 Glob / Grep 检索
+- **iAgent**：需求文档桥与归档侧只读报告已随 `skill-bridge-optimize` 整体移除。归档阶段
+  **不读取、不报告、不生成、不就地增量对齐、不迁出** `需求文档.md`；文件随变更目录
+  留在 `archive/` 内。需要需求文档时，用户显式安装并手工调用独立技能
+  `iagent-requirement-doc`
 - **OpenSpec**：无需求文档概念
 
 ### 5.5 归档一步化与防覆盖

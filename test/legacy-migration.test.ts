@@ -395,10 +395,10 @@ describe('2.3 端到端迁移（iagent init）', () => {
         expect(rendered).toContain('删除项：');
         expect(rendered).toContain('跳过项：');
 
-        // 迁移后按搬运来的 workflow 集安装（test + debug + 注入 spec-verify-proposal / requirement-doc）
+        // 迁移后按搬运来的 workflow 集安装（test + debug + 注入 spec-verify-proposal；需求文档桥已移除）
         expect(result.workflowsSource).toBe('user');
-        expect(result.injectedDeps).toEqual(['spec-verify-proposal', 'requirement-doc']);
-        expect(result.skillsInstalled.length).toBe(12); // 4 模板 × 3 工具（debug 文档桥无条件委派 requirement-doc）
+        expect(result.injectedDeps).toEqual(['spec-verify-proposal']);
+        expect(result.skillsInstalled.length).toBe(9); // 3 模板 × 3 工具（test + debug + spec-verify-proposal）
         expect(fs.existsSync(path.join(projectRoot, '.claude', 'skills', 'iagent-test', 'SKILL.md'))).toBe(true);
         expect(fs.existsSync(path.join(projectRoot, '.claude', 'skills', 'iagent-debug', 'SKILL.md'))).toBe(true);
     });

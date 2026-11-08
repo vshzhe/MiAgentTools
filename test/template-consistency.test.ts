@@ -218,14 +218,22 @@ describe('需求文档时机跨模板一致（4.1 / 4.3）', () => {
         })
         .join('\n');
 
-    it('requirement-doc 的调用方说明枚举三父流程并排除 propose / verifier', () => {
+    it('requirement-doc 的调用方说明声明无自动调用方（仅手工调用）', () => {
         const body = skillBody('iagent_requirement_doc');
-        expect(body).toContain('iagent_workflow');
-        expect(body).toContain('iagent_auto_workflow');
-        expect(body).toContain('iagent_debug');
-        expect(body).toContain('`iagent_spec_propose` 独立调用在验证 PASS 后停止');
-        expect(body).toContain('`iagent_spec_verify_proposal` 保持纯验证职责');
-        expect(body).toContain('MUST NOT 写改变更 `exploration.md` 的需求文档状态');
+        for (const name of [
+            'iagent_workflow',
+            'iagent_auto_workflow',
+            'iagent_debug',
+            'iagent_spec_propose',
+            'iagent_spec_archive',
+            'iagent_spec_bulk_archive',
+        ]) {
+            expect(body, `调用方说明未列 ${name}`).toContain(name);
+        }
+        expect(body).toContain('无自动调用方');
+        expect(body).toContain('MUST NOT 自动调用本技能');
+        expect(body).toContain('只由用户手工调用');
+        expect(body).toContain('不再随三父流程自动注入安装');
     });
 
     it('无残留「debug 不生成需求文档」旧口径', () => {
@@ -250,15 +258,16 @@ describe('需求文档时机跨模板一致（4.1 / 4.3）', () => {
         expect(body).not.toMatch(/需求文档[^\n]*归档[^\n]*一律生成/);
     });
 
-    it('三父流程的桥状态集合一致（四值模型同一口径）', () => {
-        const statuses = ['skipped-by-user', 'generation-failed', 'generated', 'absent'];
+    it('三父流程均不再持有需求文档状态（四值模型整体移除）', () => {
         for (const name of ['iagent_workflow', 'iagent_auto_workflow', 'iagent_debug']) {
             const body = `${skillBody(name)}\n${(skills.find((s) => s.template.name === name)?.template.references ?? [])
                 .map((ref) => ref.content)
                 .join('\n')}`;
-            for (const status of statuses) {
-                expect(body, `${name} 缺少状态 ${status}`).toContain(status);
-            }
+            expect(body, `${name} 仍持有 requirementDocStatus`).not.toContain(
+                'requirementDocStatus'
+            );
+            expect(body, `${name} 仍残留 skipped-by-user`).not.toContain('skipped-by-user');
+            expect(body, `${name} 仍残留 generation-failed`).not.toContain('generation-failed');
         }
     });
 });

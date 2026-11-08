@@ -518,5 +518,9 @@
 - **删除**：从 `openspec/explorations/` 移除文件
 - **保留**：文件保留以备后用
 
+### 1.8 结构化回执与续跑（delegated 模式）
+
+探索收束后 SHALL 输出结构化回执（`phase` / `status` / 产物位置 / `nextAllowed` / `failure` / `flowBaselineConfirmed`）。回执是**中间状态**：当编排器与探索在同一 agent 上下文执行时，收束后 MUST 在同一用户回合内继续编排器的下一阶段，MUST NOT 以回执结束回合；若编排器为独立子代理上下文，则回执返回父级后由父级继续。MUST NOT 自行进入提案或实现。
+
 ---
 

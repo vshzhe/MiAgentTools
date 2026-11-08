@@ -52,7 +52,9 @@ describe('跨宿主冒烟：Claude Code', () => {
         expect(wf).toContain('name: iagent-workflow');
         expect(wf).toContain('allowed-tools:');
         expect(wf).toContain('宿主编排适配（生成期注入）');
-        expect(wf).toContain('Skill 工具委派');
+        // 交互阶段经 Skill 内联、自动阶段经前台 Agent 子代理
+        expect(wf).toContain('经 Skill 工具加载');
+        expect(wf).toContain('经前台 Agent 子代理执行');
         expect(wf).toContain('回执契约');
         expect(wf).toContain('确认门');
     });

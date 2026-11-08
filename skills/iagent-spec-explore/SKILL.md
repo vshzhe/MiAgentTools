@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:def085be8cdd18364c3a5fcb09da5497d8ef0742a9d1c55061c754a021fc078d"
+  generatedFingerprint: "sha256:20b27aee553f90d71e09bba9de50493b0f8b5007af80ab26d8b95747a681d712"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
@@ -28,11 +28,11 @@ metadata:
 - 对比："这个场景用 postgres 还是 sqlite"
 - 什么都不带（仅进入探索模式）
 
-**委托模式（delegation mode）**：编排器可传 `mode=interactive|delegated` 与 `gate-skip=design-confirmation`。`delegated` 模式执行强制检查点体系并输出**结构化回执**（`phase` / `status` / 产物位置 / 下一步允许动作 / 失败原因），MUST NOT 自行进入提案或实现；`interactive`（默认）保持下方立场式设计不变。`auto-mode=true` 仅等价于门承载轴，MUST NOT 视为 `mode=delegated` 的别名。
+**委托模式（delegation mode）**：编排器可传 `mode=interactive|delegated` 与 `gate-skip=design-confirmation`。`delegated` 模式执行强制检查点体系并输出**结构化回执**（`phase` / `status` / 产物位置 / 下一步允许动作 / 失败原因），MUST NOT 自行进入提案或实现；回执是**中间状态**——当编排器与探索在同一 agent 上下文执行时，收束后 MUST 在同一用户回合内继续编排器的下一阶段，MUST NOT 以回执结束回合。`interactive`（默认）保持下方立场式设计不变。`auto-mode=true` 仅等价于门承载轴，MUST NOT 视为 `mode=delegated` 的别名。
 
 **委托模式契约（双轴正交，不可互换）**
 
-- 轴一 `mode`（执行归属；指“委托模式 delegation mode”，MUST NOT 与宿主原生 `mode` 字段混同）：`interactive` / `delegated`。`delegated` = 抑制结尾停点、抑制被委派技能自身验证、输出结构化回执、禁止「等待用户确认」停点；**不豁免任何业务确认门**。
+- 轴一 `mode`（执行归属；指“委托模式 delegation mode”，MUST NOT 与宿主原生 `mode` 字段混同）：`interactive` / `delegated`。`delegated` = 抑制结尾停点、抑制被委派技能自身验证、输出结构化回执、**回执后父编排在同一用户回合内继续**、禁止「等待用户确认」停点；**不豁免任何业务确认门**。
 - 轴二 `gate-skip=<gate-id>`（门承载；概念轴名 `gate-policy` 不是参数键）：声明已由父级确认的门，当前取值 `design-confirmation`；未知 gate id 拒绝或忽略并记 WARN。
 - `auto-mode=true` **仅**映射到门承载轴（≡ `gate-skip=design-confirmation`），`mode` 保持调用方原值；MUST NOT 视为 `mode=delegated` 的等价别名。
 - 两轴正交：仅传 `mode=delegated` 时设计确认门等业务门照常触发；仅传 `gate-skip` 时停点与自验证照常生效。
@@ -50,7 +50,7 @@ metadata:
 ## 门白名单与 MUST NOT 确认清单
 
 **必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
-- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation / requirement-doc-bridge（可按条件豁免）
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
 - **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
 - **实现 + 测试桥**：implementation-bridge（不可豁免）
 - **归档桥**：archive-confirmation（不可豁免）

@@ -934,9 +934,11 @@ describe('4.3 调用方管线：references 改写与手改保护', () => {
                 'utf8'
             );
             expect(debugSkill).toContain('## 宿主编排适配（生成期注入）');
-            // 委派目标来自 debug 模板的 Skill(...) 条目
-            expect(debugSkill).toContain('iagent-requirement-doc');
+            // 委派目标来自 debug 模板的 Skill(...) 条目（需求文档桥已移除）
+            expect(debugSkill).toContain('iagent-test');
             expect(debugSkill).toContain('iagent-spec-verify-proposal');
+            // 正文仍可能提示“手工调用 iagent-requirement-doc”，但不得有委派授权条目
+            expect(debugSkill).not.toContain('Skill(iagent-requirement-doc)');
 
             // 被 DEPS 注入的非编排技能（无 Skill(...) 条目）不注入编排段
             const verifySkill = fs.readFileSync(
@@ -954,7 +956,8 @@ describe('4.3 调用方管线：references 改写与手改保护', () => {
                 'utf8'
             );
             expect(debugWorker).toContain('action: subagent');
-            expect(debugWorker).toContain('resource: "iagent-requirement-doc"');
+            expect(debugWorker).toContain('resource: "iagent-spec-verify-proposal"');
+            expect(debugWorker).not.toContain('resource: "iagent-requirement-doc"');
             const verifyWorker = fs.readFileSync(
                 path.join(root, '.opencode', 'agents', 'iagent-spec-verify-proposal.md'),
                 'utf8'

@@ -9,7 +9,7 @@
  *
  * **语义铁律（门承载，不是父级阶段门）**：账本条目表达「该门已由父级承载、被委派方
  * 无需再确认」这一事实，取值域收敛到 `GATE_SKIP_IDS`（当前仅 `design-confirmation`）。
- * 父级的**阶段门 id**（`implementation-bridge` / `requirement-doc-bridge` 等）不在该域内，
+ * 父级的**阶段门 id**（如 `implementation-bridge`）不在该域内，
  * 写入会触发 `invalid-receipt` —— 故渲染期直接拒绝，MUST NOT 写入父级阶段门 id。
  *
  * 本模块是**叶依赖消费方**：只导入 `delegation-contract.js`（同为叶模块），

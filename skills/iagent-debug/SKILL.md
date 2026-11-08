@@ -1,14 +1,14 @@
 ---
 name: iagent-debug
 description: "一站式调试工作流：复现→用 CodeGraph 与能力记忆调查根因→变更关联→带强制回归测试的修复→编译检查→同步提案→验证；触发词\"调试 / debug / 修复 bug / bug 报告 / 复现 / 根因\"；NOT for：新功能开发用 iagent-workflow、单一阶段探索用 iagent-spec-explore"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(iagent-spec-verify-proposal), Skill(iagent-proposal-review), Skill(iagent-requirement-doc), Skill(iagent-test), Agent, Task
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(iagent-spec-verify-proposal), Skill(iagent-proposal-review), Skill(iagent-test), Agent, Task
 license: MIT
-compatibility: 依赖 iagent CLI（spec 命令组）与 iagent-spec-verify-proposal / iagent-proposal-review / iagent-requirement-doc / iagent-test 技能（test 为条件委派）；CodeGraph MCP 可选（不可用时降级 Glob/Grep）。
+compatibility: 依赖 iagent CLI（spec 命令组）与 iagent-spec-verify-proposal / iagent-proposal-review / iagent-test 技能（test 为条件委派）；CodeGraph MCP 可选（不可用时降级 Glob/Grep）。
 metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:a978eefd2b79c9f60e36f75f03c9ebbb1d4c6b68e6da6c6fdffa0340798d8882"
+  generatedFingerprint: "sha256:01081c81bfe68945e263c7c002721bdcae8e469cf4a7952bae349160e12cda05"
 ---
 
 
@@ -24,9 +24,9 @@ metadata:
 5. **调试循环** —— 每次修复后可继续报告相关 bug（**非阻塞提示，不构成确认门**；用户主动提出时才追加循环），否则进入统一的 P5-P7
 6. **编译检查阶段** —— 复用 iagent-spec-apply 技能的编译检查约定（覆盖所有循环修复）
 7. **同步阶段** —— 更新变更制品并持久化所有根因分析（覆盖所有循环修复）
-8. **验证收束阶段（verify-close）** —— 失败时自动修复循环；通过后先深度复查，再经需求文档"生成 / 跳过"桥收束并持久化文档状态（覆盖所有循环修复）
+8. **验证收束阶段（verify-close）** —— 失败时自动修复循环；通过后先深度复查，再直接收束（无需求文档桥）（覆盖所有循环修复）
 
-**宿主阶段对应（宿主无关协议）**：Phase 1–3（含 2.4「诊断 + 方案」合并确认包收束与 2.3.5 变更归属判定）对应 `investigate` —— 交付 `rootCause` / `defectChain` / `changeName` / `affectedSymbols` / `fixDecision`（方案在 2.4 合并包内随根因一并确认）；Phase 4 对应 `fix` —— 方案确认门绑定条件 `multiple-fix-options`（合并包已产出 `fixDecision` 时门通常不适用；回退路径下存在多个可行方案置真→阻塞待确认；唯一且证据充分置假→门不适用、直通）；Phase 5–7 对应 `verify-close` —— 消费 fix 结果并交付验证/复查结论与 `requirementDocStatus`。全部阶段仍由单一 `iagent-debug` 全流程技能承载，不拆分为多个对外技能。
+**宿主阶段对应（宿主无关协议）**：Phase 1–3（含 2.4「诊断 + 方案」合并确认包收束与 2.3.5 变更归属判定）对应 `investigate` —— 交付 `rootCause` / `defectChain` / `changeName` / `affectedSymbols` / `fixDecision`（方案在 2.4 合并包内随根因一并确认）；Phase 4 对应 `fix` —— 方案确认门绑定条件 `multiple-fix-options`（合并包已产出 `fixDecision` 时门通常不适用；回退路径下存在多个可行方案置真→阻塞待确认；唯一且证据充分置假→门不适用、直通）；Phase 5–7 对应 `verify-close` —— 消费 fix 结果并交付验证/深度复查/可归档结论（无需求文档状态）。全部阶段仍由单一 `iagent-debug` 全流程技能承载，不拆分为多个对外技能。
 
 ## ⛔ GATE PROTOCOL — ACTIVE
 
@@ -41,7 +41,7 @@ metadata:
 ## 门白名单与 MUST NOT 确认清单
 
 **必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
-- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation / requirement-doc-bridge（可按条件豁免）
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
 - **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
 - **实现 + 测试桥**：implementation-bridge（不可豁免）
 - **归档桥**：archive-confirmation（不可豁免）
@@ -317,14 +317,15 @@ _Avoid_: <synonyms>`
 
 **编写动作（委派，强制）**
 
-- 回归测试的编写 SHALL 委派 `iagent-test`，向其提供：已确认的缺陷链路（2.4）、Phase 1 的复现证据、测试级别/优先级与变更名
+- 回归测试的编写 SHALL 经**前台 Agent 子代理**委派 `iagent-test`，向其提供：已确认的缺陷链路（2.4）、Phase 1 的复现证据、测试级别/优先级与变更名；Stage Envelope 只传路径与结构化字段，MUST NOT 内联制品正文或完整 SKILL.md
 - `iagent-test` 是测试生成规则（框架探测、项目既有风格对齐、用例设计、反模式防护）的**唯一来源**；debug MUST NOT 再维护与之冲突的内联框架检测或测试生成规则
 - **Phase 1 内联临时测试的边界**：Phase 1 MAY 以内联临时测试建立失败证据，但该测试**不构成**回归测试；MUST NOT 仅以 Phase 1 临时测试充当唯一回归测试 —— 正式回归测试 SHALL 由 `iagent-test` 生成或改造落库
 - **能力缺失**：strict 模式无法委派 `iagent-test` 时 SHALL 按能力协商**阻断并报告**；MUST NOT 以"自写 + WARN"绕过。仅在宿主显式协商 degraded 时才允许本地编写，并须透明记录"本阶段未发生委派"—— MUST NOT 伪装为 strict 委派完成
 
 **验收（debug 自身职责，委派不放松）**
 
-- 委派返回后 MUST 自行核对：① 修复前 FAIL、修复后 PASS；② 覆盖缺陷链路的「异常节点 + 根因节点」
+- 子代理返回后 MUST 自行核对：① 修复前 FAIL、修复后 PASS；② 覆盖缺陷链路的「异常节点 + 根因节点」
+- **回执续跑**：子代理回执 SHALL 含 `regressionTests` / 失败原因（如有）；校验通过后 MUST 在同一用户回合内继续 Phase 5（编译检查），MUST NOT 以回执结束回合
 - 缺少前置失败证据、修复后仍失败或覆盖不足时，MUST NOT 报告测试验收通过
 
 ### 4.3 修复后收束（调试循环的非阻塞出口）
@@ -379,10 +380,11 @@ Markdown 是唯一真源 —— 直接更新 OpenSpec Markdown 制品；不得�
 
 ### 7.1 调用验证技能
 
-对变更 `<name>`，通过 **调用 `iagent-spec-verify-proposal` 技能**执行验证：
+对变更 `<name>`，经**前台 Agent 子代理**调用 `iagent-spec-verify-proposal` 技能执行验证；Stage Envelope 只传 `changeName` / `changeRoot` / 制品路径 / `resume`，MUST NOT 内联制品正文或完整 SKILL.md：
 
 - `iagent-spec-verify-proposal` 是技能名，不是有效的 `iagent spec instructions` 制品 ID —— MUST NOT 将其作为 CLI 指令运行
 - 该技能通过读取制品与 exploration.md 执行 D1-D5 核心 + D6-D10 条件评分
+- 回执 SHALL 含 `score` / `reviewSummary` / 可选 `reportPath`；父级校验通过后**在同一用户回合内**继续 7.2/7.3
 
 **降级（回退）（技能不可用）**：技能未安装或调用失败时，降级为 AI 内联读取制品并手动执行 D1-D5 核心 + D6-D10 条件评分，并发出 WARN："iagent-spec-verify-proposal 技能不可用，降级为内联评分"。MUST NOT 静默跳过验证。
 
@@ -396,28 +398,23 @@ Markdown 是唯一真源 —— 直接更新 OpenSpec Markdown 制品；不得�
 - 显示修复摘要（「已应用自动修复 —— 重新运行验证……」）
 - 重跑仍失败时：呈现遗留问题与选项 —— [1] 手动编辑，[2] 返回探索，[3] 查看详细差异报告。**没有跳过直接实现的路径。**
 
-### 7.3 验证 PASS → 深度复查 → 需求文档桥 → 收束（verify-close）
+### 7.3 验证 PASS → 深度复查 → 收束（verify-close）
 
 验证通过后：
 
-1. **自动调用 `iagent-proposal-review` 技能**对提案做只读深度复查（超出 D1-D5 核心 + D6-D10 条件评分的深度一致性与覆盖率审计）。复查自动运行（不弹 [Yes/No] 提示）。用户 MAY 中断以跳过；否则照常运行。
+1. **经前台 Agent 子代理调用 `iagent-proposal-review` 技能**对提案做只读深度复查（超出 D1-D5 核心 + D6-D10 条件评分的深度一致性与覆盖率审计）。复查自动运行（不弹 [Yes/No] 提示）。用户 MAY 中断以跳过；否则照常运行。
    - **降级（回退）（技能不可用）**：技能未安装或调用失败时，降级为 AI 内联只读深度复查并 WARN："iagent-proposal-review 技能不可用，降级为内联复查"。MUST NOT 静默跳过深度复查。
-2. **需求文档桥（⚠️ 单次业务桥，强制）**：深度复查收束后展示**一次**需求文档业务桥 —— 这是 debug 唯一的文档确认面，不是"是否调用该技能"的二次确认。**出口按 `需求文档.md` 是否存在裁决**：
-   - **文档不存在** → 出口为「生成 / 跳过」：生成 → 直接以非交互模式委派 `iagent-requirement-doc`（传 change-name；不询问文档基本信息、不追加调用确认），文档写入 `openspec/changes/<change-name>/需求文档.md`：成功 → 状态 `generated`；失败 → 状态 `generation-failed` + WARN（含原因）并继续；跳过 → 不生成，状态 `skipped-by-user`
-   - **文档已存在** → **禁用生成分支**（该技能对已存在目标是静默覆盖，会抹掉人工撰写内容）；出口仅「跳过 / 手工编辑」：二者均 MUST NOT 覆盖该文件，状态记 `skipped-by-user`，手工编辑由用户直接在文件中进行（归档只做存在性只读报告，MUST NOT 改写该文件）
-   - **状态持久化**：写入变更 `exploration.md` 的 `## 需求文档状态` 段（字段 `requirementDocStatus`，取值仅 `skipped-by-user` / `generation-failed` / `generated`；段缺失即 `absent`）。写入失败 → 自动重试同一写入**一次** → 仍失败即停止：MUST NOT 报告状态已持久化、MUST NOT 委派生成、MUST NOT 标记收束完成/可归档，输出含目标路径与原因的 WARN + 恢复指引
-   - **验证 FAIL 或深度复查未收束时** MUST NOT 展示该桥、MUST NOT 委派需求文档技能
-3. **收束（verify-close）**：文档桥收束（生成成功 / 生成失败 / 跳过）后报告该变更已可归档；debug 不自动归档。阶段回执 MUST 携带 `requirementDocStatus` 供后续 archive 消费；archive 即使未收到回执，也会从变更 `exploration.md` 恢复同一状态（跨会话可恢复）
-4. **报告**：显示验证结果、深度复查结论、文档桥结果，以及：
-
-> 「调试完成。需求文档：已生成 / 已存在（手工编辑，未覆盖） / 用户选择跳过 / 生成失败（WARN）—— 状态已记录于变更 exploration.md。」
-> 「已可归档 —— 运行 /iagent:spec-archive。」
+   - 回执 SHALL 含 `reviewSummary` / 可选 `reportPath`；完整报告 MUST NOT 内联进回执。
+2. **收束（verify-close）**：深度复查收束后直接报告该变更已可归档；debug 不自动归档。MUST NOT 展示需求文档桥、MUST NOT 生成需求文档、MUST NOT 携带已移除的需求文档状态字段。
+3. **报告**：显示验证结果、深度复查结论与可归档提示：
+   > 「调试完成。验证与深度复查已通过；需求文档请按需单独调用 iagent-requirement-doc。」
+   > 「已可归档 —— 运行 /iagent:spec-archive。」
 
 ### 7.4 清理流程级调试工作区（强制）
 
 验证收尾后 MUST **清理调试工作区** —— 统一清理 `.openspec-tmp/debug-<keyword>/`（以 `path.join()` 构造），覆盖**所有退出路径**：
 
-- **正常收尾**：Phase 7 验证（含深度复查与文档桥）完成后清理
+- **正常收尾**：Phase 7 验证（含深度复查）完成后清理
 - **非缺陷退出路径（3.5）**：诊断报告输出、工作流结束后同样清理
 - **诊断确认包被拒绝（2.4）**：输出诊断报告后同样清理
 - **中途退出路径**：用户中途退出调试循环（Phase 5-7 收尾）时同样清理
@@ -457,8 +454,7 @@ Markdown 是唯一真源 —— 直接更新 OpenSpec Markdown 制品；不得�
 ### Phase 7: Verification (覆盖所有修复)
 - Score: XX% — PASS/FAIL
 - Deep review: completed ✓ / WARN (reason)
-- Requirement document bridge (verify-close): generated (status: generated) / skipped by user (status: skipped-by-user) / generation failed (status: generation-failed, WARN logged)
-- Requirement doc status persisted to exploration.md `## 需求文档状态`; archive reads it even without this receipt
+- Verification close: ready for archive (no requirement-doc bridge)
 
 Ready for `/iagent:spec-apply` (fixes already applied) or archive.
 ```
@@ -477,9 +473,9 @@ Ready for `/iagent:spec-apply` (fixes already applied) or archive.
 - **分级与缺陷链路图解耦**：分级只决定 2.2.4 是否执行，2.4 诊断确认包内的缺陷链路对轻量路径同样**强制产出**，MUST NOT 豁免
 - **升级兜底是触发条件，不是独立步骤**：升级兜底即 2.2.4 扩展后的触发条件之一，MUST NOT 为其新建独立章节或编号（2.2.4 的内容与编号不变）
 - **分级在 CodeGraph 降级时仍生效**：CodeGraph 不可用时分级仍生效（信号 (a) 降级为文件数代理指标，(b)(c) 照常）；MUST NOT 因降级跳过分级，诊断记录 MUST 标注「信号降级」
-- **需求文档经用户桥**：7.3 在验证 PASS + 深度复查收束后展示**一次**生成 / 跳过桥；生成 → 直接非交互委派 `iagent-requirement-doc`（失败记 `generation-failed` + WARN 并继续），跳过 → 记 `skipped-by-user`；MUST NOT 未经用户确认自动生成，MUST NOT 覆盖用户已有文档
-- **文档状态持久化（重试一次）**：桥结果写入变更 `exploration.md` 的 `## 需求文档状态` 段（`requirementDocStatus`）；写入失败自动重试同一写入一次，仍失败即停止 —— MUST NOT 伪报已持久化、MUST NOT 委派生成、MUST NOT 标记可归档，输出含目标路径与原因的 WARN + 恢复指引；`verify-close` 回执 MUST 携带同一状态
-- **人工撰写字段受保护**：需求文档技能生成或用户手工编辑时，`## 基本信息`（需求编号/需求名称/交付时间，含占位符状态）与 `## 八、评审记录` 属人工域 MUST NOT 被覆盖；本技能 MUST NOT 改写已存在的需求文档；**文档已存在时桥 MUST NOT 提供生成分支**（生成仅限文档不存在时）
+- **无需求文档桥**：7.3 在验证 PASS + 深度复查收束后直接收束；MUST NOT 展示生成/跳过桥、MUST NOT 委派需求文档技能
+- **回执续跑**：委派 `iagent-test` / `spec_verify_proposal` / `proposal_review` 返回有效回执后 MUST 在同一用户回合内继续下一阶段；MUST NOT 以回执结束回合
+- **子代理数据共享**：只传 Stage Envelope（路径 + 结构化字段），MUST NOT 内联制品正文或完整 SKILL.md；子代理先读 handoff 包，回执只含 Stage Receipt（≤40 行 / ≤2KB）；blocked 时用 `blockedGate` / `blockedReason` + `resume=true`
 - **零猜测**：多个候选根因 → STOP 并让用户选择；绝不猜测
 - **方案在 2.4 合并包内一次确认**：可行修复方案（含两个及以上方案，或唯一性证据不足按多方案处理的情形）随「诊断 + 方案」合并包与根因一并确认，MUST NOT 在 Phase 4 再停一次；拒绝或要求修改时 MUST NOT 实现 —— 仅**回退路径**（变更归属依赖根因外上下文）且存在多个可行方案时，4.0 的修复方案确认门才 MUST 阻塞并等待用户确认
 - **唯一方案需证据（生效位置为 2.4 合并包）**：仅当项目约束与代码证据（引用具体约束与 `文件:行`）支持唯一性时，唯一性证据 MUST 随 2.4 合并包一并呈现，确认后随包直通；MUST NOT 凭"看起来只有一种"跳过证据；数据库/schema 的既有独立确认仍须执行
@@ -490,7 +486,7 @@ Ready for `/iagent:spec-apply` (fixes already applied) or archive.
 - **Phase 1 临时测试不替代回归测试**：Phase 1 MAY 以内联临时测试建立失败证据，但该测试不构成回归测试；正式回归测试 SHALL 由 `iagent-test` 生成或改造落库
 - **委派绝不放松两条硬要求**：回归测试 MUST 仍覆盖缺陷链路的「异常节点 + 根因节点」，且 MUST 仍修复前 FAIL / 修复后 PASS —— 委派返回后自行核对两者
 - **提案同步强制**：验证前制品必须反映**所有**已实现的修复
-- **验证绝不跳过**：技能 → 内联降级（回退）+ WARN；FAIL → 自动修复循环，无跳过路径；PASS → 深度复查（技能 → 内联降级（回退）+ WARN）→ 需求文档桥 → verify-close 收束
+- **验证绝不跳过**：技能 → 内联降级（回退）+ WARN；FAIL → 自动修复循环，无跳过路径；PASS → 深度复查（技能 → 内联降级（回退）+ WARN）→ verify-close 收束
 - **循环中非缺陷不阻塞**：循环中的非缺陷发现 MUST NOT 阻塞其他 bug —— 记录诊断并继续
 - **循环退出保留已完成工作**：中途退出保留已完成修复，丢弃未完成的当前 bug
 - **独立变更分离**：用户声明某 bug 需要独立变更时，收尾当前变更并提示单独调试

@@ -42,7 +42,7 @@ export function getRequirementDocSkillTemplate(): SkillTemplate {
 - MUST NOT 提问。
 - 使用 Markdown 格式，基本信息用占位符。
 - 用户稍后可独立重跑本技能以补全细节。
-- **调用方说明（自动调用方 = 三父流程文档桥"生成"分支）**：自动调用本技能的是 \`iagent_workflow\` Phase 3.5 / \`iagent_auto_workflow\` Phase 3 / \`iagent_debug\` verify-close 三处需求文档桥的"生成"分支。\`iagent_spec_verify_proposal\` 保持纯验证职责、不调用本技能；\`iagent_spec_propose\` 独立调用在验证 PASS 后停止，MUST NOT 自动调用本技能（不提供文档桥）。**归档侧（\`iagent_spec_archive\` / \`iagent_spec_bulk_archive\`）只做需求文档存在性只读报告，MUST NOT 生成、MUST NOT 就地增量对齐、MUST NOT 迁出，故 MUST NOT 调用本技能。** 本技能 MUST NOT 写改变更 \`exploration.md\` 的需求文档状态 —— 该状态由父流程维护。**任何阶段都可手工调用** —— 下述独立模式保持不变。
+- **调用方说明（无自动调用方）**：需求文档桥已随 \`skill-bridge-optimize\` 整体移除；\`iagent_workflow\` / \`iagent_auto_workflow\` / \`iagent_debug\` / \`iagent_spec_propose\` / \`iagent_spec_archive\` / \`iagent_spec_bulk_archive\` MUST NOT 自动调用本技能。本技能只由用户手工调用（standalone 模式）；不再随三父流程自动注入安装。**任何阶段都可手工调用** —— 下述独立模式保持不变。
 
 ## Step 3: 读取变更制品
 

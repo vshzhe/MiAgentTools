@@ -54,6 +54,7 @@
 | 2026-11-03 | improve-proposal-validation-and-spec-ref | spec | 提案生成链路的正常中间态被当成错误，导致生成循环提前收敛、模型被迫先补 design：validate 起草期模式（`--partial` / `--artifact`）、design 可选依赖与 `optional` 状态、Spec Ref/Scenario Ref 多形态解析与诊断分层、`planningHome`/`artifactPaths` 路径字段契约、`actionContext` 清除。[含测试] |
 | 2026-11-03 | improve-delegation-gate-ledger | orchestration | 委派门重复确认的两条缺陷：门账本（handoff 包 `## 已确认门` 段 + 回执 `confirmedGates` 校验；`gate-skip` 仍为主通道，账本仅参数丢失时兜底，缺失 / 不一致仍执行门）、workflow 交付桥合并（文档桥并入实现桥，「仅生成文档」停在规划边界；`workflow` VERIFY 不再声明 `requirement-doc-bridge`，5 类白名单与锚点集合不变）。[含测试] |
 | 2026-11-03 | feat-debug-dual-track-entry | debug | debug 强制复现无第二入口、诊断门与方案门两次停点、概览声明正文不存在的自造门：Phase 1 复现契约与双轨入口（复现优先为默认轨道，证据优先仅在无复现条件且有过硬证据时启用，`intermittent` 须可重复证据）、2.4「诊断 + 方案」合并单次确认包 + 变更归属前移、4.0 降级为回退路径条件门、概览自造门降级为非阻塞提示、证据优先轨道回归测试为 characterization test。[含测试] |
+| 2026-11-08 | skill-bridge-optimize | orchestration | 技能委派续跑与需求文档剥离：Claude 交互阶段用 Skill、自动阶段用前台 Agent + 共享续跑契约；Stage Envelope/Receipt + token 预算；需求文档桥/状态/归档报告/DEPS/白名单彻底移除，独立技能手工调用。[含测试/使用说明] |
 
 ## 模块统计
 
@@ -66,9 +67,9 @@
 | test | 2 | enhance-test-generate (2026-09-16), improve-tr-test-generate-case-rationalize (2026-09-28) |
 | workflow | 5 | refactor-orchestrator-propose-delegation (2026-10-16), refactor-orchestrator-explore-delegation (2026-10-16), improve-workflow-debug-bridges (2026-10-25), upgrade-workflow-efficiency (2026-10-26), improve-compile-gate-and-archive-readonly (2026-11-01) |
 | artifacts | 1 | markdown-first-artifacts (2026-10-16) |
-| orchestration | 4 | add-host-orchestration-adapters (2026-10-18), fix-pi-native-orchestration (2026-10-18), fix-mode-delegation-host-parity (2026-11-01), improve-delegation-gate-ledger (2026-11-03) |
+| orchestration | 5 | add-host-orchestration-adapters (2026-10-18), fix-pi-native-orchestration (2026-10-18), fix-mode-delegation-host-parity (2026-11-01), improve-delegation-gate-ledger (2026-11-03), skill-bridge-optimize (2026-11-08) |
 | debug | 1 | feat-debug-dual-track-entry (2026-11-03) |
 
 ---
 
-*更新时间: 2026-11-03*
+*更新时间: 2026-11-08*

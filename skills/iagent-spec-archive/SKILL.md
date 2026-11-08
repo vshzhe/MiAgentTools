@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:3b8bc236799d170e75b655d4abdbcf58c6262c881f5e76e8d078c9ffeb25cac7"
+  generatedFingerprint: "sha256:03ea0b368fdca0962bd16c0aef4a0626b0a4c56089c2837dac3c0de57ffb8a88"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
@@ -20,7 +20,7 @@ metadata:
 ## 门白名单与 MUST NOT 确认清单
 
 **必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
-- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation / requirement-doc-bridge（可按条件豁免）
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
 - **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
 - **实现 + 测试桥**：implementation-bridge（不可豁免）
 - **归档桥**：archive-confirmation（不可豁免）
@@ -190,26 +190,9 @@ metadata:
    - 变更的 exploration.md 仍随变更一起移入归档目录（提取是复制，不是移动）
    - 不得因同步失败而阻塞归档 —— 记录日志并继续
 
-4.8 **归档前需求文档只读报告**
+4.8 **（已移除）**
 
-   在探索记忆同步（4.7）之后、移动变更目录（5）**之前**执行。只读取**两件事**：
-
-   - 变更目录内 `需求文档.md` 是否存在（`openspec/changes/<change-name>/需求文档.md`，用 `path.join()` 构建）
-   - 该变更 `exploration.md` 的 `## 需求文档状态` 段（字段 `requirementDocStatus`；段缺失即 `absent`）
-
-   **只读报告（强制）**：结果**只进入摘要报告**，用于跨会话追溯：
-
-   - 文件存在（任一状态）→ 摘要记「需求文档：已存在（未改写）」
-   - 文件缺失（任一状态，含 `absent`）→ 摘要记「需求文档：缺失」
-   - 读取失败（文件存在性或状态段不可读）→ 输出含路径与原因的 WARN，摘要记「需求文档：状态不可读」，继续归档
-
-   **禁止写入（强制）**：本检查点 MUST NOT 生成需求文档、MUST NOT 就地增量对齐、MUST NOT 迁出到 `openspec/devdocs/`，MUST NOT 委派 `iagent-requirement-doc`。`requirementDocStatus` MUST NOT 再被用于触发任何写入动作（它只是报告输入）。
-
-   **强制检查点**：
-   - 系统 MUST 在移动变更目录前完成需求文档只读报告
-   - 该报告失败 MUST NOT 阻断归档 —— 记录 WARN 并继续，MUST NOT 静默宣称成功
-   - 需求文档的生成职责属于提案验证后的文档桥（workflow / auto-workflow / debug）与用户手工调用
-
+   需求文档桥与只读报告已随 `skill-bridge-optimize` 整体移除；归档不再读取、报告、生成或迁出需求文档。变更目录内若存在 `需求文档.md`，它随目录一起移动，本技能不读取、不处理。
 
 5. **执行归档**
 
@@ -224,7 +207,7 @@ metadata:
 
    保留 `.openspec.yaml` 与 `attachments/` 子目录 —— 它们会随变更目录自动移动。
 
-   变更目录内若存在 `需求文档.md`，它随目录一起留在 `openspec/changes/archive/` 内（本技能 MUST NOT 迁出到 `openspec/devdocs/`）。
+   变更目录内若存在 `需求文档.md`，它随目录一起移动（本技能不读取、不处理）。
 
 6.5 **归档后 CodeGraph 同步 + 验证（条件执行，daemon 感知）**
 
@@ -316,7 +299,6 @@ metadata:
    - 归档索引更新状态
    - CodeGraph 同步状态（已同步 / 跳过 —— 未初始化或出错）
    - 探索记忆同步状态（已同步 / 跳过 —— 无探索文件或无 delta spec / 失败 —— 已记录告警）
-   - 需求文档状态（已存在（未改写） / 缺失 / 状态不可读 WARN —— 只报告，MUST NOT 生成、对齐或迁出）
    - 流程级工作区清理结果（已清理 / 清理失败 WARN + 路径）
    - 关于任何告警的说明（未完成的制品/任务）
 
@@ -331,7 +313,7 @@ metadata:
 
 10. **归档只读护栏自检**
 
-   流程末尾确认：本次归档未改写 `openspec/changes/archive/**` 下的既有内容（本变更自身的整目录移动与 ARCHIVE-INDEX 追加除外），亦未向 `openspec/devdocs/` 写入或迁移任何 `需求文档.md`。
+   流程末尾确认：本次归档未改写 `openspec/changes/archive/**` 下的既有内容（本变更自身的整目录移动与 ARCHIVE-INDEX 追加除外），也未向 `openspec/devdocs/` 写入或迁移任何文件。
 
    - 发现越界 → 输出含路径的 WARN 并说明需人工复核；MUST NOT 静默忽略、MUST NOT 回滚或重写已归档内容
    - 自检结果并入摘要（与 8 的工作区清理结果一起展示）
@@ -347,7 +329,6 @@ metadata:
 **Specs:** ✓ Synced to main specs (or "No delta specs" or "Sync failed — warning logged" or "主规格未同步（skip_specs 声明）")
 **Archive Index:** ✓ Appended to ARCHIVE-INDEX.md (纯追加；结构损坏时仅追加 + WARN)
 **Exploration Memory:** ✓ Synced to specs/<capability>/explorations.md (or "Skipped — no exploration file" or "Skipped — no delta specs" or "Failed — warning logged")
-**Requirement Document:** 已存在（未改写）(or "缺失" / "状态不可读 — warning logged: <reason>") —— 只报告；未生成、未对齐、未迁出 devdocs
 **Pipeline Workspace:** ✓ Cleaned .openspec-tmp/pipeline-<name>/ (or "Cleanup failed — warning logged: <reason>"; 迁移期同时识别 apply-<name>/)
 **CodeGraph:** ✓ Synced (or "Not initialized — skipped" or "Sync skipped due to error")
 
@@ -397,7 +378,7 @@ Target archive directory already exists.
 - 保留 `attachments/` 子目录 —— 它随变更目录自动移动
 - 为 ARCHIVE-INDEX.md 提取摘要时，扫描 `tasks.md` 的补充类型标签，并把 `[含xxx]` 标注追加到摘要
 - 归档移动前，为每个涉及的能力把探索记忆同步到 specs/<capability>/explorations.md；exploration.md 或 delta spec 缺失时跳过（并记日志）；绝不因同步失败阻塞归档
-- 需求文档只读报告（4.8）：只判定 `需求文档.md` 存在性与可选读取 `requirementDocStatus`，结果只进摘要 —— MUST NOT 生成、MUST NOT 就地增量对齐、MUST NOT 迁出到 `openspec/devdocs/`、MUST NOT 委派 `iagent-requirement-doc`；读取失败只记 WARN，绝不阻断归档
+- 需求文档桥与只读报告已移除：归档 MUST NOT 读取、报告、生成、对齐或迁出 `需求文档.md`；文件随变更目录原样保留
 - **归档只读**：MUST NOT 修改 `openspec/changes/archive/` 下的既有内容 —— 已归档变更是历史事实；整目录移动（`openspec/changes/<name>/` → `openspec/changes/archive/YYYY-MM-DD-<name>/`）不属于改写，`ARCHIVE-INDEX.md` 的**追加**是显式例外；流程末尾保留一次护栏自检
 - ARCHIVE-INDEX.md 为**纯追加**索引：结构损坏时保留原文 + 仅追加本批最小条目 + WARN 提示人工修复，MUST NOT 全量重建或整体覆盖
 - 归档收尾清理流程级工作区 `.openspec-tmp/pipeline-<change-name>/`（同时识别旧 `apply-` 前缀）必须在追加 `phase=archive` 结论之后；清理失败只 WARN，不阻断归档、不改写阶段结论

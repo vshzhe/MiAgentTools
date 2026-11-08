@@ -7,6 +7,26 @@
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-11-08
+
+### Changed
+
+- **BREAKING —— 委派续跑**：Claude 交互阶段（`spec-explore`）保留 `Skill` 内联；自动阶段（`spec-propose` / `spec-verify-proposal` / `proposal-review` / `test` / `spec-apply` / `spec-verify` / `spec-archive`）改用**前台 Agent 子代理**。父编排在 `status=ok` 且回执校验通过后**在同一用户回合内**继续下一阶段；只有门白名单内的确认门是合法停点。`workflow` / `auto-workflow` / `debug` 同步接入。
+- **子代理数据共享与 token 预算**：新增 Stage Envelope（路径 + 结构化字段，不内联制品正文/完整 SKILL.md）与 Stage Receipt（≤40 行 / ≤2KB）；handoff 包每节 ≤120 行；blocked 用 `blockedGate` / `blockedReason` + `resume=true` 幂等恢复；禁止后台 Agent 与同制品重复全量读取。
+- **auto-workflow 门账本双条件**：仅在流程基准确认 **且** 验证 PASS + 深度复查收束后写入 `design-confirmation`；未满足不写、不传 `gate-skip` 并暂停。
+- **workflow 实现 + 测试桥**：由五出口收缩为三出口（确认 / 修改 / 拒绝）；移除「仅生成文档」出口。
+- **跨宿主**：OpenCode / Pi / Codex 保持既有委派机制，统一注入续跑契约；Codex 仍为显式 degraded 本地执行。
+
+### Removed
+
+- **BREAKING —— 需求文档桥与状态整体移除**：删除 `workflow` Phase 3.5/3.5.1、`auto-workflow` Phase 3、`debug` 7.3 的生成桥与状态持久化；删除 `RequirementDocStatus` / `RequirementDocStatus` helper / `Receipt.requirementDocStatus` / `requirement-doc-bridge` 门与白名单锚点；删除 `spec-archive` / `spec-bulk-archive` 的需求文档只读报告；删除 `DEPS` 与三父流程 `allowedTools` 中的 `requirement-doc`。`iagent-requirement-doc` 仅保留独立 / 手工调用，不再随三父流程自动注入安装。
+- 历史变更中的 `需求文档.md` 与 `## 需求文档状态` 段原样保留；归档不读取、不报告、不生成、不迁出。
+
+### Added
+
+- `Receipt` 可选字段 `blockedGate` / `blockedReason` / `resumeHint` / `reportPath` / `reviewSummary`（不进入 `DEFAULT_RECEIPT_FIELDS`，出现时校验）；token 预算常量 `STAGE_*` / `HANDOFF_PACK_SECTION_MAX_LINES`。
+- `test/stage-continuation.test.ts` 覆盖交互/自动阶段、续跑契约、回执校验、token 预算、模板移除与 internal test 续跑。
+
 ## [3.3.0] - 2026-11-03
 
 ### Fixed
@@ -1622,7 +1642,7 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v3.3.0...HEAD
+[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.0.0...HEAD
 [3.3.0]: https://github.com/vshzhe/MiAgentTools/compare/v3.2.0...v3.3.0
 [3.2.0]: https://github.com/vshzhe/MiAgentTools/compare/v3.1.0...v3.2.0
 [3.1.0]: https://github.com/vshzhe/MiAgentTools/compare/v3.0.0...v3.1.0

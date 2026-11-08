@@ -175,22 +175,24 @@ describe('模板派生一致性（文档桥 / debug 决策护栏）', () => {
         }
     });
 
-    it('workflow 指令版保留文档状态 handoff 与 FAIL 不出桥护栏', () => {
+    it('workflow 指令版保留实现桥三出口且无文档状态（防护语句永不裁剪）', () => {
         const derived = commandById.get('workflow')?.content ?? '';
-        expect(derived).toContain('FAIL 不出文档桥');
-        expect(derived).toContain('文档状态跨阶段传递');
-        expect(derived).toContain('skipped-by-user');
-        expect(derived).toContain('requirementDocStatus');
-        // 交付桥合并后派生版仍保留合并后的单门表述
+        expect(derived).toContain('FAIL 不进入实现');
+        expect(derived).not.toContain('文档状态跨阶段传递');
+        expect(derived).not.toContain('skipped-by-user');
+        expect(derived).not.toContain('requirementDocStatus');
+        // 交付桥合并后派生版仍保留三出口与单门表述
         expect(derived).toContain('交付桥');
         expect(derived).toContain('实现 + 测试桥');
+        expect(derived).toContain('三出口');
     });
 
-    it('auto-workflow 指令版保留唯一文档桥与测试门护栏', () => {
+    it('auto-workflow 指令版保留无文档桥与测试门护栏', () => {
         const derived = commandById.get('auto-workflow')?.content ?? '';
-        expect(derived).toContain('该桥是本阶段唯一的流程级阻塞门');
+        expect(derived).toContain('需求文档桥已移除');
         expect(derived).toContain('测试门失败时不得静默通过');
-        expect(derived).toContain('FAIL 不出文档桥');
+        expect(derived).toContain('FAIL 不进入实现');
+        expect(derived).not.toContain('该桥是本阶段唯一的流程级阻塞门');
     });
 
     it('spec-propose 指令版在验证 PASS 后停止且无生成动作', () => {

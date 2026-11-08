@@ -544,6 +544,10 @@ const EXPLORATION_PROTOCOL_FULL = `## 强制检查点体系（delegated 模式�
 - **删除**：从 \`openspec/explorations/\` 移除文件
 - **保留**：文件保留以备后用
 
+### 1.8 结构化回执与续跑（delegated 模式）
+
+探索收束后 SHALL 输出结构化回执（\`phase\` / \`status\` / 产物位置 / \`nextAllowed\` / \`failure\` / \`flowBaselineConfirmed\`）。回执是**中间状态**：当编排器与探索在同一 agent 上下文执行时，收束后 MUST 在同一用户回合内继续编排器的下一阶段，MUST NOT 以回执结束回合；若编排器为独立子代理上下文，则回执返回父级后由父级继续。MUST NOT 自行进入提案或实现。
+
 ---
 
 `;
@@ -1221,7 +1225,7 @@ export function getSpecExploreSkillTemplate(): SkillTemplate {
 - 对比："这个场景用 postgres 还是 sqlite"
 - 什么都不带（仅进入探索模式）
 
-**委托模式（delegation mode）**：编排器可传 \`${renderDelegationModeOptions()}\` 与 \`${renderGateSkipOption(GATE_SKIP_IDS)}\`。\`delegated\` 模式执行强制检查点体系并输出**结构化回执**（\`phase\` / \`status\` / 产物位置 / 下一步允许动作 / 失败原因），MUST NOT 自行进入提案或实现；\`interactive\`（默认）保持下方立场式设计不变。\`${LEGACY_AUTO_MODE_PARAM}=true\` 仅等价于门承载轴，MUST NOT 视为 \`${renderDelegationModeOption('delegated')}\` 的别名。
+**委托模式（delegation mode）**：编排器可传 \`${renderDelegationModeOptions()}\` 与 \`${renderGateSkipOption(GATE_SKIP_IDS)}\`。\`delegated\` 模式执行强制检查点体系并输出**结构化回执**（\`phase\` / \`status\` / 产物位置 / 下一步允许动作 / 失败原因），MUST NOT 自行进入提案或实现；回执是**中间状态**——当编排器与探索在同一 agent 上下文执行时，收束后 MUST 在同一用户回合内继续编排器的下一阶段，MUST NOT 以回执结束回合。\`interactive\`（默认）保持下方立场式设计不变。\`${LEGACY_AUTO_MODE_PARAM}=true\` 仅等价于门承载轴，MUST NOT 视为 \`${renderDelegationModeOption('delegated')}\` 的别名。
 
 ${renderDelegationModeContract()}
 

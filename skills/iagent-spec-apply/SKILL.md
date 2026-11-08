@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:dd49021e6392ad8eb105f1ebae012f50c8ac56ee173d088d63ea5d60cc265fc8"
+  generatedFingerprint: "sha256:6da0c25fe8efc3d3454ad94d2501ffcd80d12fcfce14e0c7ad1ab9af325d0440"
 ---
 
 **实现前先阅读 .iagent/rules/coding-rules.md 的 AI 编码护栏。** 禁止猜测数据库字段、API 参数或业务规则 —— 标 **[待确认]** 并询问用户。
@@ -18,7 +18,7 @@ metadata:
 ## 门白名单与 MUST NOT 确认清单
 
 **必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
-- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation / requirement-doc-bridge（可按条件豁免）
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
 - **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
 - **实现 + 测试桥**：implementation-bridge（不可豁免）
 - **归档桥**：archive-confirmation（不可豁免）
@@ -38,7 +38,7 @@ metadata:
 
 **委托模式契约（双轴正交，不可互换）**
 
-- 轴一 `mode`（执行归属；指“委托模式 delegation mode”，MUST NOT 与宿主原生 `mode` 字段混同）：`interactive` / `delegated`。`delegated` = 抑制结尾停点、抑制被委派技能自身验证、输出结构化回执、禁止「等待用户确认」停点；**不豁免任何业务确认门**。
+- 轴一 `mode`（执行归属；指“委托模式 delegation mode”，MUST NOT 与宿主原生 `mode` 字段混同）：`interactive` / `delegated`。`delegated` = 抑制结尾停点、抑制被委派技能自身验证、输出结构化回执、**回执后父编排在同一用户回合内继续**、禁止「等待用户确认」停点；**不豁免任何业务确认门**。
 - 轴二 `gate-skip=<gate-id>`（门承载；概念轴名 `gate-policy` 不是参数键）：声明已由父级确认的门，当前取值 `design-confirmation`；未知 gate id 拒绝或忽略并记 WARN。
 - `auto-mode=true` **仅**映射到门承载轴（≡ `gate-skip=design-confirmation`），`mode` 保持调用方原值；MUST NOT 视为 `mode=delegated` 的等价别名。
 - 两轴正交：仅传 `mode=delegated` 时设计确认门等业务门照常触发；仅传 `gate-skip` 时停点与自验证照常生效。
@@ -127,7 +127,7 @@ metadata:
    2. **兜底通道 —— 门账本**：未传 `gate-skip` 时，只读变更级 handoff 包（`.openspec-tmp/pipeline-<change-name>/handoff-pack.md`，路径用 `path.join()` 构造，MUST NOT 作为委派参数传入）的 `## 已确认门` 段。段内声明 `design-confirmation` 且与父级阶段回执的 `confirmedGates` 一致 → 跳过 Step 5.5 并记 WARN「使用了门账本兜底通道」（否则无法区分「参数生效」与「账本兜底」）。账本条目 MUST NOT 超出回执声明的已确认门：**不一致 / 条目过期（伪造、人工改写）→ 记 WARN 并视为未确认**，回到第 3 级。
    3. **两者皆缺 —— 门照常执行（fail-safe）**：既无 `gate-skip` 也无账本条目（段缺失 / 段内无该门）时，Step 5.5 MUST 照常执行并等待用户显式确认；MUST NOT 静默跳过、MUST NOT 以「父流程不会重复确认」推断为已确认。
 
-   **门账本只表达门承载语义**：条目取值域收敛到 `GATE_SKIP_IDS`（当前仅 `design-confirmation`），MUST NOT 写入父级阶段门 id（`implementation-bridge` / `requirement-doc-bridge` 不在域内，写入即触发 `invalid-receipt`）；解析跳过表头行与分隔行、剥离首尾 `|`，未知门 id 忽略 + WARN；账本段缺失**不产生 WARN**（无账本属合法 fail-safe 状态）。本技能只读账本，MUST NOT 改写父级已写入的条目，只允许向 `## 阶段结论` 追加行。
+   **门账本只表达门承载语义**：条目取值域收敛到 `GATE_SKIP_IDS`（当前仅 `design-confirmation`），MUST NOT 写入父级阶段门 id（`implementation-bridge` 不在域内，写入即触发 `invalid-receipt`）；解析跳过表头行与分隔行、剥离首尾 `|`，未知门 id 忽略 + WARN；账本段缺失**不产生 WARN**（无账本属合法 fail-safe 状态）。本技能只读账本，MUST NOT 改写父级已写入的条目，只允许向 `## 阶段结论` 追加行。
 
    **先构建统一并发批计划：**
    - iagent CLI 不返回 `batchPlan` —— 需从 design.md 推断所有任务的依赖（架构分层、模块依赖）；无依赖标注的任务视为同组内相互独立
@@ -444,7 +444,7 @@ What would you like to do?
 - 直接从变更目录读取制品文件 —— 除标准集合外不要假设具体文件名
 - ⚠️ **强制**：全部任务完成后执行 Step 8 编译检查（硬门：终态只有 `pass` / `fail` / `not-applicable` / `disabled` 四值，配置载体为 `.iagent/config.yaml` 的 `compileCheck`）
 - ⚠️ **强制**：编译检查后执行 Step 9 测试执行门 —— 范围限定为本次变更（范围内失败阻塞；范围外存量失败仅 WARN 且 MUST NOT 阻塞）
-- ⚠️ **强制**：`[测试]` 任务 MUST 委派 `iagent-test`（传测试层级与优先级）生成测试代码，MUST NOT 在 apply 内另立一套测试规则；该技能不可用时记录 WARN 并按同一规则本地实现（MUST NOT 伪装为委派完成）；MUST NOT 走补充文档的 `产出:` → `attachments/` 规则（放在 attachments/ 下的测试代码无法运行）
+- ⚠️ **强制**：`[测试]` 任务 MUST 经**前台 Agent 子代理**委派 `iagent-test`（传测试层级与优先级）生成测试代码，MUST NOT 在 apply 内另立一套测试规则；该技能不可用时记录 WARN 并按同一规则本地实现（MUST NOT 伪装为委派完成）；MUST NOT 走补充文档的 `产出:` → `attachments/` 规则（放在 attachments/ 下的测试代码无法运行）。子代理返回后 MUST 继续批次调度，MUST NOT 停在子技能回执
 
 - ⚠️ **强制**：子代理派发指令 MUST 携带 EXIT GUARD（子代理退出守卫）—— 完成分配任务后立即停止并返回回执，MUST NOT 进入 plan 模式 / 设计模式，也不得提出后续步骤；编排器是唯一有权判停和推进阶段的角色
 - ⚠️ **强制**：子代理 MUST 先读取 handoff 包（`.openspec-tmp/pipeline-<change-name>/handoff-pack.md`），再执行其它任何动作 —— 不得先做其他动作；MUST NOT 重读 proposal/specs/design，MUST NOT 重跑包已覆盖的 CodeGraph 查询；仅做增量查询

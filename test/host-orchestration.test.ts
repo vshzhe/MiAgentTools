@@ -18,9 +18,6 @@ import {
     ORCHESTRATION_DELEGATIONS,
     ORCHESTRATING_WORKFLOW_IDS,
     PHASE_GATE_CATEGORY,
-    PERSISTED_REQUIREMENT_DOC_STATUSES,
-    REQUIREMENT_DOC_STATUS_FIELD,
-    REQUIREMENT_DOC_STATUS_IO_ATTEMPTS,
     SURFACE_IDS,
     TRANSITION_BLOCKERS,
     WORKFLOW_PROTOCOLS,
@@ -32,7 +29,6 @@ import {
     isOrchestratingWorkflow,
     negotiateCapabilities,
     negotiationForHost,
-    normalizeRequirementDocStatus,
     parseDelegationTargets,
     phaseCapabilitiesSatisfied,
     protocolDeclaresCapabilities,
@@ -42,6 +38,7 @@ import {
     renderLoadSkill,
     validateReceipt,
 } from '../src/core/host-orchestration/index.js';
+import * as orchestrationModule from '../src/core/host-orchestration/index.js';
 
 describe('阶段回执契约', () => {
     const spec = { fields: DEFAULT_RECEIPT_FIELDS };
@@ -233,10 +230,21 @@ describe('宿主编排段渲染', () => {
         expect(section).toContain('MUST NOT 把本地串行执行标记为委派完成');
     });
 
-    it('委派动作按宿主渲染原生机制（共享正文不再硬编码 Claude 语义）', () => {
+    it('委派动作按宿主渲染原生机制（Claude 交互阶段 Skill、自动阶段前台 Agent）', () => {
         const claude = renderDelegate('claude', 'strict', { workflowId: 'spec-explore' });
-        expect(claude).toContain('Skill 工具委派');
+        // 交互阶段：经 Skill 内联加载，保留确认门
+        expect(claude).toContain('经 Skill 工具加载');
+        expect(claude).toContain('交互阶段');
         expect(claude).toContain('iagent-spec-explore');
+        expect(claude).not.toContain('前台 Agent');
+
+        // 自动阶段：前台 Agent 子代理 + 技能路径回退 + 回执 / EXIT GUARD
+        const automated = renderDelegate('claude', 'strict', { workflowId: 'spec-apply' });
+        expect(automated).toContain('经前台 Agent 子代理执行');
+        expect(automated).toContain('iagent-spec-apply');
+        expect(automated).toContain('.claude/skills/iagent-spec-apply/SKILL.md');
+        expect(automated).toContain('结构化回执');
+        expect(automated).toContain('EXIT GUARD');
 
         const opencode = renderDelegate('opencode', 'strict', { workflowId: 'spec-explore' });
         expect(opencode).toContain('subagent');
@@ -256,7 +264,9 @@ describe('宿主编排段渲染', () => {
     it('编排技能生成内容包含宿主原生的阶段委派清单', () => {
         const claude = adaptSkillContentForHost('# wf', negotiateCapabilities('claude', 'strict'), 'workflow');
         expect(claude).toContain('阶段委派（宿主原生）');
-        expect(claude).toContain('Skill 工具委派');
+        // workflow 的委派清单同时含交互阶段（spec-explore → Skill）与自动阶段（Agent）
+        expect(claude).toContain('经 Skill 工具加载 `iagent-spec-explore`');
+        expect(claude).toContain('经前台 Agent 子代理执行 `iagent-spec-apply`');
 
         const opencode = adaptSkillContentForHost('# wf', negotiateCapabilities('opencode', 'strict'), 'workflow');
         expect(opencode).toContain('subagent');
@@ -373,17 +383,20 @@ describe('debug 三阶段协议与条件修复门（4.4）', () => {
         expect(result.blockedBy).toContain(TRANSITION_BLOCKERS.gate);
     });
 
-    it('verify-close 消费 fix 结果并交付文档状态', () => {
+    it('verify-close 消费 fix 结果并交付可归档结论（无需求文档状态）', () => {
         const fix = debug.phases.find((phase) => phase.id === 'fix')!;
         expect(fix.handoff).toContain('fixApplied');
         expect(fix.handoff).toContain('regressionTests');
         const close = debug.phases.find((phase) => phase.id === 'verify-close')!;
         expect(close.input.required).toContain('fixApplied');
-        expect(close.handoff).toContain('requirementDocStatus');
-        expect(close.receipt.fields).toContain('requirementDocStatus');
+        expect(close.handoff).toEqual(['verificationResult', 'deepReview', 'archiveReady']);
+        expect(close.handoff).not.toContain('requirementDocStatus');
+        expect(close.receipt.fields).not.toContain('requirementDocStatus');
+        // verify-close 无阻塞门
+        expect(close.gate).toBeUndefined();
     });
 
-    it('verify-close 回执缺失文档状态时阻止推进', () => {
+    it('verify-close 有效回执即可推进，无文档状态要求', () => {
         const close = debug.phases.find((phase) => phase.id === 'verify-close')!;
         const result = evaluatePhaseTransition({
             phase: close,
@@ -396,8 +409,8 @@ describe('debug 三阶段协议与条件修复门（4.4）', () => {
             gateConfirmed: true,
             negotiation: negotiateCapabilities('claude', 'strict'),
         });
-        expect(result.advance).toBe(false);
-        expect(result.blockedBy).toContain(TRANSITION_BLOCKERS.receipt);
+        expect(result.advance).toBe(true);
+        expect(result.blockedBy).toEqual([]);
     });
 
     it('缺失 investigate handoff 时 fix 不启动（输入契约可判定）', () => {
@@ -489,91 +502,93 @@ describe('条件门适用性矩阵与旧门默认行为（4.4）', () => {
     });
 });
 
-describe('需求文档状态契约与跨阶段 handoff（4.4）', () => {
-    it('四值模型：非法/缺失归一化为 absent，显式三态原样保留', () => {
-        expect(normalizeRequirementDocStatus(undefined)).toBe('absent');
-        expect(normalizeRequirementDocStatus('')).toBe('absent');
-        expect(normalizeRequirementDocStatus('   ')).toBe('absent');
-        expect(normalizeRequirementDocStatus('unknown')).toBe('absent');
-        expect(normalizeRequirementDocStatus('skipped-by-user')).toBe('skipped-by-user');
-        expect(normalizeRequirementDocStatus('generation-failed')).toBe('generation-failed');
-        expect(normalizeRequirementDocStatus(' generated ')).toBe('generated');
-        // absent 不落盘：可持久化状态集合不含 absent
-        expect(PERSISTED_REQUIREMENT_DOC_STATUSES).toEqual([
-            'skipped-by-user',
-            'generation-failed',
-            'generated',
-        ]);
+describe('需求文档状态契约已移除 + 回执可选字段（4.4 / P1）', () => {
+    it('RequirementDocStatus 与相关 helper 不再导出', () => {
+        const exported = orchestrationModule as unknown as Record<string, unknown>;
+        for (const name of [
+            'RequirementDocStatus',
+            'REQUIREMENT_DOC_STATUS_FIELD',
+            'PERSISTED_REQUIREMENT_DOC_STATUSES',
+            'REQUIREMENT_DOC_STATUS_IO_ATTEMPTS',
+            'normalizeRequirementDocStatus',
+            'STATUS_RECEIPT',
+            'VERIFY_WITH_BRIDGE',
+            'DOC_BRIDGE_GATE',
+        ]) {
+            expect(exported[name], `${name} 仍被导出`).toBeUndefined();
+        }
     });
 
-    it('持久字段名与「失败重试一次后停止」的尝试次数固定', () => {
-        expect(REQUIREMENT_DOC_STATUS_FIELD).toBe('requirementDocStatus');
-        expect(REQUIREMENT_DOC_STATUS_IO_ATTEMPTS).toBe(2);
+    it('workflow / auto-workflow / debug 的 handoff 与 receipt 均不含 requirementDocStatus', () => {
+        for (const workflowId of ['workflow', 'auto-workflow', 'debug']) {
+            const protocol = getWorkflowProtocol(workflowId)!;
+            for (const phase of protocol.phases) {
+                expect(phase.handoff, `${workflowId}/${phase.id} handoff 残留文档状态`).not.toContain(
+                    'requirementDocStatus'
+                );
+                expect(phase.receipt.fields, `${workflowId}/${phase.id} receipt 仍要求文档状态`).not.toContain(
+                    'requirementDocStatus'
+                );
+            }
+        }
     });
 
-    it('verify → apply → archive 传递同一文档状态', () => {
-        const workflow = getWorkflowProtocol('workflow')!;
-        const verify = workflow.phases.find((phase) => phase.id === 'verify')!;
-        const apply = workflow.phases.find((phase) => phase.id === 'apply')!;
-        const archive = workflow.phases.find((phase) => phase.id === 'archive')!;
-        expect(verify.handoff).toContain('requirementDocStatus');
-        expect(apply.input.optional).toContain('requirementDocStatus');
-        expect(apply.handoff).toContain('requirementDocStatus');
-        expect(archive.input.optional).toContain('requirementDocStatus');
-    });
-
-    it('auto-workflow 复用同一状态 handoff（自动 apply → archive）', () => {
-        const auto = getWorkflowProtocol('auto-workflow')!;
-        const apply = auto.phases.find((phase) => phase.id === 'apply')!;
-        const archive = auto.phases.find((phase) => phase.id === 'archive')!;
-        expect(apply.handoff).toContain('requirementDocStatus');
-        expect(archive.input.optional).toContain('requirementDocStatus');
-    });
-
-    it('回执可携带文档状态且 validateReceipt 认可该字段', () => {
-        const result = validateReceipt(
-            {
-                phase: 'verify-close',
-                status: 'ok',
-                artifact: 'exploration.md',
-                nextAllowed: 'archive',
-                requirementDocStatus: 'skipped-by-user',
-            },
-            { fields: [...DEFAULT_RECEIPT_FIELDS, 'requirementDocStatus'] }
-        );
-        expect(result.valid).toBe(true);
-    });
-
-    it('workflow / auto-workflow 的 verify 阶段回执要求文档状态（缺失 → invalid-receipt）', () => {
+    it('verify 回执无需文档状态即可推进（不再以 invalid-receipt 阻断）', () => {
         for (const workflowId of ['workflow', 'auto-workflow']) {
             const verify = getWorkflowProtocol(workflowId)!.phases.find((phase) => phase.id === 'verify')!;
-            // 与 handoff 一致：桥结果必须随验证回执交付
-            expect(verify.handoff).toContain('requirementDocStatus');
-            expect(verify.receipt.fields).toContain('requirementDocStatus');
-
-            const baseReceipt = {
-                phase: 'verify',
-                status: 'ok',
-                artifact: 'verify-report.md',
-                nextAllowed: 'apply',
-            };
-            const missing = evaluatePhaseTransition({
+            expect(verify.handoff).not.toContain('requirementDocStatus');
+            const result = evaluatePhaseTransition({
                 phase: verify,
-                receipt: baseReceipt as never,
+                receipt: {
+                    phase: 'verify',
+                    status: 'ok',
+                    artifact: 'verify-report.md',
+                    nextAllowed: 'apply',
+                },
                 gateConfirmed: true,
                 negotiation: negotiateCapabilities('claude', 'strict'),
             });
-            expect(missing.advance, `${workflowId} verify 缺少文档状态却允许推进`).toBe(false);
-            expect(missing.blockedBy).toContain(TRANSITION_BLOCKERS.receipt);
+            expect(result.advance, `${workflowId} verify 有效回执被阻塞`).toBe(true);
+            expect(result.blockedBy).toEqual([]);
+        }
+    });
 
-            const complete = evaluatePhaseTransition({
-                phase: verify,
-                receipt: { ...baseReceipt, requirementDocStatus: 'skipped-by-user' } as never,
-                gateConfirmed: true,
-                negotiation: negotiateCapabilities('claude', 'strict'),
-            });
-            expect(complete.advance, `${workflowId} verify 携带文档状态仍被阻塞`).toBe(true);
-            expect(complete.blockedBy).toEqual([]);
+    it('回执可选字段仅在出现时校验：blockedGate / blockedReason 互斥', () => {
+        const base = {
+            phase: 'apply',
+            status: 'ok' as const,
+            artifact: 'tasks.md',
+            nextAllowed: 'verify',
+        };
+        expect(validateReceipt(base, { fields: DEFAULT_RECEIPT_FIELDS }).valid).toBe(true);
+        // 五个可选字段出现且为合法非空字符串时通过
+        for (const extra of [
+            { blockedGate: 'implementation-bridge' },
+            { blockedReason: '范围蔓延，需要用户决策' },
+            { resumeHint: 'resume=true' },
+            { reportPath: 'attachments/report.md', reviewSummary: '通过' },
+        ]) {
+            expect(
+                validateReceipt({ ...base, ...extra }, { fields: DEFAULT_RECEIPT_FIELDS }).valid,
+                `合法可选字段被拒：${JSON.stringify(extra)}`
+            ).toBe(true);
+        }
+        // blockedGate 与 blockedReason 不得同时出现
+        const both = validateReceipt(
+            { ...base, blockedGate: 'implementation-bridge', blockedReason: 'x' } as never,
+            { fields: DEFAULT_RECEIPT_FIELDS }
+        );
+        expect(both.valid).toBe(false);
+        expect(both.reason).toContain('二选一');
+        // 出现时不得为空串
+        const empty = validateReceipt(
+            { ...base, resumeHint: '   ' } as never,
+            { fields: DEFAULT_RECEIPT_FIELDS }
+        );
+        expect(empty.valid).toBe(false);
+        // 可选字段不得进入默认必需字段
+        for (const field of ['blockedGate', 'blockedReason', 'resumeHint', 'reportPath', 'reviewSummary']) {
+            expect(DEFAULT_RECEIPT_FIELDS).not.toContain(field);
         }
     });
 });
@@ -587,13 +602,14 @@ describe('已授权技能直接推进与宿主委派同步（4.4）', () => {
         expect(section).toContain('strict/degraded 能力协商');
     });
 
-    it('debug 委派清单覆盖验证/复查/文档/测试，且阶段声明含条件门标注', () => {
+    it('debug 委派清单覆盖验证/复查/测试，且阶段声明含条件门标注', () => {
         expect(ORCHESTRATION_DELEGATIONS.debug).toEqual([
             'spec-verify-proposal',
             'proposal-review',
-            'requirement-doc',
             'test',
         ]);
+        // 需求文档桥已移除：不再出现在委派清单
+        expect(ORCHESTRATION_DELEGATIONS.debug).not.toContain('requirement-doc');
         const section = renderHostOrchestrationSection(negotiateCapabilities('claude', 'strict'), 'debug');
         expect(section).toContain('`fix`：能力');
         expect(section).toContain('门：fix-option-confirmation（条件 multiple-fix-options）');
@@ -609,7 +625,7 @@ describe('已授权技能直接推进与宿主委派同步（4.4）', () => {
         expect(section).toContain('恢复 strict');
     });
 
-    it('workflow / auto-workflow 委派清单覆盖模板真实调用（含 requirement-doc / spec-verify / test）', () => {
+    it('workflow / auto-workflow 委派清单覆盖模板真实调用（无 requirement-doc）', () => {
         for (const workflowId of ['workflow', 'auto-workflow']) {
             const delegations = ORCHESTRATION_DELEGATIONS[workflowId];
             for (const target of [
@@ -617,7 +633,6 @@ describe('已授权技能直接推进与宿主委派同步（4.4）', () => {
                 'spec-propose',
                 'spec-verify-proposal',
                 'proposal-review',
-                'requirement-doc',
                 'spec-apply',
                 'spec-verify',
                 'test',
@@ -625,6 +640,9 @@ describe('已授权技能直接推进与宿主委派同步（4.4）', () => {
             ]) {
                 expect(delegations, `${workflowId} 委派清单缺少 ${target}`).toContain(target);
             }
+            expect(delegations, `${workflowId} 委派清单残留 requirement-doc`).not.toContain(
+                'requirement-doc'
+            );
             // 委派清单与白名单同一真源（模板 allowedTools 的 canonical Skill(...) 条目）
             const { template } = getSkillTemplates(undefined, [workflowId])[0];
             const allowedTargets = [...template.allowedTools.matchAll(/Skill\(([a-z0-9-]+)\)/g)]
@@ -788,9 +806,10 @@ describe('3.6 编排注入面派生与四宿主产物', () => {
         expect(list).toContain('iagent-spec-explore`（mode=delegated）');
         expect(list).toContain('iagent-spec-propose`（mode=delegated）');
         expect(list).toContain('iagent-spec-apply`（gate-skip=design-confirmation）');
-        // 参数表未声明的目标不凭空填充
-        expect(list).toContain('- 经 Skill 工具委派 `iagent-spec-verify`');
-        expect(list).not.toContain('iagent-spec-verify`（');
+        // 参数表未声明的目标不凭空填充（spec-verify 属自动阶段 → 前台 Agent）
+        expect(list).toContain('- 经前台 Agent 子代理执行 `iagent-spec-verify`');
+        expect(list).not.toContain('iagent-spec-verify`（mode=');
+        expect(list).not.toContain('iagent-spec-verify`（gate-skip=');
 
         const noParams = renderDelegationList('claude', 'strict', ['spec-apply']);
         expect(noParams).not.toContain('mode=');
@@ -858,21 +877,21 @@ describe('3.7 协议门与白名单对齐 + surface 门兜底', () => {
         nextAllowed: 'next',
     });
 
-    it('auto-workflow 的 APPLY / ARCHIVE 无阻塞门，VERIFY 声明文档桥门', () => {
+    it('auto-workflow 的 VERIFY / APPLY / ARCHIVE 均无阻塞门', () => {
         const auto = getWorkflowProtocol('auto-workflow')!;
-        for (const phaseId of ['apply', 'archive']) {
+        for (const phaseId of ['verify', 'apply', 'archive']) {
             const phase = auto.phases.find((item) => item.id === phaseId)!;
             expect(phase.gate, `auto-workflow/${phaseId} 不应声明阻塞门`).toBeUndefined();
         }
-        const verify = auto.phases.find((phase) => phase.id === 'verify')!;
-        expect(verify.gate?.id).toBe('requirement-doc-bridge');
-        expect(verify.gate?.blocking).toBe(true);
-        // 新增门不把 gate 加入 requiredCapabilities（headless 兜底的前提）
-        expect(verify.requiredCapabilities).not.toContain('gate');
+        // 无门阶段不依赖 gate 能力
+        for (const phaseId of ['verify', 'apply', 'archive']) {
+            const phase = auto.phases.find((item) => item.id === phaseId)!;
+            expect(phase.requiredCapabilities).not.toContain('gate');
+        }
     });
 
-    it('workflow verify 不再声明文档桥门，debug verify-close 仍声明', () => {
-        // 交付桥合并（U8）：workflow 的验证阶段阻塞门为 0，文档选项由 apply 的交付桥承载
+    it('workflow verify 无阻塞门，debug verify-close 同样无门', () => {
+        // 交付桥合并（U8）：workflow 的验证阶段阻塞门为 0，实现确认由 apply 的交付桥承载
         const verify = getWorkflowProtocol('workflow')!.phases.find(
             (phase) => phase.id === 'verify'
         )!;
@@ -880,20 +899,20 @@ describe('3.7 协议门与白名单对齐 + surface 门兜底', () => {
         const apply = getWorkflowProtocol('workflow')!.phases.find((phase) => phase.id === 'apply')!;
         expect(apply.gate?.id).toBe('implementation-bridge');
         expect(apply.gate?.blocking).toBe(true);
-        // debug verify-close 仍声明文档桥（锚点保留的直接消费者），阻塞门数量仍为 1
+        // 需求文档桥已移除：debug verify-close 阻塞门数量为 0
         const close = getWorkflowProtocol('debug')!.phases.find((phase) => phase.id === 'verify-close')!;
-        expect(close.gate?.id).toBe('requirement-doc-bridge');
+        expect(close.gate).toBeUndefined();
         expect(close.requiredCapabilities).not.toContain('gate');
-        expect([close.gate].filter(Boolean)).toHaveLength(1);
+        expect([close.gate].filter(Boolean)).toHaveLength(0);
     });
 
-    it('协议门清单：workflow verify 无门 + apply 实现桥，auto-workflow verify 文档桥', () => {
+    it('协议门清单：workflow verify 无门 + apply 实现桥，auto-workflow verify 无门', () => {
         const workflowVerify = getWorkflowProtocol('workflow')!.phases.find((p) => p.id === 'verify')!;
         const workflowApply = getWorkflowProtocol('workflow')!.phases.find((p) => p.id === 'apply')!;
         expect(workflowVerify.gate).toBeUndefined();
         expect(workflowApply.gate?.id).toBe('implementation-bridge');
         const autoVerify = getWorkflowProtocol('auto-workflow')!.phases.find((p) => p.id === 'verify')!;
-        expect(autoVerify.gate?.id).toBe('requirement-doc-bridge');
+        expect(autoVerify.gate).toBeUndefined();
         // 每阶段至多 1 个阻塞门（账本不新增门类别与门预算）
         for (const [workflowId, protocol] of Object.entries(WORKFLOW_PROTOCOLS)) {
             for (const phase of protocol.phases) {
@@ -903,26 +922,27 @@ describe('3.7 协议门与白名单对齐 + surface 门兜底', () => {
                 expect(blocking.length, `${workflowId}/${phase.id} 超过门预算`).toBeLessThanOrEqual(1);
             }
         }
-        // 5 类白名单与锚点集合不变
+        // 5 类白名单锚点集合不含已移除的需求文档桥
         expect(GATE_WHITELIST).toHaveLength(5);
         expect(GATE_WHITELIST_ANCHORS).toEqual([
             'prompt-gate',
             'grill-batch-confirmation',
             'diagnostic-confirmation',
             'fix-option-confirmation',
-            'requirement-doc-bridge',
             'flow-final-confirmation',
             'implementation-bridge',
             'archive-confirmation',
         ]);
+        expect(GATE_WHITELIST_ANCHORS).not.toContain('requirement-doc-bridge');
         expect(auditGateWhitelistAlignment()).toEqual([]);
     });
 
-    it('白名单仍为 5 类，且 requirement-doc-bridge 挂在需求澄清类别下', () => {
+    it('白名单仍为 5 类，且 requirement-doc-bridge 已不在锚点或类别映射中', () => {
         expect(GATE_WHITELIST).toHaveLength(5);
         const clarification = GATE_WHITELIST.find((entry) => entry.id === 'requirement-clarification')!;
-        expect(clarification.anchors).toContain('requirement-doc-bridge');
-        expect(PHASE_GATE_CATEGORY['requirement-doc-bridge']).toBe('requirement-clarification');
+        expect(clarification.anchors).not.toContain('requirement-doc-bridge');
+        expect(GATE_WHITELIST.some((entry) => entry.anchors.includes('requirement-doc-bridge'))).toBe(false);
+        expect(PHASE_GATE_CATEGORY['requirement-doc-bridge']).toBeUndefined();
         expect(auditGateWhitelistAlignment()).toEqual([]);
     });
 

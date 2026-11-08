@@ -205,9 +205,15 @@ describe('OpenCode V2 项目产物写入（init 端到端）', () => {
         });
         expect(permissions).toContainEqual({
             action: 'skill',
-            resource: 'iagent-requirement-doc',
+            resource: 'iagent-spec-verify-proposal',
             effect: 'allow',
         });
+        // 需求文档桥已移除：不再授予该技能资源
+        expect(
+            permissions.some(
+                (rule) => rule.action === 'skill' && rule.resource === 'iagent-requirement-doc'
+            )
+        ).toBe(false);
         expect(permissions).toContainEqual({
             action: 'subagent',
             resource: 'iagent-debug',

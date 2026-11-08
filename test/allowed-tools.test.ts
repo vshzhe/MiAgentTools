@@ -413,7 +413,6 @@ describe('debug 授权与宿主委派表一致（4.5）', () => {
         expect(ORCHESTRATION_DELEGATIONS.debug).toEqual([
             'spec-verify-proposal',
             'proposal-review',
-            'requirement-doc',
             'test',
         ]);
     });
@@ -431,11 +430,12 @@ describe('debug 授权与宿主委派表一致（4.5）', () => {
     it('条件委派集合仅含声明降级路径的目标；必需委派不得归入条件委派', () => {
         expect(CONDITIONAL_DELEGATIONS.debug).toContain('test');
         expect(CONDITIONAL_DELEGATIONS.debug).toContain('proposal-review');
-        // spec-verify-proposal / requirement-doc 由 DEPS 随装且正文无降级路径 → 无条件必需委派
+        // spec-verify-proposal 由 DEPS 随装且正文无降级路径 → 无条件必需委派
         expect(CONDITIONAL_DELEGATIONS.debug).not.toContain('spec-verify-proposal');
+        // 需求文档桥已移除，不再出现在条件委派表
         expect(CONDITIONAL_DELEGATIONS.debug).not.toContain('requirement-doc');
         // 分类与 DEPS 口径一致：DEPS 覆盖的目标必为无条件必需委派
-        for (const dep of ['spec-verify-proposal', 'requirement-doc']) {
+        for (const dep of ['spec-verify-proposal']) {
             expect(CONDITIONAL_DELEGATIONS.debug, `DEPS 覆盖的 ${dep} 不应是条件委派`).not.toContain(dep);
         }
         expect(debug.template.instructions).toContain('strict 模式无法委派 `iagent_test` 时 SHALL 按能力协商**阻断并报告**');
@@ -453,7 +453,6 @@ describe('debug 授权与宿主委派表一致（4.5）', () => {
         expect(ORCHESTRATION_DELEGATIONS.debug).toEqual([
             'spec-verify-proposal',
             'proposal-review',
-            'requirement-doc',
             'test',
         ]);
     });
@@ -574,22 +573,24 @@ describe('2.4 白名单 canonical 形态全量断言', () => {
         expect(bulkEntries).toContain('Task');
     });
 
-    it('debug 具备文档与回归测试委派条目（canonical，无通配）', () => {
+    it('debug 具备验证/复查与回归测试委派条目（canonical，无通配，无需求文档）', () => {
         const debug = templatesOf('iagent_debug');
-        expect(debug.allowedTools).toContain('Skill(iagent-requirement-doc)');
+        expect(debug.allowedTools).toContain('Skill(iagent-spec-verify-proposal)');
+        expect(debug.allowedTools).toContain('Skill(iagent-proposal-review)');
         expect(debug.allowedTools).toContain('Skill(iagent-test)');
+        expect(debug.allowedTools).not.toContain('Skill(iagent-requirement-doc)');
         expect(debug.allowedTools).not.toContain('Skill(*)');
     });
 
-    it('嵌套委派不使外层白名单虚增（migration 不委派需求文档）', () => {
+    it('嵌套委派不使外层白名单虚增（三父流程均不委派需求文档）', () => {
         // archive 的内层委派由会话级 permissions.allow 放行；外层不因嵌套链路写条目
         expect(templatesOf('iagent_migration').allowedTools).not.toContain(
             'Skill(iagent-requirement-doc)'
         );
-        // workflow 的条目来自其 Phase 3 文档桥的真实委派（正文确有提及），且只出现一次
-        const workflowTools = templatesOf('iagent_workflow').allowedTools;
-        expect(workflowTools.split('Skill(iagent-requirement-doc)').length - 1).toBe(1);
-        expect(templatesOf('iagent_workflow').instructions).toContain('iagent_requirement_doc');
+        // 需求文档桥整体移除：workflow 不再持有该委派条目
+        for (const name of ['iagent_workflow', 'iagent_auto_workflow', 'iagent_debug']) {
+            expect(templatesOf(name).allowedTools).not.toContain('Skill(iagent-requirement-doc)');
+        }
     });
 
     it('全部 Skill(...) 条目为 canonical kebab-case 且对应已注册技能', () => {

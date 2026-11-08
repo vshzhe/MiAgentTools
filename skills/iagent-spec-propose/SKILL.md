@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:3695c18d052e3ecbf3c4e5994bc1c95899f8937879893b6c9036199191f7eacc"
+  generatedFingerprint: "sha256:658baad3831d7ed9f4a9f6728b6f08f5bce69231e828816f7c7c41e788a24be9"
 ---
 
 提出新变更 —— 一步创建变更并生成全部制品。
@@ -31,7 +31,7 @@ metadata:
 
 **委托模式契约（双轴正交，不可互换）**
 
-- 轴一 `mode`（执行归属；指“委托模式 delegation mode”，MUST NOT 与宿主原生 `mode` 字段混同）：`interactive` / `delegated`。`delegated` = 抑制结尾停点、抑制被委派技能自身验证、输出结构化回执、禁止「等待用户确认」停点；**不豁免任何业务确认门**。
+- 轴一 `mode`（执行归属；指“委托模式 delegation mode”，MUST NOT 与宿主原生 `mode` 字段混同）：`interactive` / `delegated`。`delegated` = 抑制结尾停点、抑制被委派技能自身验证、输出结构化回执、**回执后父编排在同一用户回合内继续**、禁止「等待用户确认」停点；**不豁免任何业务确认门**。
 - 轴二 `gate-skip=<gate-id>`（门承载；概念轴名 `gate-policy` 不是参数键）：声明已由父级确认的门，当前取值 `design-confirmation`；未知 gate id 拒绝或忽略并记 WARN。
 - `auto-mode=true` **仅**映射到门承载轴（≡ `gate-skip=design-confirmation`），`mode` 保持调用方原值；MUST NOT 视为 `mode=delegated` 的等价别名。
 - 两轴正交：仅传 `mode=delegated` 时设计确认门等业务门照常触发；仅传 `gate-skip` 时停点与自验证照常生效。
@@ -49,7 +49,7 @@ metadata:
 ## 门白名单与 MUST NOT 确认清单
 
 **必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
-- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation / requirement-doc-bridge（可按条件豁免）
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
 - **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
 - **实现 + 测试桥**：implementation-bridge（不可豁免）
 - **归档桥**：archive-confirmation（不可豁免）
@@ -249,18 +249,18 @@ metadata:
    - **产出失败只记 WARN 并继续**（不阻断提案）：下游包缺失时按同一六节协议自行产出一次，或降级为内联注入
 
 6. **Phase 3 验证（自动 —— 强制，不可跳过）**
-   > **delegated 模式分支**：若 `mode=delegated`，**抑制本节**——不调用 `iagent-spec-verify-proposal`、不生成需求文档（编排器的 Phase 3 为其超集，含 `proposal_review` 深度复查），直接输出结构化回执交回编排器。`interactive` 模式照常执行本节。
+   > **delegated 模式分支**：若 `mode=delegated`，**抑制本节**——不调用 `iagent-spec-verify-proposal`、不生成需求文档（编排器的 Phase 3 为其超集，含 `proposal_review` 深度复查），直接输出结构化回执交回编排器；回执是中间状态，父编排在同一用户回合内继续。`interactive` 模式照常执行本节。
    全部 `applyRequires` 制品完成后，自动进入 Phase 3 验证（不得在验证前以 "准备就绪，可进入实现" 结束工作流）：
    - 调用 `iagent-spec-verify-proposal` **skill** 执行 D1-D5 评分。（`iagent-spec-verify-proposal` 是技能名，而非合法的 `iagent spec instructions` 制品 ID —— 不得把它当作 CLI 指令运行。）
    - **验证复查子代理**：派发一个独立的只读复查子代理（Task 工具，subagent_type: "general-purpose"）执行 D1-D5 评分 —— 该子代理读取变更制品但不修改。子代理派发失败时：降级（回退）到主工作流内联评分并记录 WARN 日志（绝不静默跳过验证）。
-   - **PASS (≥90%)**：验证通过后可对提案做一次内联深度复查（由主工作流在通过后直接执行一次只读复查，不依赖专门技能名）。深度复查收束后**停止** —— 输出验证与复查结论即完成规划边界：MUST NOT 生成需求文档、MUST NOT 呈现“生成 / 跳过”桥（文档桥只属于 workflow / auto-workflow / debug 三父流程；用户 MAY 之后手工调用 `iagent-requirement-doc`）。
+   - **PASS (≥90%)**：验证通过后可对提案做一次内联深度复查（由主工作流在通过后直接执行一次只读复查，不依赖专门技能名）。深度复查收束后**停止** —— 输出验证与复查结论即完成规划边界：MUST NOT 生成需求文档、MUST NOT 呈现“生成 / 跳过”桥；需求文档只由独立 `iagent-requirement-doc` 技能按需生成，用户 MAY 之后手工调用。
    - **FAIL (<90%)**：自动生成修复、应用、重跑；若仍 FAIL，提供 [手动编辑] / [返回探索 (/iagent:spec-explore)] / [查看差异]（无跳过直接实现的通道）。
    - 技能不可用时降级（回退）：AI 内联 D1-D5 评分 + WARN 日志；绝不静默跳过。
    - 验证使用 90% 通过阈值。
 
 **Output**
 
-> **delegated 模式分支**：若 `mode=delegated`，输出**结构化回执**（change-name、生成制品清单、apply-ready 状态、探索文件迁移结果），MUST NOT 输出"等待用户确认"停点——阶段推进主权归编排器。下述 interactive 输出仅适用于默认模式。
+> **delegated 模式分支**：若 `mode=delegated`，输出**结构化回执**（change-name、生成制品清单、apply-ready 状态、`explorationFile` / `handoffPackPath` / `sourceFingerprint`、探索文件迁移结果），MUST NOT 输出"等待用户确认"停点——回执是中间状态，父编排在同一用户回合内继续验证；阶段推进主权归编排器。下述 interactive 输出仅适用于默认模式。
 
 全部制品完成且 Phase 3 验证通过后（规划边界：到此停止，等待用户发起新请求）：
 - 变更名与位置
@@ -317,7 +317,7 @@ metadata:
 - 若上下文严重不清晰，标记为 **[待确认]** 并询问用户。绝不猜测！
 - **实质性歧义划分**：影响范围/行为契约/向后兼容性/验收标准的歧义 MUST 表面化并向用户提问（标记 [待确认]）；细节性歧义可做合理假设并记录到规划制品
 - 全部制品创建后，展示设计蓝图摘要并等待用户确认，之后才建议实现。（**delegated 模式例外**：抑制该停点，改输出结构化回执并交回主权）
-- **规划边界：验证后停止** —— 独立调用在验证 PASS 后停止，MUST NOT 生成需求文档、MUST NOT 呈现生成 / 跳过桥；文档桥只属于父流程（workflow / auto-workflow / debug）
+- **规划边界：验证后停止** —— 独立调用在验证 PASS 后停止，MUST NOT 生成需求文档、MUST NOT 呈现生成 / 跳过桥；需求文档只由独立 `iagent-requirement-doc` 技能按需生成
 - 若同名变更已存在，询问用户是要继续它还是新建一个
 - 每次写入后确认制品文件存在，再继续下一个
 

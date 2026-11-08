@@ -28,27 +28,25 @@ export const DEFAULT_WORKFLOWS: readonly string[] = [
 /** 依赖注入规则表：key 依赖 value（用户选了 key 但漏了 value 时自动补全 value）。
  *  - spec-propose ⇒ spec-verify-proposal（规则文件：提案实现前必须通过评分门）
  *  - spec-archive / spec-bulk-archive ⇒ spec-verify
- *    （spec-verify：实现完成后、归档前验证。归档侧已删除需求文档的生成 / 就地
- *     增量对齐 / 迁出分支，正文不再委派 `iagent_requirement_doc`，故 MUST NOT 注入）
+ *    （spec-verify：实现完成后、归档前验证。归档侧已删除需求文档相关逻辑，
+ *     正文不再委派 `iagent_requirement_doc`，故 MUST NOT 注入）
  *  - 默认集后果：DEFAULT_WORKFLOWS 8 项自身无注入项 ⇒ 默认安装集为 8 项
- *    （未配置 workflows 时不再随装 requirement-doc）
  *  - migration ⇒ feature-doc + migration-check
  *    （编排技能 Phase 1 源项目扫描与 Phase 4 迁移检查依赖两子技能）
  *  - workflow ⇒ spec-explore + spec-propose + spec-verify-proposal + proposal-review
- *    + spec-apply + spec-archive + requirement-doc
+ *    + spec-apply + spec-archive
  *    （一站式引导工作流：内联探索/提案/验证，验证阶段委派 spec-verify-proposal 评分门与
  *     proposal-review 深度复查；验证通过后委派 spec-apply 实现、spec-archive 归档；
- *     spec-verify 由 spec-archive 传递注入。requirement-doc **显式声明**：Phase 3 文档桥
- *     无条件委派该技能，归档侧不再注入后必须由本技能自身声明，否则形成死引用）
+ *     spec-verify 由 spec-archive 传递注入。requirement-doc 不再自动注入 —— 需求文档
+ *     只由独立技能按需生成，用户须显式在 workflows 中选择安装）
  *  - auto-workflow ⇒ spec-explore + spec-propose + spec-verify-proposal + proposal-review
- *    + spec-apply + spec-archive + requirement-doc
- *    （Phase 1-3 与引导工作流同构；Phase 4/5 经 Skill 工具委派 spec-apply / spec-archive；
- *     spec-verify 由 spec-archive 传递注入；requirement-doc 同上显式声明 —
- *     其 Phase 3 文档桥同样无条件委派该技能。
+ *    + spec-apply + spec-archive
+ *    （Phase 1-3 与引导工作流同构；Phase 4/5 委派 spec-apply / spec-archive；
+ *     spec-verify 由 spec-archive 传递注入；requirement-doc 同上不再自动注入。
  *     auto-workflow 不委派 workflow 技能，故不再注入 workflow）
- *  - debug ⇒ spec-verify-proposal + requirement-doc
- *    （P7 验证调用；文档桥的"生成"分支**无条件委派** requirement-doc —— 被委派技能必须可得，
- *     否则形成指向未安装技能的死引用。`test` 属条件委派且正文已声明缺省降级路径，不触发注入）
+ *  - debug ⇒ spec-verify-proposal
+ *    （P7 验证调用；需求文档桥已整体移除，不再注入 requirement-doc。
+ *     `test` 属条件委派且正文已声明缺省降级路径，不触发注入）
  *  - spec-apply ⇒ test
  *    （`[测试]` 任务**无条件委派** `iagent_test` 生成测试代码；缺该技能会形成死引用，
  *     故随装补全。设计确认门由父流程实现桥或 apply 自身承载，不注入其他技能） */
@@ -58,9 +56,9 @@ export const DEPS: Record<string, readonly string[]> = {
     'spec-archive': ['spec-verify'],
     'spec-bulk-archive': ['spec-verify'],
     'migration': ['feature-doc', 'migration-check'],
-    'workflow': ['spec-explore', 'spec-propose', 'spec-verify-proposal', 'proposal-review', 'spec-apply', 'spec-archive', 'requirement-doc'],
-    'auto-workflow': ['spec-explore', 'spec-propose', 'spec-verify-proposal', 'proposal-review', 'spec-apply', 'spec-archive', 'requirement-doc'],
-    'debug': ['spec-verify-proposal', 'requirement-doc'],
+    'workflow': ['spec-explore', 'spec-propose', 'spec-verify-proposal', 'proposal-review', 'spec-apply', 'spec-archive'],
+    'auto-workflow': ['spec-explore', 'spec-propose', 'spec-verify-proposal', 'proposal-review', 'spec-apply', 'spec-archive'],
+    'debug': ['spec-verify-proposal'],
 };
 
 /** resolveWorkflows 结果 */
@@ -74,8 +72,9 @@ export interface ResolvedWorkflows {
 /**
  * 解析生效 workflow 集（依赖注入为不动点迭代：连带补全传递依赖）。
  *
- * 例：仅勾选 auto-workflow → 注入 workflow 与 requirement-doc，
- * 其中 workflow 自身的依赖（proposal-review）在下一轮迭代中继续补全。
+ * 例：仅勾选 auto-workflow → 注入 spec-explore / spec-propose / spec-verify-proposal /
+ * proposal-review / spec-apply / spec-archive，其中 spec-archive 自身的依赖（spec-verify）
+ * 在下一轮迭代中继续补全。
  *
  * @param workflows - 用户配置的 workflow 列表；undefined/空 → 用默认集
  * @returns 生效集 + 注入补全项标注
