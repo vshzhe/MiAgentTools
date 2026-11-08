@@ -211,18 +211,20 @@ ${renderGateWhitelistSection()}
 
 5.5 **产出变更级 handoff 包（供 verify / apply / archive 只读复用）**
 
-   - 在全部 \`applyRequires\` 制品定稿后，于 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\`（用 \`path.join()\` 构造）产出**一次**六节 handoff 包：\`## 变更摘要\` / \`## 契约\` / \`## 规范要点\` / \`## 文件归属表\` / \`## Codebase 摘要\` / \`## 已产出（跨单元可见）\`；头部固定元信息 \`change:\` / \`producedBy: propose\` / \`producedAt:\` / \`sourceFingerprint:\`（覆盖 proposal / design / specs / tasks 的内容指纹）
+   - 在全部 \`applyRequires\` 制品定稿后，于 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\`（用 \`path.join()\` 构造）产出**一次**六节 handoff 包：\`## 变更摘要\` / \`## 契约\` / \`## 规范要点\` / \`## 文件归属表\` / \`## Codebase 摘要\` / \`## 已产出（跨单元可见）\`；并在 \`## 契约\` 之后、\`## 规范要点\` 之前新增 \`## 制品清单\`（列：相对路径 / 字节 / sha256 前 12 / 章节锚点；与六节并列、**不计入六节**）；头部固定元信息 \`change:\` / \`producedBy: propose\` / \`producedAt:\` / \`sourceFingerprint:\`（覆盖 proposal / design / specs / tasks 的内容指纹）
    - **\`sourceFingerprint\` 派生规则（唯一算法，MUST 写入包内 \`## 契约\` 或头部注释，供消费方复算）**：
      1. 制品集合 = \`proposal.md\`、\`design.md\`（存在时）、\`specs/**/*.md\`（相对变更目录的路径按字典序）、\`tasks.md\`
      2. 对每个文件计算 \`sha256(字节内容)\`，得到一行 \`<相对路径>:<sha256 十六进制>\`，路径统一用正斜杠
      3. 按相对路径字典序排序，用单个换行连接为串 \`S\`
      4. \`sourceFingerprint = "sha256:" + sha256(S) 十六进制的前 16 字符\`
-     参考实现（Windows / macOS / Linux 通用）：
+     参考实现：\`src/core/spec/fingerprint.ts\`（\`iagent spec fingerprint\` 的单一实现）。MUST 优先执行：
      \`\`\`bash
-     node -e "const fs=require('fs'),c=require('crypto'),p=require('path');const r=process.argv[1];const f=[];(function w(d){for(const e of fs.readdirSync(d,{withFileTypes:true})){const x=p.join(d,e.name);if(e.isDirectory()){if(e.name!=='attachments')w(x)}else if(/\\\\.md$/.test(x))f.push(x)}})(r);const rel=f.map(x=>p.relative(r,x).replaceAll('\\\\\\\\','/')).sort();const h=c.createHash('sha256');for(const k of rel)h.update(k+':'+c.createHash('sha256').update(fs.readFileSync(p.join(r,k))).digest('hex')+'\\\\n');console.log('sha256:'+h.digest('hex').slice(0,16))" openspec/changes/<change-name>
+     iagent spec fingerprint --change "<name>"
      \`\`\`
+     CLI 不可用时按上述 4 步复算 —— \`S\` 的相邻行之间用单个换行连接，**末尾 MUST NOT 追加换行**（旧参考脚本对每行追加 \`\\n\` 的写法已废弃）。
      5. 消费方（verify / apply / archive）读到指纹后按同一算法复算：一致即复用；不一致 MUST 重建该包一次并记 WARN；算法缺失或无法复算时以磁盘制品为准并记 WARN（MUST NOT 静默判定一致）
    - 下游 \`iagent_spec_verify\` / \`iagent_spec_apply\` / \`iagent_spec_archive\` **只读复用**该包并只追加 \`## 阶段结论\`，MUST NOT 重产整包；指纹不一致时由消费方重建并记 WARN
+   - \`## 阶段结论\` 使用 5 列表头 \`phase | status | artifact | nextAllowed | tokens\`；可用时填 \`tokens=<数值>\`，宿主不暴露时填 \`—\`（MUST NOT 编造），且只追加行、不改写既有行
    - Phase 3 自动修复若改动制品，MUST 在验证通过后按新指纹**重建该包一次**，保持 \`sourceFingerprint\` 与制品一致
    - **产出失败只记 WARN 并继续**（不阻断提案）：下游包缺失时按同一六节协议自行产出一次，或降级为内联注入
 

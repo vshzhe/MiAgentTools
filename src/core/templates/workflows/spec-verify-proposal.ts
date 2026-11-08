@@ -185,6 +185,13 @@ ${renderGateWhitelistSection()}
 
 ---
 
+## 执行方式与复验（强制）
+
+- 默认经前台 Agent 子代理执行，回执声明 executionMode=subagent。
+- 允许主代理内联（executionMode=inline），但 MUST 同时满足「非作者（independence=independent）+ 逐项检查清单与证据」；independence=self 记 WARN 且不视为合规。
+- 回执 SHALL 含 executionMode / independence / readScope / dependsOn；inline 阶段不要求 delegate。
+- **增量复验**：FAIL 修复后新开只读代理，只传 fixDiff + 上轮 reportPath + 检查清单；只验证增量并对未覆盖范围输出 residual 清单；禁止以 resume 充当复验（contextReplay=true 记 WARN）。
+
 ## 前置条件
 
 **必需文件**：

@@ -42,7 +42,14 @@ export const COMPLETION_MARKERS: CompletionMarkers = {
  * 新增 CLI 命令时同步更新此表。
  * subcommands 非空的命令为嵌套子命令组（补全第二级）。
  */
-const IAGENT_COMMANDS: { name: string; description: string; flags: string[]; subcommands?: string[] }[] = [
+const IAGENT_COMMANDS: {
+    name: string;
+    description: string;
+    flags: string[];
+    subcommands?: string[];
+    /** 三级子命令的参数补全（如 spec fingerprint 的 --change / --json） */
+    subcommandFlags?: Record<string, string[]>;
+}[] = [
     {
         name: 'init',
         description: '生成全部技能与指令到当前项目',
@@ -68,9 +75,10 @@ const IAGENT_COMMANDS: { name: string; description: string; flags: string[]; sub
     },
     {
         name: 'spec',
-        description: '规格驱动工作流（new/status/migrate/validate/instructions/archive/render/sidecar）',
+        description: '规格驱动工作流（new/status/migrate/validate/instructions/archive/render/sidecar/fingerprint）',
         flags: [],
-        subcommands: ['new', 'status', 'migrate', 'validate', 'instructions', 'archive', 'render', 'sidecar'],
+        subcommands: ['new', 'status', 'migrate', 'validate', 'instructions', 'archive', 'render', 'sidecar', 'fingerprint'],
+        subcommandFlags: { fingerprint: ['--change', '--json'] },
     },
 ];
 
@@ -84,6 +92,27 @@ export function generateBashCompletion(): string {
     const commandList = IAGENT_COMMANDS.map((c) => c.name).join(' ');
     const caseBlocks = IAGENT_COMMANDS.map((cmd) => {
         const flags = cmd.flags.join(' ');
+        // 三级参数补全（如 spec fingerprint）：优先于二级子命令名
+        if (cmd.subcommandFlags !== undefined) {
+            const subFlagCases = Object.entries(cmd.subcommandFlags)
+                .map(
+                    ([sub, subFlags]) => `          ${sub})
+            COMPREPLY=($(compgen -W "${subFlags.join(' ')}" -- "$cur"))
+            ;;`
+                )
+                .join('\n');
+            return `    ${cmd.name})
+      if [[ $COMP_CWORD -eq 3 ]]; then
+        case "\${COMP_WORDS[2]}" in
+${subFlagCases}
+        esac
+      elif [[ $cur == -* ]]; then
+        COMPREPLY=($(compgen -W "${flags}" -- "$cur"))
+      elif [[ $COMP_CWORD -eq 2 ]]; then
+        COMPREPLY=($(compgen -W "${(cmd.subcommands ?? []).join(' ')}" -- "$cur"))
+      fi
+      ;;`;
+        }
         // 嵌套子命令组：第二级补全子命令名；普通命令：仅 flags
         const tail =
             cmd.subcommands === undefined
@@ -131,6 +160,21 @@ export function generatePowerShellCompletion(): string {
 
     const flagSwitchCases = IAGENT_COMMANDS.map((cmd) => {
         const flagList = cmd.flags.map((f) => `"${f}"`).join(', ');
+        // 三级参数补全（如 spec fingerprint）：优先于二级子命令名
+        const subFlagBlock =
+            cmd.subcommandFlags === undefined
+                ? ''
+                : Object.entries(cmd.subcommandFlags)
+                      .map(
+                          ([sub, subFlags]) => `
+            if ($commandCount -ge 3 -and $tokens[2] -eq '${sub}') {
+                @(${subFlags.map((flag) => `'${flag}'`).join(', ')}) | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {
+                    [System.Management.Automation.CompletionResult]::new($_, $_, "ParameterName", "")
+                }
+                return
+            }`
+                      )
+                      .join('');
         // 嵌套子命令组：第二级补全子命令名
         const subcommandBlock =
             cmd.subcommands === undefined
@@ -140,7 +184,7 @@ export function generatePowerShellCompletion(): string {
                     [System.Management.Automation.CompletionResult]::new($_, $_, "ParameterValue", "${cmd.description}")
                 }
             }`;
-        return `        '${cmd.name}' {
+        return `        '${cmd.name}' {${subFlagBlock}
             if ($wordToComplete -like '-*') {
                 $flags = @(${flagList})
                 $flags | Where-Object { $_ -like "$wordToComplete*" } | ForEach-Object {

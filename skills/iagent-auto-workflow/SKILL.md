@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:a5741dcfc061d74b9fbaccc33b16cdb05813723161c510f97b657a534d659f2f"
+  generatedFingerprint: "sha256:a11ab4c483a42db888ec46fb5f5b2e98f8038b70929fe82a6f60fea8325197e1"
 ---
 
 
@@ -55,6 +55,10 @@ metadata:
 > 跨变更索引重建类动作已随索引能力退役（DEC-2），不构成任何门或动作。
 
 ---
+## 执行方式与增量复验（强制）
+
+分级执行：Phase 1 内联；Phase 2/4/5 子代理；Phase 3 默认子代理，可内联但须非作者（independence=independent）+ 检查清单；iagent-test 为 Phase 4 条件子阶段。增量复验：FAIL 修复后新开只读代理，传 changeName / fixDiff / 上轮 reportPath，禁止 resume 充当复验，并对未覆盖范围输出 residual 清单。串联：先 iagent-spec-verify-proposal 后 iagent-proposal-review。子代理先读 handoff 包「## 制品清单」并按锚点增量读取，回执写 readScope；「## 阶段结论」5 列（tokens 可用时填 tokens=<数值>，不可得填 —）。
+
 ## Phase 1: Exploration（委派 iagent-spec-explore，交互阶段）
 
 Phase 1 SHALL 经 **Skill 工具内联**委派阶段 `iagent-spec-explore`（传 `mode=delegated`）执行强制检查点体系探索（强制建探索文件、提示词校验门、CONTEXT.md 检查、CodeGraph 基础扫描含多项目派发与深度分析、L1-L5 grill 追问、功能流程图与流程最终确认门、聚合一致性门、探索完成检测），MUST NOT 内联执行探索逻辑。探索是**交互阶段**，MUST NOT 放入隔离子代理（提示词门 / 流程门需与用户交互）。

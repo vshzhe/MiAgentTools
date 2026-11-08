@@ -143,6 +143,36 @@ export function isWhitelistedGate(gateId: string): boolean {
     return GATE_WHITELIST_ANCHORS.includes(gateId);
 }
 
+/**
+ * 阶段实际执行方式（变更 improve-orchestration-execution-mode）。
+ *
+ * - `subagent`：经子代理执行（变更类阶段）
+ * - `inline`：由当前主代理内联执行（探索 / 交互 / 收束类阶段）
+ * - `local-degraded`：degraded 宿主的本地执行（不构成委派）
+ */
+export type ExecutionMode = 'subagent' | 'inline' | 'local-degraded';
+
+/** 全部执行方式（展示与取值域校验用） */
+export const EXECUTION_MODES: readonly ExecutionMode[] = ['subagent', 'inline', 'local-degraded'];
+
+/** 验证独立性：`independent` 非作者 / `self` 作者自证 */
+export type Independence = 'independent' | 'self';
+
+/** 全部独立性取值（展示与取值域校验用） */
+export const INDEPENDENCE_VALUES: readonly Independence[] = ['independent', 'self'];
+
+/**
+ * 阶段执行方式声明（可选）。
+ *
+ * - `allowed`：strict 宿主允许的执行方式；不含 `inline` 即要求子代理。
+ * - `independence`：内联验证的独立性要求 —— `required` 要求非作者；
+ *   `self-allowed` 允许自证但记 WARN；缺省不校验。
+ */
+export interface PhaseExecutionSpec {
+    allowed: readonly ExecutionMode[];
+    independence?: 'required' | 'self-allowed';
+}
+
 /** 阶段输入契约 */
 export interface PhaseInput {
     /** 必需输入字段 */
@@ -173,6 +203,8 @@ export interface PhaseSpec {
     receipt: ReceiptSpec;
     /** 阶段确认门（可选） */
     gate?: GateSpec;
+    /** 阶段执行方式声明（可选；缺省不校验执行方式，兼容旧阶段） */
+    execution?: PhaseExecutionSpec;
     /** 阶段重试策略（可选；缺省不自动重试） */
     retry?: RetryPolicy;
 }
@@ -251,6 +283,25 @@ export interface Receipt {
      * 回执是账本的**上游真源**：账本条目 MUST NOT 超出本字段声明的已确认门。
      */
     confirmedGates?: string[];
+    /** 本阶段实际执行方式（可选；是否必需由 `PhaseSpec.execution` 决定）。 */
+    executionMode?: ExecutionMode;
+    /** 验证独立性（内联验证时使用；`self` 表示作者自证并记 WARN）。 */
+    independence?: Independence;
+    /** 用量（宿主可用时；不可得省略，MUST NOT 编造）。 */
+    usage?: ReceiptUsage;
+    /** 实际读取的文件与章节（D6 制品清单读取范围）。 */
+    readScope?: string[];
+    /** 上游输入（如上一验证报告路径）。 */
+    dependsOn?: string[];
+    /** 是否 resume 上下文重放（复验时用于 WARN）。 */
+    contextReplay?: boolean;
+}
+
+/** 回执用量（全部可选；非负数） */
+export interface ReceiptUsage {
+    tokens?: number;
+    toolCalls?: number;
+    durationMs?: number;
 }
 
 /** 回执校验结果 */
@@ -297,6 +348,10 @@ export function validateReceipt(receipt: Partial<Receipt>, spec: ReceiptSpec): R
     if (optionalStringIssue !== undefined) {
         return { valid: false, missing, reason: optionalStringIssue };
     }
+    const executionIssue = validateExecutionFields(receipt);
+    if (executionIssue !== undefined) {
+        return { valid: false, missing, reason: executionIssue };
+    }
     if (missing.length > 0) {
         return { valid: false, missing, reason: `回执缺少必需字段：${missing.join(', ')}` };
     }
@@ -328,6 +383,62 @@ function validateOptionalReceiptStrings(receipt: Partial<Receipt>): string | und
  *
  * @returns 违规原因（合法或字段缺失时 undefined）
  */
+/**
+ * 校验执行方式 / 独立性 / 用量 / 读取范围 / 依赖字段（仅在字段出现时）。
+ *
+ * 字段是否必需由 `PhaseSpec.execution` 决定，本函数只校验形状与取值域；
+ * 旧回执（不含这些字段）保持合法。
+ */
+function validateExecutionFields(receipt: Partial<Receipt>): string | undefined {
+    const mode = receipt.executionMode;
+    if (mode !== undefined && !(EXECUTION_MODES as readonly string[]).includes(mode)) {
+        return `回执 executionMode 非法：${String(mode)}（可选：${EXECUTION_MODES.join(' / ')}）`;
+    }
+    const independence = receipt.independence;
+    if (
+        independence !== undefined &&
+        !(INDEPENDENCE_VALUES as readonly string[]).includes(independence)
+    ) {
+        return `回执 independence 非法：${String(independence)}（可选：${INDEPENDENCE_VALUES.join(' / ')}）`;
+    }
+    if (receipt.usage !== undefined) {
+        const usage: unknown = receipt.usage;
+        if (typeof usage !== 'object' || usage === null || Array.isArray(usage)) {
+            return '回执 usage 必须是对象';
+        }
+        for (const key of ['tokens', 'toolCalls', 'durationMs'] as const) {
+            const value = (usage as Record<string, unknown>)[key];
+            if (value === undefined) {
+                continue;
+            }
+            if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+                return `回执 usage.${key} 必须是非负数`;
+            }
+            if (key === 'toolCalls' && !Number.isInteger(value)) {
+                return '回执 usage.toolCalls 必须是非负整数';
+            }
+        }
+    }
+    for (const key of ['readScope', 'dependsOn'] as const) {
+        const raw: unknown = receipt[key];
+        if (raw === undefined) {
+            continue;
+        }
+        if (!Array.isArray(raw) || raw.length === 0) {
+            return `回执 ${key} 必须是非空字符串数组`;
+        }
+        for (const item of raw as unknown[]) {
+            if (typeof item !== 'string' || item.trim() === '') {
+                return `回执 ${key} 含空串或非字符串元素`;
+            }
+        }
+    }
+    if (receipt.contextReplay !== undefined && typeof receipt.contextReplay !== 'boolean') {
+        return '回执 contextReplay 必须是布尔值';
+    }
+    return undefined;
+}
+
 function validateConfirmedGates(raw: string[] | undefined): string | undefined {
     if (raw === undefined) {
         return undefined;

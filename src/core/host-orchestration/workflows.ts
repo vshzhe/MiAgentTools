@@ -27,7 +27,9 @@ const RECEIPT = { fields: DEFAULT_RECEIPT_FIELDS } as const;
 const EXPLORE_PHASE: PhaseSpec = {
     id: 'explore',
     input: TOPIC_INPUT,
-    requiredCapabilities: ['skill-load', 'argument-passing', 'delegate', 'receipt', 'gate'],
+    // 探索内联阶段不要求 delegate：strict 缺委派能力时仍可执行探索（交互门）。
+    requiredCapabilities: ['skill-load', 'argument-passing', 'receipt', 'gate'],
+    execution: { allowed: ['inline'] },
     handoff: ['explorationFile', 'promptBaseline', 'flowBaseline', 'flowBaselineConfirmed', 'pendingSymbols'],
     receipt: RECEIPT,
     gate: { id: 'flow-final-confirmation', blocking: true },
@@ -39,6 +41,7 @@ const PROPOSE_PHASE: PhaseSpec = {
     id: 'propose',
     input: EXPLORATION_INPUT,
     requiredCapabilities: ['skill-load', 'delegate', 'receipt'],
+    execution: { allowed: ['subagent'] },
     // `explorationFile` / `handoffPackPath` / `sourceFingerprint`：供父级以磁盘路径推进后续阶段，
     // MUST NOT 依赖会话缓存（见 spec host-orchestration / Shared workflow protocol）。
     handoff: ['changeName', 'artifacts', 'applyReady', 'explorationFile', 'handoffPackPath', 'sourceFingerprint'],
@@ -50,7 +53,9 @@ const PROPOSE_PHASE: PhaseSpec = {
 const VERIFY_PHASE: PhaseSpec = {
     id: 'verify',
     input: ARTIFACTS_INPUT,
-    requiredCapabilities: ['skill-load', 'delegate', 'receipt', 'state'],
+    // 只读验证允许内联：不强制 delegate；内联时要求非作者（independence=required）。
+    requiredCapabilities: ['skill-load', 'receipt', 'state'],
+    execution: { allowed: ['subagent', 'inline'], independence: 'required' },
     handoff: ['score', 'deepReview', 'reviewSummary', 'reportPath'],
     receipt: RECEIPT,
     retry: { maxAttempts: 2, on: ['score-below-threshold'] },
@@ -61,6 +66,7 @@ const APPLY_PHASE: PhaseSpec = {
     id: 'apply',
     input: { required: ['changeName'], optional: ['autoMode'] },
     requiredCapabilities: ['delegate', 'receipt', 'state'],
+    execution: { allowed: ['subagent'] },
     // `confirmedGates`：交付桥确认后写入门账本的事实随回执交付（门承载语义，非阶段门 id）
     handoff: ['tasksCompleted', 'compileResult', 'receipts', 'confirmedGates'],
     receipt: RECEIPT,
@@ -73,6 +79,7 @@ const ARCHIVE_PHASE: PhaseSpec = {
     id: 'archive',
     input: { required: ['changeName'] },
     requiredCapabilities: ['delegate', 'receipt', 'state'],
+    execution: { allowed: ['subagent'] },
     handoff: ['archivePath', 'specsSynced'],
     receipt: RECEIPT,
     gate: { id: 'archive-confirmation', blocking: true },
@@ -87,6 +94,7 @@ const AUTO_APPLY_PHASE: PhaseSpec = {
     id: 'apply',
     input: { required: ['changeName'], optional: ['autoMode'] },
     requiredCapabilities: ['delegate', 'receipt', 'state'],
+    execution: { allowed: ['subagent'] },
     handoff: ['tasksCompleted', 'compileResult', 'receipts', 'confirmedGates'],
     receipt: RECEIPT,
     retry: { maxAttempts: 3, on: ['compile-failed', 'test-failed'] },
@@ -97,6 +105,7 @@ const AUTO_ARCHIVE_PHASE: PhaseSpec = {
     id: 'archive',
     input: { required: ['changeName'] },
     requiredCapabilities: ['delegate', 'receipt', 'state'],
+    execution: { allowed: ['subagent'] },
     handoff: ['archivePath', 'specsSynced'],
     receipt: RECEIPT,
     retry: { maxAttempts: 2, on: ['sync-failed'] },
@@ -111,7 +120,9 @@ const AUTO_ARCHIVE_PHASE: PhaseSpec = {
 const DEBUG_INVESTIGATE: PhaseSpec = {
     id: 'investigate',
     input: { required: ['bugDescription'] },
-    requiredCapabilities: ['skill-load', 'delegate', 'receipt', 'gate'],
+    // 交互阶段：诊断 + 方案确认由主代理内联完成，不要求 delegate。
+    requiredCapabilities: ['skill-load', 'receipt', 'gate'],
+    execution: { allowed: ['inline'] },
     handoff: ['rootCause', 'defectChain', 'changeName', 'affectedSymbols', 'fixDecision'],
     receipt: RECEIPT,
     gate: { id: 'diagnostic-confirmation', blocking: true },
@@ -123,6 +134,7 @@ const DEBUG_FIX: PhaseSpec = {
     id: 'fix',
     input: { required: ['rootCause', 'defectChain', 'changeName', 'fixDecision'] },
     requiredCapabilities: ['delegate', 'receipt', 'state'],
+    execution: { allowed: ['subagent'] },
     handoff: ['fixApplied', 'regressionTests'],
     receipt: RECEIPT,
     gate: { id: 'fix-option-confirmation', blocking: true, condition: 'multiple-fix-options' },
@@ -136,7 +148,9 @@ const DEBUG_VERIFY_CLOSE: PhaseSpec = {
         required: ['changeName', 'fixApplied'],
         optional: ['regressionTests', 'compileResult'],
     },
-    requiredCapabilities: ['skill-load', 'delegate', 'receipt', 'state'],
+    // 收束阶段由主代理内联；内部验证 / 复查为嵌套子代理，不要求阶段级 delegate。
+    requiredCapabilities: ['skill-load', 'receipt', 'state'],
+    execution: { allowed: ['inline'] },
     handoff: ['verificationResult', 'deepReview', 'archiveReady'],
     receipt: RECEIPT,
     retry: { maxAttempts: 2, on: ['score-below-threshold'] },

@@ -432,6 +432,13 @@ export function getProposalReviewSkillTemplate(): SkillTemplate {
 
 ---
 
+## 执行方式与串联（强制）
+
+- 默认经前台 Agent 子代理执行；允许内联但须「非作者 + 检查清单」；independence=self 记 WARN 且不视为合规。
+- **串联**：优先读取 iagent_spec_verify_proposal 的回执 reportPath 作为输入，标 dependsOn: [reportPath]；对报告已覆盖的维度只做增量核对，MUST NOT 重复全量读取或重跑 D1-D10 评分。
+- 报告缺失 / 不可读 → 退化为独立全量复查并记 WARN。
+- 回执 SHALL 含 executionMode / independence / readScope / dependsOn。
+
 ## Phase 1: 加载变更提案
 
 \`\`\`bash

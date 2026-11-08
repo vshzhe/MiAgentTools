@@ -22,7 +22,7 @@ const BATCH_SCHEDULING_FULL = `6. **实现任务（批调度循环，直至完�
    - **头部固定元信息**：\`change: <name>\` / \`producedBy: propose|apply\` / \`producedAt: <ISO>\` / \`sourceFingerprint: <hash>\`
    - **指纹校验**：阶段入口比对当前制品（proposal / design / specs / tasks）的内容指纹；与 \`sourceFingerprint\` 不一致 → 重建整包并记 WARN，MUST NOT 静默沿用陈旧包
    - handoff 包是子代理**唯一**必读的制品：每个子代理只读该包（+ 自己单元的任务清单），变更目录中的其他内容一律不读
-   - 包内章节固定为六节 + \`## 已确认门\`（门账本，**与六节并列、不计入六节**）+ 可选 \`## 阶段结论\`（六节顺序如下）：
+   - 包内章节固定为六节 + 制品清单（位于契约节之后、规范要点节之前；**与六节并列、不计入六节**）+ \`## 已确认门\`（门账本，**与六节并列、不计入六节**）+ 可选 \`## 阶段结论\`（六节顺序如下）：
      - \`## 变更摘要\` — 从 proposal.md 蒸馏出的变更要点（why/whatChanges）：本变更做什么、为什么
      - \`## 契约\` — 从 specs + design 蒸馏出的接口签名 / 数据结构 / 表字段
      - \`## 规范要点\` — 编排器一次性蒸馏出的 \`.iagent/rules/coding-rules.md\` 关键护栏（绝不由各子代理分别蒸馏）
@@ -30,7 +30,7 @@ const BATCH_SCHEDULING_FULL = `6. **实现任务（批调度循环，直至完�
      - \`## Codebase 摘要\` — 预扫描 / 探查摘要结论（分层 / 依赖事实，否则子代理需重新推导）
      - \`## 已产出（跨单元可见）\` — 产出登记表：已产出文件 + 公开签名，每批结束后追加
      - \`## 已确认门\`（门账本；**不是第七个内容节**，不改变六节语义与相对顺序）— 每行一个已确认门：Markdown 表格行 \`| <门承载 id> | <确认阶段> |\`（表头 \`| 门 id | 确认阶段 |\` 与分隔行 \`| --- | --- |\` 由解析侧跳过）。门 id 值域收敛到 \`GATE_SKIP_IDS\`（当前仅 \`design-confirmation\`），条目只表达「该门已由父级承载」，MUST NOT 记录业务决策正文、MUST NOT 写入父级阶段门 id；父级在门确认后立即写、委派前校验存在，本技能（及 verify / archive）**只读**该段，MUST NOT 改写既有条目
-     - \`## 阶段结论\`（可选，**只追加不改写**）— 每阶段一条，四列：\`phase\` / \`status\` / \`artifact\` / \`nextAllowed\`
+     - \`## 阶段结论\`（可选，**只追加不改写**）— 每阶段一条，五列：\`phase\` / \`status\` / \`artifact\` / \`nextAllowed\` / \`tokens\`（可用时填 \`tokens=<数值>\`，不可得填 \`—\`）
    - 产出后编排器 MUST NOT 重产整包 —— 只允许向 \`## 已产出（跨单元可见）\`、\`## 已确认门\`（仅追加新条目，MUST NOT 改写父级既有条目）与 \`## 阶段结论\` **追加**内容（见批后步骤）
 
    **派发前加载并发上限：**
@@ -240,10 +240,10 @@ const COMPILE_CHECK_DETAIL = `# 编译检查细则（spec-apply Step 8）
 
 \`reason\` 的两种非执行文案固定为「未探测到可编译产物」/「项目级显式禁用」；MUST NOT 留空、MUST NOT 使用 \`N/A\` 等变体（父流程按固定列解析）。
 
-handoff 包 \`## 阶段结论\` 追加行（四列，status 用**编译四值**）：
+handoff 包 \`## 阶段结论\` 追加行（五列，status 用**编译四值**，tokens 不可得填 \`—\`）：
 
 \`\`\`markdown
-| compile | pass | .openspec-tmp/pipeline-add-x/compile-report.md | archive |
+| compile | pass | .openspec-tmp/pipeline-add-x/compile-report.md | archive | — |
 \`\`\`
 
 ## 6. 终态判定表
@@ -289,6 +289,13 @@ ${renderGateWhitelistSection()}
 **Input**: 可选指定变更名；省略时检查能否从对话上下文推断。若含糊或有歧义，MUST 提示可用变更供用户选择。工作流可传入 \`${renderGateSkipOption(GATE_SKIP_IDS)}\` 以跳过设计确认门，实现自动执行（\`${LEGACY_AUTO_MODE_PARAM}=true\` 为同语义的兼容写法；两者都**只**跳过设计确认门）。
 
 ${renderDelegationModeContract()}
+
+**执行方式与增量复验（强制）**：
+
+- 本阶段默认经前台 Agent 子代理执行，回执声明 executionMode=subagent；iagent_test 子阶段经子代理。
+- 子代理 MUST FIRST 读 handoff 包「## 制品清单」，按锚点增量读取；回执写 readScope。
+- 增量复验：验证 FAIL 修复后新开只读代理，传 fixDiff + 上轮 reportPath；只验证增量并对未覆盖范围输出 residual 清单；禁止 resume 充当复验（contextReplay=true 记 WARN）。
+- 「## 阶段结论」使用 5 列（含 tokens），不可得填 —；指纹优先 iagent spec fingerprint --change <name>。
 
 **Steps**
 
@@ -467,7 +474,7 @@ ${renderDelegationModeContract()}
    **8.8 写入编译证据（四终态均须产出，无终态可免写）**
    - 证据文件：\`.openspec-tmp/pipeline-<change-name>/compile-report.md\`（\`path.join()\` 构造），九列固定 \`change\` / \`command\` / \`exitCode\` / \`errorCount\` / \`fixedCount\` / \`status\` / \`scope\` / \`timestamp\` / \`reason\`，每次执行一行；文末汇总行 \`**summary**: status=<...>, commands=<n>, totalErrors=<n>, totalFixed=<n>\`（任一命令行 \`fail\` → \`fail\`；否则全部 \`pass\` → \`pass\`；零命令时只能是 \`not-applicable\` 或 \`disabled\`）
    - 非执行终态（\`not-applicable\` / \`disabled\`）的 \`command\` / \`exitCode\` / \`scope\` 记 \`-\`，\`errorCount\` / \`fixedCount\` 记 \`0\`，\`reason\` 分别写「未探测到可编译产物」/「项目级显式禁用」；MUST NOT 留空，MUST NOT 用 \`N/A\` 等自由文本变体
-   - 向 handoff 包 \`## 阶段结论\` 追加一行 \`| compile | <编译四值> | <证据路径> | <nextAllowed> |\`（包缺失时先按六节协议产出一次）；该行 status 使用编译四值（\`pass\` / \`fail\` / \`not-applicable\` / \`disabled\`），MUST NOT 写成回执状态
+   - 向 handoff 包 \`## 阶段结论\` 追加一行 \`| compile | <编译四值> | <证据路径> | <nextAllowed> | — |\`（包缺失时先按六节协议产出一次）；该行 status 使用编译四值（\`pass\` / \`fail\` / \`not-applicable\` / \`disabled\`），MUST NOT 写成回执状态
 
    **8.9 终态判定（硬门，无会话级跳过出口）**
    - \`pass\` → 进入 Step 9

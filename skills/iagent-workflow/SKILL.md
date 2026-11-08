@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:d9c38488cd15cc336201d2e31abc7f0b8f837b207ccf4bcd8685eca910275849"
+  generatedFingerprint: "sha256:f65789845e6978ca4cbf1be6617065699c3c931024ae01e4e007c60b5076e9b0"
 ---
 
 
@@ -58,7 +58,8 @@ metadata:
 
 **handoff 包（跨阶段只读复用）**：`iagent-spec-propose` 在 Phase 2 定稿时产出 `.openspec-tmp/pipeline-<change-name>/handoff-pack.md`；Phase 3 / 4 / 5 的阶段入口读取该包（`sourceFingerprint` 与制品不一致 → 重建 + WARN），各阶段收尾只向 `## 阶段结论` 追加一行（`phase` / `status` / `artifact` / `nextAllowed`）；MUST NOT 另立包格式或重产整包。
 
----
+**执行方式与增量复验（强制）**：分级执行：Phase 1 内联；Phase 2/4/5 子代理；Phase 3 默认子代理，可内联但须非作者（independence=independent）+ 检查清单。增量复验：FAIL 修复后新开只读代理，传 changeName / fixDiff / 上轮 reportPath，禁止 resume 充当复验，并对未覆盖范围输出 residual 清单。串联：先 iagent-spec-verify-proposal 后 iagent-proposal-review。子代理先读 handoff 包「## 制品清单」并按锚点增量读取，回执写 readScope；「## 阶段结论」5 列（tokens 可用时填 tokens=<数值>，不可得填 —）。
+
 ## Phase 1: 探索（委派 iagent-spec-explore，交互阶段）
 
 Phase 1 SHALL 经 **Skill 工具内联**委派阶段 `iagent-spec-explore`（传 `mode=delegated`）执行强制检查点体系探索（强制建探索文件、提示词校验门、CONTEXT.md 检查、CodeGraph 基础扫描含多项目派发与深度分析、L1-L5 grill 追问、功能流程图与流程最终确认门、聚合一致性门、探索完成检测），MUST NOT 内联执行探索逻辑。探索是**交互阶段**，MUST NOT 放入隔离子代理（提示词门 / 流程门需与用户交互）。
@@ -457,7 +458,6 @@ All artifacts ready! Proceeding to the Phase 4 implementation bridge...
 - 在 Windows、macOS、Linux 上验证路径操作
 - 需要绝对路径时用 `path.resolve()`
 
----
 ## Guardrails
 
 - **不要跳过追问** - 一直问到真正清晰为止

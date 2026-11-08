@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:01081c81bfe68945e263c7c002721bdcae8e469cf4a7952bae349160e12cda05"
+  generatedFingerprint: "sha256:242299c00204fdde781d01441bebc026c1e0c968e94f6d14864117b8bd722efe"
 ---
 
 
@@ -113,6 +113,10 @@ metadata:
 ```
 
 ---
+## 执行方式与增量复验（强制）
+
+investigate / verify-close 内联；fix 按 bug 派发单元经子代理；iagent-test 子阶段经子代理。增量复验：FAIL 修复后新开只读代理，传 changeName / fixDiff / 上轮 reportPath，禁止 resume 充当复验，并对未覆盖范围输出 residual 清单。verify-close 内先 iagent-spec-verify-proposal 后 iagent-proposal-review。子代理先读 handoff 包「## 制品清单」并按锚点增量读取，回执写 readScope；「## 阶段结论」5 列（tokens 可用时填 tokens=<数值>，不可得填 —）。
+
 ## Phase 1: 复现（双轨入口：默认复现优先，证据优先为条件轨道）
 
 **⚠️ 强制: 在修改任何代码之前 MUST 先建立可验证的缺陷证据 —— 默认轨道是复现（失败测试或用户确认的显式步骤）；仅在无复现条件时启用证据优先轨道（`文件:行` / 日志 / 测试硬证据）。两轨均无硬证据时只报告候选、不修复（零假设原则）。**

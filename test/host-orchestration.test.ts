@@ -357,6 +357,7 @@ describe('debug 三阶段协议与条件修复门（4.4）', () => {
                 status: 'ok',
                 artifact: 'fix.md',
                 nextAllowed: 'verify-close',
+                executionMode: 'subagent',
             } as never,
             gateConfirmed: false,
             gateConditions: { 'multiple-fix-options': false },
@@ -374,6 +375,7 @@ describe('debug 三阶段协议与条件修复门（4.4）', () => {
                 status: 'ok',
                 artifact: 'fix.md',
                 nextAllowed: 'verify-close',
+                executionMode: 'subagent',
             } as never,
             gateConfirmed: false,
             gateConditions: { 'multiple-fix-options': true },
@@ -1170,5 +1172,237 @@ describe('回执 confirmedGates（门账本镜像）', () => {
         expect(result.advance).toBe(false);
         expect(result.blockedBy).toContain(TRANSITION_BLOCKERS.receipt);
         expect(result.warnings.join('\n')).toContain('confirmedGates');
+    });
+});
+
+// 变更 improve-orchestration-execution-mode / 任务 1.3 / 1.4：回执执行方式与数据共享字段。
+describe('回执执行方式与数据共享字段（1.3 / 1.4）', () => {
+    const spec = { fields: DEFAULT_RECEIPT_FIELDS };
+    const base = {
+        phase: 'apply',
+        status: 'ok' as const,
+        artifact: 'tasks.md',
+        nextAllowed: 'verify',
+    };
+
+    it('合法扩展字段通过校验（executionMode / independence / usage / readScope）', () => {
+        const result = validateReceipt(
+            {
+                ...base,
+                executionMode: 'subagent',
+                independence: 'independent',
+                usage: { tokens: 1200, toolCalls: 8 },
+                readScope: ['proposal.md#Why'],
+            },
+            spec
+        );
+        expect(result.valid).toBe(true);
+        expect(result.missing).toEqual([]);
+    });
+
+    it('非法取值域被拒并附原因（executionMode / usage / 数组元素 / independence / contextReplay）', () => {
+        const cases: Array<{ label: string; extra: Record<string, unknown>; pattern: RegExp }> = [
+            { label: 'executionMode=agent', extra: { executionMode: 'agent' }, pattern: /executionMode/ },
+            { label: 'executionMode 非字符串', extra: { executionMode: 123 }, pattern: /executionMode/ },
+            { label: '负 usage.tokens', extra: { usage: { tokens: -1 } }, pattern: /usage\.tokens/ },
+            { label: 'usage.toolCalls 非整数', extra: { usage: { toolCalls: 1.5 } }, pattern: /toolCalls/ },
+            { label: 'readScope 含空串元素', extra: { readScope: ['proposal.md#Why', ''] }, pattern: /readScope/ },
+            { label: 'dependsOn 空数组', extra: { dependsOn: [] }, pattern: /dependsOn/ },
+            { label: 'independence=partial', extra: { independence: 'partial' }, pattern: /independence/ },
+            { label: 'contextReplay 非布尔', extra: { contextReplay: 'true' }, pattern: /contextReplay/ },
+        ];
+        for (const { label, extra, pattern } of cases) {
+            const result = validateReceipt({ ...base, ...extra } as never, spec);
+            expect(result.valid, `${label} 被误判为合法`).toBe(false);
+            expect(result.reason ?? '', label).toMatch(pattern);
+        }
+    });
+
+    it('旧回执（仅四字段 + status=ok）仍合法（缺失新字段 fail-safe）', () => {
+        const result = validateReceipt(
+            { phase: 'apply', status: 'ok', artifact: 'tasks.md', nextAllowed: 'verify' },
+            spec
+        );
+        expect(result.valid).toBe(true);
+        expect(result.missing).toEqual([]);
+    });
+
+    it('usage 缺失时回执仍合法，且校验器不补默认值、不改写输入', () => {
+        const receipt = Object.freeze({ ...base, executionMode: 'subagent' as const });
+        const result = validateReceipt(receipt, spec);
+        expect(result.valid).toBe(true);
+        // 不得编造 tokens：输入不被写入 usage，校验结果也不回填
+        expect((receipt as { usage?: unknown }).usage).toBeUndefined();
+        expect('usage' in result).toBe(false);
+    });
+
+    it('usage 未知键不导致校验失败（MUST NOT 被消费）', () => {
+        const result = validateReceipt(
+            { ...base, usage: { tokens: 12, toolCalls: 3, unknownMetric: 99 } as never },
+            spec
+        );
+        expect(result.valid).toBe(true);
+    });
+});
+
+// 变更 improve-orchestration-execution-mode / 任务 2.4：阶段推进校验执行方式与独立性。
+describe('阶段推进校验执行方式（2.4）', () => {
+    const workflowApply = () => getWorkflowProtocol('workflow')!.phases.find((phase) => phase.id === 'apply')!;
+    const workflowVerify = () => getWorkflowProtocol('workflow')!.phases.find((phase) => phase.id === 'verify')!;
+    const okReceipt = (phase: string, extra: Record<string, unknown> = {}) => ({
+        phase,
+        status: 'ok' as const,
+        artifact: 'artifact.md',
+        nextAllowed: 'next',
+        ...extra,
+    });
+
+    it('strict apply 返回 executionMode=inline → advance=false 且 blockedBy 含 invalid-receipt', () => {
+        const result = evaluatePhaseTransition({
+            phase: workflowApply(),
+            receipt: okReceipt('apply', { executionMode: 'inline' }),
+            gateConfirmed: true,
+            negotiation: negotiateCapabilities('claude', 'strict'),
+        });
+        expect(result.advance).toBe(false);
+        expect(result.blockedBy).toContain(TRANSITION_BLOCKERS.receipt);
+        expect(result.warnings.join('\n')).toContain('executionMode=inline');
+    });
+
+    it('verify 内联 independence=self → WARN 且仍可推进', () => {
+        const result = evaluatePhaseTransition({
+            phase: workflowVerify(),
+            receipt: okReceipt('verify', { executionMode: 'inline', independence: 'self' }),
+            gateConfirmed: true,
+            negotiation: negotiateCapabilities('claude', 'strict'),
+        });
+        expect(result.advance).toBe(true);
+        expect(result.blockedBy).toEqual([]);
+        expect(result.warnings.join('\n')).toContain('作者自证');
+    });
+
+    it('degraded 声称 subagent → WARN 按不实声明处理', () => {
+        const result = evaluatePhaseTransition({
+            phase: workflowApply(),
+            receipt: okReceipt('apply', { executionMode: 'subagent' }),
+            gateConfirmed: true,
+            negotiation: negotiateCapabilities('pi', 'degraded', ['skill-load', 'argument-passing']),
+        });
+        const warnings = result.warnings.join('\n');
+        expect(warnings).toContain('local-degraded');
+        expect(warnings).toContain('MUST NOT');
+        // degraded 的能力缺失由协商层记录，不走 strict 的 missing-capabilities 阻断
+        expect(result.blockedBy).not.toContain(TRANSITION_BLOCKERS.capabilities);
+    });
+
+    it('contextReplay=true → WARN 提示不得计为合规复验', () => {
+        const result = evaluatePhaseTransition({
+            phase: workflowApply(),
+            receipt: okReceipt('apply', { executionMode: 'subagent', contextReplay: true }),
+            gateConfirmed: true,
+            negotiation: negotiateCapabilities('claude', 'strict'),
+        });
+        expect(result.advance).toBe(true);
+        expect(result.warnings.join('\n')).toContain('contextReplay');
+    });
+});
+
+// 变更 improve-orchestration-execution-mode / 任务 2.5：分级执行契约。
+describe('分级执行契约（2.5）', () => {
+    const noDelegate = negotiateCapabilities('pi', 'strict', [
+        'skill-load',
+        'argument-passing',
+        'receipt',
+        'gate',
+        'state',
+    ]);
+
+    it('strict 缺少 delegate 时变更类阶段以 missing-capabilities 阻断', () => {
+        const apply = getWorkflowProtocol('workflow')!.phases.find((phase) => phase.id === 'apply')!;
+        const result = evaluatePhaseTransition({
+            phase: apply,
+            receipt: {
+                phase: 'apply',
+                status: 'ok',
+                artifact: 'tasks.md',
+                nextAllowed: 'verify',
+                executionMode: 'subagent',
+            },
+            gateConfirmed: true,
+            negotiation: noDelegate,
+        });
+        expect(result.advance).toBe(false);
+        expect(result.blockedBy).toContain(TRANSITION_BLOCKERS.capabilities);
+        expect(result.missingCapabilities).toContain('delegate');
+    });
+
+    it('explore / investigate / verify-close 声明 inline 且不要求 delegate，缺委派能力仍可推进', () => {
+        const inlinePhases = [
+            getWorkflowProtocol('workflow')!.phases.find((phase) => phase.id === 'explore')!,
+            getWorkflowProtocol('debug')!.phases.find((phase) => phase.id === 'investigate')!,
+            getWorkflowProtocol('debug')!.phases.find((phase) => phase.id === 'verify-close')!,
+        ];
+        for (const phase of inlinePhases) {
+            expect(phase.requiredCapabilities, `${phase.id} 不应要求 delegate`).not.toContain('delegate');
+            expect(phase.execution?.allowed, `${phase.id} 应允许 inline`).toContain('inline');
+            const result = evaluatePhaseTransition({
+                phase,
+                receipt: {
+                    phase: phase.id,
+                    status: 'ok',
+                    artifact: 'artifact.md',
+                    nextAllowed: 'next',
+                    executionMode: 'inline',
+                },
+                gateConfirmed: true,
+                negotiation: noDelegate,
+            });
+            expect(result.advance, `${phase.id} 被误阻断：${result.blockedBy.join(', ')}`).toBe(true);
+        }
+    });
+
+    it('verify 阶段声明 independence=required（默认子代理，允许内联但须非作者）', () => {
+        for (const workflowId of ['workflow', 'auto-workflow']) {
+            const verify = getWorkflowProtocol(workflowId)!.phases.find((phase) => phase.id === 'verify')!;
+            expect(verify.execution?.independence).toBe('required');
+            expect(verify.execution?.allowed).toContain('subagent');
+            expect(verify.execution?.allowed).toContain('inline');
+        }
+    });
+
+    it('degraded 统一 local-degraded：合规回执无告警，声称 subagent 记 WARN', () => {
+        const degraded = negotiateCapabilities('pi', 'degraded', ['skill-load', 'argument-passing']);
+        const apply = getWorkflowProtocol('workflow')!.phases.find((phase) => phase.id === 'apply')!;
+        const receipt = (executionMode: 'local-degraded' | 'subagent') => ({
+            phase: 'apply',
+            status: 'ok' as const,
+            artifact: 'tasks.md',
+            nextAllowed: 'verify',
+            executionMode,
+        });
+
+        const compliant = evaluatePhaseTransition({
+            phase: apply,
+            receipt: receipt('local-degraded'),
+            gateConfirmed: true,
+            negotiation: degraded,
+        });
+        expect(compliant.warnings.join('\n')).not.toContain('local-degraded');
+
+        const claimed = evaluatePhaseTransition({
+            phase: apply,
+            receipt: receipt('subagent'),
+            gateConfirmed: true,
+            negotiation: degraded,
+        });
+        expect(claimed.warnings.join('\n')).toContain('local-degraded');
+    });
+
+    it('协议不存在顶层 test 阶段（iagent_test 为 apply / fix 子阶段）', () => {
+        for (const [workflowId, protocol] of Object.entries(WORKFLOW_PROTOCOLS)) {
+            expect(protocol.phases.map((phase) => phase.id), `${workflowId} 不应有顶层 test 阶段`).not.toContain(
+                'test'
+            );
+        }
     });
 });

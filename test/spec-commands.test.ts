@@ -306,3 +306,99 @@ describe('spec validate CLI 端到端（起草期 / 终检 / 文本报告）', (
         expect(result.stdout.trim().split('\n').length).toBeGreaterThan(1);
     });
 });
+
+// 变更 improve-orchestration-execution-mode / 任务 4.5：fingerprint CLI 端到端。
+describe('iagent spec fingerprint CLI 端到端（4.5）', () => {
+    const binPath = fileURLToPath(new URL('../bin/iagent.js', import.meta.url));
+    let projectRoot: string;
+
+    beforeEach(() => {
+        projectRoot = makeTempProject();
+    });
+
+    afterEach(() => {
+        fs.rmSync(projectRoot, { recursive: true, force: true });
+    });
+
+    function execCli(args: string[]): { status: number | null; stdout: string; stderr: string } {
+        const result = spawnSync(process.execPath, [binPath, ...args], {
+            cwd: projectRoot,
+            encoding: 'utf8',
+            env: { ...process.env },
+        });
+        return { status: result.status, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
+    }
+
+    /** 目录树快照（相对路径 → 文件内容），用于断言命令不写文件 */
+    function snapshotTree(root: string): string[] {
+        const snapshot: string[] = [];
+        const walk = (dir: string): void => {
+            for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+                const fullPath = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                    walk(fullPath);
+                    continue;
+                }
+                const relative = path.relative(root, fullPath).split(path.sep).join('/');
+                snapshot.push(`${relative}:${fs.readFileSync(fullPath, 'utf8')}`);
+            }
+        };
+        walk(root);
+        return snapshot.sort();
+    }
+
+    it('文本模式仅输出一行 sha256:<16 位>', () => {
+        writeMarkdownChange(projectRoot, 'fingerprint-text', { proposal: true, specs: true, tasks: true });
+
+        const result = execCli(['spec', 'fingerprint', '--change', 'fingerprint-text']);
+
+        expect(result.status).toBe(0);
+        const lines = result.stdout.trim().split('\n');
+        expect(lines).toHaveLength(1);
+        expect(lines[0]).toMatch(/^sha256:[0-9a-f]{16}$/);
+    });
+
+    it('JSON 模式含 fingerprint 与按路径字典序的 artifacts[]', () => {
+        writeMarkdownChange(projectRoot, 'fingerprint-json', { proposal: true, specs: true, tasks: true });
+        const text = execCli(['spec', 'fingerprint', '--change', 'fingerprint-json']);
+
+        const result = execCli(['spec', 'fingerprint', '--change', 'fingerprint-json', '--json']);
+
+        expect(result.status).toBe(0);
+        const payload = JSON.parse(result.stdout) as {
+            changeName: string;
+            changeRoot: string;
+            fingerprint: string;
+            artifacts: Array<{ path: string; size: number; sha256: string }>;
+        };
+        expect(payload.changeName).toBe('fingerprint-json');
+        expect(payload.fingerprint).toBe(text.stdout.trim());
+        expect(Array.isArray(payload.artifacts)).toBe(true);
+        const paths = payload.artifacts.map((artifact) => artifact.path);
+        expect(paths).toEqual([...paths].sort());
+        for (const artifact of payload.artifacts) {
+            expect(artifact.path).not.toContain('\\');
+            expect(typeof artifact.size).toBe('number');
+            expect(artifact.sha256).toMatch(/^[0-9a-f]{64}$/);
+        }
+    });
+
+    it('变更不存在时非零退出且不输出伪造指纹', () => {
+        const result = execCli(['spec', 'fingerprint', '--change', 'ghost-change']);
+
+        expect(result.status).not.toBe(0);
+        const output = `${result.stdout}\n${result.stderr}`;
+        expect(output).toContain('指纹复算失败');
+        expect(output).not.toMatch(/sha256:[0-9a-f]{16}/);
+    });
+
+    it('文本与 JSON 两次调用都不写入或修改任何文件', () => {
+        writeMarkdownChange(projectRoot, 'fingerprint-readonly', { proposal: true, specs: true, tasks: true });
+        const before = snapshotTree(projectRoot);
+
+        execCli(['spec', 'fingerprint', '--change', 'fingerprint-readonly']);
+        execCli(['spec', 'fingerprint', '--change', 'fingerprint-readonly', '--json']);
+
+        expect(snapshotTree(projectRoot)).toEqual(before);
+    });
+});

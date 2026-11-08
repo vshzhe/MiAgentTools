@@ -17,11 +17,13 @@ export function getSpecArchiveChangeSkillTemplate(): SkillTemplate {
 
 在变更工作流中归档一个已完成的变更。
 
-**handoff 包（只读 + 追加）**：若 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\` 存在，本技能**只读**该包并在收尾时只向 \`## 阶段结论\` 追加一行（\`phase=archive\` / \`status\` / \`artifact\` / \`nextAllowed\`）；MUST NOT 重产整包。包内 \`## 已确认门\`（门账本）同样**只读** —— MUST NOT 改写、删除或回填父级已写入的条目（账本条目表达门承载语义，取值域 = \`GATE_SKIP_IDS\`，与六节并列且不计入六节）。包缺失时按需直接读取制品；\`sourceFingerprint\` 与当前制品不一致时记 WARN 并以磁盘制品为准。
+**handoff 包（只读 + 追加）**：若 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\` 存在，本技能**只读**该包并在收尾时只向 \`## 阶段结论\` 追加一行（\`phase=archive\` / \`status\` / \`artifact\` / \`nextAllowed\` / \`tokens\`，tokens 不可得填 \`—\`）；MUST NOT 重产整包。包内 \`## 已确认门\`（门账本）同样**只读** —— MUST NOT 改写、删除或回填父级已写入的条目（账本条目表达门承载语义，取值域 = \`GATE_SKIP_IDS\`，与六节并列且不计入六节）。包缺失时按需直接读取制品；\`sourceFingerprint\` 与当前制品不一致时记 WARN 并以磁盘制品为准。
 
 ${renderGateWhitelistSection()}
 
 **Input**: 可选指定变更名；省略时检查能否从对话上下文推断。若含糊或有歧义，MUST 提示可用变更供用户选择。工作流也可能为自动执行直接传入变更名。
+
+**执行方式与读取范围（强制）**：默认经前台 Agent 子代理执行，回执声明 executionMode / readScope；子代理 MUST FIRST 读 handoff 包「## 制品清单」并按锚点增量读取，回执写 readScope；「## 阶段结论」5 列（tokens 可用时填 tokens=<数值>，不可得填 —）；指纹优先 iagent spec fingerprint --change <name>。
 
 **Steps**
 

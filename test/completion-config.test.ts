@@ -395,3 +395,48 @@ describe('workflows 字段（profile 配置）', () => {
         }
     });
 });
+
+// 变更 improve-orchestration-execution-mode / 任务 4.6：spec 补全表与程序注册一致。
+describe('spec 补全表与 Commander 程序一致性（4.6）', () => {
+    const specSubcommands = buildSpecCommand()
+        .commands.map((command) => command.name())
+        .sort();
+
+    it('bash 二级候选与程序注册子命令完全相同，含 fingerprint、不含 reindex', () => {
+        const script = generateBashCompletion();
+        const match = script.match(/spec\)[\s\S]*?COMP_CWORD -eq 2[\s\S]*?compgen -W "([^"]*)"/);
+        expect(match, '未找到 spec 子命令补全块').not.toBeNull();
+        const listed = match![1].trim().split(/\s+/).sort();
+        expect(listed).toEqual(specSubcommands);
+        expect(listed).toContain('fingerprint');
+        expect(listed).not.toContain('reindex');
+    });
+
+    it('powershell 二级候选同步包含 fingerprint，描述串不再声称旧子命令集', () => {
+        const script = generatePowerShellCompletion();
+        expect(script).toContain("'fingerprint'");
+        expect(script).not.toContain("'reindex'");
+        // 描述串同步为含 fingerprint 的新集合
+        expect(script).toContain('sidecar/fingerprint');
+    });
+
+    it('fingerprint 三级参数补全可见（bash / powershell）', () => {
+        const bash = generateBashCompletion();
+        expect(bash).toMatch(/COMP_CWORD -eq 3[\s\S]*fingerprint\)[\s\S]*--change --json/);
+        const ps = generatePowerShellCompletion();
+        expect(ps).toContain("$tokens[2] -eq 'fingerprint'");
+        expect(ps).toContain("'--change', '--json'");
+    });
+
+    it('fingerprint 参数可从 Commander 程序派生（--change 必填 / --json 可选）', () => {
+        const fingerprint = buildSpecCommand().commands.find(
+            (command) => command.name() === 'fingerprint'
+        );
+        expect(fingerprint).toBeDefined();
+        const change = fingerprint!.options.find((option) => option.long === '--change');
+        expect(change).toBeDefined();
+        expect(change!.flags).toContain('--change <name>');
+        expect(change!.mandatory).toBe(true);
+        expect(fingerprint!.options.map((option) => option.long)).toContain('--json');
+    });
+});

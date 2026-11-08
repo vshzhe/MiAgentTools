@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:6da0c25fe8efc3d3454ad94d2501ffcd80d12fcfce14e0c7ad1ab9af325d0440"
+  generatedFingerprint: "sha256:b3b40aef9b962ce7a0f4b669ed762c26c8bf56f0a414c492641ced06172bb3c0"
 ---
 
 **实现前先阅读 .iagent/rules/coding-rules.md 的 AI 编码护栏。** 禁止猜测数据库字段、API 参数或业务规则 —— 标 **[待确认]** 并询问用户。
@@ -42,6 +42,13 @@ metadata:
 - 轴二 `gate-skip=<gate-id>`（门承载；概念轴名 `gate-policy` 不是参数键）：声明已由父级确认的门，当前取值 `design-confirmation`；未知 gate id 拒绝或忽略并记 WARN。
 - `auto-mode=true` **仅**映射到门承载轴（≡ `gate-skip=design-confirmation`），`mode` 保持调用方原值；MUST NOT 视为 `mode=delegated` 的等价别名。
 - 两轴正交：仅传 `mode=delegated` 时设计确认门等业务门照常触发；仅传 `gate-skip` 时停点与自验证照常生效。
+
+**执行方式与增量复验（强制）**：
+
+- 本阶段默认经前台 Agent 子代理执行，回执声明 executionMode=subagent；iagent-test 子阶段经子代理。
+- 子代理 MUST FIRST 读 handoff 包「## 制品清单」，按锚点增量读取；回执写 readScope。
+- 增量复验：验证 FAIL 修复后新开只读代理，传 fixDiff + 上轮 reportPath；只验证增量并对未覆盖范围输出 residual 清单；禁止 resume 充当复验（contextReplay=true 记 WARN）。
+- 「## 阶段结论」使用 5 列（含 tokens），不可得填 —；指纹优先 iagent spec fingerprint --change <name>。
 
 **Steps**
 
@@ -220,7 +227,7 @@ metadata:
    **8.8 写入编译证据（四终态均须产出，无终态可免写）**
    - 证据文件：`.openspec-tmp/pipeline-<change-name>/compile-report.md`（`path.join()` 构造），九列固定 `change` / `command` / `exitCode` / `errorCount` / `fixedCount` / `status` / `scope` / `timestamp` / `reason`，每次执行一行；文末汇总行 `**summary**: status=<...>, commands=<n>, totalErrors=<n>, totalFixed=<n>`（任一命令行 `fail` → `fail`；否则全部 `pass` → `pass`；零命令时只能是 `not-applicable` 或 `disabled`）
    - 非执行终态（`not-applicable` / `disabled`）的 `command` / `exitCode` / `scope` 记 `-`，`errorCount` / `fixedCount` 记 `0`，`reason` 分别写「未探测到可编译产物」/「项目级显式禁用」；MUST NOT 留空，MUST NOT 用 `N/A` 等自由文本变体
-   - 向 handoff 包 `## 阶段结论` 追加一行 `| compile | <编译四值> | <证据路径> | <nextAllowed> |`（包缺失时先按六节协议产出一次）；该行 status 使用编译四值（`pass` / `fail` / `not-applicable` / `disabled`），MUST NOT 写成回执状态
+   - 向 handoff 包 `## 阶段结论` 追加一行 `| compile | <编译四值> | <证据路径> | <nextAllowed> | — |`（包缺失时先按六节协议产出一次）；该行 status 使用编译四值（`pass` / `fail` / `not-applicable` / `disabled`），MUST NOT 写成回执状态
 
    **8.9 终态判定（硬门，无会话级跳过出口）**
    - `pass` → 进入 Step 9

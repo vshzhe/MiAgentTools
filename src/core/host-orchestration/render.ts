@@ -191,6 +191,15 @@ export function renderHostOrchestrationSection(
         lines.push('- 续跑契约：阶段回执是**中间状态**；`status=ok` 且校验通过后 MUST 在同一用户回合内继续下一阶段；只有门白名单内的确认门是合法停点');
         lines.push('- 失败 / 阻塞：`blocked` / `failed` / `incomplete` MUST NOT 继续；按重试策略暂停并报告 `failure` / `blockedGate` / `blockedReason`');
         lines.push('- 子代理数据：只传 Stage Envelope（路径 + 结构化字段），MUST NOT 内联制品正文或完整 SKILL.md；子代理先读 handoff 包，回执只含 Stage Receipt（≤40 行 / ≤2KB）');
+        lines.push(
+            '- 分级执行：探索 / debug investigate / verify-close 内联；propose / apply / archive / fix 子代理；只读验证默认子代理，内联须非作者（independence=independent）+ 检查清单；iagent_test 为 apply / fix 子阶段'
+        );
+        lines.push(
+            '- 增量复验：验证 FAIL 修复后新开只读代理，只传 fixDiff + 上轮 reportPath；禁止以 resume 充当复验（contextReplay=true 记 WARN）'
+        );
+        lines.push(
+            '- 执行方式回执：executionMode / independence / readScope / dependsOn / contextReplay；inline 阶段不要求 delegate'
+        );
     } else {
         lines.push('本次产物为 **degraded 单 agent 模式**（宿主严格编排能力不可用）。');
         lines.push('');
@@ -204,6 +213,9 @@ export function renderHostOrchestrationSection(
         }
         lines.push('- MUST NOT 把本地串行执行标记为委派完成、子代理回执或严格 gate 通过');
         lines.push('- 每个被跳过的委派 / 回执 / 门控 MUST 记录原因');
+        lines.push(
+            '- 执行方式回执：全部阶段 MUST 为 executionMode=local-degraded，MUST NOT 声称 subagent'
+        );
         lines.push('- 续跑契约：阶段回执是**中间状态**；本地阶段完成后 MUST 在同一用户回合内继续下一阶段；只有门白名单内的确认门是合法停点');
         lines.push('- 恢复 strict 需安装或配置宿主运行时后重新执行 iagent init / update');
     }

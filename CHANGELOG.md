@@ -7,6 +7,20 @@
 
 ## [Unreleased]
 
+## [4.1.0] - 2026-11-08
+
+### Added
+
+- 新增 `iagent spec fingerprint --change <name> [--json]`：按与 handoff 包一致的算法复算制品内容指纹（排序后单换行连接、末尾无换行），并支持 bash / PowerShell 三级参数补全。
+- 阶段回执新增 `executionMode` / `independence` / `usage` / `readScope` / `dependsOn` / `contextReplay`；`PhaseSpec.execution` 声明阶段允许的执行方式，`evaluatePhaseTransition` 据此校验。
+- handoff 包新增 `## 制品清单`（路径 / 大小 / sha256 / 章节锚点），子代理按锚点增量读取并回执 `readScope`。
+
+### Changed
+
+- 分级执行：探索与 debug investigate / verify-close 内联；propose / apply / archive / fix 与 `iagent_test` 子阶段经子代理；只读验证允许内联但须非作者（`independence=independent`）+ 检查清单；inline 阶段不要求 `delegate`。
+- 修复后复验改为增量新代理（`fixDiff` + 上轮 `reportPath`），禁止以 resume 重放上下文充当复验；proposal-review 串联 verify-proposal 报告并标 `dependsOn`。
+- `## 阶段结论` 扩为 5 列（含 `tokens`，不可得填 `—`）；模板同步 `residual` 清单与读取范围。
+
 ## [4.0.1] - 2026-11-08
 
 ### Changed
@@ -1651,7 +1665,8 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.0.1...HEAD
+[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.1.0...HEAD
+[4.1.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.0.1...v4.1.0
 [4.0.1]: https://github.com/vshzhe/MiAgentTools/compare/v4.0.0...v4.0.1
 [3.3.0]: https://github.com/vshzhe/MiAgentTools/compare/v3.2.0...v3.3.0
 [3.2.0]: https://github.com/vshzhe/MiAgentTools/compare/v3.1.0...v3.2.0

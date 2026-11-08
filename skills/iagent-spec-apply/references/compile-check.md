@@ -93,10 +93,10 @@
 
 `reason` 的两种非执行文案固定为「未探测到可编译产物」/「项目级显式禁用」；MUST NOT 留空、MUST NOT 使用 `N/A` 等变体（父流程按固定列解析）。
 
-handoff 包 `## 阶段结论` 追加行（四列，status 用**编译四值**）：
+handoff 包 `## 阶段结论` 追加行（五列，status 用**编译四值**，tokens 不可得填 `—`）：
 
 ```markdown
-| compile | pass | .openspec-tmp/pipeline-add-x/compile-report.md | archive |
+| compile | pass | .openspec-tmp/pipeline-add-x/compile-report.md | archive | — |
 ```
 
 ## 6. 终态判定表

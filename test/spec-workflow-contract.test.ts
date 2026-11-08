@@ -211,6 +211,7 @@ describe('实现桥缺失时门仍生效（gate-skip 不绕过）', () => {
         status: 'ok',
         artifact: 'tasks.md',
         nextAllowed: 'verify',
+        executionMode: 'subagent',
     } as const;
 
     it('未确认实现桥时 workflow apply 阶段阻塞（与是否传 gate-skip 无关）', () => {
@@ -525,6 +526,68 @@ describe('handoff 包账本段与六节共存（任务 1.8 / 5.5）', () => {
             expect(text, `${name} 未声明包路径`).toContain(PACK);
             expect(text, `${name} 未声明账本只读`).toContain('## 已确认门');
             expect(text, `${name} 未禁止改写账本`).toContain('MUST NOT 改写');
+        }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// 变更 improve-orchestration-execution-mode / 任务 5.8
+// ---------------------------------------------------------------------------
+
+describe('模板执行方式、读取范围与阶段结论（任务 5.8）', () => {
+    it('只读验证 / 实现 / 归档模板要求先读「## 制品清单」', () => {
+        for (const name of ['spec-verify', 'spec-apply', 'spec-archive']) {
+            expect(body(name), `${name} 未要求先读制品清单`).toContain('## 制品清单');
+        }
+        // 按锚点增量读取在 verify / apply 中显式声明（archive 只声明先读清单）
+        for (const name of ['spec-verify', 'spec-apply']) {
+            expect(body(name), `${name} 未要求按锚点增量读取`).toContain('增量读取');
+        }
+    });
+
+    it('只读验证类模板回执记录 readScope', () => {
+        for (const name of [
+            'spec-verify-proposal',
+            'proposal-review',
+            'spec-verify',
+            'spec-apply',
+            'spec-archive',
+        ]) {
+            expect(body(name), `${name} 回执缺 readScope`).toContain('readScope');
+        }
+    });
+
+    it('proposal-review 串联消费报告：dependsOn + 增量核对 + 缺失回退', () => {
+        const review = body('proposal-review');
+        expect(review).toContain('dependsOn');
+        expect(review).toContain('reportPath');
+        expect(review).toContain('串联');
+        expect(review).toContain('只做增量核对');
+        expect(review).toContain('报告缺失');
+        expect(review).toMatch(/退化为独立全量复查[^\n]*WARN/);
+    });
+
+    it('spec-apply / spec-archive 的阶段结论使用 5 列并含 tokens', () => {
+        for (const name of ['spec-apply', 'spec-archive']) {
+            const text = body(name);
+            expect(text, `${name} 缺 5 列声明`).toContain('5 列');
+            expect(text, `${name} 缺 tokens 列`).toContain('tokens');
+            expect(text, `${name} 缺不可得填 —`).toContain('不可得填 —');
+        }
+    });
+
+    it('spec-propose 的阶段结论 5 列表头与 tokens 不可得填 —', () => {
+        const propose = body('spec-propose');
+        expect(propose).toContain('phase | status | artifact | nextAllowed | tokens');
+        expect(propose).toMatch(/tokens[^\n]{0,50}—/);
+        expect(propose).toContain('MUST NOT 编造');
+        expect(propose).toContain('只追加行、不改写既有行');
+    });
+
+    it('编排模板无「内联执行变更类阶段」肯定表述', () => {
+        const inlineChangeStage = /(变更类|apply|propose|archive|fix)[^\n]{0,10}内联执行/;
+        for (const name of ['auto-workflow', 'workflow', 'debug']) {
+            expect(body(name), `${name} 含内联执行变更类阶段表述`).not.toMatch(inlineChangeStage);
         }
     });
 });

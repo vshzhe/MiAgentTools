@@ -25,6 +25,12 @@ ${renderGateWhitelistSection()}
 
 **输入**：可指定变更名。若未指定，则判断能否从对话上下文推断；若模糊或存在歧义，必须提示用户从可用变更中选择。
 
+## 执行方式与读取范围（强制）
+
+- 默认经前台 Agent 子代理执行；允许内联但须「非作者 + 检查清单」；independence=self 记 WARN 且不视为合规。
+- 子代理 MUST FIRST 读 handoff 包「## 制品清单」，按锚点增量读取；回执写 readScope。
+- 复验：FAIL 修复后新开只读代理，传 fixDiff + 上轮 reportPath；只验证增量并对未覆盖范围输出 residual 清单；禁止 resume 充当复验（contextReplay=true 记 WARN）。
+
 ## 执行步骤
 
 1. **若未提供变更名，提示选择**

@@ -114,10 +114,84 @@ export function evaluatePhaseTransition(input: PhaseTransitionInput): PhaseTrans
         }
     }
 
+    // 4. 执行方式 / 独立性（`PhaseSpec.execution` 缺省时不校验，兼容旧阶段）
+    const execution = evaluateExecutionMode(input);
+    blockedBy.push(...execution.blockedBy);
+    warnings.push(...execution.warnings);
+
     return {
         advance: blockedBy.length === 0,
         blockedBy,
         missingCapabilities: capability.missing,
         warnings,
     };
+}
+
+/**
+ * 校验阶段回执声明的执行方式与独立性。
+ *
+ * 规则（变更 improve-orchestration-execution-mode）：
+ *   - `PhaseSpec.execution` 缺省 → 不校验（旧阶段兼容）；
+ *   - strict 且 `allowed` 不含 `inline`（变更类阶段）→ `executionMode` 缺失或不匹配即 `invalid-receipt`；
+ *   - strict 且 `allowed` 含 `inline`（交互 / 只读验证）→ 缺失记 WARN，不匹配仍阻断；
+ *   - 内联验证按 `execution.independence` 映射：`required` 下 `self` 记 WARN 且不视为合规，
+ *     `self-allowed` 下 `self` 记 WARN；缺 `independence` 记 WARN；
+ *   - degraded 下非 `local-degraded` 记 WARN（不实声明），MUST NOT 推进为 strict 语义；
+ *   - `contextReplay=true` 一律记 WARN（resume 不得作为复验通过）。
+ */
+function evaluateExecutionMode(input: PhaseTransitionInput): {
+    blockedBy: string[];
+    warnings: string[];
+} {
+    const blockedBy: string[] = [];
+    const warnings: string[] = [];
+    const execution = input.phase.execution;
+    const receipt = input.receipt ?? {};
+    const mode = receipt.executionMode;
+
+    if (execution !== undefined) {
+        if (input.negotiation.mode === 'strict') {
+            const allowedInline = execution.allowed.includes('inline');
+            if (mode === undefined) {
+                if (allowedInline) {
+                    warnings.push(
+                        `WARN: 阶段 ${input.phase.id} 回执缺少 executionMode（按 unknown 处理）`
+                    );
+                } else {
+                    blockedBy.push(TRANSITION_BLOCKERS.receipt);
+                    warnings.push(
+                        `WARN: 阶段 ${input.phase.id} 回执缺少 executionMode（该阶段要求子代理），以 invalid-receipt 阻断推进`
+                    );
+                }
+            } else if (!execution.allowed.includes(mode)) {
+                blockedBy.push(TRANSITION_BLOCKERS.receipt);
+                warnings.push(
+                    `WARN: 阶段 ${input.phase.id} 的 executionMode=${mode} 不在允许集合 [${execution.allowed.join(', ')}] 内，以 invalid-receipt 阻断推进`
+                );
+            }
+            if (mode === 'inline' && execution.independence !== undefined) {
+                const independence = receipt.independence;
+                if (independence === undefined) {
+                    warnings.push(`WARN: 阶段 ${input.phase.id} 为内联执行但缺少 independence`);
+                } else if (independence === 'self') {
+                    warnings.push(
+                        execution.independence === 'required'
+                            ? `WARN: 阶段 ${input.phase.id} 要求独立验证（independence=required），作者自证不视为合规`
+                            : `WARN: 阶段 ${input.phase.id} 为作者自证（independence=self），记 WARN`
+                    );
+                }
+            }
+        } else if (mode !== 'local-degraded') {
+            warnings.push(
+                `WARN: degraded 阶段 ${input.phase.id} 的 executionMode 应为 local-degraded，实际为 ${mode ?? '缺失'}（MUST NOT 视为严格委派）`
+            );
+        }
+    }
+
+    if (receipt.contextReplay === true) {
+        warnings.push(
+            `WARN: 阶段 ${input.phase.id} 使用 resume 上下文重放（contextReplay=true），MUST NOT 计为合规复验`
+        );
+    }
+    return { blockedBy, warnings };
 }

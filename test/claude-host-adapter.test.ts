@@ -11,7 +11,12 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { runInit } from '../src/commands/init.js';
 import { ensureProjectConfig, writeWorkflowsToConfig } from '../src/core/project-config.js';
-import { renderDelegate, renderLoadSkill } from '../src/core/host-orchestration/index.js';
+import {
+    negotiationForHost,
+    renderDelegate,
+    renderHostOrchestrationSection,
+    renderLoadSkill,
+} from '../src/core/host-orchestration/index.js';
 
 describe('Claude 协议动作渲染', () => {
     it('委派使用 Skill/Agent 原生语义并保留 canonical skill id', () => {
@@ -145,5 +150,69 @@ describe('3.6 Claude 产物 canonical 委派条目', () => {
             expect(entry).toMatch(/^Skill\(iagent-[a-z0-9-]+\)$/);
         }
         expect(allow).not.toContain('Skill(spec_apply)');
+    });
+});
+
+// 变更 improve-orchestration-execution-mode / 任务 3.2：
+// strict / degraded 两形态分别渲染分级执行与增量复验契约。
+describe('3.2 执行方式与增量复验契约渲染', () => {
+    const strict = negotiationForHost('claude')!;
+    const degraded = negotiationForHost('codex')!;
+
+    it('strict 段含分级执行 / 增量复验 / 非作者约束关键字', () => {
+        // Given: strict 宿主协商结果
+        const section = renderHostOrchestrationSection(strict, 'auto-workflow');
+
+        // Then: 三类契约关键字齐备
+        expect(section).toContain('分级执行');
+        expect(section).toContain('增量复验');
+        expect(section).toContain('非作者（independence=independent）');
+        expect(section).toContain('fixDiff + 上轮 reportPath');
+        expect(section).toContain('禁止以 resume 充当复验');
+    });
+
+    it('strict 段声明执行方式回执字段与 inline 免 delegate', () => {
+        // Given / When
+        const section = renderHostOrchestrationSection(strict, 'auto-workflow');
+
+        // Then: 回执字段与 inline 能力约束可见
+        expect(section).toContain(
+            'executionMode / independence / readScope / dependsOn / contextReplay'
+        );
+        expect(section).toContain('inline 阶段不要求 delegate');
+    });
+
+    it('strict 段分级策略：探索内联、变更类子代理、只读验证默认子代理', () => {
+        // Given / When
+        const section = renderHostOrchestrationSection(strict, 'auto-workflow');
+
+        // Then: 分级执行表逐项可见
+        expect(section).toContain('探索 / debug investigate / verify-close 内联');
+        expect(section).toContain('propose / apply / archive / fix 子代理');
+        expect(section).toContain('只读验证默认子代理');
+        expect(section).toContain('iagent_test 为 apply / fix 子阶段');
+    });
+
+    it('degraded 段声明 local-degraded 且禁止声称 subagent', () => {
+        // Given: degraded（Codex skills-only）协商结果
+        const section = renderHostOrchestrationSection(degraded, 'auto-workflow');
+
+        // Then: 显式本地执行契约可见
+        expect(section).toContain('executionMode=local-degraded');
+        expect(section).toContain('MUST NOT 声称 subagent');
+        // 不得渲染 strict 专属的分级执行 / 增量复验契约
+        expect(section).not.toContain('分级执行');
+        expect(section).not.toContain('增量复验');
+    });
+
+    it('strict / degraded 两形态互斥（strict 不含 local-degraded）', () => {
+        // Given / When
+        const strictSection = renderHostOrchestrationSection(strict, 'workflow');
+        const degradedSection = renderHostOrchestrationSection(degraded, 'workflow');
+
+        // Then: 各自形态标识互不串场
+        expect(strictSection).toContain('strict 编排');
+        expect(degradedSection).toContain('degraded 单 agent 模式');
+        expect(strictSection).not.toContain('local-degraded');
     });
 });

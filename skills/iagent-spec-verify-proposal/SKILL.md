@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:91ffcdea3ccc3c6f69dfae33ffb975ebea47941cef91e8b35c897fe84c4fce52"
+  generatedFingerprint: "sha256:af12479b440f424f165cbf3ed07dd5af5d8c2a38d2a65bbed93234a81f14663f"
 ---
 
 **验证前先阅读 .iagent/rules/coding-rules.md 中的验证标准。**
@@ -41,6 +41,13 @@ metadata:
 **只读验证步骤无需确认即可执行**：读取制品、扫描文件、CodeGraph 查询与 D1-D10 评分分析直接运行，无需中途确认提示。仅验证报告（以及真正属于用户决策的选择，例如 FAIL 判定后选择修复路径）呈现给用户。
 
 ---
+
+## 执行方式与复验（强制）
+
+- 默认经前台 Agent 子代理执行，回执声明 executionMode=subagent。
+- 允许主代理内联（executionMode=inline），但 MUST 同时满足「非作者（independence=independent）+ 逐项检查清单与证据」；independence=self 记 WARN 且不视为合规。
+- 回执 SHALL 含 executionMode / independence / readScope / dependsOn；inline 阶段不要求 delegate。
+- **增量复验**：FAIL 修复后新开只读代理，只传 fixDiff + 上轮 reportPath + 检查清单；只验证增量并对未覆盖范围输出 residual 清单；禁止以 resume 充当复验（contextReplay=true 记 WARN）。
 
 ## 前置条件
 

@@ -45,6 +45,7 @@ import { parseDesign } from '../core/spec/parser/design-parser.js';
 import { parseSpec } from '../core/spec/parser/spec-parser.js';
 import { validateParsedChange } from '../core/spec/validation/artifact-validator.js';
 import { migrateChangeFromJson } from '../core/spec/migration.js';
+import { computeChangeFingerprint, resolveChangeRoot } from '../core/spec/fingerprint.js';
 import type { ParsedChange } from '../core/spec/model/artifact-model.js';
 
 /** 变更状态结果类型（从 getChangeStatus 派生） */
@@ -154,6 +155,26 @@ export function buildSpecCommand(): Command {
             console.log(output);
             if (exitCode !== 0) {
                 process.exitCode = exitCode;
+            }
+        });
+
+    spec.command('fingerprint')
+        .description('复算变更制品内容指纹（sourceFingerprint，末尾无换行）')
+        .requiredOption('--change <name>', '目标变更名')
+        .option('--json', '以 JSON 输出（供程序处理）')
+        .action((options: { change: string; json?: boolean }) => {
+            try {
+                const changeRoot = resolveChangeRoot(options.change, process.cwd());
+                const result = computeChangeFingerprint(options.change, changeRoot);
+                if (options.json === true) {
+                    console.log(JSON.stringify(result, null, 2));
+                } else {
+                    console.log(result.fingerprint);
+                }
+            } catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                console.error(`指纹复算失败：${message}`);
+                process.exitCode = 1;
             }
         });
 

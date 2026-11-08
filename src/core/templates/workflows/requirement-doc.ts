@@ -51,7 +51,7 @@ export function getRequirementDocSkillTemplate(): SkillTemplate {
 1. \`proposal.md\` / \`design.md\` / \`specs/**/*.md\` —— OpenSpec Markdown 主真源：Why / What Changes / Capabilities / Impact；Context / Goals / Non-Goals / Decisions / Risks；Requirement + Scenario
 2. \`tasks.md\`（位于变更目录根）—— 任务分组、页面/表/排期细节
 3. **历史 JSON 降级（WARN，仅存量 / 已归档变更）**：历史 \`change.json\` / \`tasks.json\` —— 仅在 Markdown 制品缺失时使用；记 WARN，不影响主流程
-4. **文档元信息指纹（可选）**：\`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\` 的 \`sourceFingerprint\` —— 仅当文件存在且其 \`change:\` 与当前变更一致时用于文档元信息块；不可得时写「未提供」，MUST NOT 自行计算
+4. **文档元信息指纹（可选）**：优先执行 \`iagent spec fingerprint --change <name>\`；子命令不可用时读取 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\` 的 \`sourceFingerprint\`（仅当文件存在且其 \`change:\` 与当前变更一致）；两者皆不可得时写「未提供」，MUST NOT 自行计算
 
 历史 JSON sidecar（\`.iagent/decisions.json\`）已废弃 —— MUST NOT 依赖。
 

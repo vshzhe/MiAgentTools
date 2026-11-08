@@ -271,3 +271,48 @@ describe('需求文档时机跨模板一致（4.1 / 4.3）', () => {
         }
     });
 });
+
+// ---------------------------------------------------------------------------
+// 变更 improve-orchestration-execution-mode / 任务 5.9
+// ---------------------------------------------------------------------------
+
+describe('增量复验、串联回退与用量记录（任务 5.9）', () => {
+    it('编排模板要求复验新开只读代理且禁止 resume 充当复验', () => {
+        for (const name of ['iagent_auto_workflow', 'iagent_workflow', 'iagent_debug']) {
+            const text = skillBody(name);
+            expect(text, `${name} 未要求新开只读代理`).toContain('新开只读代理');
+            expect(text, `${name} 未禁止 resume 充当复验`).toContain('禁止 resume 充当复验');
+        }
+    });
+
+    it('验证类模板标记 contextReplay=true 记 WARN（resume 仅续跑）', () => {
+        for (const name of [
+            'iagent_spec_verify',
+            'iagent_spec_apply',
+            'iagent_spec_verify_proposal',
+        ]) {
+            expect(skillBody(name), `${name} 缺 contextReplay WARN`).toContain(
+                'contextReplay=true 记 WARN'
+            );
+        }
+    });
+
+    it('深度复查报告缺失时退化为独立全量复查并记 WARN', () => {
+        const review = skillBody('iagent_proposal_review');
+        expect(review).toContain('报告缺失');
+        expect(review).toMatch(/退化为独立全量复查[^\n]*WARN/);
+        expect(review).toContain('dependsOn');
+    });
+
+    it('tokens 列恒存在：可用记录、不可得填 —', () => {
+        // Given: 写入阶段结论的模板
+        for (const name of ['iagent_spec_propose', 'iagent_spec_apply', 'iagent_spec_archive']) {
+            expect(skillBody(name), `${name} 缺 tokens 列`).toContain('tokens');
+        }
+        // Then: 不可得分支以 — 占位且禁止编造
+        for (const name of ['iagent_spec_propose', 'iagent_spec_archive']) {
+            expect(skillBody(name), `${name} 缺不可得填 —`).toMatch(/tokens[^\n]{0,20}—/);
+        }
+        expect(skillBody('iagent_spec_propose')).toContain('MUST NOT 编造');
+    });
+});

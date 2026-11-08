@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: review
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:6e587ee5acf54f894be078b102d198080651b0002fe74063d95d2e9e510b8b53"
+  generatedFingerprint: "sha256:f817823c4a16a50f3890dd8cbea0217e4dc9724e77b29126d63315b2ab885aa8"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
@@ -26,6 +26,13 @@ metadata:
 **职责边界（双门非重叠）**：本 skill 是提案验证的**深度层**——应在 `iagent-spec-verify-proposal`（D1-D5 核心 + D6-D10 条件维度，统一 90% 阈值）PASS（≥90%）之后调用；本 skill 只做深度代码库探索、多维完整性/合规复查与遗漏场景补充，MUST NOT 重复 D1-DN 量化评分（那是 spec_verify_proposal 的职责）。
 
 ---
+
+## 执行方式与串联（强制）
+
+- 默认经前台 Agent 子代理执行；允许内联但须「非作者 + 检查清单」；independence=self 记 WARN 且不视为合规。
+- **串联**：优先读取 iagent-spec-verify-proposal 的回执 reportPath 作为输入，标 dependsOn: [reportPath]；对报告已覆盖的维度只做增量核对，MUST NOT 重复全量读取或重跑 D1-D10 评分。
+- 报告缺失 / 不可读 → 退化为独立全量复查并记 WARN。
+- 回执 SHALL 含 executionMode / independence / readScope / dependsOn。
 
 ## Phase 1: 加载变更提案
 
