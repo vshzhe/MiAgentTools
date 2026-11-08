@@ -27,7 +27,7 @@ export function getAutoWorkflowSkillTemplate(): SkillTemplate {
 该工作流引导你依次完成：
 1. **探索阶段** —— 常驻探索文件 + grill-with-docs 追问（L1-L5 用户确认）
 2. **提案阶段** —— 生成变更及其全部制品（自动）
-3. **验证阶段** —— 自动质量校验 + 深度复查；不再有需求文档桥
+3. **验证阶段** —— 主 agent 单轮内联质量校验（D1-D10 + B1-B7 + 证据）；不再有需求文档桥
 4. **自动实现阶段** —— 验证通过后不设确认门，直接自动实现
 5. **自动归档阶段** —— 完成后自动归档
 
@@ -38,7 +38,7 @@ ${renderGateWhitelistSection()}
 ---
 ## 执行方式与增量复验（强制）
 
-分级执行：Phase 1 内联；Phase 2/4/5 子代理；Phase 3 默认子代理，可内联但须非作者（independence=independent）+ 检查清单；iagent_test 为 Phase 4 条件子阶段。增量复验：FAIL 修复后新开只读代理，传 changeName / fixDiff / 上轮 reportPath，禁止 resume 充当复验，并对未覆盖范围输出 residual 清单。串联：先 iagent_spec_verify_proposal 后 iagent_proposal_review。子代理先读 handoff 包「## 制品清单」并按锚点增量读取，回执写 readScope；「## 阶段结论」5 列（tokens 可用时填 tokens=<数值>，不可得填 —）。
+分级执行：Phase 1 内联；Phase 2 提案 / Phase 4 实现子代理；Phase 3 验证与 Phase 5 归档由主 agent 内联（\`executionMode=inline\`），验证**一次**完成（合并 D1-D10 + B1-B7 清单），MUST NOT 派生验证子代理。兼容窗：verify / archive 的旧 \`subagent\` 回执记 deprecation WARN 并允许推进，下个 major 收紧。增量复验：验证 FAIL 后**在同一主上下文**按 fixDiff 增量重跑清单（≤3 次），禁止新开验证代理、禁止重读未改动制品与全量重读；禁止 resume 充当复验（contextReplay=true 记 WARN）。只读验证以固定清单 + 每条结论 \`文件:行\` 证据 + 报告落盘承担可信度。iagent_test 为 Phase 4 条件子阶段（Skill 工具内联调用）。子代理先读 handoff 包「## 制品清单」并按锚点增量读取，回执写 readScope；「## 阶段结论」5 列（tokens 可用时填 tokens=<数值>，不可得填 —）。
 
 ## Phase 1: Exploration（委派 iagent_spec_explore，交互阶段）
 
@@ -85,41 +85,42 @@ Phase 2 的探索文件迁移与全部制品生成 SHALL 经**前台 Agent 子�
 
 **handoff 包（阶段入口）**：Phase 3 起始读取 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\`（由 propose 产出）；\`sourceFingerprint\` 与当前制品不一致 → 重建并记 WARN，MUST NOT 静默沿用陈旧包；收尾时只向 \`## 阶段结论\` 追加一行（phase=verify）。
 
-### 3.1 自动执行验证
+### 3.1 自动执行验证（主 agent 内联，单轮）
 
 - 跳过方式选择提示 —— 禁止展示「Propose 方式一步生成」或类似选项
 - 跳过用户选择 —— 禁止询问 [立即验证] / [跳过验证]
-- 直接执行 —— 自动运行 D1-D5 验证
+- 直接执行 —— 主 agent **一次**内联执行 D1-D10 + B1-B7 合并清单
 
-### 3.2 运行验证
+### 3.2 运行验证（主 agent 内联）
 
-- 经**前台 Agent 子代理**调用 \`iagent_spec_verify_proposal\` 执行 D1-D5 评分；子代理先读 handoff 包，回执含 \`score\` / \`reviewSummary\` / 可选 \`reportPath\`
-- 再经**前台 Agent 子代理**调用 \`iagent_proposal_review\` 做深度复查；回执含 \`reviewSummary\` / 可选 \`reportPath\`
-- 技能不可用时降级为 AI 内联评分 / 复查 + WARN 日志；禁止静默跳过
+- **执行方式（强制）**：Phase 3 SHALL 由**主 agent 内联**执行**一次**验证并返回 \`executionMode=inline\` / \`independence=self\`；MUST NOT 再分别派生 \`iagent_spec_verify_proposal\` 与 \`iagent_proposal_review\` 两个验证子代理（兼容窗内旧 \`subagent\` 回执记 deprecation WARN，下个 major 收紧为仅 \`inline\`）
+- **固定清单**：D1-D10 核心维度（D1 需求覆盖 / D2 技术一致性 / D3 任务完整性 / D4 边界覆盖 / D5 Pending 解决 / D6-D10 条件维度）+ B1-B7 边界清单（自证 WARN、同上下文修复、归档非阻断、fix 预算、migration 阈值、bulk 并行、无 delegate 宿主边界）
+- **证据契约（强制）**：每条结论 MUST 带 \`文件:行\` 或制品章节锚点；**无证据的结论 MUST NOT 计入通过**；报告 MUST 落盘 \`.openspec-tmp/pipeline-<change-name>/verify-report.md\`，回执记 \`executionMode=inline\` / \`independence=self\` / \`readScope\`
+- **同上下文修复重跑（强制）**：FAIL 后在同一主上下文修复并按 \`fixDiff\` 只重跑受影响清单项；MUST NOT 新开验证代理、MUST NOT 重读未改动制品或全量重读；循环上限 3 次，超出暂停并报告
 - 计算覆盖率与总分（统一 90% 阈值）
 - 从 config.yaml 的 context 探测技术栈
-- 子代理回执 MUST 只含结构摘要，MUST NOT 内联完整报告；父级仅在需要时读取 \`reportPath\`
+- 完整报告正文 MUST NOT 内联进回执；父级仅在需要时读取 \`reportPath\` / 验证报告文件
 
 ### 3.3 处理结果
 
 **PASS (≥90%)**：
-- 深复查收束后展示「验证分数 + 深度复查结论」—— 报告质量信息，但**不再展示需求文档桥、不再请求用户确认**
-- **门账本写入（委派前强制，双条件）**：仅当探索回执 \`flowBaselineConfirmed=true\` **且**验证 PASS **且**深度复查收束时，把门承载 id \`design-confirmation\` 写入 handoff 包 \`## 已确认门\` 段（\`| design-confirmation | verify |\`；只追加），并在**委派前校验存在**：
+- 展示「验证分数 + 逐项证据摘要 + 深度复查清单结论」—— 报告质量信息，但**不再展示需求文档桥、不再请求用户确认**
+- **门账本写入（委派前强制，双条件）**：仅当探索回执 \`flowBaselineConfirmed=true\` **且**验证 PASS（D1-D10 + B1-B7 全部收束）时，把门承载 id \`design-confirmation\` 写入 handoff 包 \`## 已确认门\` 段（\`| design-confirmation | verify |\`；只追加），并在**委派前校验存在**：
   - 写入失败或校验失败 → 停止并报告期望路径与原因，MUST NOT 进入 Phase 4
   - 账本条目 MUST NOT 超出本阶段回执 \`confirmedGates\`；本阶段回执 SHALL 携带 \`confirmedGates: ['design-confirmation']\`
-  - 流程基准未确认或验证 / 深度复查未收束 → MUST NOT 写账本、MUST NOT 传 \`gate-skip\`，暂停并报告（fail-safe）
+  - 流程基准未确认或验证（含 B1-B7）未收束 → MUST NOT 写账本、MUST NOT 传 \`gate-skip\`，暂停并报告（fail-safe）
 - **自动修复后重建包**：若验证阶段自动修复改动制品，MUST 在验证通过后按新 \`sourceFingerprint\` 重建 handoff 包一次；重建失败 → \`incomplete\`，MUST NOT 进入 Phase 4
 - **自动转入 Phase 4**：在同一用户回合内继续（自动实现），不追加对该阶段技能的调用确认
 
 **FAIL (<90%)**：
-- 自动生成修复建议并应用修复
-- 自动重新运行验证
-- 仍 FAIL 时：[手动修改] [返回探索] [查看详细 diff]（不提供跳过验证直接实现的路径）
+- 自动生成修复建议并在**同一主上下文**应用修复
+- 按 \`fixDiff\` 只重跑受影响清单项（MUST NOT 新开验证代理或全量重读；循环 ≤3）
+- 仍 FAIL 或超限时：[手动修改] [返回探索] [查看详细 diff]（不提供跳过验证直接实现的路径）
 
 ---
 ## Phase 4: Auto-Apply
 
-**Phase 4 在 Phase 3 验证 PASS + 深度复查收束后自动执行。无用户确认门 —— 实现以 \`${renderGateSkipOption(GATE_SKIP_IDS)}\`（兼容写法 \`${LEGACY_AUTO_MODE_PARAM}=true\`）运行，仅跳过设计确认门。**
+**Phase 4 在 Phase 3 内联验证 PASS（D1-D10 + B1-B7）后自动执行。无用户确认门 —— 实现以 \`${renderGateSkipOption(GATE_SKIP_IDS)}\`（兼容写法 \`${LEGACY_AUTO_MODE_PARAM}=true\`）运行，仅跳过设计确认门。**
 
 **handoff 包（阶段入口）**：Phase 4 起始只读复用 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\`（MUST NOT 重新蒸馏 proposal/specs/design 重产整包）；指纹不一致 → 重建并记 WARN；收尾时只向 \`## 阶段结论\` 追加一行（phase=apply）；MUST NOT 另立包格式。子代理 MUST 先读该包，再按需增量读取制品。
 
@@ -127,7 +128,7 @@ Phase 2 的探索文件迁移与全部制品生成 SHALL 经**前台 Agent 子�
 
 ### 4.1 自动执行实现
 
-验证通过（≥90%）且深度复查收束后：
+验证通过（≥90%，含 B1-B7）后：
 - 宣告：明确标题「## Auto-Apply Phase」
 - 展示：「验证通过 —— 自动进入实现阶段」
 - 构造实现上下文，包含：
@@ -164,15 +165,15 @@ Phase 4 继承 \`iagent_spec_apply\` 的**测试执行门**并**自动**通过 �
 
 **条件测试子阶段**：变更 \`tasks.md\` 含 \`[测试]\` 任务时，在测试执行门前经**前台 Agent 子代理**委派阶段 \`iagent_test\` skill 生成变更范围测试；门判定仍然适用（范围内失败自动重试后暂停）。子代理返回后 MUST 在同一用户回合内继续测试门判定。
 
-### 4.4 实现验证桥（委派，强制）
+### 4.4 实现验证桥（主 agent 内联，强制）
 
-测试执行门通过后，MUST 经**前台 Agent 子代理**委派阶段 \`iagent_spec_verify\` skill 校验实现与制品（specs/tasks/design）的一致性；子代理先读 handoff 包，回执含验证结果摘要与可选 \`reportPath\`：
+测试执行门通过后，MUST 由**主 agent 内联**调用 \`iagent_spec_verify\` skill 校验实现与制品（specs/tasks/design）的一致性（\`executionMode=inline\` / \`independence=self\`）；先读 handoff 包，结论含验证结果摘要与可选 \`reportPath\`；MUST NOT 为新的验证执行派生 Agent 子代理：
 
 - **验证通过** → 在同一用户回合内进入 Phase 5（自动归档）
 - **验证失败** → 回到 Phase 4 修复；MUST NOT 进入归档
 - **降级（\`iagent_spec_verify\` 不可用）**：记录 WARN 并显式记录省略决策（「实现验证由 apply 编译检查 + 归档一致性承担」）—— MUST NOT 静默跳过
 
-- **⛔ EXIT GUARD (强制 — 子代理退出守卫)**：每条子代理调度指令 MUST 携带退出守卫 —— 完成分配任务后立即停止并返回回执，MUST NOT 进入 plan 模式 / 设计模式 / 提出后续步骤 / 超出分配范围继续；编排器是唯一有权判停、汇总、推进阶段的角色；子代理 MUST NOT 越权替代编排器做阶段收尾决策
+- **⛔ EXIT GUARD (强制 — 子代理退出守卫)**：每条**子代理**调度指令（仅 Phase 2 propose / Phase 4 apply）MUST 携带退出守卫 —— 完成分配任务后立即停止并返回回执，MUST NOT 进入 plan 模式 / 设计模式 / 提出后续步骤 / 超出分配范围继续；编排器是唯一有权判停、汇总、推进阶段的角色；子代理 MUST NOT 越权替代编排器做阶段收尾决策
 - **MUST FIRST 先读取 handoff 包**：子代理调度指令 MUST 强制子代理在任何其他动作之前先读 handoff 包（\`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\`）—— MUST NOT 重读 proposal/specs/design 或重跑包已覆盖的 CodeGraph 查询；仅做增量查询
 
 ---
@@ -194,9 +195,9 @@ Phase 4 继承 \`iagent_spec_apply\` 的**测试执行门**并**自动**通过 �
 - 构造归档上下文，包含：
   - \`change-name\` —— 当前变更名（跳过变更选择提示）
   - **Stage Envelope** —— handoff 包路径 / \`compile-report.md\` 路径 / \`resume\`；MUST NOT 内联制品正文
-- **委派阶段**：经**前台 Agent 子代理**以 \`change-name\` 调用 \`iagent_spec_archive\` skill；被委派技能完整承载归档协议（delta spec 同步、CONTEXT.md 同步、CodeGraph 检查、探索记忆同步、目录移动、ARCHIVE-INDEX.md 纯追加、归档只读校验、流程级工作区清理）—— 本技能 MUST NOT 重复声明或内联该协议正文
-- 全部归档步骤在被委派技能内部自动执行
-- **回执续跑**：子代理回执 SHALL 含 \`archivePath\` / \`specsSynced\`；父级校验通过后完成流程
+- **主 agent 内联执行归档**：以 \`change-name\` 以 **Skill 工具内联**执行 \`iagent_spec_archive\` 的归档协议（\`executionMode=inline\`，MUST NOT 派生归档子代理；兼容窗内旧 \`subagent\` 回执记 deprecation WARN）；归档协议（delta spec 同步、CONTEXT.md 同步、CodeGraph 检查、探索记忆同步、目录移动、ARCHIVE-INDEX.md 纯追加、归档只读校验、流程级工作区清理）—— 本技能 MUST NOT 重复声明或内联该协议正文
+- 全部归档步骤在内联执行的 \`iagent_spec_archive\` 协议内部自动完成
+- **回执续跑**：内联执行结果 SHALL 含 \`archivePath\` / \`specsSynced\`；父级校验通过后完成流程
 
 ### 5.2 自动归档错误处理
 
@@ -235,7 +236,7 @@ Phase 4 继承 \`iagent_spec_apply\` 的**测试执行门**并**自动**通过 �
 - **深度复查后直接续跑** —— 全部通过后经 Agent 子代理调用 \`iagent_proposal_review\` 做深度复查（不可用则内联深度复查 + WARN），展示「验证分数 + 复查结论」后**在同一用户回合内**自动转入 Phase 4；MUST NOT 展示需求文档桥、MUST NOT 委派需求文档技能
 - **验证阶段无阻塞门** —— 三父流程的需求文档桥已整体移除；验证阶段 MUST NOT 声明阻塞门，MUST NOT 追加对下一阶段技能的调用确认（宿主权限与 strict/degraded 检查仍独立生效）
 - **门账本双条件** —— 仅在流程基准确认 **且** 验证 PASS + 深度复查收束后写 \`design-confirmation\`；未满足时 MUST NOT 写账本、MUST NOT 传 \`gate-skip\`，暂停并报告
-- **FAIL 不进入实现** —— 验证 FAIL 或深度复查未收束时 MUST NOT 进入 Phase 4
+- **FAIL 不进入实现** —— 验证 FAIL 或 B1-B7 未收束时 MUST NOT 进入 Phase 4
 - **回执续跑** —— 每个委派阶段返回有效回执后 MUST 在同一用户回合内继续下一阶段；MUST NOT 以回执结束回合
 - **子代理数据共享** —— 只传 Stage Envelope（路径 + 结构化字段），MUST NOT 内联制品正文或完整 SKILL.md；子代理先读 handoff 包，回执只含 Stage Receipt（≤40 行 / ≤2KB）；blocked 时用 \`blockedGate\` / \`blockedReason\` + \`resume=true\`
 - **MUST 先建探索文件再追问** —— Phase 1 检查点为强制
@@ -265,7 +266,7 @@ Phase 4 继承 \`iagent_spec_apply\` 的**测试执行门**并**自动**通过 �
 export function getAutoWorkflowCommandTemplate(): CommandTemplate {
     return {
         name: 'iAgent: 全自动工作流',
-        description: '一站式全自动工作流：探索（L1-L5 + 流程确认）→ 自动提案 → 自动验证 + 深度复查 → 自动实现（auto-mode）→ 自动归档',
+        description: '一站式全自动工作流：探索（L1-L5 + 流程确认）→ 自动提案 → 主 agent 内联验证（证据清单）→ 自动实现（auto-mode）→ 内联自动归档',
         category: 'iAgent / 实现',
         tags: ['iagent', 'impl', 'auto-workflow', 'automation'],
         content: deriveCommandContent(getAutoWorkflowSkillTemplate().instructions),

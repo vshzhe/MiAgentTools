@@ -323,22 +323,24 @@ describe('5.8 编排模板分级执行与增量复验关键字', () => {
         expect(getDebugSkillTemplate().instructions).toContain('investigate / verify-close 内联');
     });
 
-    it('探索 / 交互阶段内联，变更类阶段子代理', () => {
+    it('探索 / 交互阶段内联，写阶段子代理，验证与收尾内联优先', () => {
         // Given: auto-workflow / workflow 的 Phase 1 与 Phase 2/4/5
         const auto = getAutoWorkflowSkillTemplate().instructions;
         const wf = getWorkflowSkillTemplate().instructions;
-        // Then: 阶段所有者执行方式与规格一致
+        // Then: 阶段所有者执行方式与规格一致（写阶段子代理，验证 / 归档内联）
         expect(auto).toContain('Phase 1 内联');
-        expect(auto).toContain('Phase 2/4/5 子代理');
+        expect(auto).toContain('Phase 4 实现子代理');
+        expect(auto).toContain('Phase 5 归档由主 agent 内联');
         expect(wf).toContain('Phase 1 内联');
-        expect(wf).toContain('Phase 2/4/5 子代理');
+        expect(wf).toContain('Phase 4 实现子代理');
+        expect(wf).toContain('Phase 5 归档由主 agent 内联');
 
         // Given: debug 的 investigate / verify-close 与 fix
         const debug = getDebugSkillTemplate().instructions;
-        // Then: 交互 / 收束内联，修复经子代理
+        // Then: 交互 / 收束 / 修复均内联
         expect(debug).toContain('investigate / verify-close 内联');
-        expect(debug).toContain('fix 按 bug 派发单元经子代理');
-        expect(debug).toContain('iagent_test 子阶段经子代理');
+        expect(debug).toContain('fix（修复 + 编译检查 + 范围内测试）由主 agent 内联执行');
+        expect(debug).toContain('iagent_test 以 **Skill 工具内联**调用');
     });
 
     it('无「内联执行变更类阶段」的肯定表述', () => {
@@ -357,12 +359,18 @@ describe('5.8 编排模板分级执行与增量复验关键字', () => {
         }
     });
 
-    it('提案验证与深度复查串联且顺序执行', () => {
-        const chained = '串联：先 iagent_spec_verify_proposal 后 iagent_proposal_review';
-        expect(getAutoWorkflowSkillTemplate().instructions).toContain(chained);
-        expect(getWorkflowSkillTemplate().instructions).toContain(chained);
+    it('验证单轮内联：合并 D1-D10 + B1-B7，不派生两个验证子代理', () => {
+        for (const [name, text] of [
+            ['auto-workflow', getAutoWorkflowSkillTemplate().instructions],
+            ['workflow', getWorkflowSkillTemplate().instructions],
+        ] as const) {
+            expect(text, `${name} 缺合并清单`).toContain('D1-D10');
+            expect(text, `${name} 缺 B1-B7 清单`).toContain('B1-B7');
+            expect(text, `${name} 未禁止两个验证子代理`).toContain('验证子代理');
+            expect(text, `${name} 缺单轮`).toContain('执行**一次**验证');
+        }
         expect(getDebugSkillTemplate().instructions).toContain(
-            'verify-close 内先 iagent_spec_verify_proposal 后 iagent_proposal_review'
+            'verify-close 内验证 / 复查均为内联'
         );
     });
 
@@ -375,17 +383,17 @@ describe('5.8 编排模板分级执行与增量复验关键字', () => {
     });
 });
 
-describe('5.9 复验新代理 / 串联回退 / 用量记录', () => {
-    it('复验新开只读代理且禁止 resume 充当复验', () => {
+describe('5.9 复验同上下文增量重跑 / 串联回退 / 用量记录', () => {
+    it('复验改为同上下文增量重跑且禁止 resume 充当复验', () => {
         for (const [name, text] of ORCHESTRATOR_BODIES) {
-            expect(text, `${name} 未要求新开只读代理`).toContain('新开只读代理');
+            expect(text, `${name} 未禁止新开验证代理`).toContain('禁止新开验证代理');
             expect(text, `${name} 未禁止 resume 充当复验`).toContain('禁止 resume 充当复验');
         }
         // Given: 验证类技能（FAIL 修复后的复验执行方）
         const verify = getSpecVerifyChangeSkillTemplate().instructions;
         const apply = getSpecApplyChangeSkillTemplate().instructions;
-        // Then: 新开代理 + resume 仅续跑（contextReplay WARN）
-        expect(verify).toContain('新开只读代理');
+        // Then: 验证内联同上下文复跑；apply 仍以新只读代理复验，resume 仅续跑（contextReplay WARN）
+        expect(verify).toContain('同上下文复跑');
         expect(verify).toContain('contextReplay=true 记 WARN');
         expect(apply).toContain('新开只读代理');
         expect(apply).toContain('contextReplay=true 记 WARN');
@@ -415,19 +423,22 @@ describe('5.9 复验新代理 / 串联回退 / 用量记录', () => {
 });
 
 describe('5.10 分级执行模板与协议断言', () => {
-    it('内联验证要求非作者 + 检查清单，自证记 WARN 且不视为合规', () => {
-        // 编排层（auto-workflow / workflow）在分级策略中声明内联非作者约束
+    it('内联验证以固定清单 + 证据承担可信度，无证据不计分', () => {
+        // 编排层（auto-workflow / workflow）声明合并清单与证据契约
         for (const text of [
             getAutoWorkflowSkillTemplate().instructions,
             getWorkflowSkillTemplate().instructions,
         ]) {
-            expect(text).toContain('非作者（independence=independent）');
+            expect(text).toContain('D1-D10');
+            expect(text).toContain('B1-B7');
+            expect(text).toContain('无证据的结论 MUST NOT 计入通过');
+            expect(text).toContain('independence=self');
         }
-        // 只读验证技能自身声明三条件与自证降级
+        // 只读验证技能自身声明内联契约
         for (const text of READONLY_VERIFY_BODIES) {
-            expect(text).toContain('非作者');
-            expect(text).toContain('independence=self 记 WARN');
-            expect(text).toContain('不视为合规');
+            expect(text).toContain('主 agent 内联');
+            expect(text).toContain('无证据的结论 MUST NOT 计入通过');
+            expect(text).toContain('contextReplay=true 记 WARN');
         }
     });
 
@@ -454,16 +465,16 @@ describe('5.10 分级执行模板与协议断言', () => {
         }
     });
 
-    it('只读验证默认子代理（协议允许 inline 但独立性 required）', () => {
+    it('只读验证内联优先（协议 self-allowed，技能正文主 agent 内联）', () => {
         // Given: workflow 协议的 verify 阶段
         const verify = getWorkflowProtocol('workflow')!.phases.find((p) => p.id === 'verify')!;
-        // Then: 默认子代理、允许内联、独立性 required
-        expect(verify.execution?.allowed).toContain('subagent');
+        // Then: 内联优先、兼容窗保留 subagent、独立性 self-allowed
         expect(verify.execution?.allowed).toContain('inline');
-        expect(verify.execution?.independence).toBe('required');
-        // And: 只读验证技能正文默认子代理
+        expect(verify.execution?.allowed).toContain('subagent');
+        expect(verify.execution?.independence).toBe('self-allowed');
+        // And: 只读验证技能正文以主 agent 内联为默认
         for (const text of READONLY_VERIFY_BODIES) {
-            expect(text).toContain('默认经前台 Agent 子代理执行');
+            expect(text).toContain('主 agent 内联');
         }
     });
 

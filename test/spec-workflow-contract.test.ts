@@ -186,9 +186,11 @@ describe('编排器委派 apply/archive 而非内联', () => {
         expect(text).not.toContain('Execute the apply workflow logic');
     });
 
-    it('auto-workflow Phase 5 委派 archive（change-name）且无需求文档报告', () => {
+    it('auto-workflow Phase 5 内联 archive（change-name）且无需求文档报告', () => {
         const text = body('auto-workflow');
-        expect(text).toContain('`change-name` 调用 `iagent_spec_archive`');
+        expect(text).toContain('主 agent 内联执行归档');
+        expect(text).toContain('`change-name`');
+        expect(text).toContain('`iagent_spec_archive`');
         // 需求文档桥已移除：不再传递状态、不再报告存在性
         expect(text).not.toContain('requirementDocStatus');
         expect(text).not.toContain('需求文档存在性');
@@ -354,7 +356,7 @@ describe('spec-apply 既有门承载行为与停点回归（任务 2.4 / 6.1–6
 
     it('实现验证桥与归档桥阻断语义不变', () => {
         const workflow = corpus('workflow');
-        expect(workflow).toContain('委派 `iagent_spec_verify` 技能验证实现与制品');
+        expect(workflow).toContain('调用 `iagent_spec_verify` 技能验证实现与制品');
         expect(workflow).toContain('失败 → 回 Phase 4 修复，MUST NOT 进入归档');
         expect(workflow).toContain('status=fail');
         expect(workflow).toContain('阻断归档并回到 Phase 4');
@@ -478,9 +480,10 @@ describe('auto-workflow 接门账本且无需求文档桥（任务 4.3 / 7.1）'
         expect(auto).toContain('MUST NOT 继续自动委派');
     });
 
-    it('Phase 4 / Phase 5 委派而非内联', () => {
+    it('Phase 4 委派 apply / Phase 5 内联 archive', () => {
         expect(auto).toContain('`iagent_spec_apply` 技能');
-        expect(auto).toContain('`change-name` 调用 `iagent_spec_archive`');
+        expect(auto).toContain('主 agent 内联执行归档');
+        expect(auto).toContain('`iagent_spec_archive`');
         expect(auto).not.toContain('requirementDocStatus');
         expect(auto).not.toContain('Execute the apply workflow logic');
     });

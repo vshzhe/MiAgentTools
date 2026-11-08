@@ -192,10 +192,10 @@ export function renderHostOrchestrationSection(
         lines.push('- 失败 / 阻塞：`blocked` / `failed` / `incomplete` MUST NOT 继续；按重试策略暂停并报告 `failure` / `blockedGate` / `blockedReason`');
         lines.push('- 子代理数据：只传 Stage Envelope（路径 + 结构化字段），MUST NOT 内联制品正文或完整 SKILL.md；子代理先读 handoff 包，回执只含 Stage Receipt（≤40 行 / ≤2KB）');
         lines.push(
-            '- 分级执行：探索 / debug investigate / verify-close 内联；propose / apply / archive / fix 子代理；只读验证默认子代理，内联须非作者（independence=independent）+ 检查清单；iagent_test 为 apply / fix 子阶段'
+            '- 分级执行：探索 / debug investigate / verify-close 内联；propose / apply 子代理；verify / archive / fix / migration 内联优先（兼容窗接受 legacy `subagent` 回执并记 deprecation WARN，下个 major 收紧）；只读验证以固定清单 + 每条结论 `文件:行` 证据 + 报告落盘承担可信度（independence=self 记 WARN）；`iagent_test` 为 apply / fix 子阶段'
         );
         lines.push(
-            '- 增量复验：验证 FAIL 修复后新开只读代理，只传 fixDiff + 上轮 reportPath；禁止以 resume 充当复验（contextReplay=true 记 WARN）'
+            '- 增量复验：验证 FAIL 修复后在同一主上下文按 fixDiff 增量重跑清单，禁止新开验证代理或全量重读；禁止以 resume 充当复验（contextReplay=true 记 WARN）'
         );
         lines.push(
             '- 执行方式回执：executionMode / independence / readScope / dependsOn / contextReplay；inline 阶段不要求 delegate'

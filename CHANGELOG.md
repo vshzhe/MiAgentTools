@@ -7,6 +7,15 @@
 
 ## [Unreleased]
 
+## [4.3.0] - 2026-11-08
+
+### Changed
+
+- 编排执行方式分级反转：`verify` / `archive` / `debug fix` / `migration source-scan` 与迁移 Phase 4 复查改为主 agent 内联；`propose` / `apply` / `spec-bulk-archive` 并行单元保留子代理。
+- 验证内联契约：单轮内联、固定清单（D1-D10 + B1-B7）、每条结论带 `文件:行` 或章节锚点、无证据不计分、报告落盘 `.openspec-tmp/pipeline-<change>/verify-report.md`、FAIL 同上下文按 `fixDiff` 重跑（≤3）。
+- 阶段协议兼容窗：`verify` / `archive` / `fix` / `migration` 的 `execution.allowed` 为 `['inline','subagent']`（旧 `subagent` 回执记 deprecation WARN，下个 major 收紧）；inline 阶段移除 `delegate`；`VERIFY_PHASE.independence` 改 `self-allowed`。
+- migration 上下文阈值降级：计划读取文件数 > 300 或制品总行数 > 15k → 降级子代理 + WARN；Phase 3 实现保留子代理（apply 语义）。
+
 ## [4.2.0] - 2026-11-08
 
 ### Added
@@ -1681,7 +1690,8 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.2.0...HEAD
+[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.3.0...HEAD
+[4.3.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.2.0...v4.3.0
 [4.2.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.1.0...v4.2.0
 [4.1.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.0.1...v4.1.0
 [4.0.1]: https://github.com/vshzhe/MiAgentTools/compare/v4.0.0...v4.0.1

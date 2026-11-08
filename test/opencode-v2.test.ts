@@ -214,6 +214,8 @@ describe('OpenCode V2 项目产物写入（init 端到端）', () => {
                 (rule) => rule.action === 'skill' && rule.resource === 'iagent-requirement-doc'
             )
         ).toBe(false);
+        // 项目级 subagent 权限覆盖全部 iagent agent（debug worker 自身不含派发条目，
+        // 其 agent 文件不授予 action: subagent；项目级覆盖保持不变）
         expect(permissions).toContainEqual({
             action: 'subagent',
             resource: 'iagent-debug',

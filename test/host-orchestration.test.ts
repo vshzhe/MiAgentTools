@@ -1361,13 +1361,99 @@ describe('分级执行契约（2.5）', () => {
         }
     });
 
-    it('verify 阶段声明 independence=required（默认子代理，允许内联但须非作者）', () => {
+    it('verify 阶段声明 inline 优先 + independence=self-allowed（兼容窗保留 subagent）', () => {
         for (const workflowId of ['workflow', 'auto-workflow']) {
             const verify = getWorkflowProtocol(workflowId)!.phases.find((phase) => phase.id === 'verify')!;
-            expect(verify.execution?.independence).toBe('required');
-            expect(verify.execution?.allowed).toContain('subagent');
+            expect(verify.execution?.independence).toBe('self-allowed');
             expect(verify.execution?.allowed).toContain('inline');
+            expect(verify.execution?.allowed).toContain('subagent');
+            expect(verify.requiredCapabilities).not.toContain('delegate');
         }
+    });
+
+    it('verify / archive / fix / migration 内联优先且不要求 delegate', () => {
+        const phases = [
+            getWorkflowProtocol('workflow')!.phases.find((phase) => phase.id === 'verify')!,
+            getWorkflowProtocol('workflow')!.phases.find((phase) => phase.id === 'archive')!,
+            getWorkflowProtocol('auto-workflow')!.phases.find((phase) => phase.id === 'archive')!,
+            getWorkflowProtocol('debug')!.phases.find((phase) => phase.id === 'fix')!,
+            getWorkflowProtocol('migration')!.phases.find((phase) => phase.id === 'source-scan')!,
+            getWorkflowProtocol('migration')!.phases.find((phase) => phase.id === 'implement-and-check')!,
+        ];
+        for (const phase of phases) {
+            expect(phase.execution?.allowed, `${phase.id} 应允许 inline`).toContain('inline');
+            expect(phase.requiredCapabilities, `${phase.id} 不应要求 delegate`).not.toContain('delegate');
+            const result = evaluatePhaseTransition({
+                phase,
+                receipt: {
+                    phase: phase.id,
+                    status: 'ok',
+                    artifact: 'artifact.md',
+                    nextAllowed: 'next',
+                    executionMode: 'inline',
+                },
+                gateConfirmed: true,
+                negotiation: noDelegate,
+            });
+            expect(result.advance, `${phase.id} 缺 delegate 被误阻断：${result.blockedBy.join(', ')}`).toBe(true);
+            expect(result.blockedBy).not.toContain(TRANSITION_BLOCKERS.capabilities);
+        }
+    });
+
+    it('兼容窗内 subagent 回执记 deprecation WARN 且允许推进', () => {
+        const phases = [
+            getWorkflowProtocol('workflow')!.phases.find((phase) => phase.id === 'verify')!,
+            getWorkflowProtocol('workflow')!.phases.find((phase) => phase.id === 'archive')!,
+            getWorkflowProtocol('debug')!.phases.find((phase) => phase.id === 'fix')!,
+            getWorkflowProtocol('migration')!.phases.find((phase) => phase.id === 'source-scan')!,
+        ];
+        for (const phase of phases) {
+            const result = evaluatePhaseTransition({
+                phase,
+                receipt: {
+                    phase: phase.id,
+                    status: 'ok',
+                    artifact: 'artifact.md',
+                    nextAllowed: 'next',
+                    executionMode: 'subagent',
+                },
+                gateConfirmed: true,
+                negotiation: negotiateCapabilities('claude', 'strict'),
+            });
+            expect(result.advance, `${phase.id} 兼容窗回执被阻断`).toBe(true);
+            const warnings = result.warnings.join('\n');
+            expect(warnings, `${phase.id} 缺 deprecation WARN`).toContain('deprecation');
+            expect(warnings).toContain('已改为主代理内联');
+            expect(warnings).toContain('下个 major 收紧');
+        }
+    });
+
+    it('写阶段（propose / apply）不进入兼容窗：subagent 为唯一允许值且保留 delegate', () => {
+        for (const workflowId of ['workflow', 'auto-workflow']) {
+            for (const phaseId of ['propose', 'apply']) {
+                const phase = getWorkflowProtocol(workflowId)!.phases.find((item) => item.id === phaseId)!;
+                expect(phase.execution?.allowed, `${workflowId}/${phaseId}`).toEqual(['subagent']);
+                expect(phase.requiredCapabilities, `${workflowId}/${phaseId}`).toContain('delegate');
+            }
+        }
+    });
+
+    it('缺省 execution 的阶段不校验执行方式（旧阶段兼容）', () => {
+        const legacyPhase = {
+            id: 'legacy',
+            input: { required: ['changeName'] as const },
+            requiredCapabilities: ['receipt'] as const,
+            handoff: [],
+            receipt: { fields: ['phase', 'status', 'artifact', 'nextAllowed'] },
+        } as unknown as Parameters<typeof evaluatePhaseTransition>[0]['phase'];
+        const result = evaluatePhaseTransition({
+            phase: legacyPhase,
+            receipt: { phase: 'legacy', status: 'ok', artifact: 'artifact.md', nextAllowed: 'next' },
+            gateConfirmed: true,
+            negotiation: negotiateCapabilities('claude', 'strict'),
+        });
+        expect(result.advance).toBe(true);
+        expect(result.blockedBy).not.toContain(TRANSITION_BLOCKERS.receipt);
     });
 
     it('degraded 统一 local-degraded：合规回执无告警，声称 subagent 记 WARN', () => {

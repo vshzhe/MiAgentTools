@@ -27,9 +27,11 @@ ${renderGateWhitelistSection()}
 
 ## 执行方式与读取范围（强制）
 
-- 默认经前台 Agent 子代理执行；允许内联但须「非作者 + 检查清单」；independence=self 记 WARN 且不视为合规。
-- 子代理 MUST FIRST 读 handoff 包「## 制品清单」，按锚点增量读取；回执写 readScope。
-- 复验：FAIL 修复后新开只读代理，传 fixDiff + 上轮 reportPath；只验证增量并对未覆盖范围输出 residual 清单；禁止 resume 充当复验（contextReplay=true 记 WARN）。
+- **主 agent 内联**：本技能以 \`executionMode=inline\` 执行，回执 \`independence=self\`（自证记 WARN，可信度由固定清单 + 每条 \`文件:行\` 证据 + 报告落盘承担）；MUST NOT 为验证启动子代理。
+- **单轮验证**：一次合并执行 D1-D10 核心维度 + B1-B7 边界清单；每条结论 MUST 带 \`文件:行\` 或制品章节锚点，**无证据的结论 MUST NOT 计入通过**。
+- **报告路径**：验证报告 MUST 落盘 \`.openspec-tmp/pipeline-<change-name>/verify-report.md\`。
+- **读取范围**：MUST FIRST 读 handoff 包「## 制品清单」，按锚点增量读取；回执写 \`readScope\`。
+- **同上下文复跑**：FAIL 修复后在同一主上下文按 \`fixDiff\` 与上轮 \`reportPath\` 增量重跑，**禁止新开验证代理或全量重读**；循环上限 3 次；禁止 resume 充当复验（\`contextReplay=true 记 WARN\`）。
 
 ## 执行步骤
 

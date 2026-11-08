@@ -328,44 +328,42 @@ describe('6.9–6.11 · handoff 包跨阶段协议', () => {
 });
 
 // 任务 5.4：debug 派发形态与白名单断言（批次一）。
-describe('5.4 · debug 修复循环派发形态', () => {
+describe('5.4 · debug 修复循环执行形态（内联）', () => {
     const debug = getSkillTemplates().find(({ template }) => template.name === 'iagent_debug');
     const body = skillBody('iagent_debug');
 
-    it('白名单含 Agent / Task 双写条目', () => {
+    it('白名单不含 Agent / Task 派发条目（修复内联）', () => {
         const entries = (debug?.template.allowedTools ?? '')
             .split(',')
             .map((entry) => entry.trim());
-        expect(entries).toContain('Agent');
-        expect(entries).toContain('Task');
+        expect(entries).not.toContain('Agent');
+        expect(entries).not.toContain('Task');
+        // 仍以 Skill 工具内联调用的子技能保留授权
+        expect(entries).toContain('Skill(iagent-test)');
     });
 
-    it('Phase 4 按 bug 派发单元（同文件串行、并发 ≤ apply.concurrency）', () => {
-        expect(body).toContain('4.0.5 修复循环的派发形态');
-        expect(body).toContain('派发单元** = 每个待修复 bug');
-        expect(body).toContain('同一文件被多个 bug 触及时 MUST 串行执行');
-        expect(body).toContain('apply.concurrency');
+    it('Phase 4 由主 agent 内联执行（同文件串行、共用重试预算）', () => {
+        expect(body).toContain('4.0.5 修复循环的执行形态（主 agent 内联，强制）');
+        expect(body).toContain('由**主 agent 内联**执行');
+        expect(body).toContain('同一文件被多个 bug 触及时 MUST 串行处理');
+        expect(body).toContain('共用重试预算');
     });
 
-    it('四列回执格式与 EXIT GUARD', () => {
-        expect(body).toContain('<bug id> | <状态> | <产出文件> | <公开签名>');
-        expect(body).toContain('MUST NOT 粘贴代码正文');
-        expect(body).toContain('EXIT GUARD');
+    it('内联执行态：超限报告含文件:行，禁止静默通过', () => {
+        expect(body).toContain('超限暂停并报告剩余错误（含 `文件:行`）');
+        expect(body).toContain('MUST NOT 静默通过');
     });
 
-    it('批次一降级口径：包存在读包，不存在读 digest + 单元清单 + 文件归属', () => {
-        expect(body).toContain('handoff 包存在时');
-        expect(body).toContain('investigation-digest` 摘要 + 本单元 bug 清单 + 文件归属');
-        expect(body).toContain('MUST NOT 因缺包而拒绝派发');
-        expect(body).toContain('MUST NOT 在本技能内自建第二套包格式');
+    it('共享读取范围：digest 摘要 + 本 bug 清单 + 文件归属（不重读、不自立包格式）', () => {
+        expect(body).toContain('`investigation-digest` 摘要 + 本 bug 清单 + 文件归属');
+        expect(body).toContain('MUST NOT 全量重读'); 
+        expect(body).toContain('handoff 包');
     });
 
-    it('子代理不推进阶段 / 不改 tasks.md / 不标记可归档；无派发能力时降级', () => {
-        expect(body).toContain('子代理 MUST NOT 推进阶段');
-        expect(body).toContain('MUST NOT 修改 `tasks.md`');
-        expect(body).toContain('MUST NOT 标记可归档');
-        expect(body).toContain('降级为串行本地修复并告知用户');
-        expect(body).toContain('MUST NOT 声称发生过派发');
+    it('收束归属集中在本技能；不越权改制品', () => {
+        expect(body).toContain('收束归属');
+        expect(body).toContain('MUST NOT 在修复循环内修改 `tasks.md` 以外的变更制品');
+        expect(body).toContain('共用重试预算');
     });
 
     it('5.3 探查摘要作为 handoff 包 Codebase 摘要来源（不重复探查 / 不替代诊断记录）', () => {

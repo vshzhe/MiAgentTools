@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: review
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:f817823c4a16a50f3890dd8cbea0217e4dc9724e77b29126d63315b2ab885aa8"
+  generatedFingerprint: "sha256:9c975aceba7d5cbbb534303712530b2deb0256f80bf74f8b3f5e188e1cecd94a"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
@@ -29,9 +29,10 @@ metadata:
 
 ## 执行方式与串联（强制）
 
-- 默认经前台 Agent 子代理执行；允许内联但须「非作者 + 检查清单」；independence=self 记 WARN 且不视为合规。
+- 默认由**主 agent 内联**执行，回执声明 executionMode=inline / independence=self（self 记 WARN；可信度由检查清单 + 每条 `文件:行` 证据承担，MUST NOT 要求非作者）。**无证据的结论 MUST NOT 计入通过**。兼容窗内旧的 subagent 回执记 deprecation WARN 并允许推进（下个 major 收紧为仅 inline）。
 - **串联**：优先读取 iagent-spec-verify-proposal 的回执 reportPath 作为输入，标 dependsOn: [reportPath]；对报告已覆盖的维度只做增量核对，MUST NOT 重复全量读取或重跑 D1-D10 评分。
 - 报告缺失 / 不可读 → 退化为独立全量复查并记 WARN。
+- **增量复验**：FAIL 修复后在同一主上下文按 fixDiff + 上轮 reportPath 增量重跑；禁止新开验证代理或全量重读；禁止以 resume 充当复验（contextReplay=true 记 WARN）。
 - 回执 SHALL 含 executionMode / independence / readScope / dependsOn。
 
 ## Phase 1: 加载变更提案

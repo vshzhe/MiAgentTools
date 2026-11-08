@@ -130,14 +130,17 @@ export function evaluatePhaseTransition(input: PhaseTransitionInput): PhaseTrans
 /**
  * 校验阶段回执声明的执行方式与独立性。
  *
- * 规则（变更 improve-orchestration-execution-mode）：
+ * 规则（变更 inline-orchestration-delegation / D5，取代 improve-orchestration-execution-mode 的 D1）：
  *   - `PhaseSpec.execution` 缺省 → 不校验（旧阶段兼容）；
- *   - strict 且 `allowed` 不含 `inline`（变更类阶段）→ `executionMode` 缺失或不匹配即 `invalid-receipt`；
- *   - strict 且 `allowed` 含 `inline`（交互 / 只读验证）→ 缺失记 WARN，不匹配仍阻断；
- *   - 内联验证按 `execution.independence` 映射：`required` 下 `self` 记 WARN 且不视为合规，
- *     `self-allowed` 下 `self` 记 WARN；缺 `independence` 记 WARN；
+ *   - strict 且 `allowed` 不含 `inline`（写阶段）→ `executionMode` 缺失或不匹配即 `invalid-receipt`；
+ *   - strict 且 `allowed` 含 `inline`（交互 / 只读验证 / 收尾）→ 缺失记 WARN，不匹配仍阻断；
+ *   - 兼容窗（`allowed` 同时含 `inline` 与 `subagent`）内回执为 `subagent` → 记 deprecation WARN
+ *     并允许推进（下个 major 收紧为仅 `inline`）；
+ *   - 内联验证按 `execution.independence` 映射：`self-allowed` 下 `self` 记 WARN 且允许推进
+ *     （可信度由固定清单 + 证据 + 报告承担），`required` 下 `self` 记 WARN 且不视为合规
+ *     （兼容旧阶段声明）；缺 `independence` 记 WARN；
  *   - degraded 下非 `local-degraded` 记 WARN（不实声明），MUST NOT 推进为 strict 语义；
- *   - `contextReplay=true` 一律记 WARN（resume 不得作为复验通过）。
+ *   - `contextReplay=true` 一律记 WARN（resume 不得作为复验通过，须同上下文增量重跑）。
  */
 function evaluateExecutionMode(input: PhaseTransitionInput): {
     blockedBy: string[];
@@ -150,8 +153,9 @@ function evaluateExecutionMode(input: PhaseTransitionInput): {
     const mode = receipt.executionMode;
 
     if (execution !== undefined) {
+        const allowedInline = execution.allowed.includes('inline');
+        const compatibilityWindow = allowedInline && execution.allowed.includes('subagent');
         if (input.negotiation.mode === 'strict') {
-            const allowedInline = execution.allowed.includes('inline');
             if (mode === undefined) {
                 if (allowedInline) {
                     warnings.push(
@@ -168,6 +172,11 @@ function evaluateExecutionMode(input: PhaseTransitionInput): {
                 warnings.push(
                     `WARN: 阶段 ${input.phase.id} 的 executionMode=${mode} 不在允许集合 [${execution.allowed.join(', ')}] 内，以 invalid-receipt 阻断推进`
                 );
+            } else if (compatibilityWindow && mode === 'subagent') {
+                // 兼容窗：旧 in-flight 回执允许推进，但记 deprecation WARN（下个 major 收紧）
+                warnings.push(
+                    `WARN: 阶段 ${input.phase.id} 已改为主代理内联，收到 legacy executionMode=subagent 回执（deprecation：下个 major 收紧为仅 inline）`
+                );
             }
             if (mode === 'inline' && execution.independence !== undefined) {
                 const independence = receipt.independence;
@@ -175,9 +184,9 @@ function evaluateExecutionMode(input: PhaseTransitionInput): {
                     warnings.push(`WARN: 阶段 ${input.phase.id} 为内联执行但缺少 independence`);
                 } else if (independence === 'self') {
                     warnings.push(
-                        execution.independence === 'required'
-                            ? `WARN: 阶段 ${input.phase.id} 要求独立验证（independence=required），作者自证不视为合规`
-                            : `WARN: 阶段 ${input.phase.id} 为作者自证（independence=self），记 WARN`
+                        execution.independence === 'self-allowed'
+                            ? `WARN: 阶段 ${input.phase.id} 为内联验证由作者自证（independence=self），记 WARN；可信度由固定清单 + 文件:行 证据 + 报告落盘承担`
+                            : `WARN: 阶段 ${input.phase.id} 要求独立验证（independence=required），作者自证不视为合规`
                     );
                 }
             }

@@ -286,10 +286,10 @@ describe('需求文档时机跨模板一致（4.1 / 4.3）', () => {
 // ---------------------------------------------------------------------------
 
 describe('增量复验、串联回退与用量记录（任务 5.9）', () => {
-    it('编排模板要求复验新开只读代理且禁止 resume 充当复验', () => {
+    it('编排模板要求复验同上下文增量重跑且禁止 resume 充当复验', () => {
         for (const name of ['iagent_auto_workflow', 'iagent_workflow', 'iagent_debug']) {
             const text = skillBody(name);
-            expect(text, `${name} 未要求新开只读代理`).toContain('新开只读代理');
+            expect(text, `${name} 未禁止新开验证代理`).toContain('禁止新开验证代理');
             expect(text, `${name} 未禁止 resume 充当复验`).toContain('禁止 resume 充当复验');
         }
     });
@@ -323,5 +323,36 @@ describe('增量复验、串联回退与用量记录（任务 5.9）', () => {
             expect(skillBody(name), `${name} 缺不可得填 —`).toMatch(/tokens[^\n]{0,20}—/);
         }
         expect(skillBody('iagent_spec_propose')).toContain('MUST NOT 编造');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// 变更 inline-orchestration-delegation / 任务 10.4 / 10.8
+// 单变更归档内联、批量归档保留并行。
+// ---------------------------------------------------------------------------
+describe('10.4 / 10.8 归档执行方式（单变更内联 / 批量并行）', () => {
+    it('单变更归档内联：workflow / auto-workflow / spec-archive 声明主 agent 内联', () => {
+        for (const name of ['iagent_workflow', 'iagent_auto_workflow', 'iagent_spec_archive']) {
+            const body = skillBody(name);
+            expect(body, `${name} 未声明归档内联`).toContain('主 agent 内联');
+            expect(body, `${name} 未标注 executionMode=inline`).toContain('executionMode=inline');
+        }
+        // 兼容窗：旧 subagent 回执记 deprecation WARN
+        expect(skillBody('iagent_workflow')).toContain('下个 major 收紧为仅 `inline`');
+        expect(skillBody('iagent_spec_archive')).toContain('deprecation WARN');
+    });
+
+    it('批量归档保留并行子代理（≤3 单元，失败隔离）', () => {
+        const bulk = skillBody('iagent_spec_bulk_archive');
+        expect(bulk).toContain('同时最多 3 个归档子代理');
+        expect(bulk).toContain('并行');
+        expect(bulk).toContain('失败隔离');
+        const template = skills.find((s) => s.template.name === 'iagent_spec_bulk_archive')!;
+        expect(template.template.allowedTools).toContain('Agent, Task');
+    });
+
+    it('spec-bulk-archive 不由编排技能内联化（正文保持不变）', () => {
+        const bulk = skillBody('iagent_spec_bulk_archive');
+        expect(bulk).not.toContain('主 agent 内联归档');
     });
 });

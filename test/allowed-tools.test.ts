@@ -325,10 +325,9 @@ describe('调用类白名单条目（MCP / Skill 委派 / 子代理派发）', (
         const dispatching = skills.filter(({ template }) =>
             parseEntries(template.allowedTools).includes('Agent')
         );
-        // 派发技能集合（回归锁）：debug 在批次一补齐派发
+        // 派发技能集合（回归锁）：debug 修复内联 ⇒ 退出子代理派发面（7 → 6）
         expect(dispatching.map((s) => s.commandId).sort()).toEqual([
             'auto-workflow',
-            'debug',
             'migration',
             'spec-apply',
             'spec-bulk-archive',
@@ -438,14 +437,16 @@ describe('debug 授权与宿主委派表一致（4.5）', () => {
         for (const dep of ['spec-verify-proposal']) {
             expect(CONDITIONAL_DELEGATIONS.debug, `DEPS 覆盖的 ${dep} 不应是条件委派`).not.toContain(dep);
         }
-        expect(debug.template.instructions).toContain('strict 模式无法委派 `iagent_test` 时 SHALL 按能力协商**阻断并报告**');
+        expect(debug.template.instructions).toContain('strict 模式无法调用 `iagent_test`（Skill 工具不可用）时 SHALL 按能力协商**阻断并报告**');
         expect(debug.template.instructions).toContain('显式协商 degraded 时才允许本地编写');
     });
 
-    it('4.8 debug 含 Agent/Task 派发条目（批次一补齐派发能力）', () => {
+    it('4.8 debug 不含 Agent/Task 派发条目（修复与验证均内联）', () => {
         const entries = parseEntries(debug.template.allowedTools);
-        expect(entries).toContain('Agent');
-        expect(entries).toContain('Task');
+        expect(entries).not.toContain('Agent');
+        expect(entries).not.toContain('Task');
+        // Skill 工具内联调用的子技能条目保留
+        expect(entries).toContain('Skill(iagent-test)');
         expect(debug.template.allowedTools).not.toContain('Skill(*)');
     });
 

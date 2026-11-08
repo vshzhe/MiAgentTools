@@ -955,7 +955,7 @@ describe('4.3 调用方管线：references 改写与手改保护', () => {
                 path.join(root, '.opencode', 'agents', 'iagent-debug.md'),
                 'utf8'
             );
-            expect(debugWorker).toContain('action: subagent');
+            expect(debugWorker).not.toContain('action: subagent');
             expect(debugWorker).toContain('resource: "iagent-spec-verify-proposal"');
             expect(debugWorker).not.toContain('resource: "iagent-requirement-doc"');
             const verifyWorker = fs.readFileSync(

@@ -427,16 +427,16 @@ describe('debug 决策与回归测试职责（4.3）', () => {
         expect(debugMain).toContain('唯一方案直通规则 MUST NOT 绕过该确认');
     });
 
-    it('回归测试委派 iagent_test 并由 debug 验收 fail-before / pass-after 与节点覆盖', () => {
-        expect(debugMain).toContain('强制回归测试（委派 `iagent_test`）');
+    it('回归测试内联调用 iagent_test 并由 debug 验收 fail-before / pass-after 与节点覆盖', () => {
+        expect(debugMain).toContain('强制回归测试（内联调用 `iagent_test`）');
         expect(debugMain).toContain('**唯一来源**');
         expect(debugMain).toContain('修复前 FAIL、修复后 PASS');
         expect(debugMain).toContain('异常节点 + 根因节点');
         expect(debugMain).toContain('MUST NOT 报告测试验收通过');
     });
 
-    it('strict 缺委派能力阻断而非自写，仅显式 degraded 允许本地', () => {
-        expect(debugMain).toContain('strict 模式无法委派 `iagent_test` 时 SHALL 按能力协商**阻断并报告**');
+    it('strict 缺调用能力阻断而非自写，仅显式 degraded 允许本地', () => {
+        expect(debugMain).toContain('strict 模式无法调用 `iagent_test`（Skill 工具不可用）时 SHALL 按能力协商**阻断并报告**');
         expect(debugMain).toContain('MUST NOT 以"自写 + WARN"绕过');
         expect(debugMain).toContain('显式协商 degraded 时才允许本地编写');
     });
@@ -1438,5 +1438,60 @@ describe('debug 双轨判定与证据门槛（缺口补齐）', () => {
         }
         expect(shared).toContain('轨道只决定证据形态');
         expect(shared).toContain('MUST NOT 改变排查与验收标准');
+    });
+});
+
+// ---------------------------------------------------------------------------
+// 变更 inline-orchestration-delegation / 任务 11.1 - 11.7
+// auto-migration 执行方式：source-scan / Phase 4 内联，Phase 3 保留子代理，阈值降级。
+// ---------------------------------------------------------------------------
+describe('11.1-11.7 auto-migration 内联复查与上下文阈值', () => {
+    const migration = skillCorpus('iagent_migration');
+
+    it('11.1 Phase 4 内联复查修复循环（同上下文、带证据）', () => {
+        expect(migration).toContain('主 agent 内联复查');
+        expect(migration).toContain('内联复查');
+        expect(migration).toContain('在同一上下文');
+        expect(migration).toContain('文件:行');
+        expect(migration).not.toContain('派发独立复查子代理');
+    });
+
+    it('11.2 上下文阈值降级（300 文件 / 15k 行 + WARN）', () => {
+        expect(migration).toContain('300');
+        expect(migration).toContain('15k');
+        expect(migration).toContain('降级为子代理');
+        expect(migration).toContain('WARN');
+        expect(migration).toContain('上下文阈值');
+    });
+
+    it('11.3 Phase 3 保留子代理（apply 语义）', () => {
+        expect(migration).toContain('每个派发单元一个子代理');
+        expect(migration).toContain('Phase 3 实现保留子代理');
+        expect(migration).toContain('语义等同 apply');
+    });
+
+    it('11.4 复查失败降级链（串行重试一次 → WARN 完成）', () => {
+        expect(migration).toContain('串行重试一次');
+        expect(migration).toContain('COMPLETE-WITH-WARNING');
+    });
+
+    it('11.5 蒸馏确认门阻断空清单（既有断言保留）', () => {
+        expect(migration).toContain('清单**为空即阻断**');
+        expect(migration).toContain('绝不允许带着空清单继续');
+    });
+
+    it('11.6 目标规范作为绑定约束（既有断言保留）', () => {
+        expect(migration).toContain('## 目标项目规范要点');
+        expect(migration).toContain('约束性');
+    });
+
+    it('11.7 CLI 降级生成（command-not-found 声明一次、不重试）', () => {
+        expect(migration).toContain('command not found');
+        expect(migration).toContain('流程中途不得重试 CLI 调用');
+    });
+
+    it('source-scan 内联且不派生扫描子代理', () => {
+        expect(migration).toContain('source-scan 由主 agent 内联执行');
+        expect(migration).toContain('MUST NOT 派生源扫描子代理');
     });
 });

@@ -308,8 +308,8 @@ describe('A7 workflow 提案 / 修订重验 / 实现桥出口（N4–N17）', ()
     });
 
     it('N5 FAIL → N6 自动修复并重跑验证，重跑仍失败不进入实现', () => {
-        expect(body).toContain('验证失败 → 自动修复并重跑');
-        expect(body).toContain('自动重跑验证');
+        expect(body).toContain('验证失败 → 同上下文自动修复并重跑');
+        expect(body).toContain('只重跑受影响清单项');
         expect(body).toMatch(/重跑仍失败/);
         expect(body).toContain('无跳过直接 apply 的路径');
     });
@@ -332,7 +332,7 @@ describe('A7 workflow 提案 / 修订重验 / 实现桥出口（N4–N17）', ()
 
     it('N15 实现验证失败回到修复，MUST NOT 进入归档', () => {
         expect(body, 'workflow 未声明实现验证阶段').toContain(
-            '委派 `iagent_spec_verify` 技能验证实现与制品'
+            '调用 `iagent_spec_verify` 技能验证实现与制品'
         );
         expect(body).toContain('失败 → 回 Phase 4 修复，MUST NOT 进入归档');
     });

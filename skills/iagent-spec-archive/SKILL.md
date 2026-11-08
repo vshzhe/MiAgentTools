@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:82bf94847b7740e2059c9d7e6ad7fd85bba81290112ad051025e571716068dfe"
+  generatedFingerprint: "sha256:d1852af9fccfdf5a47ee1f87511dd5e0e824683b5ca86db4f35a201e45c13524"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
@@ -38,7 +38,7 @@ metadata:
 
 **Input**: 可选指定变更名；省略时检查能否从对话上下文推断。若含糊或有歧义，MUST 提示可用变更供用户选择。工作流也可能为自动执行直接传入变更名。
 
-**执行方式与读取范围（强制）**：默认经前台 Agent 子代理执行，回执声明 executionMode / readScope；子代理 MUST FIRST 读 handoff 包「## 制品清单」并按锚点增量读取，回执写 readScope；「## 阶段结论」5 列（tokens 可用时填 tokens=<数值>，不可得填 —）；指纹优先 iagent spec fingerprint --change <name>。
+**执行方式与读取范围（强制）**：单变更归档由**主 agent 内联**执行（`executionMode=inline`）；MUST NOT 为归档启动子代理；兼容窗内旧 `subagent` 回执记 deprecation WARN 并允许推进（下个 major 收紧为仅 `inline`）。内联执行前 MUST FIRST 读 handoff 包「## 制品清单」并按锚点增量读取，回执写 `readScope`；「## 阶段结论」5 列（tokens 可用时填 tokens=<数值>，不可得填 —）；指纹优先 iagent spec fingerprint --change <name>。
 
 **Steps**
 

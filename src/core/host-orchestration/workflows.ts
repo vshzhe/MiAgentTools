@@ -53,9 +53,10 @@ const PROPOSE_PHASE: PhaseSpec = {
 const VERIFY_PHASE: PhaseSpec = {
     id: 'verify',
     input: ARTIFACTS_INPUT,
-    // 只读验证允许内联：不强制 delegate；内联时要求非作者（independence=required）。
+    // 只读验证内联优先：不要求 delegate；内联自证由固定清单 + 证据 + 报告承担可信度，
+    // 故 independence 放宽为 self-allowed（self 记 WARN 且允许推进）。
     requiredCapabilities: ['skill-load', 'receipt', 'state'],
-    execution: { allowed: ['subagent', 'inline'], independence: 'required' },
+    execution: { allowed: ['inline', 'subagent'], independence: 'self-allowed' },
     handoff: ['score', 'deepReview', 'reviewSummary', 'reportPath'],
     receipt: RECEIPT,
     retry: { maxAttempts: 2, on: ['score-below-threshold'] },
@@ -78,8 +79,9 @@ const APPLY_PHASE: PhaseSpec = {
 const ARCHIVE_PHASE: PhaseSpec = {
     id: 'archive',
     input: { required: ['changeName'] },
-    requiredCapabilities: ['delegate', 'receipt', 'state'],
-    execution: { allowed: ['subagent'] },
+    // 单变更归档由主代理内联执行（兼容窗接受 subagent 回执并记 deprecation WARN）。
+    requiredCapabilities: ['receipt', 'state'],
+    execution: { allowed: ['inline', 'subagent'] },
     handoff: ['archivePath', 'specsSynced'],
     receipt: RECEIPT,
     gate: { id: 'archive-confirmation', blocking: true },
@@ -104,8 +106,9 @@ const AUTO_APPLY_PHASE: PhaseSpec = {
 const AUTO_ARCHIVE_PHASE: PhaseSpec = {
     id: 'archive',
     input: { required: ['changeName'] },
-    requiredCapabilities: ['delegate', 'receipt', 'state'],
-    execution: { allowed: ['subagent'] },
+    // 单变更归档内联优先（兼容窗同 ARCHIVE_PHASE）。
+    requiredCapabilities: ['receipt', 'state'],
+    execution: { allowed: ['inline', 'subagent'] },
     handoff: ['archivePath', 'specsSynced'],
     receipt: RECEIPT,
     retry: { maxAttempts: 2, on: ['sync-failed'] },
@@ -129,12 +132,14 @@ const DEBUG_INVESTIGATE: PhaseSpec = {
     retry: { maxAttempts: 2, on: ['investigation-inconclusive'] },
 };
 
-/** 调试：修复阶段（方案判定 + 精准修复 + 回归测试委派） */
+/** 调试：修复阶段（方案判定 + 精准修复 + 内联回归测试调用） */
 const DEBUG_FIX: PhaseSpec = {
     id: 'fix',
     input: { required: ['rootCause', 'defectChain', 'changeName', 'fixDecision'] },
-    requiredCapabilities: ['delegate', 'receipt', 'state'],
-    execution: { allowed: ['subagent'] },
+    // 修复由主代理内联执行（修复 + 编译 + 范围内测试共用既有重试预算）；
+    // 兼容窗保留 subagent 回执。
+    requiredCapabilities: ['receipt', 'state'],
+    execution: { allowed: ['inline', 'subagent'] },
     handoff: ['fixApplied', 'regressionTests'],
     receipt: RECEIPT,
     gate: { id: 'fix-option-confirmation', blocking: true, condition: 'multiple-fix-options' },
@@ -148,7 +153,7 @@ const DEBUG_VERIFY_CLOSE: PhaseSpec = {
         required: ['changeName', 'fixApplied'],
         optional: ['regressionTests', 'compileResult'],
     },
-    // 收束阶段由主代理内联；内部验证 / 复查为嵌套子代理，不要求阶段级 delegate。
+    // 收束阶段由主代理内联；内部验证 / 复查同样内联（不再派生嵌套子代理），不要求阶段级 delegate。
     requiredCapabilities: ['skill-load', 'receipt', 'state'],
     execution: { allowed: ['inline'] },
     handoff: ['verificationResult', 'deepReview', 'archiveReady'],
@@ -160,17 +165,21 @@ const DEBUG_VERIFY_CLOSE: PhaseSpec = {
 const MIGRATION_SCAN: PhaseSpec = {
     id: 'source-scan',
     input: { required: ['sourceProject'] },
-    requiredCapabilities: ['skill-load', 'delegate', 'receipt'],
+    // source-scan 由主代理内联执行；超出上下文阈值时由模板声明降级为子代理 + WARN。
+    requiredCapabilities: ['skill-load', 'receipt'],
+    execution: { allowed: ['inline', 'subagent'] },
     handoff: ['featureMap', 'coreFeatureList'],
     receipt: RECEIPT,
     retry: { maxAttempts: 2, on: ['delegation-failed'] },
 };
 
-/** 迁移：实现与复查阶段 */
+/** 迁移：实现与复查阶段（Phase 3 实现保留子代理，Phase 4 复查内联） */
 const MIGRATION_CHECK: PhaseSpec = {
     id: 'implement-and-check',
     input: { required: ['changeName', 'coreFeatureList'] },
-    requiredCapabilities: ['delegate', 'receipt', 'state'],
+    // Phase 4 复查内联；Phase 3 实现的子代理语义由模板声明（不进入阶段级 requiredCapabilities）。
+    requiredCapabilities: ['receipt', 'state'],
+    execution: { allowed: ['inline', 'subagent'] },
     handoff: ['implementation', 'migrationReport', 'fixes'],
     receipt: RECEIPT,
     gate: { id: 'implementation-bridge', blocking: true },

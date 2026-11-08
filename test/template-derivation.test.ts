@@ -161,12 +161,12 @@ describe('模板派生一致性（文档桥 / debug 决策护栏）', () => {
         getCommandTemplates().map(({ template, id }) => [id, template])
     );
 
-    it('debug 指令版保留诊断拒绝出口与 iagent_test 委派护栏', () => {
+    it('debug 指令版保留诊断拒绝出口与 iagent_test 内联护栏', () => {
         const derived = commandById.get('debug')?.content ?? '';
         for (const statement of [
             '| 拒绝 | **终止修复**并输出诊断报告',
             'MUST NOT 自动按推断继续、MUST NOT 标记可归档',
-            '强制回归测试（委派 `iagent_test`）',
+            '强制回归测试（内联调用 `iagent_test`）',
             'Phase 1 内联临时测试的边界',
             'MUST NOT 仅以 Phase 1 临时测试充当唯一回归测试',
             '没有跳过直接实现的路径',

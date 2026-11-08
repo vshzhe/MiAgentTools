@@ -23,7 +23,7 @@ ${renderGateWhitelistSection()}
 
 **Input**: 可选指定变更名；省略时检查能否从对话上下文推断。若含糊或有歧义，MUST 提示可用变更供用户选择。工作流也可能为自动执行直接传入变更名。
 
-**执行方式与读取范围（强制）**：默认经前台 Agent 子代理执行，回执声明 executionMode / readScope；子代理 MUST FIRST 读 handoff 包「## 制品清单」并按锚点增量读取，回执写 readScope；「## 阶段结论」5 列（tokens 可用时填 tokens=<数值>，不可得填 —）；指纹优先 iagent spec fingerprint --change <name>。
+**执行方式与读取范围（强制）**：单变更归档由**主 agent 内联**执行（\`executionMode=inline\`）；MUST NOT 为归档启动子代理；兼容窗内旧 \`subagent\` 回执记 deprecation WARN 并允许推进（下个 major 收紧为仅 \`inline\`）。内联执行前 MUST FIRST 读 handoff 包「## 制品清单」并按锚点增量读取，回执写 \`readScope\`；「## 阶段结论」5 列（tokens 可用时填 tokens=<数值>，不可得填 —）；指纹优先 iagent spec fingerprint --change <name>。
 
 **Steps**
 
