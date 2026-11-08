@@ -202,39 +202,23 @@ ${renderGateWhitelistSection()}
       - 验证查询失败或返回空：记录告警，不阻塞归档
       - CodeGraph 同步独立于 \`--skip-specs\` / \`--no-validate\` / 跳过校验的选择执行
 
-7. **更新或创建 ARCHIVE-INDEX.md（纯追加）**
+7. **更新分片归档索引（月度纯追加 + 根入口维护）**
 
-   归档索引文件位于 \`openspec/changes/archive/ARCHIVE-INDEX.md\`。维护方式为**纯追加本批条目** —— MUST NOT 全量重建或整体覆盖。
+   归档索引由两部分组成（强制）：**根入口** \`openspec/changes/archive/ARCHIVE-INDEX.md\` 承担月份导航与全局模块统计；**月度索引** \`openspec/changes/archive/ARCHIVE-INDEX-YYYY-MM.md\` 承担当月归档条目与当月模块统计。月度索引 MUST 与根入口同目录扁平命名。索引写入 MUST 由主代理单点执行。
 
-   **文件不存在时创建它**：
-<!-- CMD:SKIP -->
-   \`\`\`markdown
-   # OpenSpec 变更归档索引
+   **月份判定（强制）**：月份 MUST 取自归档目录名 \`YYYY-MM-DD-\` 前缀的前 7 位（\`YYYY-MM\`）；MUST NOT 读取本地时间、MUST NOT 做时区换算。目录名不含该前缀时 SHALL 回退为本次归档日期所在月并输出 WARN，MUST NOT 因无法解析而中止归档。
 
-   > 本文档记录所有已归档的变更提案，便于历史追溯和查阅
+   **月度索引维护（强制，纯追加）**：月度索引不存在时 SHALL 按标准结构创建（标题 / 说明 / 当月归档变更列表 / 当月模块统计 / 页脚时间戳）；存在时 MUST 仅向「归档变更列表」表末追加本批条目，并更新当月模块统计与页脚时间戳。任何索引文件 MUST NOT 被全量重建或整体覆盖。
 
-   ---
+   **月度索引损坏处置（强制，纯追加不重建）**：结构损坏、无法完整解析时 MUST 保留原文 + 仅追加本批最小条目（\`| {date} | {change-name} | {module} | {summary} |\`）+ 输出 WARN 提示人工修复（含损坏位置线索）；MUST NOT 丢弃既有历史条目，MUST NOT 阻断归档。
 
-   ## 归档变更列表
+   **根入口维护（强制，只更新链接与统计）**：根入口 SHALL 仅承担月份导航与全局模块统计。归档时 MUST 只允许：① 追加缺失的当月月份链接（已存在则跳过，MUST NOT 出现重复月份行）；② 从全部 \`ARCHIVE-INDEX-*.md\` 月度文件**确定性重算**全局模块统计（MUST NOT 使用增量累加；某月度文件不可解析时跳过该月并记 WARN）。根入口 MUST NOT 改写既有月度条目与既有条目文本。根入口缺失但存在月度文件时 SHALL 依据月度文件重建入口（月份导航 + 全局统计）并在归档摘要中报告该次重建；根入口损坏时 SHALL 保留原文 + 只补缺失月份链接 + WARN，MUST NOT 重建。
 
-   | 归档日期 | 变更名称 | 所属模块 | 主要内容 |
-   |----------|----------|----------|----------|
-   | YYYY-MM-DD | change-name | module | description |
+   **失败与跳过不入索引（强制）**：失败或跳过的变更 MUST NOT 写入任何月度索引，也不得参与统计重算。
 
-   ---
+   **归档写入面（强制）**：归档时本技能只允许写入 \`openspec/specs/**\`、\`openspec/CONTEXT.md\`、根入口（仅月份链接与全局统计更新）与当月月度索引（纯追加）。\`openspec/changes/**\` 只允许整目录移动，MUST NOT 改写其中任何文件的既有内容。
 
-   ## 模块统计
-
-   | 模块 | 归档数量 | 变更列表 |
-   |------|----------|----------|
-
-   ---
-
-   *更新时间: YYYY-MM-DD*
-   \`\`\`
-<!-- /CMD:SKIP -->
-
-   **文件已存在时追加新条目**：
+   **条目提取与文件模板（技能版细则）**：
 <!-- CMD:SKIP -->
 
    a. 提取条目信息：
@@ -243,22 +227,65 @@ ${renderGateWhitelistSection()}
       - **模块**：从变更名模式 \`{prefix}-{module}-{feature}\` 提取，无法判断时用 "general"
       - **摘要**：\`proposal.md\` Why 的首段（历史 JSON-only 降级时只读 change.json；最多 50 字符）
 
-   b. 向 "归档变更列表" 表新增一行：
-      \`| {date} | {change-name} | {module} | {summary} |\`
+   b. 写入顺序（强制）：先向当月月度索引追加条目（步骤 c），再维护根入口（步骤 d）。
 
-   c. 更新 "模块统计" 表：
-      - 已有模块计数 +1
-      - 新模块新增一行（计数：1）
+   c. 月度索引 \`openspec/changes/archive/ARCHIVE-INDEX-YYYY-MM.md\`：
+      - 不存在时按标准结构创建：
+      \`\`\`markdown
+      # 归档变更索引 YYYY-MM
 
-   d. 把页脚时间戳更新为当前日期
+      > 本文件记录 YYYY-MM 的归档变更，由归档流程纯追加。
+
+      ---
+
+      ## 归档变更列表
+
+      | 归档日期 | 变更名称 | 模块 | 摘要 |
+      |---------|---------|------|------|
+
+      ---
+
+      ## 模块统计
+
+      | 模块 | 归档数 | 变更列表 |
+      |------|-------|---------|
+
+      ---
+
+      *更新时间: YYYY-MM-DD*
+      \`\`\`
+      - 已存在时：向「归档变更列表」表末追加一行 \`| {date} | {change-name} | {module} | {summary} |\`，更新「模块统计」（已有模块计数 +1 / 新模块新增一行）并把页脚时间戳更新为当前日期
+
+   d. 根入口 \`openspec/changes/archive/ARCHIVE-INDEX.md\`：
+      - 不存在但存在月度文件时按标准结构重建：
+      \`\`\`markdown
+      # 归档变更索引（ARCHIVE-INDEX.md）
+
+      > 索引入口。月度条目见 ARCHIVE-INDEX-YYYY-MM.md；本文件仅维护月份导航与全局模块统计。
+
+      ---
+
+      ## 月份导航
+
+      | 月份 | 月度索引 | 条目数 |
+      |------|---------|-------|
+      | YYYY-MM | [ARCHIVE-INDEX-YYYY-MM.md](ARCHIVE-INDEX-YYYY-MM.md) | N |
+
+      ---
+
+      ## 全局模块统计
+
+      | 模块 | 归档数 | 变更列表 |
+      |------|-------|---------|
+
+      ---
+
+      *更新时间: YYYY-MM-DD*
+      \`\`\`
+      - 已存在时：若「月份导航」缺少当月行则追加 \`| YYYY-MM | [ARCHIVE-INDEX-YYYY-MM.md](ARCHIVE-INDEX-YYYY-MM.md) | {条目数} |\`；再从全部月度文件确定性重算全局模块统计并更新页脚时间戳
 <!-- /CMD:SKIP -->
 
    **补充标注的标签白名单（强制，指令版同样适用）**：读取变更目录中的 \`tasks.md\`（历史 JSON-only 降级时只读 tasks.json），通过**匹配固定标签白名单**收集补充任务类型 \`[测试]\` / \`[DB脚本]\` / \`[使用说明]\`（排除 \`[代码]\`），并把 \`[含<type1>/<type2>/...]\` 追加到摘要（如 \`[含测试/DB脚本]\`）。只按白名单匹配 —— 不得收集"所有方括号内容"：\`[测试]\` 任务带层级/优先级子标注（\`[测试][单元][P0]\`），其中 \`[单元]\`/\`[P0]\` 不是任务类型，收集它们会产生 \`[含测试/单元/P0]\` 噪声。白名单之外的标签一律忽略（非阻塞；MAY 记录 WARN）。若无补充任务，跳过标注。
-
-   **结构损坏时（强制，纯追加不重建）**：若文件存在但表格结构部分损坏、无法完整解析：
-   - **保留原文**：MUST NOT 全量重建、MUST NOT 整体覆盖、MUST NOT 丢弃既有历史条目
-   - **仅追加**本批的最小条目（\`| {date} | {change-name} | {module} | {summary} |\`）
-   - 输出 WARN 提示人工修复（含损坏位置线索）；该项 MUST NOT 阻断归档
 
    **跨平台说明**：Windows 上用 \`path.join()\` 构建路径。检查文件是否存在时注意大小写敏感性差异。
 
@@ -269,7 +296,7 @@ ${renderGateWhitelistSection()}
    - 使用的 Schema
    - 归档位置
    - 规格是否已同步（如适用）
-   - 归档索引更新状态
+   - 归档索引更新状态（月度索引 \`ARCHIVE-INDEX-YYYY-MM.md\` 追加结果 / 根入口月份链接与全局统计维护结果 / 根入口重建或损坏 WARN）
    - CodeGraph 同步状态（已同步 / 跳过 —— 未初始化或出错）
    - 探索记忆同步状态（已同步 / 跳过 —— 无探索文件或无 delta spec / 失败 —— 已记录告警）
    - 流程级工作区清理结果（已清理 / 清理失败 WARN + 路径）
@@ -286,7 +313,7 @@ ${renderGateWhitelistSection()}
 
 10. **归档只读护栏自检**
 
-   流程末尾确认：本次归档未改写 \`openspec/changes/archive/**\` 下的既有内容（本变更自身的整目录移动与 ARCHIVE-INDEX 追加除外），也未向 \`openspec/devdocs/\` 写入或迁移任何文件。
+   流程末尾确认：本次归档未改写 \`openspec/changes/archive/**\` 下的既有内容（本变更自身的整目录移动、当月月度索引的追加、根入口的月份链接与全局统计更新除外），也未向 \`openspec/devdocs/\` 写入或迁移任何文件。
 
    - 发现越界 → 输出含路径的 WARN 并说明需人工复核；MUST NOT 静默忽略、MUST NOT 回滚或重写已归档内容
    - 自检结果并入摘要（与 8 的工作区清理结果一起展示）
@@ -300,7 +327,7 @@ ${renderGateWhitelistSection()}
 **Schema:** <schema-name>
 **Archived to:** openspec/changes/archive/YYYY-MM-DD-<name>/
 **Specs:** ✓ Synced to main specs (or "No delta specs" or "Sync failed — warning logged" or "主规格未同步（skip_specs 声明）")
-**Archive Index:** ✓ Appended to ARCHIVE-INDEX.md (纯追加；结构损坏时仅追加 + WARN)
+**Archive Index:** ✓ Appended to ARCHIVE-INDEX-YYYY-MM.md (纯追加；结构损坏时仅追加 + WARN); root ARCHIVE-INDEX.md links and global statistics updated
 **Exploration Memory:** ✓ Synced to specs/<capability>/explorations.md (or "Skipped — no exploration file" or "Skipped — no delta specs" or "Failed — warning logged")
 **Pipeline Workspace:** ✓ Cleaned .openspec-tmp/pipeline-<name>/ (or "Cleanup failed — warning logged: <reason>"; 迁移期同时识别 apply-<name>/)
 **CodeGraph:** ✓ Synced (or "Not initialized — skipped" or "Sync skipped due to error")
@@ -349,15 +376,17 @@ Target archive directory already exists.
 - 不要因告警阻塞归档 —— 仅告知（无需确认）
 - 移入归档时保留 .openspec.yaml（它随目录一起移动）
 - 保留 \`attachments/\` 子目录 —— 它随变更目录自动移动
-- 为 ARCHIVE-INDEX.md 提取摘要时，扫描 \`tasks.md\` 的补充类型标签，并把 \`[含xxx]\` 标注追加到摘要
+- 为月度索引 \`ARCHIVE-INDEX-YYYY-MM.md\` 提取摘要时，扫描 \`tasks.md\` 的补充类型标签，并把 \`[含xxx]\` 标注追加到摘要
 - 归档移动前，为每个涉及的能力把探索记忆同步到 specs/<capability>/explorations.md；exploration.md 或 delta spec 缺失时跳过（并记日志）；绝不因同步失败阻塞归档
 - 需求文档桥与只读报告已移除：归档 MUST NOT 读取、报告、生成、对齐或迁出 \`需求文档.md\`；文件随变更目录原样保留
-- **归档只读**：MUST NOT 修改 \`openspec/changes/archive/\` 下的既有内容 —— 已归档变更是历史事实；整目录移动（\`openspec/changes/<name>/\` → \`openspec/changes/archive/YYYY-MM-DD-<name>/\`）不属于改写，\`ARCHIVE-INDEX.md\` 的**追加**是显式例外；流程末尾保留一次护栏自检
-- ARCHIVE-INDEX.md 为**纯追加**索引：结构损坏时保留原文 + 仅追加本批最小条目 + WARN 提示人工修复，MUST NOT 全量重建或整体覆盖
+- **归档只读**：MUST NOT 修改 \`openspec/changes/archive/\` 下的既有内容 —— 已归档变更是历史事实；整目录移动（\`openspec/changes/<name>/\` → \`openspec/changes/archive/YYYY-MM-DD-<name>/\`）不属于改写；根入口 \`ARCHIVE-INDEX.md\` 的月份链接与全局统计更新、月度索引 \`ARCHIVE-INDEX-YYYY-MM.md\` 的**追加**是显式例外；流程末尾保留一次护栏自检
+- 月度索引 \`ARCHIVE-INDEX-YYYY-MM.md\` 为**纯追加**：结构损坏时保留原文 + 仅追加本批最小条目 + WARN 提示人工修复，MUST NOT 全量重建或整体覆盖，MUST NOT 丢弃既有历史条目
+- 根入口 \`ARCHIVE-INDEX.md\` 只维护月份链接与全局模块统计：MUST NOT 改写既有条目；统计 MUST 从全部月度文件确定性重算（非增量累加）；缺失时依据月度文件重建，损坏时只补缺失月份链接 + WARN
 - 归档收尾清理流程级工作区 \`.openspec-tmp/pipeline-<change-name>/\`（同时识别旧 \`apply-\` 前缀）必须在追加 \`phase=archive\` 结论之后；清理失败只 WARN，不阻断归档、不改写阶段结论
 - 当变更声明 \`skip_specs\`（状态报告 specs 为 skipped）时，归档摘要 MUST 注明 "主规格未同步（skip_specs 声明）"，避免用户误以为规格同步被遗漏
 - 清晰展示发生了什么
 - 若存在 delta spec，执行同步评估、展示合并摘要，并直接执行内联 AI 合并（ADDED/MODIFIED/REMOVED/RENAMED → 主规格，遵循 v1.1.20 specs-apply 语义）；MODIFIED 目标在主 spec 缺失时按 ADDED 追加并记「MODIFIED 目标缺失（已追加）」告警，MUST NOT 中止归档或丢弃需求
+- **任何索引文件 MUST NOT 全量重建**：月度索引为月度纯追加，根入口只更新月份链接与全局统计
 - 归档流程不含任何索引重建：跨变更 SQLite 索引能力已退役，MUST NOT 出现索引重建类步骤`,
         license: 'MIT',
         compatibility: '依赖 iagent CLI（spec 命令组）与 CodeGraph CLI（可选）。',

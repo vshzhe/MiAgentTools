@@ -7,6 +7,18 @@
 
 ## [Unreleased]
 
+## [4.4.0] - 2026-11-08
+
+### Added
+
+- 归档索引分片：新增月度索引 `openspec/changes/archive/ARCHIVE-INDEX-YYYY-MM.md`（当月归档条目 + 当月模块统计），根入口 `openspec/changes/archive/ARCHIVE-INDEX.md` 保留为月份导航 + 全局模块统计的入口。
+
+### Changed
+
+- `spec-archive` Step 7 与 `spec-bulk-archive` Step 10 改为月度纯追加 + 根入口单点更新：月份取归档目录名 `YYYY-MM-DD-` 前缀前 7 位（不读本地时间、不做时区换算）；任何索引文件 MUST NOT 全量重建；月度索引缺失按标准结构创建，损坏时保留原文 + 最小追加 + WARN；根入口只更新缺失月份链接与确定性重算的全局统计；失败/跳过变更不入索引。
+- `workflow` / `auto-workflow` 的归档阶段索引表述同步为「根入口 + 月度索引」，`debug` 保持不写索引。
+- 一次性历史迁移：既有 45 条归档条目按归档日期拆入 2026-09（17）/ 2026-10（18）/ 2026-11（10）三个月度文件，条目文本逐字保留，根入口改写为入口形态。
+
 ## [4.3.0] - 2026-11-08
 
 ### Changed
@@ -1690,7 +1702,8 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.3.0...HEAD
+[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.4.0...HEAD
+[4.4.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.3.0...v4.4.0
 [4.3.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.2.0...v4.3.0
 [4.2.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.1.0...v4.2.0
 [4.1.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.0.1...v4.1.0

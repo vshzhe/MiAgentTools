@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:d995acad782b2f546f3c321b2295f0c4fd94fa6fa8b4783915523c93f9a3f247"
+  generatedFingerprint: "sha256:d80a9a9a097197c8aaf61e35efee07697295363ee2a3178a2ebeb44372148023"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
@@ -183,7 +183,7 @@ metadata:
    - 只选中一个变更：不派发、直接执行（等同于既有的串行行为）
    - 所有变更共享同一 capability：分组结果为单条串行链 —— 串行执行（既有行为）
    - 运行时无子代理能力：降级为串行执行所有变更，并告知用户已降级
-   - 子代理 MUST NOT 更新 ARCHIVE-INDEX.md，MUST NOT 运行 `codegraph sync` —— 二者仍是主代理的单点操作（Step 10 与 Step 11）
+   - 子代理 MUST NOT 更新任何归档索引文件（根入口 `ARCHIVE-INDEX.md` 与月度 `ARCHIVE-INDEX-YYYY-MM.md`），MUST NOT 运行 `codegraph sync` —— 二者仍是主代理的单点操作（Step 10 与 Step 11）
    - **失败隔离**：某变更失败时（含子代理失败或超时），记录 WARN 并**继续**处理剩余变更 —— 绝不中止整批；当失败的变更位于同 capability 串行链的前序位置时，后续变更仍执行（每个变更独立合并进主规格）
    - 子代理派发指令 MUST 内嵌下方完整的归档检查点文本（与主代理串行版同源）
 
@@ -245,7 +245,7 @@ metadata:
       - 某变更同步失败时：记录 WARN 并**继续**处理剩余变更（绝不中止整批）
 
    c. **归档只读校验 + 流程级工作区清理**（每个变更，位于结果记录之前）：
-      - **只读校验**：确认本单元未改写 `openspec/changes/archive/**` 下的既有内容（本单元自身的整目录移动与 ARCHIVE-INDEX 追加除外），亦未向 `openspec/devdocs/` 写入或迁移任何文件；结果记入该变更摘要；发现越界 → 记录含变更名与路径的 WARN 并继续处理剩余变更（MUST NOT 中止整批，MUST NOT 静默忽略）
+      - **只读校验**：确认本单元未改写 `openspec/changes/archive/**` 下的既有内容（本单元自身的整目录移动、月度索引追加与根入口月份链接/全局统计更新除外），亦未向 `openspec/devdocs/` 写入或迁移任何文件；结果记入该变更摘要；发现越界 → 记录含变更名与路径的 WARN 并继续处理剩余变更（MUST NOT 中止整批，MUST NOT 静默忽略）
       - **单元成功后清理流程级工作区**：清理该变更的 `.openspec-tmp/pipeline-<change-name>/`（同时识别旧 `apply-` 前缀），经 Bash 运行 `node -e "fs.rmSync(<path>, { recursive: true, force: true })"` 跨平台删除；清理失败 WARN 且不中止批次；**失败或跳过的单元保留工作区**供诊断（摘要注明保留位置，MUST NOT 删除）
 
    d. **记录结果**（每个变更）：
@@ -286,6 +286,11 @@ metadata:
    - 4 cleaned (.openspec-tmp/pipeline-<name>/)
    - 0 retained (no failed/skipped changes)
 
+   Archive index summary:
+   - 2026-09: 2 appended to ARCHIVE-INDEX-2026-09.md
+   - 2026-10: 1 appended to ARCHIVE-INDEX-2026-10.md
+   - Root entry: month links updated, global statistics recomputed
+
    Parallel execution:
    - 2 parallel groups, 1 serial chain
    ```
@@ -296,66 +301,61 @@ metadata:
    - some-change: Archive directory already exists
    ```
 
-10. **批量索引更新**
+10. **批量归档索引更新（月度纯追加 + 根入口单点维护）**
 
-   归档索引文件位于 `openspec/changes/archive/ARCHIVE-INDEX.md`。
+   归档索引由两部分组成：**根入口** `openspec/changes/archive/ARCHIVE-INDEX.md`（月份导航 + 全局模块统计）与**月度索引** `openspec/changes/archive/ARCHIVE-INDEX-YYYY-MM.md`（当月条目 + 当月模块统计）。
 
-   所有归档操作完成后（已判定成功/失败/跳过），由主代理执行本次单点更新 —— 绝不交给子代理：
+   所有归档操作完成后（已判定成功/失败/跳过），由主代理执行本次单点更新 —— 绝不交给子代理；子代理 MUST NOT 向任何索引文件写入：
 
-   a. **检查索引文件是否存在**：
-      - 文件不存在时，用标准结构创建它
+   a. **按月份分组（强制）**：对每个成功归档的变更，月份 MUST 取其归档目录名 `YYYY-MM-DD-` 前缀的前 7 位（`YYYY-MM`），并按月份分组。MUST NOT 读取本地时间、MUST NOT 做时区换算；目录名不含该前缀时回退为归档日期所在月并输出 WARN。failed/skipped 变更 MUST NOT 入索引，也不得参与统计重算。
 
-   b. **创建新索引文件**（若不存在）：
+   b. **月度索引创建**（每个分组独立判定）：
+      该月月度索引不存在时，按标准结构创建它：
       ```markdown
-      # OpenSpec 变更归档索引
+      # 归档变更索引 YYYY-MM
 
-      > 本文档记录所有已归档的变更提案，便于历史追溯和查阅
+      > 本文件记录 YYYY-MM 的归档变更，由归档流程纯追加。
 
       ---
 
       ## 归档变更列表
 
-      | 归档日期 | 变更名称 | 所属模块 | 主要内容 |
-      |----------|----------|----------|----------|
+      | 归档日期 | 变更名称 | 模块 | 摘要 |
+      |---------|---------|------|------|
 
       ---
 
       ## 模块统计
 
-      | 模块 | 归档数量 | 变更列表 |
-      |------|----------|----------|
+      | 模块 | 归档数 | 变更列表 |
+      |------|-------|---------|
 
       ---
 
       *更新时间: YYYY-MM-DD*
       ```
 
-   c. **为成功归档的变更追加条目**：
-      - 对每个成功归档的变更提取条目信息：
-        - **归档日期**：取自目录名前缀 `YYYY-MM-DD-{change-name}`
-        - **变更名称**：取自目录名（日期前缀之后）
-        - **模块**：从变更名模式 `{prefix}-{module}-{feature}` 提取，未匹配时用 "general"
-        - **摘要**：`proposal.md` Why 的首段（历史 JSON-only 降级时只读 change.json；最多 50 字符）
-        - **补充标注**：读取已归档变更目录中的 `tasks.md`（历史 JSON-only 降级时只读 tasks.json），通过**匹配固定标签白名单**收集补充任务类型 `[测试]` / `[DB脚本]` / `[使用说明]`（排除 `[代码]`），并把 `[含<type1>/<type2>/...]` 追加到摘要（如 `[含测试/DB脚本]`）。只按白名单匹配 —— 不得收集"所有方括号内容"：`[测试]` 任务带层级/优先级子标注（`[测试][单元][P0]`），其中 `[单元]`/`[P0]` 不是任务类型，收集它们会产生 `[含测试/单元/P0]` 噪声。白名单之外的标签一律忽略（非阻塞；MAY 记录 WARN）。若无补充任务，跳过标注。
+   c. **为每个成功归档的变更提取条目信息**：
+      - **归档日期**：取自目录名前缀 `YYYY-MM-DD-{change-name}`
+      - **变更名称**：取自目录名（日期前缀之后）
+      - **模块**：从变更名模式 `{prefix}-{module}-{feature}` 提取，未匹配时用 "general"
+      - **摘要**：`proposal.md` Why 的首段（历史 JSON-only 降级时只读 change.json；最多 50 字符）
+      - **补充标注**：读取已归档变更目录中的 `tasks.md`（历史 JSON-only 降级时只读 tasks.json），通过**匹配固定标签白名单**收集补充任务类型 `[测试]` / `[DB脚本]` / `[使用说明]`（排除 `[代码]`），并把 `[含<type1>/<type2>/...]` 追加到摘要（如 `[含测试/DB脚本]`）。只按白名单匹配 —— 不得收集"所有方括号内容"：`[测试]` 任务带层级/优先级子标注（`[测试][单元][P0]`），其中 `[单元]`/`[P0]` 不是任务类型，收集它们会产生 `[含测试/单元/P0]` 噪声。白名单之外的标签一律忽略（非阻塞；MAY 记录 WARN）。若无补充任务，跳过标注。
 
-   d. **向 "归档变更列表" 表新增行**：
-      `| {date} | {change-name} | {module} | {summary} |`
+   d. **逐月纯追加（强制）**：对每个月份分组，向该月月度索引「归档变更列表」表末追加各自条目行 `| {date} | {change-name} | {module} | {summary} |`，更新该月「模块统计」（已有模块计数 +1 / 新模块新增一行 / 把变更名追加到该模块的变更列表）并把页脚时间戳更新为当前日期 `YYYY-MM-DD`。跨月的成功变更 MUST 分别写入各自月度文件。
 
-   e. **更新 "模块统计" 表**：
-      - 已有模块计数 +1
-      - 新模块新增一行（计数：1）
-      - 把变更名追加到该模块的变更列表
+   e. **根入口维护（强制，单点）**：主代理 SHALL 仅：① 追加缺失的月份链接（已存在则跳过，MUST NOT 出现重复月份行）；② 从全部 `ARCHIVE-INDEX-*.md` 月度文件**确定性重算**全局模块统计（MUST NOT 使用增量累加；某月度文件不可解析时跳过该月并记 WARN）。MUST NOT 改写根入口既有条目。根入口缺失但存在月度文件时 SHALL 依据月度文件重建入口（月份导航 + 全局统计）并在批量汇总中报告；根入口损坏时 SHALL 保留原文 + 只补缺失月份链接 + WARN，MUST NOT 重建。
 
-   f. **把页脚时间戳更新为当前日期** `YYYY-MM-DD`
+   f. **写入顺序（强制）**：先完成全部月度索引的创建/追加，再单点更新一次根入口（月份链接 + 全局统计）。
 
    g. **损坏索引文件的处置（强制，纯追加不重建）**：
-      - 若 ARCHIVE-INDEX.md 存在但结构已损坏，尽力解析既有条目并**保留原文**
-      - **仅追加本批成功变更的最小条目**（`| {date} | {change-name} | {module} | {summary} |`）
-      - 输出 WARN 提示人工修复（含损坏位置线索）；MUST NOT 全量重建或整体覆盖该文件，MUST NOT 丢弃既有历史条目
+      - 若月度索引或根入口存在但结构已损坏，尽力解析既有条目并**保留原文**
+      - 月度索引：**仅追加本批成功变更的最小条目**（`| {date} | {change-name} | {module} | {summary} |`）；根入口：只补缺失月份链接
+      - 输出 WARN 提示人工修复（含损坏位置线索）；MUST NOT 全量重建或整体覆盖**任何索引文件**，MUST NOT 丢弃既有历史条目
       - MUST NOT 因「无法解析」而中止本批索引更新
 
    h. **跳过失败与已跳过的变更**：
-      - 不为失败或跳过的变更向索引追加条目
+      - 不为失败或跳过的变更向任何月度索引追加条目，统计重算不含该变更
       - 为失败/跳过的变更单独展示摘要
 
    **跨平台说明**：Windows 上用 `path.join()` 构建路径。检查文件是否存在时注意大小写敏感性差异。
@@ -465,12 +465,13 @@ No active changes found. Create a new change to get started.
 - 按变更同步探索记忆（步骤 b.5）；某个变更失败只记录告警，绝不中止整批
 - 按变更同步 CONTEXT.md（步骤 a.5）：写入前先读、同名冲突显式裁决；只同步 `exploration.md` 术语表，MUST NOT 从制品正文反向抽取；探索文件或术语表缺失时跳过并记日志，绝不阻塞整批；并行单元的 a.5 写入步 MUST 串行化
 - 需求文档桥与只读报告已移除：本技能 MUST NOT 读取、报告、生成、对齐或迁出 `需求文档.md`；文件随变更目录原样保留
-- **归档只读**：MUST NOT 修改 `openspec/changes/archive/` 下的既有内容 —— 已归档变更是历史事实；整目录移动不属于改写，`ARCHIVE-INDEX.md` 的**追加**是显式例外；单元序列 c 步执行只读校验，越界只 WARN 且不中止批次
+- **归档只读**：MUST NOT 修改 `openspec/changes/archive/` 下的既有内容 —— 已归档变更是历史事实；整目录移动不属于改写；根入口 `ARCHIVE-INDEX.md` 的月份链接与全局统计更新、月度索引 `ARCHIVE-INDEX-YYYY-MM.md` 的**追加**是显式例外；单元序列 c 步执行只读校验，越界只 WARN 且不中止批次
 - **单元成功后清理流程级工作区** `.openspec-tmp/pipeline-<change-name>/`（同时识别旧 `apply-` 前缀）；失败或跳过的单元保留工作区供诊断，清理失败只 WARN 且不中止批次
-- **索引纯追加**：结构损坏时保留原文 + 仅追加本批最小条目 + WARN 提示人工修复，MUST NOT 全量重建或整体覆盖
+- **月度索引纯追加**：结构损坏时保留原文 + 仅追加本批最小条目 + WARN 提示人工修复，MUST NOT 全量重建或整体覆盖，MUST NOT 丢弃既有历史条目
+- **任何索引文件 MUST NOT 全量重建**：月度索引逐月纯追加；根入口只更新月份链接与全局统计（确定性重算，非增量累加）
 - 移入归档时保留 .openspec.yaml（CLI 已保证）
 - 归档目录目标名使用当前日期：YYYY-MM-DD-<name>
 - 若归档目标已存在，则该变更失败，但继续处理其他变更
-- 所有归档完成后更新 ARCHIVE-INDEX.md（步骤 10）
-- 索引中只记录成功归档的变更
+- 所有归档完成后按月份更新各月度索引并单点更新根入口（步骤 10）
+- 索引中只记录成功归档的变更，失败/跳过变更不入索引也不参与统计
 - workspace 范围的变更不进入索引更新

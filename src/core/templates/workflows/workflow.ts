@@ -392,7 +392,7 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 
 - **执行方式（强制）**：单变更归档 SHALL 由**主 agent 内联**以 **Skill 工具内联**执行 \`iagent_spec_archive\` 的归档协议（\`executionMode=inline\`），MUST NOT 派生归档子代理；兼容窗内旧的 \`subagent\` 回执记 deprecation WARN 并允许推进（下个 major 收紧为仅 \`inline\`）
 - 传入 change-name（跳过选择提示）+ Stage Envelope（handoff 包路径 / \`compile-report.md\` 路径 / \`resume\`）；MUST NOT 传已移除的需求文档状态字段
-- archive 内部完成：delta spec 合并主规格、CONTEXT.md 同步、探索记忆同步到 \`specs/<cap>/explorations.md\`、目录迁移 \`archive/\`、ARCHIVE-INDEX.md 纯追加、归档只读校验、流程级工作区清理
+- archive 内部完成：delta spec 合并主规格、CONTEXT.md 同步、探索记忆同步到 \`specs/<cap>/explorations.md\`、目录迁移 \`archive/\`、归档索引维护（根入口 \`ARCHIVE-INDEX.md\` 的月份导航 + 全局模块统计；当月月度索引 \`ARCHIVE-INDEX-YYYY-MM.md\` 的纯追加）、归档只读校验、流程级工作区清理
 - **回执续跑**：内联执行结果 SHALL 含 \`archivePath\` / \`specsSynced\`；父级校验通过后完成流程
 - sync 检查点非阻断（失败 WARN 不阻断）
 

@@ -588,7 +588,7 @@ describe('4.7 spec-archive 归档只读与只读报告', () => {
         expect(archive).toContain('**归档只读**');
         expect(archive).toContain('MUST NOT 修改 `openspec/changes/archive/`');
         expect(archive).toContain('整目录移动');
-        expect(archive).toContain('`ARCHIVE-INDEX.md` 的**追加**是显式例外');
+        expect(archive).toContain('月度索引 `ARCHIVE-INDEX-YYYY-MM.md` 的**追加**是显式例外');
         expect(archive).toContain('归档只读护栏自检');
     });
 
@@ -1284,7 +1284,7 @@ describe('7.7 归档步骤序（探索记忆同步 → 需求文档报告已移�
         '4.7 **归档前探索记忆同步',
         '4.8 **（已移除）**',
         '5. **执行归档**',
-        '7. **更新或创建 ARCHIVE-INDEX.md（纯追加）**',
+        '7. **更新分片归档索引（月度纯追加 + 根入口维护）**',
     ];
 
     it('技能版与指令版正文的相对位置一致且严格递增', () => {
@@ -1308,10 +1308,102 @@ describe('7.7 归档步骤序（探索记忆同步 → 需求文档报告已移�
 
         expect(move).toBeGreaterThan(body.indexOf('4.7 **归档前探索记忆同步'));
         expect(move).toBeGreaterThan(body.indexOf('4.8 **（已移除）**'));
-        expect(move).toBeLessThan(body.indexOf('7. **更新或创建 ARCHIVE-INDEX.md（纯追加）**'));
+        expect(move).toBeLessThan(body.indexOf('7. **更新分片归档索引（月度纯追加 + 根入口维护）**'));
         // 探索记忆同步仍是移动前的强制检查点；需求文档只读报告已移除
         expect(body).toContain('系统 MUST 在移动变更目录前完成探索记忆同步');
         expect(body).not.toContain('系统 MUST 在移动变更目录前完成需求文档只读报告');
+    });
+});
+
+// ── improve-archive-index-monthly：分片归档索引（根入口 + 月度索引）──
+describe('分片归档索引：spec-archive 月度落点与根入口边界', () => {
+    const archive = skillCorpus('iagent_spec_archive');
+
+    it('月份落点取自归档目录名前 7 位（不读本地时间、不做时区换算）', () => {
+        expect(archive).toContain('ARCHIVE-INDEX-YYYY-MM.md');
+        expect(archive).toContain('月份 MUST 取自归档目录名');
+        expect(archive).toContain('MUST NOT 读取本地时间');
+        expect(archive).toContain('MUST NOT 做时区换算');
+        expect(archive).toContain('回退为本次归档日期所在月');
+    });
+
+    it('月度索引创建 / 纯追加 / 损坏只追加不重建', () => {
+        expect(archive).toContain('月度索引维护（强制，纯追加）');
+        expect(archive).toContain('不存在时 SHALL 按标准结构创建');
+        expect(archive).toContain('仅向「归档变更列表」表末追加本批条目');
+        expect(archive).toContain('月度索引损坏处置（强制，纯追加不重建）');
+        expect(archive).toContain('保留原文');
+        expect(archive).toContain('仅追加本批最小条目');
+        expect(archive).toContain('MUST NOT 丢弃既有历史条目');
+    });
+
+    it('根入口只更新月份链接与全局统计（不改写既有条目、缺失重建、损坏只补链接）', () => {
+        expect(archive).toContain('根入口维护（强制，只更新链接与统计）');
+        expect(archive).toContain('追加缺失的当月月份链接');
+        expect(archive).toContain('确定性重算');
+        expect(archive).toContain('MUST NOT 使用增量累加');
+        expect(archive).toContain('MUST NOT 改写既有月度条目与既有条目文本');
+        expect(archive).toContain('根入口缺失但存在月度文件时 SHALL 依据月度文件重建入口');
+        expect(archive).toContain('根入口损坏时 SHALL 保留原文 + 只补缺失月份链接');
+        expect(archive).toContain('已存在则跳过');
+    });
+
+    it('写入面 / 只读例外 / 失败不入索引 / 摘要措辞同步', () => {
+        expect(archive).toContain('归档写入面（强制）');
+        expect(archive).toContain('失败与跳过不入索引（强制）');
+        expect(archive).toContain('月度索引 `ARCHIVE-INDEX-YYYY-MM.md` 的**追加**是显式例外');
+        expect(archive).toContain('任何索引文件 MUST NOT 全量重建');
+        expect(archive).toContain('根入口月份链接与全局统计维护结果');
+        // 不得残留单一文件全量追加的旧表述
+        expect(archive).not.toContain('更新或创建 ARCHIVE-INDEX.md');
+    });
+});
+
+describe('分片归档索引：spec-bulk-archive 跨月分组与单点更新', () => {
+    const bulk = skillCorpus('iagent_spec_bulk_archive');
+
+    it('跨月分组：按成功变更归档目录名前 7 位分别写入各自月度文件', () => {
+        expect(bulk).toContain('按月份分组（强制）');
+        expect(bulk).toContain('月份 MUST 取其归档目录名');
+        expect(bulk).toContain('分别写入各自月度文件');
+        expect(bulk).not.toContain('归档索引文件位于 `openspec/changes/archive/ARCHIVE-INDEX.md`。');
+    });
+
+    it('根入口单点更新、统计确定性重算、失败不入索引、损坏只追加', () => {
+        expect(bulk).toContain('子代理 MUST NOT 向任何索引文件写入');
+        expect(bulk).toContain('根入口维护（强制，单点）');
+        expect(bulk).toContain('确定性重算');
+        expect(bulk).toContain('MUST NOT 使用增量累加');
+        expect(bulk).toContain('failed/skipped 变更 MUST NOT 入索引');
+        expect(bulk).toContain('任何索引文件 MUST NOT 全量重建');
+        expect(bulk).toContain('若月度索引或根入口存在但结构已损坏');
+        expect(bulk).toContain('先完成全部月度索引的创建/追加，再单点更新一次根入口');
+        expect(bulk).toContain('Archive index summary');
+    });
+});
+
+describe('编排技能归档阶段引用分片归档索引协议', () => {
+    it('workflow 含根入口 + 月度索引两部分表述且不复述协议', () => {
+        const workflow = skillCorpus('iagent_workflow');
+        expect(workflow).toContain('根入口 `ARCHIVE-INDEX.md` 的月份导航 + 全局模块统计');
+        expect(workflow).toContain('当月月度索引 `ARCHIVE-INDEX-YYYY-MM.md` 的纯追加');
+        expect(workflow).not.toContain('ARCHIVE-INDEX.md 纯追加');
+        expect(workflow).not.toMatch(/月份 MUST 取|确定性重算|按标准结构创建/);
+    });
+
+    it('auto-workflow 自动归档阶段含两部分表述且不重复声明协议', () => {
+        const auto = skillCorpus('iagent_auto_workflow');
+        expect(auto).toContain('根入口 `ARCHIVE-INDEX.md` 的月份导航 + 全局模块统计');
+        expect(auto).toContain('当月月度索引 `ARCHIVE-INDEX-YYYY-MM.md` 的纯追加');
+        expect(auto).toContain('本技能 MUST NOT 重复声明或内联该协议正文');
+        expect(auto).not.toMatch(/月份 MUST 取|确定性重算|按标准结构创建/);
+    });
+
+    it('debug 不写索引且归档逻辑不变', () => {
+        const debug = skillCorpus('iagent_debug');
+        expect(debug).not.toContain('ARCHIVE-INDEX');
+        expect(debug).toContain('归档只读');
+        expect(debug).toContain('/iagent:spec-archive');
     });
 });
 

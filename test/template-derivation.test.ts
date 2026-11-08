@@ -217,16 +217,24 @@ describe('CMD:SKIP 裁剪边界（spec-archive / spec-propose / spec-explore）'
         getCommandTemplates().map(({ template, id }) => [id, template])
     );
 
-    it('spec-archive 指令版保留 ARCHIVE-INDEX 标签白名单规则句', () => {
+    it('spec-archive 指令版保留分片索引强制规则句（月份落点 / 纯追加 / 根入口 / 标签白名单）', () => {
         const derived = commandById.get('spec-archive')?.content ?? '';
+        // 强制规则句进入指令版
+        expect(derived).toContain('月度索引维护（强制，纯追加）');
+        expect(derived).toContain('月份 MUST 取自归档目录名');
+        expect(derived).toContain('MUST NOT 读取本地时间');
+        expect(derived).toContain('根入口维护（强制，只更新链接与统计）');
+        expect(derived).toContain('MUST NOT 改写既有月度条目');
         expect(derived).toContain('匹配固定标签白名单');
         expect(derived).toContain('`[测试]`');
         expect(derived).toContain('`[DB脚本]`');
         expect(derived).toContain('`[使用说明]`');
         // 白名单反例说明（不得收集所有方括号内容）同样进入指令版
         expect(derived).toContain('不得收集"所有方括号内容"');
-        // 逐步操作细节仍被裁剪（仅技能版）
-        expect(derived).not.toContain('d. 把页脚时间戳更新为当前日期');
+        // 逐步操作细节 / 文件模板仍被裁剪（仅技能版）
+        expect(derived).not.toContain('b. 写入顺序（强制）');
+        expect(derived).not.toContain('# 归档变更索引 YYYY-MM');
+        expect(derived).not.toContain('## 月份导航');
         expect(derived).not.toContain('CMD:SKIP');
     });
 

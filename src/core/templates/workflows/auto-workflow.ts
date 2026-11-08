@@ -195,7 +195,7 @@ Phase 4 继承 \`iagent_spec_apply\` 的**测试执行门**并**自动**通过 �
 - 构造归档上下文，包含：
   - \`change-name\` —— 当前变更名（跳过变更选择提示）
   - **Stage Envelope** —— handoff 包路径 / \`compile-report.md\` 路径 / \`resume\`；MUST NOT 内联制品正文
-- **主 agent 内联执行归档**：以 \`change-name\` 以 **Skill 工具内联**执行 \`iagent_spec_archive\` 的归档协议（\`executionMode=inline\`，MUST NOT 派生归档子代理；兼容窗内旧 \`subagent\` 回执记 deprecation WARN）；归档协议（delta spec 同步、CONTEXT.md 同步、CodeGraph 检查、探索记忆同步、目录移动、ARCHIVE-INDEX.md 纯追加、归档只读校验、流程级工作区清理）—— 本技能 MUST NOT 重复声明或内联该协议正文
+- **主 agent 内联执行归档**：以 \`change-name\` 以 **Skill 工具内联**执行 \`iagent_spec_archive\` 的归档协议（\`executionMode=inline\`，MUST NOT 派生归档子代理；兼容窗内旧 \`subagent\` 回执记 deprecation WARN）；归档协议（delta spec 同步、CONTEXT.md 同步、CodeGraph 检查、探索记忆同步、目录移动、归档索引维护——根入口 \`ARCHIVE-INDEX.md\` 的月份导航 + 全局模块统计与当月月度索引 \`ARCHIVE-INDEX-YYYY-MM.md\` 的纯追加、归档只读校验、流程级工作区清理）—— 本技能 MUST NOT 重复声明或内联该协议正文
 - 全部归档步骤在内联执行的 \`iagent_spec_archive\` 协议内部自动完成
 - **回执续跑**：内联执行结果 SHALL 含 \`archivePath\` / \`specsSynced\`；父级校验通过后完成流程
 
