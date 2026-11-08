@@ -152,10 +152,12 @@
 | 术语 | 定义 | 避免使用 |
 |------|------|---------|
 <!-- Terms resolved during grilling and written to CONTEXT.md -->
+<!-- 探索结束后若确无新术语，在此段写固定字面量：无新术语 -->
 
 ## 架构决策 (NEW)
 
 <!-- ADRs created during exploration -->
+<!-- 确无 ADR 时在此段写固定字面量：无 ADR -->
 - ADR-0001: <title> — <summary>
   File: `openspec/docs/adr/0001-<slug>.md`
 
@@ -180,7 +182,14 @@
 
 ## Decisions
 
-<Empty initially - accumulates confirmed choices>
+<!-- Empty initially - accumulates confirmed choices -->
+<!-- 每条决策 MUST 带稳定 id D<n>；id 一经分配 MUST NOT 复用、重排或删除后重编号 -->
+<!-- 确无决策时在此段写固定字面量：无决策 -->
+
+## 硬约束 (NEW)
+
+<!-- 每行一条不可改写片段（顺序保证 / 否定式需求 / 数值型默认值），带 source: D<n>；确无时写固定字面量：无硬约束 -->
+- <不可改写片段逐字> — source: D<n>
 
 ## Scope Changes (NEW)
 
@@ -412,6 +421,19 @@
 
 触发点：1.3 grill L1-L5 与 1.4 关键词分析均已执行、1.5 探索文件已更新之后。本制品是**强制产出**——不因"本次判定无流程"而跳过，也 MUST NOT 留空。
 
+**纸迹三项校验（1.5.5 前置，强制）**：在呈现流程图与执行流程最终确认门**之前**校验三项纸迹产物：
+
+1. `## Decisions` 非空，或段内写有固定字面量 `无决策`
+2. `## 术语表` 非空，或段内写有固定字面量 `无新术语`
+3. `## 架构决策` 有 ADR 记录，或段内写有固定字面量 `无 ADR` 并已复核 ADR 三条件
+
+- 三项「显式『无』」MUST 使用上述固定字面量写在对应段落内；散文式免责表述 MUST NOT 被视为显式声明
+- 同时把已确认决策中的不可改写片段（顺序保证 / 否定式需求 / 数值型默认值）逐条写入 `## 硬约束` 段：每行一条，带 `source: D<n>`；确无此类片段时写入固定字面量 `无硬约束`；该段 MUST NOT 留空，MUST NOT 由 propose 从散文反向猜测
+- 校验结论 MUST **并入既有的流程最终确认门呈现**（缺失项逐条列出并给出「补写 / 显式声明无」两种处置）；MUST NOT 新增阻塞确认门，MUST NOT 改变门白名单与门预算，MUST NOT 单独形成一次用户停顿
+- 校验结果记入探索回执 `paperTrailStatus`：三项齐备或显式「无」→ `complete`；任一项缺失 → `incomplete`；无探索文件 → `skipped`（记 WARN，MUST NOT 凭猜测补写）
+- 存量探索文件不含 `D<n>` / `## 硬约束` 字段契约时（边界 B3）：记 WARN 并视作「无硬约束」，只对本次及之后新产出的探索文件强制，MUST NOT 阻塞存量变更
+- 用户提前结束（边界 B1）：未覆盖的 L4-L5 层级 MUST 在本门内显式列出，并记 `user-shortened` 合法终态，MUST NOT 判定为失败或纸迹缺失
+
 **功能流程图**：把探索发现的业务功能流程固化为探索产物 `## 功能流程图` 段（Mermaid `flowchart TD` + 关键操作节点清单表）。
 - **节点粒度** = 可独立验证的业务操作单元（用户操作 / 业务判定 / 数据写入 / 外部调用）；节点标识在图中与表中 MUST 一致，多流程时全局唯一递增
 - **清单列集**：节点 / 操作 / 触发条件 / 证据位置 / 异常路径
@@ -454,8 +476,9 @@
 1. 用 Glob 或 Read 工具**检查 `openspec/CONTEXT.md` 是否存在**
 
 2. **若存在**：校验 exploration.md 术语表 段的全部术语均已写入 CONTEXT.md
-   - 读取 CONTEXT.md 内容
+   - 写入前 MUST 先读 CONTEXT.md 内容（MUST NOT 在不读取现有文件的情况下直接追加）
    - 与 exploration.md 术语表 段比对
+   - 同名术语定义不一致时 MUST 显式裁决（更新定义，或保留旧定义并标注「已过时（由 <change-name> 取代）」）；MUST NOT 静默追加第二条同义条目
    - 有术语缺失于 CONTEXT.md 时自动同步（补写缺失术语）
    - 记录："CONTEXT.md 已校验 — 同步 <N> 个术语"
 
@@ -520,7 +543,7 @@
 
 ### 1.8 结构化回执与续跑（delegated 模式）
 
-探索收束后 SHALL 输出结构化回执（`phase` / `status` / 产物位置 / `nextAllowed` / `failure` / `flowBaselineConfirmed`）。回执是**中间状态**：当编排器与探索在同一 agent 上下文执行时，收束后 MUST 在同一用户回合内继续编排器的下一阶段，MUST NOT 以回执结束回合；若编排器为独立子代理上下文，则回执返回父级后由父级继续。MUST NOT 自行进入提案或实现。
+探索收束后 SHALL 输出结构化回执（`phase` / `status` / 产物位置 / `nextAllowed` / `failure` / `flowBaselineConfirmed` / `paperTrailStatus`）。其中 `paperTrailStatus` 取值 `complete` / `incomplete` / `skipped`；无探索文件时为 `skipped` 并记 WARN，MUST NOT 凭猜测补写。回执是**中间状态**：当编排器与探索在同一 agent 上下文执行时，收束后 MUST 在同一用户回合内继续编排器的下一阶段，MUST NOT 以回执结束回合；若编排器为独立子代理上下文，则回执返回父级后由父级继续。MUST NOT 自行进入提案或实现。
 
 ---
 

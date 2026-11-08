@@ -17,7 +17,7 @@ export function getSpecArchiveChangeSkillTemplate(): SkillTemplate {
 
 在变更工作流中归档一个已完成的变更。
 
-**handoff 包（只读 + 追加）**：若 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\` 存在，本技能**只读**该包并在收尾时只向 \`## 阶段结论\` 追加一行（\`phase=archive\` / \`status\` / \`artifact\` / \`nextAllowed\` / \`tokens\`，tokens 不可得填 \`—\`）；MUST NOT 重产整包。包内 \`## 已确认门\`（门账本）同样**只读** —— MUST NOT 改写、删除或回填父级已写入的条目（账本条目表达门承载语义，取值域 = \`GATE_SKIP_IDS\`，与六节并列且不计入六节）。包缺失时按需直接读取制品；\`sourceFingerprint\` 与当前制品不一致时记 WARN 并以磁盘制品为准。
+**handoff 包（只读 + 追加）**：若 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\` 存在，本技能**只读**该包并在收尾时只向 \`## 阶段结论\` 追加一行（\`phase=archive\` / \`status\` / \`artifact\` / \`nextAllowed\` / \`tokens\`，tokens 不可得填 \`—\`）；MUST NOT 重产整包。包内 \`## 已确认门\`（门账本）同样**只读** —— MUST NOT 改写、删除或回填父级已写入的条目（账本条目表达门承载语义，取值域 = \`GATE_SKIP_IDS\`，与六节并列且不计入六节）。包缺失时按需直接读取制品；\`sourceFingerprint\` 与当前制品不一致时记 WARN 并以磁盘制品为准。包内 \`## 硬约束\` 为并列节，本技能**只读复用**（MUST NOT 在该节写入或改写）；\`## 阶段结论\` 的追加只由具备 \`Write\` 权限的 apply / archive 执行（verify 只读，不声称已追加）。
 
 ${renderGateWhitelistSection()}
 
@@ -100,20 +100,18 @@ ${renderGateWhitelistSection()}
 
    1. **检查 \`openspec/CONTEXT.md\` 是否存在**（用 Glob 或 Read 工具）
 
-   2. **若已存在**：读取 CONTEXT.md，并扫描变更目录中应被记录的术语
-      - 读取 \`proposal.md\` 获取关键领域术语（历史 JSON-only 降级时只读 change.json）
-      - 读取 \`design.md\` 获取技术术语与决策（历史 JSON-only 降级时只读 change.json）
-      - 与 CONTEXT.md 交叉比对 —— 若有术语缺失则自动补全
+   2. **若已存在**：写入前 MUST 先读 CONTEXT.md，并只同步变更 \`exploration.md\` 术语表中已确认的术语
+      - 取词口径：**只同步** \`exploration.md\` 术语表；MUST NOT 从 \`proposal.md\` / \`design.md\` / \`specs/**\` 正文反向抽取术语
+      - 同名术语已存在时 MUST 比对定义，不一致时 MUST 显式裁决（更新定义，或保留旧定义并标注「已过时（由 <change-name> 取代）」）；MUST NOT 静默追加第二条同义条目
+      - 与 CONTEXT.md 交叉比对 —— 术语表中缺失的术语自动补全
       - 记录日志："CONTEXT.md 已同步 —— 新增 <N> 个术语"
 
-   3. **若不存在**：用变更中的关键术语创建 \`openspec/CONTEXT.md\`
-      - 从 \`proposal.md\` 的 Why 提取领域术语
-      - 从 \`design.md\` 的 Decisions 提取技术术语
+   3. **若 \`openspec/CONTEXT.md\` 不存在**：仅用变更 \`exploration.md\` 术语表创建 \`openspec/CONTEXT.md\`
       - 格式：\`**<Term>**: <definition>\\n_Avoid_: <synonyms>\`
-      - 记录日志："CONTEXT.md 已创建 —— 来自变更制品的 <N> 个术语"
+      - MUST NOT 从 proposal / design / specs 正文创建
+      - 记录日志："CONTEXT.md 已创建 —— 来自 exploration.md 术语表的 <N> 个术语"
 
-   4. **兼容性检查**：若变更既无 Markdown 制品也无历史 JSON，跳过并记录日志：
-      "跳过 CONTEXT.md 同步：未找到变更制品"
+   4. **缺失处置**：\`exploration.md\` 或术语表缺失时，SHALL 记 WARN 并跳过（MUST NOT 猜测补词）；不得因检查失败而阻塞归档
 
    **强制检查点**：
    - 系统 MUST 在执行归档前完成 CONTEXT.md 检查

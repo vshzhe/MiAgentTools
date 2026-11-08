@@ -123,6 +123,18 @@ Grep/Glob 是**最后手段**，仅在能力探测三通道全部失败后允许
 /** 功能流程图全文（写入 references/flowchart-gate.md，AI 在流程生成时按需读取） */
 const FLOWCHART_FAULT_FULL = buildFlowchartBlock(FAULT_CHAIN_FLOW_COLUMNS);
 
+/** 排查期 grill 纸迹纪律全文（写入 references/grill-discipline.md；主文件 §2.3 仅保留 Read 指引，保证 ≤500 行） */
+const GRILL_DISCIPLINE_FULL = `### 2.3 排查期间的 grill-with-docs 纪律
+
+在收敛根因时应用完整纪律，MUST NOT 以「缩减版」为由省略任一纪律：
+
+- **一次一个问题**：需要用户输入时，只问一个问题并等待
+- **术语冲突检测（先读后写）**：写入 \`openspec/CONTEXT.md\` 前 MUST 先读取既有条目；同名术语已存在且定义不一致时，MUST 在接受新用法前指出冲突并显式裁决——更新定义，或保留旧定义并标注「已过时（由 <change-name> 取代）」；MUST NOT 静默追加第二条同义条目
+- **ADR 三条件判定**：仅当（1）难以逆转、（2）脱离上下文令人意外、（3）是真实权衡的结果，三条件**同时**满足时才写 \`openspec/docs/adr/\`；不满足时不产出（正常态），MUST NOT 为凑纸迹而写
+- **边界场景构造**：对每个已确认的根因决策 MUST 构造 ≥1 边界场景（网络故障 / 超时 / 非法输入 / 并发访问），并写入诊断记录（可选同步探索文件边界场景段）；MUST NOT 只保留在对话中
+- **实时更新记录**：每次问答交换后都更新诊断记录（根因假设、证据、边界场景）—— 不得在末尾批量补写
+`;
+
 export function getDebugSkillTemplate(): SkillTemplate {
     return {
         name: 'iagent_debug',
@@ -287,12 +299,7 @@ bug 无法用自动化测试捕获时（环境相关行为 / 时序 / 仅 UI）�
 
 ### 2.3 排查期间的 grill-with-docs 纪律
 
-在收敛根因时应用完整纪律：
-
-- **一次一个问题**：需要用户输入时，只问一个问题并等待
-- **术语收敛**：排查中每确定一个术语，立即（不延后）写入 \`openspec/CONTEXT.md\`。格式：\`**<Term>**: <definition>
-_Avoid_: <synonyms>\`
-- **实时更新记录**：每次问答交换后都更新诊断记录（根因假设、证据、边界场景）—— 不得在末尾批量补写
+> 完整纪律见 \`references/grill-discipline.md\`；执行本步前 MUST 先 \`Read\`。术语冲突检测（写入 CONTEXT.md 前先读、同名冲突显式裁决）、ADR 三条件判定、边界场景构造三项 MUST NOT 以「缩减版」为由省略。
 
 ### 2.3.5 变更归属判定（Phase 3 前移，MUST 在 2.4 之前完成）
 
@@ -597,6 +604,7 @@ Ready for \`/iagent:spec-apply\` (fixes already applied) or archive.
             { path: 'references/prompt-gate.md', content: PROMPT_GATE_BUG_FULL },
             { path: 'references/flowchart-gate.md', content: FLOWCHART_FAULT_FULL },
             { path: 'references/investigation-protocol.md', content: INVESTIGATION_PROTOCOL_FULL },
+            { path: 'references/grill-discipline.md', content: GRILL_DISCIPLINE_FULL },
         ],
     };
 }

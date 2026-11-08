@@ -184,18 +184,12 @@ ${renderGateWhitelistSection()}
 
    a.5 **CONTEXT.md 同步（强制检查点，归档前）**：
       - **检查 \`openspec/CONTEXT.md\` 是否存在**（用 Glob 或 Read 工具）
-      - **若已存在**：读取 CONTEXT.md，并扫描变更制品中应被记录的术语
-        - 读取 \`proposal.md\` 获取关键领域术语（历史 JSON-only 降级时只读 change.json）
-        - 读取 \`design.md\` 获取技术术语与决策（历史 JSON-only 降级时只读 change.json）
-        - 与 CONTEXT.md 交叉比对 —— 若有术语缺失则自动补全
-        - 记录日志："CONTEXT.md 已同步 —— 新增 <N> 个术语"
-      - **若不存在**：用变更制品创建 \`openspec/CONTEXT.md\`
-        - 从 \`proposal.md\` 的 Why 提取领域术语
-        - 从 \`design.md\` 的 Decisions 提取技术术语
-        - 格式：\`**<Term>**: <definition>\\\\n_Avoid_: <synonyms>\`
-        - 记录日志："CONTEXT.md 已创建 —— 来自变更制品的 <N> 个术语"
-      - **兼容性检查**：若变更既无 Markdown 制品也无历史 JSON，跳过并记录日志：
-        "跳过 CONTEXT.md 同步：未找到变更制品"
+      - **取词口径（收窄）**：只同步该变更 \`exploration.md\` 术语表中已确认的术语；MUST NOT 从 \`proposal.md\` / \`design.md\` / \`specs/**\` 正文反向抽取
+      - **写入前 MUST 先读** \`openspec/CONTEXT.md\` 现有内容；同名术语已存在且定义不一致时 MUST 显式裁决（更新定义，或保留旧定义并标注「已过时（由 <change-name> 取代）」）；MUST NOT 静默追加第二条同义条目
+      - **若已存在**：与 CONTEXT.md 交叉比对，术语表中缺失的术语自动补全；记录日志："CONTEXT.md 已同步 —— 新增 <N> 个术语"
+      - **若 \`openspec/CONTEXT.md\` 不存在**：仅用 \`exploration.md\` 术语表创建 \`openspec/CONTEXT.md\`（MUST NOT 从制品正文创建）；格式：\`**<Term>**: <definition>\\\\n_Avoid_: <synonyms>\`；记录日志："CONTEXT.md 已创建 —— 来自 exploration.md 术语表的 <N> 个术语"
+      - **并行写入串行化（强制）**：本步的「读取 → 比对 → 写入」三步 SHALL 串行化（同一批次锁或排队），MUST NOT 与其他并行单元的 a.5 并发写同一文件（MUST NOT 并发写同一文件导致丢失更新）
+      - **缺失处置**：\`exploration.md\` 或术语表缺失时跳过并记录 WARN，MUST NOT 猜测补词
       - **失败处理（非阻塞）**：不得因检查失败而阻塞归档 —— 记录日志并继续
 
    a.6 **（已移除）**：
@@ -442,7 +436,7 @@ No active changes found. Create a new change to get started.
 - 执行前清晰展示每个变更的状态
 - 记录并报告全部结果（成功/跳过/失败）
 - 按变更同步探索记忆（步骤 b.5）；某个变更失败只记录告警，绝不中止整批
-- 按变更同步 CONTEXT.md（步骤 a.5）；制品缺失时跳过并记日志，绝不阻塞整批
+- 按变更同步 CONTEXT.md（步骤 a.5）：写入前先读、同名冲突显式裁决；只同步 \`exploration.md\` 术语表，MUST NOT 从制品正文反向抽取；探索文件或术语表缺失时跳过并记日志，绝不阻塞整批；并行单元的 a.5 写入步 MUST 串行化
 - 需求文档桥与只读报告已移除：本技能 MUST NOT 读取、报告、生成、对齐或迁出 \`需求文档.md\`；文件随变更目录原样保留
 - **归档只读**：MUST NOT 修改 \`openspec/changes/archive/\` 下的既有内容 —— 已归档变更是历史事实；整目录移动不属于改写，\`ARCHIVE-INDEX.md\` 的**追加**是显式例外；单元序列 c 步执行只读校验，越界只 WARN 且不中止批次
 - **单元成功后清理流程级工作区** \`.openspec-tmp/pipeline-<change-name>/\`（同时识别旧 \`apply-\` 前缀）；失败或跳过的单元保留工作区供诊断，清理失败只 WARN 且不中止批次

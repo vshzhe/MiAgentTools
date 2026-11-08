@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:a11ab4c483a42db888ec46fb5f5b2e98f8038b70929fe82a6f60fea8325197e1"
+  generatedFingerprint: "sha256:3f2b0e00f55e56dda05654007f90346988b28840369a1bae3e7269e0aaefb7ab"
 ---
 
 
@@ -68,6 +68,8 @@ Phase 1 SHALL 经 **Skill 工具内联**委派阶段 `iagent-spec-explore`（传
 **Stage Envelope**：委派时只传路径与结构化字段（`changeName` / `explorationFile` / `configPath` / `rulesPath` / `mode` / `resume`），MUST NOT 内联制品正文或完整 SKILL.md。
 
 **退出守卫**：被委派的 `iagent-spec-explore` 完成后 MUST NOT 自行进入提案或实现；阶段完成判定与推进主权归编排器。
+
+**纸迹衔接口径（探索→提案）**：`exploration.md` 是**唯一过桥载体**——Phase 2 委派 MUST 传 `explorationFile`，MUST NOT 以父级对话摘要、回执正文或临时记忆替代。探索回执的 `flowBaselineConfirmed` / `paperTrailStatus` 原样记录并透传（MUST NOT 改写；字段缺失时 MUST NOT 静默补默认值）。**父级复核纸迹自证**：收到 `paperTrailStatus=complete` 时至少核对一次 `exploration.md` 的 Decisions / 术语表 / ADR 三项（存在或有显式「无」字面量），核对不一致记 WARN 并按实际值透传，MUST NOT 静默采信子级自证。**唯一停点不变**：纸迹校验在流程最终确认门之内完成，MUST NOT 在 Phase 2 追加第二次用户停顿，MUST NOT 因 `paperTrailStatus=incomplete` 自动阻断全自动管线（由流程门内的用户处置决定）。handoff 包 `## 硬约束` 为并列节，只读复用。
 
 ## Phase 2: Proposal
 

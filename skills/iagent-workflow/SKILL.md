@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:f65789845e6978ca4cbf1be6617065699c3c931024ae01e4e007c60b5076e9b0"
+  generatedFingerprint: "sha256:b8620616ad023f6596fdc3ea5e5748fc86a20c221a735f468ea56d12ab9dd0c0"
 ---
 
 
@@ -56,7 +56,7 @@ metadata:
 
 > 跨变更索引重建类动作已随索引能力退役（DEC-2），不构成任何门或动作。
 
-**handoff 包（跨阶段只读复用）**：`iagent-spec-propose` 在 Phase 2 定稿时产出 `.openspec-tmp/pipeline-<change-name>/handoff-pack.md`；Phase 3 / 4 / 5 的阶段入口读取该包（`sourceFingerprint` 与制品不一致 → 重建 + WARN），各阶段收尾只向 `## 阶段结论` 追加一行（`phase` / `status` / `artifact` / `nextAllowed`）；MUST NOT 另立包格式或重产整包。
+**handoff 包（跨阶段只读复用）**：`iagent-spec-propose` 在 Phase 2 定稿时产出 `.openspec-tmp/pipeline-<change-name>/handoff-pack.md`；Phase 3 / 4 / 5 的阶段入口读取该包（`sourceFingerprint` 与制品不一致 → 重建 + WARN），各阶段收尾只向 `## 阶段结论` 追加一行（`phase` / `status` / `artifact` / `nextAllowed`）；MUST NOT 另立包格式或重产整包。`exploration.md` 是探索→提案阶段的**唯一过桥载体**（Phase 2 委派 MUST 传 `explorationFile`，MUST NOT 以对话摘要 / 回执正文替代）；`flowBaselineConfirmed` / `paperTrailStatus` 原样透传（MUST NOT 补默认值），父级复核纸迹自证（MUST NOT 静默采信子级自证）与唯一停点口径见 `references/paper-trail-handoff.md`；包内 `## 硬约束` 为并列节、只读复用。
 
 **执行方式与增量复验（强制）**：分级执行：Phase 1 内联；Phase 2/4/5 子代理；Phase 3 默认子代理，可内联但须非作者（independence=independent）+ 检查清单。增量复验：FAIL 修复后新开只读代理，传 changeName / fixDiff / 上轮 reportPath，禁止 resume 充当复验，并对未覆盖范围输出 residual 清单。串联：先 iagent-spec-verify-proposal 后 iagent-proposal-review。子代理先读 handoff 包「## 制品清单」并按锚点增量读取，回执写 readScope；「## 阶段结论」5 列（tokens 可用时填 tokens=<数值>，不可得填 —）。
 
@@ -97,7 +97,7 @@ Phase 1 SHALL 经 **Skill 工具内联**委派阶段 `iagent-spec-explore`（传
 2. **CONTEXT.md 校验（强制检查点）**
    - 检查 `openspec/CONTEXT.md` 是否存在
    - 已存在时：校验 exploration.md 术语表中的全部术语都在 CONTEXT.md 中
-     - 若有术语缺失，自动同步
+     - 写入前 MUST 先读 CONTEXT.md；同名术语定义不一致时 MUST 显式裁决（更新定义，或保留旧定义并标注「已过时（由 <change-name> 取代）」）；MUST NOT 静默追加第二条同义条目；若有术语缺失，自动同步
    - 不存在时：从 exploration.md 的术语表段自动生成
      - 创建 `openspec/CONTEXT.md`，写全已消解的术语
    - **兼容（Task 12.1，已收窄）**：若探索文件不存在（经 1 次路径解析重试后），记录 WARN 日志"跳过 CONTEXT.md 检查：无探索文件"并**仅**跳过 CONTEXT.md 检查。该跳过不豁免委派的 spec_explore 聚合一致性门。

@@ -133,6 +133,16 @@ iagent spec status --change "<name>" --json
 ---
 `;
 
+/** 探索→提案纸迹衔接全文（写入 references/paper-trail-handoff.md；主文件仅保留索引句，保证 ≤500 行） */
+const PAPER_TRAIL_HANDOFF_FULL = `### 探索→提案纸迹衔接（编排口径）
+
+- **唯一过桥载体**：\`exploration.md\` 是探索阶段进入提案阶段的唯一过桥载体。Phase 2 委派 MUST 传 \`explorationFile\`，MUST NOT 以父级对话摘要、回执正文或临时记忆替代。
+- **字段原样透传**：探索回执的 \`flowBaselineConfirmed\` 与 \`paperTrailStatus\` SHALL 由父级原样记录并透传，MUST NOT 被改写；字段缺失时 MUST NOT 静默补默认值。
+- **父级复核纸迹自证**：收到 \`paperTrailStatus=complete\` 时，父级 SHALL 至少核对一次 \`exploration.md\` 的 Decisions / 术语表 / ADR 三项确实存在或有显式「无」字面量；核对不一致时 SHALL 记 WARN 并按实际值透传，MUST NOT 静默采信子级自证（复核纠偏不等于改写子级值）。
+- **唯一停点不变**：纸迹校验 MUST 在探索的流程最终确认门之内完成，MUST NOT 在 Phase 2 追加第二次用户停顿，MUST NOT 因 \`paperTrailStatus=incomplete\` 自动阻断管线（由流程门内的用户处置决定）。
+- **只读消费**：\`spec-verify\` / \`spec-apply\` / \`spec-archive\` 只读复用 handoff 包 \`## 硬约束\`；\`## 阶段结论\` 的追加只由具备 \`Write\` 权限的 apply / archive 执行（verify 只读，不声称已追加）。
+`;
+
 export function getWorkflowSkillTemplate(): SkillTemplate {
     return {
         name: 'iagent_workflow',
@@ -157,7 +167,7 @@ ${GATE_PROTOCOL_PREAMBLE}
 
 ${renderGateWhitelistSection()}
 
-**handoff 包（跨阶段只读复用）**：\`iagent_spec_propose\` 在 Phase 2 定稿时产出 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\`；Phase 3 / 4 / 5 的阶段入口读取该包（\`sourceFingerprint\` 与制品不一致 → 重建 + WARN），各阶段收尾只向 \`## 阶段结论\` 追加一行（\`phase\` / \`status\` / \`artifact\` / \`nextAllowed\`）；MUST NOT 另立包格式或重产整包。
+**handoff 包（跨阶段只读复用）**：\`iagent_spec_propose\` 在 Phase 2 定稿时产出 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\`；Phase 3 / 4 / 5 的阶段入口读取该包（\`sourceFingerprint\` 与制品不一致 → 重建 + WARN），各阶段收尾只向 \`## 阶段结论\` 追加一行（\`phase\` / \`status\` / \`artifact\` / \`nextAllowed\`）；MUST NOT 另立包格式或重产整包。\`exploration.md\` 是探索→提案阶段的**唯一过桥载体**（Phase 2 委派 MUST 传 \`explorationFile\`，MUST NOT 以对话摘要 / 回执正文替代）；\`flowBaselineConfirmed\` / \`paperTrailStatus\` 原样透传（MUST NOT 补默认值），父级复核纸迹自证（MUST NOT 静默采信子级自证）与唯一停点口径见 \`references/paper-trail-handoff.md\`；包内 \`## 硬约束\` 为并列节、只读复用。
 
 **执行方式与增量复验（强制）**：分级执行：Phase 1 内联；Phase 2/4/5 子代理；Phase 3 默认子代理，可内联但须非作者（independence=independent）+ 检查清单。增量复验：FAIL 修复后新开只读代理，传 changeName / fixDiff / 上轮 reportPath，禁止 resume 充当复验，并对未覆盖范围输出 residual 清单。串联：先 iagent_spec_verify_proposal 后 iagent_proposal_review。子代理先读 handoff 包「## 制品清单」并按锚点增量读取，回执写 readScope；「## 阶段结论」5 列（tokens 可用时填 tokens=<数值>，不可得填 —）。
 
@@ -198,7 +208,7 @@ Phase 1 SHALL 经 **Skill 工具内联**委派阶段 \`iagent_spec_explore\`（�
 2. **CONTEXT.md 校验（强制检查点）**
    - 检查 \`openspec/CONTEXT.md\` 是否存在
    - 已存在时：校验 exploration.md 术语表中的全部术语都在 CONTEXT.md 中
-     - 若有术语缺失，自动同步
+     - 写入前 MUST 先读 CONTEXT.md；同名术语定义不一致时 MUST 显式裁决（更新定义，或保留旧定义并标注「已过时（由 <change-name> 取代）」）；MUST NOT 静默追加第二条同义条目；若有术语缺失，自动同步
    - 不存在时：从 exploration.md 的术语表段自动生成
      - 创建 \`openspec/CONTEXT.md\`，写全已消解的术语
    - **兼容（Task 12.1，已收窄）**：若探索文件不存在（经 1 次路径解析重试后），记录 WARN 日志"跳过 CONTEXT.md 检查：无探索文件"并**仅**跳过 CONTEXT.md 检查。该跳过不豁免委派的 spec_explore 聚合一致性门。
@@ -605,6 +615,7 @@ All artifacts ready! Proceeding to the Phase 4 implementation bridge...
         metadata: { author: 'mi-agent-tools' },
         references: [
             { path: 'references/verification-protocol.md', content: VERIFICATION_PROTOCOL_FULL },
+            { path: 'references/paper-trail-handoff.md', content: PAPER_TRAIL_HANDOFF_FULL },
         ],
     };
 }

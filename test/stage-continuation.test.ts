@@ -476,3 +476,75 @@ describe('5.10 分级执行模板与协议断言', () => {
         }
     });
 });
+
+// ---------------------------------------------------------------------------
+// 变更 improve-grill-with-docs-paper-trail（任务 9.1 - 9.9）
+// handoff 包 `## 硬约束` 并列节的产出 / 消费契约。
+// ---------------------------------------------------------------------------
+describe('9.1–9.9 handoff 包 `## 硬约束` 并列节契约', () => {
+    const propose = getSpecProposeSkillTemplate().instructions;
+
+    it('9.1 并列节且不计入六节', () => {
+        expect(propose).toContain('## 硬约束');
+        expect(propose).toContain('并列');
+        expect(propose).toContain('不计入六节');
+    });
+
+    it('9.2 逐字保留与 source: D<n> 锚点，禁止整段复制', () => {
+        expect(propose).toContain('逐字保留');
+        expect(propose).toContain('source: D<n>');
+        expect(propose).toContain('MUST NOT 整段复制');
+    });
+
+    it('9.3 缺节时回执 incomplete + failure', () => {
+        expect(propose).toContain('status=incomplete');
+        expect(propose).toContain('failure');
+        expect(propose).toContain('MUST NOT 猜测补写');
+    });
+
+    it('9.4 存量包无该节时 WARN 降级且不判整包无效', () => {
+        expect(propose).toContain('WARN');
+        expect(propose).toContain('无硬约束');
+        expect(propose).toContain('MUST NOT 判定整包无效');
+    });
+
+    it('9.5 模糊回答禁止伪造硬约束（B4）', () => {
+        expect(propose).toContain('[待确认]');
+        expect(propose).toContain('MUST NOT 伪造硬约束');
+    });
+
+    it('9.6 硬约束与代码矛盾时以代码为准并在流程门呈现（B5）', () => {
+        expect(propose).toContain('代码事实优先');
+        expect(propose).toContain('在流程最终确认门呈现');
+    });
+
+    it('9.7 硬约束节 ≤120 行且不计入六节', () => {
+        expect(propose).toContain('≤ 120 行');
+        expect(propose).toContain('不计入六节');
+    });
+
+    it('9.8 无硬约束为合法终态，空节不判 incomplete', () => {
+        expect(propose).toContain('无硬约束');
+        expect(propose).toContain('MUST NOT 因此返回 status=incomplete');
+    });
+
+    it('9.9 包写入失败按 WARN 继续，不与 incomplete 混用', () => {
+        expect(propose).toContain('包写入失败');
+        expect(propose).toContain('WARN 继续');
+        expect(propose).toContain('MUST NOT 混用');
+    });
+
+    it('消费方：verify 无 Write 不声称追加；apply / archive 只读复用', () => {
+        const verify = getSpecVerifyChangeSkillTemplate().instructions;
+        expect(verify).toContain('只读复用');
+        expect(verify).toContain('无 `Write` 权限');
+        expect(verify).toContain('MUST NOT 声称已追加');
+        for (const text of [
+            getSpecApplyChangeSkillTemplate().instructions,
+            getSpecArchiveChangeSkillTemplate().instructions,
+        ]) {
+            expect(text).toContain('只读复用');
+        }
+        expect(getSpecApplyChangeSkillTemplate().instructions).not.toContain('paperTrailStatus');
+    });
+});

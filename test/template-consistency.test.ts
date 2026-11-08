@@ -179,6 +179,15 @@ describe('探索内容分层、门预算与门合并', () => {
         expect(g).not.toContain('NO multi-question batches');
     });
 
+    it('grill 口径消解：收敛深度不限 + 批量轮数受 ≤2 批规则约束', () => {
+        const g = exploreRefContent('references/grill-playbook.md');
+        expect(g).toContain('收敛深度不限');
+        expect(g).toContain('批量轮数受 ≤2 批规则约束（澄清门不计入流程级门预算）');
+        expect(g).not.toContain('不设人为上限');
+        expect(g).not.toContain('轮数不限');
+        expect(g).toContain('MUST NOT 为此新增第三个用户确认轮次');
+    });
+
     it('聚合一致性门默认直通且未被删除', () => {
         const proto = exploreRefContent('references/exploration-protocol.md');
         expect(proto).toContain('1.6.6');

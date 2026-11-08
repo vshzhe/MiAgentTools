@@ -266,8 +266,10 @@ node bin/iagent.js version bump  # 递增版本并写回 package.json / CHANGELO
   跨变更 SQLite 索引能力已整体退役（索引命令、索引模块与 SQLite 依赖一并移除），代码与生成快照
   MUST NOT 重新引入索引 API 或相关字样（`test/markdown-first-regression.test.ts` 回归锁）。
   **跨阶段上下文**：`iagent_spec_propose` 在 `.openspec-tmp/pipeline-<change>/handoff-pack.md`
-  产出变更级 handoff 包（六节 + 可选 `## 阶段结论`），`spec-verify` / `spec-apply` / `spec-archive`
-  只读并只追加阶段结论，MUST NOT 重产整包；流程收尾清理该工作区（迁移期同时识别旧 `apply-` 前缀）
+  产出变更级 handoff 包（六节 + 并列节 `## 制品清单` / `## 硬约束` + 可选 `## 阶段结论`），
+  `spec-verify` / `spec-apply` / `spec-archive` 只读复用包内 `## 硬约束`，MUST NOT 重产整包；
+  `## 阶段结论` 仅由具备 `Write` 权限的 apply / archive 追加（`spec-verify` 只读，不声称已追加）；
+  流程收尾清理该工作区（迁移期同时识别旧 `apply-` 前缀）
 - SKILL 正文中文；代码注释中文；标识符英文
 - `update` 的手改保护依赖 frontmatter `generatedFingerprint`（内容指纹）—— 生成路径必须写全该字段；
   无该字段的存量产物回退到 `generatedBy` 版本号判定

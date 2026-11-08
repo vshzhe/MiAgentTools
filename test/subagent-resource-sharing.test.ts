@@ -242,14 +242,20 @@ describe('6.9–6.11 · handoff 包跨阶段协议', () => {
         expect(apply).toContain('MUST NOT 静默沿用陈旧包');
     });
 
-    it('verify / archive 只读消费并追加阶段结论（不重产整包）', () => {
-        for (const name of ['iagent_spec_verify', 'iagent_spec_archive']) {
-            const body = skillBody(name);
-            expect(body, `${name} 未声明只读消费`).toContain('只读');
-            expect(body, `${name} 未声明追加阶段结论`).toContain('## 阶段结论');
-            expect(body, `${name} 未禁止重产整包`).toContain('MUST NOT 重产整包');
-            expect(body).toContain(PACK);
-        }
+    it('verify 只读消费且不追加阶段结论；archive 只读消费并追加', () => {
+        const verify = skillBody('iagent_spec_verify');
+        expect(verify, 'verify 未声明只读消费').toContain('只读');
+        expect(verify, 'verify 未声明阶段结论边界').toContain('## 阶段结论');
+        expect(verify, 'verify 未禁止声称已追加').toContain('MUST NOT 声称已追加');
+        expect(verify, 'verify 未禁止重产整包').toContain('MUST NOT 重产整包');
+        expect(verify).toContain(PACK);
+
+        const archive = skillBody('iagent_spec_archive');
+        expect(archive, 'archive 未声明只读消费').toContain('只读');
+        expect(archive, 'archive 未声明追加阶段结论').toContain('## 阶段结论');
+        expect(archive, 'archive 未声明追加一行').toContain('追加一行');
+        expect(archive, 'archive 未禁止重产整包').toContain('MUST NOT 重产整包');
+        expect(archive).toContain(PACK);
     });
 
     it('auto-workflow / workflow 阶段入口引用同一包且不另立格式', () => {

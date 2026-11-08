@@ -7,6 +7,22 @@
 
 ## [Unreleased]
 
+## [4.2.0] - 2026-11-08
+
+### Added
+
+- 探索纸迹三项校验（Decisions / 术语表 / ADR 的存在性或固定字面量「无」）并入既有流程最终确认门，结果记入回执 `paperTrailStatus`（`complete` / `incomplete` / `skipped`）；不新增确认门。
+- `exploration.md` 新增 `## 硬约束` 段，逐条记录不可改写片段并带 `source: D<n>`；handoff 包新增并列节 `## 硬约束`，消费方（verify / apply / archive）只读复用。
+- 决策可追溯链路：探索 Decisions 使用稳定 `D<n>`，specs / design 在约束处标注 `(D<n>)`，`[测试]` 任务覆盖相关硬约束。
+- `debug` 排查期补齐术语冲突检测、ADR 三条件判定与边界场景构造（下沉 `references/grill-discipline.md`）。
+
+### Changed
+
+- 消除 grill 口径矛盾：改写为「收敛深度不限，批量轮数受 ≤2 批规则约束（澄清门不计入流程级门预算）」，并同步主规格与回归断言。
+- 统一六处 `CONTEXT.md` 写入者为「先读后写 + 同名冲突显式裁决」；归档类写入者只同步 `exploration.md` 术语表，禁止从制品正文反向抽取。
+- 批量归档 a.5 并行写入串行化，避免同一 `CONTEXT.md` 丢失更新。
+- `spec-verify` 只读消费 handoff 包且不追加 `## 阶段结论`（无 `Write` 权限）；阶段结论仅由 apply / archive 追加。
+
 ## [4.1.0] - 2026-11-08
 
 ### Added
@@ -1665,7 +1681,8 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.1.0...HEAD
+[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.2.0...HEAD
+[4.2.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.1.0...v4.2.0
 [4.1.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.0.1...v4.1.0
 [4.0.1]: https://github.com/vshzhe/MiAgentTools/compare/v4.0.0...v4.0.1
 [3.3.0]: https://github.com/vshzhe/MiAgentTools/compare/v3.2.0...v3.3.0

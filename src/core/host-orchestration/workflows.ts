@@ -30,7 +30,7 @@ const EXPLORE_PHASE: PhaseSpec = {
     // 探索内联阶段不要求 delegate：strict 缺委派能力时仍可执行探索（交互门）。
     requiredCapabilities: ['skill-load', 'argument-passing', 'receipt', 'gate'],
     execution: { allowed: ['inline'] },
-    handoff: ['explorationFile', 'promptBaseline', 'flowBaseline', 'flowBaselineConfirmed', 'pendingSymbols'],
+    handoff: ['explorationFile', 'promptBaseline', 'flowBaseline', 'flowBaselineConfirmed', 'paperTrailStatus', 'pendingSymbols'],
     receipt: RECEIPT,
     gate: { id: 'flow-final-confirmation', blocking: true },
     retry: { maxAttempts: 2, on: ['delegation-failed', 'handoff-incomplete'] },

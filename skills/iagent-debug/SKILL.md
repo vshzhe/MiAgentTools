@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:242299c00204fdde781d01441bebc026c1e0c968e94f6d14864117b8bd722efe"
+  generatedFingerprint: "sha256:5aae23757e4349acf0a115109ec94347241145ed498e540a595f8da6a54c973b"
 ---
 
 
@@ -196,12 +196,7 @@ bug 无法用自动化测试捕获时（环境相关行为 / 时序 / 仅 UI）�
 
 ### 2.3 排查期间的 grill-with-docs 纪律
 
-在收敛根因时应用完整纪律：
-
-- **一次一个问题**：需要用户输入时，只问一个问题并等待
-- **术语收敛**：排查中每确定一个术语，立即（不延后）写入 `openspec/CONTEXT.md`。格式：`**<Term>**: <definition>
-_Avoid_: <synonyms>`
-- **实时更新记录**：每次问答交换后都更新诊断记录（根因假设、证据、边界场景）—— 不得在末尾批量补写
+> 完整纪律见 `references/grill-discipline.md`；执行本步前 MUST 先 `Read`。术语冲突检测（写入 CONTEXT.md 前先读、同名冲突显式裁决）、ADR 三条件判定、边界场景构造三项 MUST NOT 以「缩减版」为由省略。
 
 ### 2.3.5 变更归属判定（Phase 3 前移，MUST 在 2.4 之前完成）
 

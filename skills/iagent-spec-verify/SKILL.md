@@ -8,14 +8,14 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:4838fc3342c61fff42185eff741d8ec97f237f03a534123a4ba7a96bc2a19135"
+  generatedFingerprint: "sha256:2eb81d273f5585d87896164e3166079f4bb7051255db7f77f6298a6a66c401ef"
 ---
 
 **验证前先阅读 .iagent/rules/coding-rules.md 中的验证标准。** 重点检查未定义数据字段、架构分层违规、前端 UI 状态覆盖。
 
 验证实现是否与变更制品（specs / tasks / design）一致。
 
-**handoff 包（只读 + 追加）**：若 `.openspec-tmp/pipeline-<change-name>/handoff-pack.md` 存在，本技能**只读**该包并在收尾时只向 `## 阶段结论` 追加一行（`phase` / `status` / `artifact` / `nextAllowed`）；MUST NOT 重产整包。包内 `## 已确认门`（门账本）同样**只读** —— MUST NOT 改写、删除或回填父级已写入的条目（账本条目表达门承载语义，取值域 = `GATE_SKIP_IDS`，与六节并列且不计入六节）。包缺失时按需直接读取制品（不强制产包）；`sourceFingerprint` 与当前制品不一致时记 WARN，并以磁盘制品为准完成验证。
+**handoff 包（只读消费，不追加）**：若 `.openspec-tmp/pipeline-<change-name>/handoff-pack.md` 存在，本技能**只读**该包（含并列节 `## 硬约束`，只读复用、MUST NOT 写入或改写），MUST NOT 重产整包。包内 `## 已确认门`（门账本）同样**只读** —— MUST NOT 改写、删除或回填父级已写入的条目（账本条目表达门承载语义，取值域 = `GATE_SKIP_IDS`，与六节并列且不计入六节）。**本技能无 `Write` 权限**：`## 阶段结论` MUST NOT 由本技能追加，也 MUST NOT 声称已追加；结论由父编排转交具备 `Write` 权限的 apply / archive 落盘。包缺失时按需直接读取制品（不强制产包）；`sourceFingerprint` 与当前制品不一致时记 WARN，并以磁盘制品为准完成验证。
 
 ## 门白名单与 MUST NOT 确认清单
 

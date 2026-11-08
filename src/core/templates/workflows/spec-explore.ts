@@ -183,10 +183,12 @@ const EXPLORATION_PROTOCOL_FULL = `## 强制检查点体系（delegated 模式�
 | 术语 | 定义 | 避免使用 |
 |------|------|---------|
 <!-- Terms resolved during grilling and written to CONTEXT.md -->
+<!-- 探索结束后若确无新术语，在此段写固定字面量：无新术语 -->
 
 ## 架构决策 (NEW)
 
 <!-- ADRs created during exploration -->
+<!-- 确无 ADR 时在此段写固定字面量：无 ADR -->
 - ADR-0001: <title> — <summary>
   File: \`openspec/docs/adr/0001-<slug>.md\`
 
@@ -211,7 +213,14 @@ const EXPLORATION_PROTOCOL_FULL = `## 强制检查点体系（delegated 模式�
 
 ## Decisions
 
-<Empty initially - accumulates confirmed choices>
+<!-- Empty initially - accumulates confirmed choices -->
+<!-- 每条决策 MUST 带稳定 id D<n>；id 一经分配 MUST NOT 复用、重排或删除后重编号 -->
+<!-- 确无决策时在此段写固定字面量：无决策 -->
+
+## 硬约束 (NEW)
+
+<!-- 每行一条不可改写片段（顺序保证 / 否定式需求 / 数值型默认值），带 source: D<n>；确无时写固定字面量：无硬约束 -->
+- <不可改写片段逐字> — source: D<n>
 
 ## Scope Changes (NEW)
 
@@ -438,6 +447,19 @@ const EXPLORATION_PROTOCOL_FULL = `## 强制检查点体系（delegated 模式�
 
 触发点：1.3 grill L1-L5 与 1.4 关键词分析均已执行、1.5 探索文件已更新之后。本制品是**强制产出**——不因"本次判定无流程"而跳过，也 MUST NOT 留空。
 
+**纸迹三项校验（1.5.5 前置，强制）**：在呈现流程图与执行流程最终确认门**之前**校验三项纸迹产物：
+
+1. \`## Decisions\` 非空，或段内写有固定字面量 \`无决策\`
+2. \`## 术语表\` 非空，或段内写有固定字面量 \`无新术语\`
+3. \`## 架构决策\` 有 ADR 记录，或段内写有固定字面量 \`无 ADR\` 并已复核 ADR 三条件
+
+- 三项「显式『无』」MUST 使用上述固定字面量写在对应段落内；散文式免责表述 MUST NOT 被视为显式声明
+- 同时把已确认决策中的不可改写片段（顺序保证 / 否定式需求 / 数值型默认值）逐条写入 \`## 硬约束\` 段：每行一条，带 \`source: D<n>\`；确无此类片段时写入固定字面量 \`无硬约束\`；该段 MUST NOT 留空，MUST NOT 由 propose 从散文反向猜测
+- 校验结论 MUST **并入既有的流程最终确认门呈现**（缺失项逐条列出并给出「补写 / 显式声明无」两种处置）；MUST NOT 新增阻塞确认门，MUST NOT 改变门白名单与门预算，MUST NOT 单独形成一次用户停顿
+- 校验结果记入探索回执 \`paperTrailStatus\`：三项齐备或显式「无」→ \`complete\`；任一项缺失 → \`incomplete\`；无探索文件 → \`skipped\`（记 WARN，MUST NOT 凭猜测补写）
+- 存量探索文件不含 \`D<n>\` / \`## 硬约束\` 字段契约时（边界 B3）：记 WARN 并视作「无硬约束」，只对本次及之后新产出的探索文件强制，MUST NOT 阻塞存量变更
+- 用户提前结束（边界 B1）：未覆盖的 L4-L5 层级 MUST 在本门内显式列出，并记 \`user-shortened\` 合法终态，MUST NOT 判定为失败或纸迹缺失
+
 **功能流程图**：把探索发现的业务功能流程固化为探索产物 \`## 功能流程图\` 段（Mermaid \`flowchart TD\` + 关键操作节点清单表）。
 - **节点粒度** = 可独立验证的业务操作单元（用户操作 / 业务判定 / 数据写入 / 外部调用）；节点标识在图中与表中 MUST 一致，多流程时全局唯一递增
 - **清单列集**：节点 / 操作 / 触发条件 / 证据位置 / 异常路径
@@ -480,8 +502,9 @@ const EXPLORATION_PROTOCOL_FULL = `## 强制检查点体系（delegated 模式�
 1. 用 Glob 或 Read 工具**检查 \`openspec/CONTEXT.md\` 是否存在**
 
 2. **若存在**：校验 exploration.md 术语表 段的全部术语均已写入 CONTEXT.md
-   - 读取 CONTEXT.md 内容
+   - 写入前 MUST 先读 CONTEXT.md 内容（MUST NOT 在不读取现有文件的情况下直接追加）
    - 与 exploration.md 术语表 段比对
+   - 同名术语定义不一致时 MUST 显式裁决（更新定义，或保留旧定义并标注「已过时（由 <change-name> 取代）」）；MUST NOT 静默追加第二条同义条目
    - 有术语缺失于 CONTEXT.md 时自动同步（补写缺失术语）
    - 记录："CONTEXT.md 已校验 — 同步 <N> 个术语"
 
@@ -546,7 +569,7 @@ const EXPLORATION_PROTOCOL_FULL = `## 强制检查点体系（delegated 模式�
 
 ### 1.8 结构化回执与续跑（delegated 模式）
 
-探索收束后 SHALL 输出结构化回执（\`phase\` / \`status\` / 产物位置 / \`nextAllowed\` / \`failure\` / \`flowBaselineConfirmed\`）。回执是**中间状态**：当编排器与探索在同一 agent 上下文执行时，收束后 MUST 在同一用户回合内继续编排器的下一阶段，MUST NOT 以回执结束回合；若编排器为独立子代理上下文，则回执返回父级后由父级继续。MUST NOT 自行进入提案或实现。
+探索收束后 SHALL 输出结构化回执（\`phase\` / \`status\` / 产物位置 / \`nextAllowed\` / \`failure\` / \`flowBaselineConfirmed\` / \`paperTrailStatus\`）。其中 \`paperTrailStatus\` 取值 \`complete\` / \`incomplete\` / \`skipped\`；无探索文件时为 \`skipped\` 并记 WARN，MUST NOT 凭猜测补写。回执是**中间状态**：当编排器与探索在同一 agent 上下文执行时，收束后 MUST 在同一用户回合内继续编排器的下一阶段，MUST NOT 以回执结束回合；若编排器为独立子代理上下文，则回执返回父级后由父级继续。MUST NOT 自行进入提案或实现。
 
 ---
 
@@ -628,7 +651,7 @@ const GRILL_PLAYBOOK_FULL = `### 1.3 Grill-With-Docs 追问
 - **代码库优先**：能通过探查代码回答的问题，直接去查而不要问
 - **一次一个**：一次只问一个问题，等回答
 - **给建议**：始终附上 "我的建议：<answer>"
-- **深度不限**：直到问清楚为止，不设人为上限
+- **收敛深度不限，批量轮数受 ≤2 批规则约束（澄清门不计入流程级门预算）**：直到问清楚为止，不设问题条数、术语条数或决策树层数上限；至多 2 个用户确认轮次，新增的待澄清问题在已开启的批次内继续收敛
 - **跟踪进展**：每轮交流后更新探索文件
 
 #### 1.3.3 领域建模集成
@@ -644,6 +667,7 @@ const GRILL_PLAYBOOK_FULL = `### 1.3 Grill-With-Docs 追问
    \`\`\`
 4. MUST 同时同步到 exploration.md 术语表 段（格式：\`| <Term> | <definition> | <avoid-list> |\`）
 5. CONTEXT.md 尚不存在时，在首次写入术语时惰性创建
+6. **写入前 MUST 先读 \`openspec/CONTEXT.md\`**；同名术语已存在时 MUST 比对定义，不一致时 MUST 显式裁决（更新定义，或保留旧定义并标注「已过时（由 <change-name> 取代）」）；MUST NOT 静默追加第二条同义条目
 用户使用的术语与 CONTEXT.md 既有条目冲突时，在接受该用法**之前**先指出冲突。
 
 **代码交叉验证**：用户对既有代码行为做出断言时，读取相关源文件核实。代码与断言矛盾时，立即指出矛盾。
@@ -681,7 +705,8 @@ const GRILL_PLAYBOOK_FULL = `### 1.3 Grill-With-Docs 追问
 
 **门规则**：
 - 追问 SHALL 至多 **2 个批量确认轮次**（L1-L3、L4-L5）；每轮内逐条列出待确认项
-- **最低深度 L3**: L1+L2+L3 全部确认后 decision 方可标记完成；用户明确“够了”时可提前结束
+- **新增问题不触发第三轮**: L4 一致性检查或代码交叉验证发现的新问题 SHALL 在已开启的批次内继续收敛至问题清楚，MUST NOT 为此新增第三个用户确认轮次
+- **最低深度 L3**: L1+L2+L3 全部确认后 decision 方可标记完成；用户明确“够了”时可提前结束（记 \`user-shortened\` 合法终态）
 - L4 无矛盾时 SHALL 自动直通，不作为额外停顿
 - 跳过的层级 SHALL 记入 Pending（MUST NOT 静默丢弃）
 
@@ -1315,6 +1340,7 @@ ${FLOWCHART}
 - **深入前要校验提示词** - 输入含糊或多义时先过提示词校验门（Step 1-5）：优化后 MUST 等用户确认或修改才继续；清晰输入一句话复述理解后直通（不输出校验表、不要求确认）；变更名输入以该变更既有制品为校验对象；无输入则跳过本门。上游已产出提示词基线时直接通过，不重复确认
 - **不要在提示词门上死锁** - 确认门有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续），不得反复要求确认
 - **流程浮现时要产出功能流程图** - 探索浮现明确的业务功能流程时产出 \`## 功能流程图\` 段（Mermaid \`flowchart TD\` + 节点清单表）并执行流程最终确认门；节点粒度 = 可独立验证的业务操作单元，每节点 MUST 含证据位置（\`文件:行\` 或类.方法；新建功能标 \`[新建]\` + 预期产物），无法追溯证据的节点 MUST NOT 进入清单
+- **纸迹校验并入流程门** - 1.5.5 前的纸迹三项校验（Decisions / 术语表 / ADR 的存在性或固定字面量「无」）与 \`## 硬约束\` 声明 MUST 并入既有流程最终确认门呈现，MUST NOT 新增阻塞门或用独立停顿呈现；校验结论记入回执 \`paperTrailStatus\`（\`complete\` / \`incomplete\` / \`skipped\`），缺失项给出「补写 / 显式声明无」两种处置
 - **不要强求流程图** - 纯概念探讨或无业务功能流程时记录「本次无功能流程」后直接继续，不为凑制品虚构节点、不阻断探索；"无固定步骤、无强制产出"的定位不变
 - **不要在流程最终确认门上死锁** - 流程最终确认门同样有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续）；用户拒绝时记录未确认状态后继续，不得反复要求确认`,
         license: 'MIT',

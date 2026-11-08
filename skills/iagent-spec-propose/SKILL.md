@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:69d42e025f73e1ac39f39edcf97a71881b9212fe65a36ca1b78dda7e61c1d19b"
+  generatedFingerprint: "sha256:894f21c1f79362d021d39a088bf266f22a97c9bea3353425d0e90b5ffd8e17c7"
 ---
 
 提出新变更 —— 一步创建变更并生成全部制品。
@@ -99,6 +99,7 @@ metadata:
 0.5. **CONTEXT.md 检查（强制检查点）**
    - 如果用户选择关联探索文件，在迁移前检查 `openspec/CONTEXT.md`
    - 如果 CONTEXT.md 存在：
+     - 写入前 MUST 先读 CONTEXT.md；同名术语定义不一致时 MUST 显式裁决（更新定义，或保留旧定义并标注「已过时（由 <change-name> 取代）」）；MUST NOT 静默追加第二条同义条目
      - 验证所有探索文件术语表条目已写入
      - 如果缺失，自动同步
    - 如果 CONTEXT.md 不存在：
@@ -234,6 +235,13 @@ metadata:
 5.5 **产出变更级 handoff 包（供 verify / apply / archive 只读复用）**
 
    - 在全部 `applyRequires` 制品定稿后，于 `.openspec-tmp/pipeline-<change-name>/handoff-pack.md`（用 `path.join()` 构造）产出**一次**六节 handoff 包：`## 变更摘要` / `## 契约` / `## 规范要点` / `## 文件归属表` / `## Codebase 摘要` / `## 已产出（跨单元可见）`；并在 `## 契约` 之后、`## 规范要点` 之前新增 `## 制品清单`（列：相对路径 / 字节 / sha256 前 12 / 章节锚点；与六节并列、**不计入六节**）；头部固定元信息 `change:` / `producedBy: propose` / `producedAt:` / `sourceFingerprint:`（覆盖 proposal / design / specs / tasks 的内容指纹）
+   - **`## 硬约束` 并列节（强制）**：在 `## 制品清单` 之外新增并列节 `## 硬约束` —— 与六节并列、**不计入六节**、MUST NOT 改变六节与 `## 制品清单` 的既有语义：
+     - **一行一条**：每行只承载一条不可被散文稀释的硬约束（顺序保证 / 否定式需求 / 数值型默认值等）；**逐字保留**精确片段，MUST NOT 整段复制制品或探索文件
+     - **来源锚点**：每行 MUST 带 `source: D<n>`，指向 `exploration.md` 的决策 id；唯一来源是探索文件的 `## 硬约束` 段
+     - **节预算**：该节同样受 handoff 包「每节 ≤ 120 行」预算约束
+     - **缺失处置**：该节缺失、为空且探索文件无硬约束来源、或无法从探索文件确定时，propose MUST 返回 `status=incomplete` + `failure`，MUST NOT 猜测补写；**例外**：探索文件显式声明固定字面量 `无硬约束`（合法终态）时该节为空是允许的，MUST NOT 因此返回 status=incomplete
+     - **包写入失败区分**：handoff 包写入失败（磁盘 / 权限）按既有 WARN 继续策略处理（WARN 继续），与「缺硬约束内容」的 `incomplete` 是两类不同失败，MUST NOT 混用
+     - **边界规则**：B3 存量 handoff 包无该节时，消费方记 WARN 并按「无硬约束」处理，MUST NOT 判定整包无效；B4 用户回答模糊（如「越快越好」）时标 `[待确认]` 或在流程最终确认门提出，MUST NOT 伪造硬约束；B5 硬约束与代码交叉验证矛盾时以**代码事实优先**，矛盾 MUST 在流程最终确认门呈现，MUST NOT 静默选择任一方
    - **`sourceFingerprint` 派生规则（唯一算法，MUST 写入包内 `## 契约` 或头部注释，供消费方复算）**：
      1. 制品集合 = `proposal.md`、`design.md`（存在时）、`specs/**/*.md`（相对变更目录的路径按字典序）、`tasks.md`
      2. 对每个文件计算 `sha256(字节内容)`，得到一行 `<相对路径>:<sha256 十六进制>`，路径统一用正斜杠
@@ -294,9 +302,14 @@ metadata:
 **测试规划判定（用于 tasks.md 生成）：**
 - 逐个遍历 `specs/**/*.md` 的 Requirement/Scenario 块，判定每个是否可测（历史 JSON-only 变更仅只读降级）
 - **可测场景** → MUST 生成一个带层级 + 优先级的 `[测试]` 任务
+- **硬约束覆盖**：handoff `## 硬约束` 每行列出的约束 MUST 至少有一个 `[测试]` 任务覆盖（测试任务覆盖相关硬约束），其 Scenario Ref 或验证描述能与对应 Spec Requirement 对齐
 - **不可测场景**（无可验证行为的纯文档 / 配置变更）→ MUST 仍然生成一个记录判定结论及其依据的 `[测试]` 任务，例如 `- [ ] [测试][单元][P2] 4.2 评估：纯文档变更，无需测试（依据：无可验证行为）`
   - 理由：留痕的判定结论使"未编写测试"可与"从未评估"区分 —— 与 `iagent-test` 的不测闸门同一原则
 - 测试任务依赖其对应的实现任务 —— 当某测试任务覆盖由另一任务实现的行为时，在任务描述中标注依赖，使 apply 串行调度它们
+
+**决策可追溯（D<n>）：**
+- `exploration.md` 的 `## Decisions` 每条 MUST 带稳定 id `D<n>`；id 一经分配 MUST NOT 复用、重排或删除后重编号
+- 本技能生成的 `specs/**/spec.md` 与 `design.md` MUST 在受某决策约束的内容处标注 `(D<n>)`；未标注来源的硬约束 SHALL 被判为可追溯性缺失
 
 **流程基准消费规则**
 

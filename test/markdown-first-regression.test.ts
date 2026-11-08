@@ -287,10 +287,17 @@ describe('Markdown-first 回归锁', () => {
             expect(body, `${id} 未引用 handoff 包`).toContain('handoff-pack.md');
             expect(body, `${id} 未使用流程级工作区路径`).toContain('.openspec-tmp/pipeline-<change-name>/');
         }
-        for (const id of ['spec-propose', 'spec-verify', 'spec-archive']) {
+        for (const id of ['spec-propose', 'spec-archive']) {
             expect(commands.get(id), `${id} 未声明阶段结论追加`).toContain('## 阶段结论');
             expect(commands.get(id), `${id} 未禁止重产整包`).toContain('MUST NOT 重产整包');
         }
+        // verify 无 Write：只读消费、不声称追加阶段结论（结论由 apply / archive 落盘）
+        expect(commands.get('spec-verify'), 'spec-verify 未声明阶段结论边界').toContain(
+            '## 阶段结论'
+        );
+        expect(commands.get('spec-verify'), 'spec-verify 未禁止声称已追加').toContain(
+            'MUST NOT 声称已追加'
+        );
         // verify / archive 只读消费（propose 是唯一产出方）
         for (const id of ['spec-verify', 'spec-archive']) {
             expect(commands.get(id), `${id} 未声明只读消费`).toContain('只读');

@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:b3b40aef9b962ce7a0f4b669ed762c26c8bf56f0a414c492641ced06172bb3c0"
+  generatedFingerprint: "sha256:883772f1d64bca3edd9e4c6fd102bfdb7b3a8fc233920d9fe1488a924a1cca44"
 ---
 
 **实现前先阅读 .iagent/rules/coding-rules.md 的 AI 编码护栏。** 禁止猜测数据库字段、API 参数或业务规则 —— 标 **[待确认]** 并询问用户。
@@ -47,6 +47,7 @@ metadata:
 
 - 本阶段默认经前台 Agent 子代理执行，回执声明 executionMode=subagent；iagent-test 子阶段经子代理。
 - 子代理 MUST FIRST 读 handoff 包「## 制品清单」，按锚点增量读取；回执写 readScope。
+- handoff 包内并列节 `## 硬约束` 只读复用（MUST NOT 写入或改写）；本技能 MUST NOT 新增 grill 纸迹校验、术语写入或 ADR 判定逻辑。
 - 增量复验：验证 FAIL 修复后新开只读代理，传 fixDiff + 上轮 reportPath；只验证增量并对未覆盖范围输出 residual 清单；禁止 resume 充当复验（contextReplay=true 记 WARN）。
 - 「## 阶段结论」使用 5 列（含 tokens），不可得填 —；指纹优先 iagent spec fingerprint --change <name>。
 
