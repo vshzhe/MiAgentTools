@@ -7,6 +7,15 @@
 
 ## [Unreleased]
 
+## [4.0.1] - 2026-11-08
+
+### Changed
+
+- 需求文档生成改为评审导向：新增评审摘要（结论 / 范围 / Top3 风险 / 待拍板问题 / 评审要点建议 / 待确认计数）、需求拆解的「验收标准」「来源」列、7.6 风险与 7.7 待确认集中表、结构化评审记录与生成元信息块。
+- 目标文档已存在时保护人工域（`## 基本信息` 已填值 + `## 八、评审记录` 全文）并就地增量对齐，替代静默覆盖；人工域解析失败不写入并报错。
+- 伪代码降噪：仅当表格或流程图无法表达判定逻辑时使用，上限降为 ≤2 块/文档、≤12 行/块。
+- 同步 `workflow-suite-skills` 能力规格：废止「八章节 / 伪代码规则保持不变」表述，明确 DDL 提取规则保持不变。
+
 ## [4.0.0] - 2026-11-08
 
 ### Changed
@@ -1642,7 +1651,8 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.0.0...HEAD
+[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.0.1...HEAD
+[4.0.1]: https://github.com/vshzhe/MiAgentTools/compare/v4.0.0...v4.0.1
 [3.3.0]: https://github.com/vshzhe/MiAgentTools/compare/v3.2.0...v3.3.0
 [3.2.0]: https://github.com/vshzhe/MiAgentTools/compare/v3.1.0...v3.2.0
 [3.1.0]: https://github.com/vshzhe/MiAgentTools/compare/v3.0.0...v3.1.0
