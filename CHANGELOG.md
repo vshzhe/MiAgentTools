@@ -7,6 +7,24 @@
 
 ## [Unreleased]
 
+## [4.7.0] - 2026-11-09
+
+### Added
+
+- 提交前自动检测 `openspec/changes/archive/` 下存在未提交制品的归档提案，候选标注「已归档」；活跃与归档同名并存分别列出，部分提交只纳入未提交部分，无 VCS 变更不列候选（`iagent_commit` / `iagent_svn_commit`）。
+- SVN 归档提案的未纳管（`?`）制品经环节 2 清单确认后纳入并归文档类，其他未点名未纳管制品仍默认排除。
+
+### Changed
+
+- `iagent_svn_commit` 移除知识库推送（环节 3 / 执行阶段第 6 步），确认体系由四环节收敛为三环节（提交范围 → 清单与描述 → 最终确认）。
+- 三类提交说明统一「对象 + 改动」规范；文档类禁止「更新文档 / 修改文档 / 更新提案」等泛化表述（SVN 与 Git 两侧一致）。
+- 归档提案溯源尾行使用去掉日期前缀的变更名（`2026-11-08-add-x` → `提案: add-x`）。
+- `commit-push-skill` 规格同步：修正「点名已归档提案报错」为「归档提案正常处理」，移除知识库推送 Requirement。
+
+### Removed
+
+- `iagent_svn_commit` 的 llm-wiki 知识库推送能力；需要推送时请改用独立工具。
+
 ## [4.6.0] - 2026-11-08
 
 ### Added
@@ -1728,7 +1746,8 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.6.0...HEAD
+[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.7.0...HEAD
+[4.7.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.6.0...v4.7.0
 [4.6.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.5.0...v4.6.0
 [4.5.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.4.0...v4.5.0
 [4.4.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.3.0...v4.4.0

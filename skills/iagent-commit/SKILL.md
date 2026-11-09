@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: commit
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:c89d1a6487c7d574a8358f88e32856bf832fddfa68774aa88bd343c3b0ced545"
+  generatedFingerprint: "sha256:257b972f9cb2d5946b62eafa0c6fa2059544f94b17adfe40f2bdf07a32af51e8"
 ---
 
 提交变更 —— 提交前必须核对变更内容，提交信息必须符合规范。
@@ -37,21 +37,22 @@ metadata:
 
 2.5 **提案制品纳入（Git 侧，与 SVN 侧分类提交对齐）**
 
-   提交前检测活跃变更（`openspec/changes/` 下排除 `archive/`）：
+   提交前同时检测两类候选：`openspec/changes/` 下的活跃变更，与 `openspec/changes/archive/` 下存在未提交制品的归档变更：
 
-   - **0 个活跃变更** → 退化为普通提交，MUST NOT 附加 `提案:` 尾行，MUST NOT 报错
-   - **唯一活跃变更** → 直接采用
-   - **≥2 个活跃变更** → 列出候选（变更名 + schema）供用户选择；MUST NOT 自行决定纳入哪一个
+   - **0 个候选** → 退化为普通提交，MUST NOT 附加 `提案:` 尾行，MUST NOT 报错
+   - **唯一候选** → 直接采用；归档候选 MUST 标注「已归档」
+   - **≥2 个候选** → 列出候选（变更名 + 活跃/已归档 + schema）供用户选择；活跃与归档同名并存时 MUST 分别列出，MUST NOT 合并；MUST NOT 自行决定纳入哪一个
+   - 归档提案仅部分制品未提交时只纳入未提交部分；无任何 VCS 变更的归档目录 MUST NOT 列为候选
 
-   固定清单（仅这些路径，逐条精确暂存并逐条校验前缀 `openspec/changes/<change-name>/`）：
+   固定清单（仅这些路径，逐条精确暂存并逐条校验前缀 `openspec/changes/<change-path>/`；归档提案的 `<change-path>` 为 `archive/YYYY-MM-DD-<name>`）：
 
-   - `openspec/changes/<change-name>/proposal.md`
+   - `openspec/changes/<change-path>/proposal.md`
    - `design.md` / `tasks.md` / `exploration.md` / `.openspec.yaml`
    - `specs/**/*.md`
    - **排除**：`attachments/**` 与 `需求文档.md`（附件与人工评审产物不入默认提交清单）
    - 不存在的条目跳过（不报错）；暂存失败（权限 / 路径不存在 / 未纳管）只记 WARN 并提示手动处理，MUST NOT 阻断代码提交，也 MUST NOT 静默把制品混入提交
 
-   **溯源**：提交信息主体保持 Conventional Commits 一行式，另起**尾行** `提案: <change-name>`（与 `iagent-svn-commit` 完全同格式）。
+   **溯源**：提交信息主体保持 Conventional Commits 一行式，另起**尾行** `提案: <change-name>`（与 `iagent-svn-commit` 完全同格式）；归档提案使用去掉日期前缀的变更名（`2026-11-08-add-x` → `add-x`），目录名不符合 `YYYY-MM-DD-` 前缀时原样使用。
 
 3. **生成提交信息**
 
@@ -62,8 +63,9 @@ metadata:
    - **type**：feat（新功能）/ fix（修复）/ docs（文档）/ style（格式）/ refactor（重构）/ test（测试）/ chore（构建/工具）
    - **scope**：影响的模块（可省略）
    - **subject**：祈使句、不加句号、50 字符内概括
+   - **docs 类**：subject MUST 写明文档对象与内容变化，MUST NOT 只写「更新文档 / 修改文档 / 更新提案」等泛化表述；无明确对象时用文件路径或能力名兜底，仍无法确定时询问用户
 
-   示例：`feat(auth): 添加用户登录接口`
+   示例：`feat(auth): 添加用户登录接口` / `docs(openspec): 更新告警接口规格与测试说明`
 
 4. **暂存并提交**
 
