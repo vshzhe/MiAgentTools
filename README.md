@@ -98,6 +98,9 @@ iagent list
 # 校验技能规范符合性
 iagent validate
 
+# 枚举项目技能并校验完整性（技能基线，供探索 / 实现阶段消费）
+iagent skills --json
+
 # 按类型生成新技能骨架
 iagent generate --type tools --name env-check --desc "环境检查"
 ```
@@ -216,7 +219,7 @@ iagent update --tools claude
 your-project/
 ├── .claude/
 │   ├── skills/
-│   │   └── iagent_<功能名>/SKILL.md         # Agent Skill（中文正文）
+│   │   └── iagent-<workflowId>/SKILL.md      # Agent Skill（中文正文）
 │   └── commands/
 │       └── iagent/<指令 id>.md              # 斜杠指令（frontmatter + 正文）
 ├── .pi/                                     # Pi 工具
@@ -238,10 +241,14 @@ your-project/
 | `iagent list` | 列出已安装技能（按类型分组，多工具间去重） | `--json` |
 | `iagent show <query>` | 查看技能详情（frontmatter / 类型 / 白名单 / 正文预览） | `--json` |
 | `iagent validate` | 校验已安装技能规范符合性（frontmatter / 类型 / 命名，多工具间去重） | `--json` |
+| `iagent rules` | 枚举项目规则源（`config.yaml` / `rules/*.md` / `CLAUDE.md` / `AGENTS.md`） | `--json` |
+| `iagent skills` | 枚举项目技能并校验完整性（`.iagent` 优先、宿主目录回退） | `--json` |
 | `iagent update` | 更新技能到内置模板最新版（手改保护） | `--tools <ids>`、`--force`、`--no-migrate` |
 | `iagent generate` | 按类型生成新技能骨架（写入 `skills/` 并安装） | `--type`、`--name`、`--desc`、`--force` |
 | `iagent uninstall` | 移除 iagent 技能与指令（非 iagent 技能不碰） | `--yes`、`--purge-config` |
 | `iagent completion` | 安装/卸载 shell 补全 | `<install\|uninstall>`、`--shell <bash\|powershell>` |
+| `iagent config` | 查看 / 配置生效 workflow 集 | `--show`、`--set <ids>` |
+| `iagent spec` | 规格驱动工作流子命令（`new` / `status` / `validate` / `conformance` / `instructions` / `archive` / `fingerprint` 等） | `--change <name>` 等 |
 | `iagent version` | 按实际实现影响面判定版本等级（只读） | `--from <ref>`、`--level <major\|minor\|patch>`、`--json` |
 | `iagent version bump` | 递增版本号并归档变更日志 | `--dry-run`、`--level`、`--no-changelog`、`--no-readme` |
 | `iagent --version` | 显示 CLI 版本号 | — |
@@ -311,12 +318,15 @@ iagent completion uninstall
 
 ```text
 .iagent/
-├── config.yaml          # 项目背景 + 规则引用
-└── rules/
-    ├── coding-rules.md      # impl 域规则（每行一条，# 为注释）
-    ├── testing-rules.md     # test 域规则
-    ├── spec.md              # spec 域规则
-    └── commit.md            # 映射外类型仍在 rules/ 建 <type>.md（示例：commit）
+├── config.yaml          # 项目背景 + 规则引用 + 项目技能声明
+├── rules/
+│   ├── coding-rules.md      # impl 域规则（每行一条，# 为注释）
+│   ├── testing-rules.md     # test 域规则
+│   ├── spec.md              # spec 域规则
+│   └── commit.md            # 映射外类型仍在 rules/ 建 <type>.md（示例：commit）
+└── skills/                  # 项目专属前后端设计与实现技能（可蒸馏生成或手写）
+    ├── frontend-design.md
+    └── backend-design.md
 ```
 
 **config.yaml 通过 `rules` 列表显式引用规则文件**（列表项是**类型 id**，文件名由类型→语义名映射派生）：
@@ -335,6 +345,12 @@ tools:                           # 目标 AI 工具（iagent init/update 据此�
   - pi
   - codex
   # - opencode                   # 可选（opt-in）工具：加入才生成 OpenCode 适配产物
+
+skills:                          # 项目专属前后端设计 / 实现技能（可选；按角色分组）
+  frontend:
+    - frontend-design
+  backend:
+    - backend-design
 ```
 
 规则文件格式（`.iagent/rules/coding-rules.md`）：
@@ -356,6 +372,44 @@ tools:                           # 目标 AI 工具（iagent init/update 据此�
 
 `iagent generate` 生成的骨架会自动带上 `context`（引用块）与该类型被引用的 `rules`（约束列表）；
 未在 config.yaml 引用的规则文件不生效。引用了但文件缺失的类型会记入 `missingRuleFiles`。
+
+### 项目技能（.iagent/skills/）
+
+`.iagent/skills/` 承载项目专属的前端 / 后端设计与实现规范。`iagent project-init` 会在规则蒸馏之后，
+按项目实际框架证据**蒸馏**生成技能（C1-C6 内容完整性自检通过才落盘），也可手工编写后在
+`config.yaml` 的 `skills:` 段登记：
+
+```markdown
+---
+name: frontend-design          # 必须等于文件名主干（frontend-design.md）
+description: 本项目前端设计与实现规范
+phases: both                   # design | implement | both
+scope: frontend                # frontend | backend | both
+frameworks: [vue, element-plus]
+source: distilled              # distilled | user
+---
+## 框架与版本
+- Vue 3 + Element Plus（证据：package.json:12）
+## 目录与分层
+...
+```
+
+- **载体与回退**：默认 `.iagent/skills/<name>.md`；文件缺失时按 `tools` 顺序回退宿主技能目录
+  `<skillsDir>/skills/<name>/SKILL.md`（`.iagent` 优先、不合并两份内容）
+- **阶段感知**：探索 / 排查的**设计阶段**只加载 `phases` 含 `design|both` 的技能；实现阶段
+  （apply / debug fix）只加载 `implement|both`。`skills-not-read` 只统计 implement|both
+  （design-only 不要求读取），`skills-incomplete` 为 WARN
+- **完整性**：`iagent skills --json` 输出 `validation`（缺章节 / 空章节 / 占位符 / 无证据规则数 /
+  `nameMismatch`）；必需章节为 `框架与版本` / `目录与分层` / `设计规范` / `实现规范` /
+  `约定与禁止项` / `证据索引` / `不适用项`，拆分文件可按 `phases` 把对方阶段章节标「不适用 + 依据」
+- **蒸馏纪律**：证据驱动、零猜测（候选依赖 ≠ 使用）、无证据的一侧不生成、失败非阻断；
+  已存在文件逐份确认（重新生成 / 修改 / 跳过），人工域标记区间逐字保留
+
+```bash
+# 查看项目技能配置、路径解析与完整性
+iagent skills
+iagent skills --json
+```
 
 ## init 后的下一步引导
 
@@ -410,7 +464,7 @@ node bin/iagent.js list      # 直接验证新逻辑
 
 ```bash
 pnpm build          # 构建（tsc → dist/）
-pnpm test           # 运行 vitest 测试（57 个用例）
+pnpm test           # 运行 vitest 测试（1507 个用例 / 69 个测试文件）
 pnpm lint           # eslint 检查（src/ + test/）
 pnpm generate:skills  # 重新生成 skills/ 静态快照（改模板后必须运行）
 pnpm dev            # 监听模式编译
