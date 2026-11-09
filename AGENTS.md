@@ -12,7 +12,7 @@ AI Agent 技能生成与管理 CLI：按技能类型（`init` / `impl` / `test` 
 
 ```text
 src/
-├── cli/index.ts                      CLI 入口（Commander 程序，全部 11 个命令注册处）
+├── cli/index.ts                      CLI 入口（Commander 程序，全部 13 个命令注册处）
 ├── commands/                         命令实现（每个命令一个文件）
 │   ├── init.ts                       iagent init
 │   ├── list.ts                       iagent list（scanInstalledSkills 被 show 复用）
@@ -23,8 +23,9 @@ src/
 │   ├── show.ts                       iagent show（模糊匹配 + 详情）
 │   ├── completion.ts                 iagent completion（bash/pwsh 补全脚本生成与安装）
 │   ├── skills.ts                     iagent skills（项目技能枚举 + 完整性校验）
+│   ├── rules.ts                      iagent rules（项目规则源枚举）
 │   ├── onboarding.ts                 init 后的引导提示
-│   ├── spec.ts                       iagent spec 子命令组（new / status / instructions / validate / migrate / archive / render / sidecar）
+│   ├── spec.ts                       iagent spec 子命令组（new / status / fingerprint / migrate / validate / conformance / instructions / archive / render / sidecar）
 │   ├── config.ts                     iagent config（交互式 workflow 配置）
 │   └── version.ts                    iagent version（按实现影响面判定并递增版本）
 ├── core/
@@ -41,13 +42,26 @@ src/
 │   │   ├── flowchart-gate.ts       流程图门控
 │   │   └── workflows/              技能模板（中文正文）：功能名命名的 *.ts + spec-*.ts 共 20 个模板
 │   ├── permissions.ts               会话级权限载体（settings.json 的 permissions.allow 非破坏合并）
+│   ├── command-artifacts.ts         指令产物布局与归属识别单一源（namespace-dir / prefixed-file）
+│   ├── skill-id.ts                  宿主技能 ID 派生单一源（iagent_<name> → iagent-<name>）
+│   ├── skill-id-migration.ts        旧下划线技能 ID 迁移
 │   ├── project-skills.ts            项目技能载体（路径解析 / frontmatter / 完整性校验单一源）
 │   ├── command-generation/
 │   │   ├── types.ts                 ToolCommandAdapter 接口（多工具扩展点）
 │   │   ├── generator.ts             generateSkillContent / generateCommand
 │   │   ├── fingerprint.ts           产物内容指纹（手改保护判定信号）
+│   │   ├── host-refs.ts             宿主技能引用归一化
 │   │   ├── yaml.ts                  YAML 转义
-│   │   └── adapters/                指令适配器（claude / pi / opencode；codex 无适配器）
+│   │   └── adapters/                指令适配器（claude / pi / opencode / inject-args；codex 无适配器）
+│   ├── host-orchestration/          宿主原生编排（协议 / 能力协商 / 门台账 / 宿主渲染）
+│   │   ├── protocol.ts              能力顺序 / 门白名单 / 回执校验
+│   │   ├── hosts.ts                 宿主能力档案与协商
+│   │   ├── workflows.ts             工作流阶段协议表
+│   │   ├── actions.ts               renderDelegate / renderLoadSkill
+│   │   ├── transition.ts            阶段迁移阻断（evaluatePhaseTransition）
+│   │   ├── render.ts                宿主正文适配（adaptSkillContentForHost）
+│   │   ├── delegation-contract.ts   委派契约解析
+│   │   └── gate-ledger.ts           门台账解析与渲染
 │   ├── spec/                        规格驱动工作流
 │   │   ├── schema.ts               内置 spec-driven 依赖图（Markdown 输出路径）
 │   │   ├── status.ts               Markdown 状态查询（done/ready/blocked/invalid）
@@ -58,6 +72,7 @@ src/
 │   │   ├── model/artifact-model.ts 运行时类型（Markdown 唯一真源）
 │   │   ├── validation/             结构校验 + Scenario→Task 追溯
 │   │   ├── migration.ts            显式 JSON → OpenSpec Markdown 迁移
+│   │   ├── fingerprint.ts          变更制品内容指纹（sourceFingerprint）
 │   │   ├── legacy-artifacts.ts     历史 JSON 只读兼容边界
 │   │   ├── sidecar-schema.ts       历史 JSON schema（@deprecated，仅兼容读取）
 │   │   ├── sidecar-writer.ts       历史 JSON 读写 / tasks.md 渲染（@deprecated，仅兼容）
@@ -70,10 +85,13 @@ src/
 │   ├── reconcile.ts                 孤立产物协调
 │   ├── version-bump.ts              版本递增判定（SemVer + 实现影响面信号，纯函数）
 │   ├── shell-completion.ts          shell rc/profile 路径解析与标记块增删（补全与迁移共用）
+│   ├── opencode-v2.ts               OpenCode V2 项目产物（agents / opencode.jsonc permissions）
+│   ├── pi-runtime.ts                Pi 编排运行时（@tintinweb/pi-subagents 检测与安装）
+│   ├── pi-native.ts                 Pi 原生 agent 定义生成（.pi/agents/iagent-*.md）
 │   └── legacy-migration.ts          旧装机一次性迁移（旧标识常量 + 映射表的唯一落点）
 └── utils/file-system.ts             文件系统工具
 
-test/                                vitest（54 个测试文件 + setup）
+test/                                vitest（69 个测试文件 + setup）
 test/setup-home-sandbox.ts           vitest setupFiles：把主目录沙箱到临时目录
 skills/                              静态快照（勿手编，pnpm generate:skills 生成）
 scripts/generate-skills.mjs          快照生成脚本
@@ -90,6 +108,7 @@ pnpm lint               # eslint（src/ + test/）
 pnpm generate:skills    # 重新生成 skills/ 快照（改模板后必须运行）
 node bin/iagent.js <cmd> # 直接运行 CLI
 node bin/iagent.js skills        # 枚举项目技能并校验完整性（--json 供程序处理）
+node bin/iagent.js rules         # 枚举项目规则源（config.yaml / rules/*.md / CLAUDE.md / AGENTS.md）
 node bin/iagent.js version       # 查看版本判定（只读）
 node bin/iagent.js version bump  # 递增版本并写回 package.json / CHANGELOG / README
 ```
