@@ -160,7 +160,7 @@ ${renderGateWhitelistSection()}
 
 ## Phase 1: 探索（委派 iagent_spec_explore，交互阶段）
 
-Phase 1 SHALL 由主 agent 内联委派阶段 \`iagent_spec_explore\`（传 \`${renderDelegationModeOption('delegated')}\`）执行强制检查点体系探索（强制建探索文件、提示词校验门、CONTEXT.md 检查、CodeGraph 基础扫描含多项目派发与深度分析、L1-L5 grill 追问、功能流程图与流程最终确认门、聚合一致性门、探索完成检测），MUST NOT 内联执行探索逻辑。探索是**交互阶段**，MUST NOT 放入隔离子代理（提示词门 / 流程门需与用户交互）。
+Phase 1 SHALL 由主 agent 内联委派阶段 \`iagent_spec_explore\`（传 \`${renderDelegationModeOption('delegated')}\`）执行强制检查点体系探索（强制建探索文件、**项目规则基线**、提示词校验门、CONTEXT.md 检查、CodeGraph 基础扫描含多项目派发与深度分析、L1-L5 grill 追问、功能流程图与流程最终确认门、聚合一致性门、探索完成检测），MUST NOT 内联执行探索逻辑。探索是**交互阶段**，MUST NOT 放入隔离子代理（提示词门 / 流程门需与用户交互）。
 
 委派完成后 SHALL 消费 \`iagent_spec_explore\` 输出的**结构化 handoff**（探索文件路径、提示词基线、流程基准确认状态 \`flowBaselineConfirmed\`、Pending 影响符号），并**在同一用户回合内**推进 Phase 2 —— 回执是中间状态，MUST NOT 以回执结束回合。
 
@@ -328,7 +328,7 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 
 ## Phase 3.7: 实现 + 测试桥（强制检查点）
 
-**⛔ GATE: 实现 + 测试桥（强制停止，单一阻塞门）** — 内联验证（D1-D10 + B1-B7 清单）收束后，**一次呈现**「提案摘要 + 验证评分与证据摘要 + 深度复查清单结论 + 实现方案 + 测试计划预告」，等待用户**一次确认**后进入实现（含条件测试生成）。需求文档选项已移除；本桥 MUST NOT 提供文档生成选项，MUST NOT 在实现阶段再设第二个确认门（测试计划确认已并入本桥）。
+**⛔ GATE: 实现 + 测试桥（强制停止，单一阻塞门）** — 内联验证（D1-D10 + B1-B7 清单）收束后，**一次呈现**「提案摘要 + 验证评分与证据摘要 + 深度复查清单结论 + 实现方案 + 测试与一致性门预告」，等待用户**一次确认**后进入实现。预告 MUST 说明：实现后将执行**自动单测补齐**（\`testGate.autoGenerate\` 默认 true）、范围内测试门、**实现一致性门**与三类证据判定；任一失败会阻断归档。需求文档选项已移除；本桥 MUST NOT 提供文档生成选项，MUST NOT 在实现阶段再设第二个确认门。
 
 - 就绪检查：proposal.md / design.md / specs/**/*.md / tasks.md 齐全；验证 PASS（≥90%）；深度复查清单（B1-B7）完成；apply instruction 状态 = ready（\`iagent spec instructions apply --change "<name>" --json\`；CLI 不可用读 tasks.md 推断）
 - **三出口（一次呈现，禁止拆成多次停顿）**：① 确认 → 进入 Phase 4（含条件测试生成）；② 修改 → 回 Phase 2 调整制品或回 Phase 1 补决策，MUST NOT 进入实现；③ 拒绝 → 记录未确认状态并停止，不进入实现
@@ -355,11 +355,11 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 - 后端架构规则由 apply 按 \`.iagent/rules/coding-rules.md\` 自行处理，workflow 不干预
 - **回执续跑**：子代理回执 SHALL 含 \`tasksCompleted\` / \`compileResult\` / \`receipts\` / \`confirmedGates\`；父级校验通过后**在同一用户回合内**进入条件测试 / 实现验证，MUST NOT 以回执结束回合
 
-### 4.1 条件测试子阶段（tasks.md 含 \`[测试]\` 任务时；计划已在 3.7「实现 + 测试桥」一次确认）
+### 4.1 测试与一致性门（由 apply 承载，父级只读证据）
 
-- 由主 agent 内联调用 \`iagent_test\` 技能（多 schema 自动检测 Java/Node；不派发子代理）
-- **计划确认已在 Phase 3.7 实现 + 测试桥完成**：本子阶段 MUST NOT 再设独立确认门，直接生成测试代码
-- 输出测试代码到项目测试源树并运行验证；子代理返回后 MUST 在同一用户回合内继续实现验证
+- apply 内部执行 Step 8.11 自动单测补齐（\`testGate.autoGenerate\` 默认 true；先消费 \`[测试]\` 任务，只补缺口）、Step 9 测试门与 Step 9.7 一致性门；父级 MUST NOT 另起测试生成、重跑命令或另立判定（计划已在 Phase 3.7 预告，不再设门）
+- 只读 \`.openspec-tmp/pipeline-<change-name>/test-report.md\` 与 \`.openspec-tmp/pipeline-<change-name>/conformance-report.md\` 的 \`**summary**:\` 行：测试 \`pass\` / \`not-applicable\` / \`disabled\`、一致性 \`status=pass\` 放行；\`fail\` / 缺失 / 无法解析 → 回 Phase 4
+- 不测判定、补测关闭与回执 \`rulesRead\` 覆盖 MUST 留痕；未覆盖规则源按 \`fail\` 处理
 
 ### 4.2 实现错误处理
 
@@ -383,7 +383,7 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 ### 5.1 归档桥（强制检查点）
 
 **⛔ GATE: 归档确认门（强制停止）**
-- 就绪检查：tasks.md 全部 \`- [x]\`；**编译证据就绪**（唯一判据：读取 \`.openspec-tmp/pipeline-<change-name>/compile-report.md\` 的 \`**summary**:\` 行；handoff 包 \`## 阶段结论\` 的 \`compile\` 行仅作辅助，两者不一致时以证据文件为准并记 WARN）：\`status ∈ {pass, not-applicable, disabled}\` 放行，其中 \`not-applicable\` / \`disabled\` 记 WARN 并说明「未执行编译检查」的原因，MUST NOT 表述为「编译检查通过」；证据缺失、\`status=fail\` 或证据存在但无法解析出汇总状态 → **阻断归档并回到 Phase 4**（输出含期望路径与失败原因）。条件测试子阶段完成；实现验证（\`iagent_spec_verify\`）通过或已显式声明省略
+- 就绪检查：tasks.md 全部 \`- [x]\`；**三类证据就绪**（唯一判据：分别读取 \`.openspec-tmp/pipeline-<change-name>/compile-report.md\`、\`.openspec-tmp/pipeline-<change-name>/test-report.md\` 与 \`.openspec-tmp/pipeline-<change-name>/conformance-report.md\` 的 \`**summary**:\` 行；handoff 包 \`## 阶段结论\` 仅作辅助，不一致时以证据文件为准并记 WARN）：编译与测试 \`status ∈ {pass, not-applicable, disabled}\` 放行，其中 \`not-applicable\` / \`disabled\` 记 WARN 并说明「未执行编译检查」，MUST NOT 表述为「编译检查通过」；一致性 \`status=pass\` 放行；证据缺失、\`status=fail\` 或无法解析出汇总状态 → **阻断归档并回到 Phase 4**（输出含期望路径与失败原因）。自动单测补齐与测试门完成；实现验证（\`iagent_spec_verify\`）通过或已显式声明省略
 - 呈现：实现摘要 + 编译终态与证据路径 + 测试通过率 + 条件子阶段产物
 - **父流程 MUST NOT 自行执行编译或测试命令**（编译与测试由被委派的 \`iagent_spec_apply\` 单点负责），MUST NOT 以「tasks.md 全部勾选」「实现已验证」替代证据，MUST NOT 因证据缺失而询问用户是否跳过
 - 出口：确认（进入归档）／拒绝（返回 Phase 4 继续实现，不归档）

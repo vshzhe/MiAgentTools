@@ -8,12 +8,20 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:96a2c9f575aed4644b7897509be972bf5e5114398591c8078ab5adaad0226aa3"
+  generatedFingerprint: "sha256:d393e1c5f24186586a41de63865f3fcc77c13e1419dbc662d551ff138ad6b4c1"
 ---
 
-**验证前先阅读 .iagent/rules/coding-rules.md 中的验证标准。** 重点检查未定义数据字段、架构分层违规、前端 UI 状态覆盖。
+**验证前先读取项目规则基线（`.iagent/config.yaml` / `.iagent/rules/*.md` / `CLAUDE.md` / `AGENTS.md`）中的验证标准。** 重点检查未定义数据字段、架构分层违规、前端 UI 状态覆盖。
 
 验证实现是否与变更制品（specs / tasks / design）一致。
+
+**证据消费（强制）**：存在 `.openspec-tmp/pipeline-<change-name>/conformance-report.md` 与 `test-report.md` 时，MUST 只读其 `**summary**:` 行作为验证输入：
+
+- 一致性汇总 `status=fail` 或文件缺失 → 判 **CRITICAL**「实现一致性证据缺失 / 失败」，最终评估 MUST NOT 判可归档；
+- 测试汇总 `status=fail` 或文件缺失 → 判 **CRITICAL**「测试证据缺失 / 失败」；
+- 证据 `pass` 的已覆盖项 MUST NOT 再做语义猜测（避免重复推断）；`not-applicable` / `disabled` 记 WARN 并说明未执行原因。
+
+**规则基线（强制）**：读取 `.iagent/config.yaml`、`.iagent/rules/*.md`、`CLAUDE.md`、`AGENTS.md`（`iagent rules --json` 可枚举）；源缺失记「不存在」，存在但未读记 WARN。
 
 **handoff 包（只读消费，不追加）**：若 `.openspec-tmp/pipeline-<change-name>/handoff-pack.md` 存在，本技能**只读**该包（含并列节 `## 硬约束`，只读复用、MUST NOT 写入或改写），MUST NOT 重产整包。包内 `## 已确认门`（门账本）同样**只读** —— MUST NOT 改写、删除或回填父级已写入的条目（账本条目表达门承载语义，取值域 = `GATE_SKIP_IDS`，与六节并列且不计入六节）。**本技能无 `Write` 权限**：`## 阶段结论` MUST NOT 由本技能追加，也 MUST NOT 声称已追加；结论由父编排转交具备 `Write` 权限的 apply / archive 落盘。包缺失时按需直接读取制品（不强制产包）；`sourceFingerprint` 与当前制品不一致时记 WARN，并以磁盘制品为准完成验证。
 

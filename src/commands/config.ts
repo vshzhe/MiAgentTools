@@ -13,6 +13,7 @@ import { checkbox } from '@inquirer/prompts';
 import { getSkillTemplates } from '../core/templates/index.js';
 import { resolveWorkflows } from '../core/profiles.js';
 import {
+    DEFAULT_TEST_GATE,
     ensureProjectConfig,
     readProjectConfig,
     resolveCompileCheck,
@@ -105,6 +106,7 @@ export function runConfigShow(projectRoot: string): string {
         lines.push('  .iagent/config.yaml 不存在（用 iagent init 创建）');
     }
     lines.push(...renderCompileCheckLines(projectConfig));
+    lines.push(`  testGate: autoGenerate=${projectConfig?.testGate?.autoGenerate ?? DEFAULT_TEST_GATE.autoGenerate}（自动补齐未覆盖单测）`);
     lines.push(`  生效 workflow（来源：${source}）：${resolved.workflows.length} 项`);
     for (const wf of resolved.workflows) {
         const isInjected = resolved.injected.includes(wf);

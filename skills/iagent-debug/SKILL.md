@@ -8,11 +8,11 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:d8544e10720db0d5bcde2c63ff4090d9cfd4b3ca54c4cff545dc494caa2234b6"
+  generatedFingerprint: "sha256:6e3632b7ac237b99b6eac6f9b482484b08b2a5902f886927dc74d9f5fc000538"
 ---
 
 
-**适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
+**适用项目护栏（impl 域蒸馏，来源：`.iagent/config.yaml` 的 context/rules、`.iagent/rules/*.md`、`CLAUDE.md`、`AGENTS.md`；用 `iagent rules --json` 枚举）。** 未定义项标 **[待确认]**，禁止猜测。
 
 从复现到提案同步的一站式调试工作流。
 
@@ -80,8 +80,6 @@ metadata:
 - 空输入不校验；输入为变更名时以该变更既有制品为校验对象；上游已产出基线时直接通过
 
 > **完整门细则**见 references/prompt-gate.md。**仅在 Gate 实际触发时**读取全文细则。
-
-**本技能内的执行要求**：
 
 **本技能内的执行要求**：
 
@@ -192,6 +190,8 @@ bug 无法用自动化测试捕获时（环境相关行为 / 时序 / 仅 UI）�
 
 并在**下次进入 Phase 2 时重新查询**该范围；MUST NOT 复用已失效结论。
 
+**2.1.6 项目规则基线（强制）**：执行与失败处置见 `references/gates-and-rules.md`；规则基线未建立时 MUST NOT 进入 2.2（规则源缺失不阻断）。
+
 > **排查细则下沉**：CodeGraph 分层排查协议与 2.2.3.5 排查深度分级见 `references/investigation-protocol.md`；执行 2.2 前 MUST 先 `Read` 该文件。
 
 ### 2.3 排查期间的 grill-with-docs 纪律
@@ -260,15 +260,7 @@ bug 无法用自动化测试捕获时（环境相关行为 / 时序 / 仅 UI）�
 
 **合并只合并确认面，不删除门**：诊断确认门与修复方案条件门仍是门白名单内的两个既有门（每阶段至多 1 个阻塞门），MUST NOT 因合并新增或删除任何门。
 
-**功能流程图（缺陷链路变体，确认包内必需内容）**：把探索发现的缺陷相关流程固化为诊断记录的 `## 功能流程（缺陷链路）` 段（即 `## 功能流程图` 制品的缺陷链路变体，Mermaid `flowchart TD` + 关键操作节点清单表）。
-
-- **节点范围只覆盖缺陷链路**：前置条件 → 触发 → 异常 → 根因；MUST NOT 展开被测功能的完整业务流程（区别于需求版的全流程覆盖，避免与 Phase 1 复现步骤重复）
-- **节点粒度** = 可独立验证的业务操作单元（用户操作 / 业务判定 / 数据写入 / 外部调用）；节点标识在图中与表中 MUST 一致，多流程时全局唯一递增；节点数超 50 时按子流程分节；本块 MUST NOT 含任何 Bash 命令示例
-- **节点清单列集**：节点 / 操作 / 证据位置 / 标记
-- **标记**：异常现象节点 MUST 标 `🔴异常`、根因节点 MUST 标 `🟠根因`，其余节点以 "—" 占位
-- **证据追溯（硬约束）**：每节点 MUST 填 `文件:行` 或 类.方法；无法追溯证据的节点 MUST NOT 进入清单。落盘为诊断记录新增的 `## 功能流程（缺陷链路）` 段，Phase 6 随根因分析一并持久化到变更 `exploration.md`
-- **与分级解耦**：2.2.3.5 的排查深度分级结果 MUST NOT 影响本步产出 —— 轻量路径（路径 A）同样强制产出缺陷链路并纳入同一确认包；**验证口径**：修复方案与回归测试 MUST 覆盖该链路的「异常节点 + 根因节点」（见 4.1 / 4.2）
-- **回改规则**：发现遗漏节点 MUST 回排查更新并重新确认，MUST NOT 在任务清单静默补节点
+**功能流程图（缺陷链路变体，确认包内必需内容）**：固化为诊断记录的 `## 功能流程（缺陷链路）` 段（`## 功能流程图` 的缺陷链路变体，Mermaid `flowchart TD` + 节点清单表）；节点只覆盖「前置条件 → 触发 → 异常 → 根因」，异常节点标 `🔴异常`、根因节点标 `🟠根因`，每节点 MUST 有 `文件:行` 证据；修复与回归测试 MUST 覆盖异常节点 + 根因节点。完整节点 / 边界 / 回改规则见 `references/flowchart-gate.md`。
 
 > **完整流程图细则**见 references/flowchart-gate.md。**仅在流程浮现时**读取全文细则。
 
@@ -340,6 +332,11 @@ bug 无法用自动化测试捕获时（环境相关行为 / 时序 / 仅 UI）�
 - 汇总编译 / lint / 前端结果，区分已修复与遗留问题；遗留失败**报告**给用户 —— MUST NOT 静默越过失败检查
 
 ---
+## Phase 5.5: 变更范围内测试执行（强制）
+
+范围 / 运行 / 失败处置 / 证据口径见 `references/gates-and-rules.md`；本阶段 MUST 写 `.openspec-tmp/pipeline-<change-name>/test-report.md`，只运行变更范围内既有测试与回归测试，范围外存量失败仅 WARN，MUST NOT 额外生成单测。
+
+---
 ## Phase 6: 同步提案 — 汇总所有修复
 
 **⚠️ 强制: 循环中所有修复完成后，变更制品必须反映所有已实现的修复。**
@@ -369,10 +366,18 @@ Markdown 是唯一真源 —— 直接更新 OpenSpec Markdown 制品；不得�
 
 继续之前先修复任何违规 —— 同步不得损坏 Markdown 真源。
 
-仅当制品反映所有已实现的修复后，才进入 Phase 7。
+### 6.4 实现一致性证据（强制）
+
+运行 `iagent spec conformance --strict` 并写 `.openspec-tmp/pipeline-<change-name>/conformance-report.md`（细则见 `references/gates-and-rules.md`）；`fail` / 缺失 → 回 Phase 4。
+
+仅当制品反映所有已实现的修复、且一致性证据已产出后，才进入 Phase 7。
 
 ---
 ## Phase 7: 验证 — 覆盖所有修复
+
+### 7.0 实现一致性证据消费（强制）
+
+只读 `conformance-report.md` 与 `test-report.md` 的 `**summary**:` 行（细则见 `references/gates-and-rules.md`）；`fail` / 缺失 → 回 Phase 4，MUST NOT 宣告可归档，MUST NOT 自行重跑命令。
 
 ### 7.1 内联执行验证（主 agent）
 
@@ -480,6 +485,7 @@ Ready for `/iagent:spec-apply` (fixes already applied) or archive.
 - **修复后循环询问不构成确认门**：概览第 5 条与 4.3 的「可继续报告相关 bug」是**非阻塞提示**，MUST NOT 作为停点、MUST NOT 等待用户回答才继续，MUST NOT 声明门白名单之外的确认门
 - **归档只读**：MUST NOT 修改 `openspec/changes/archive/`
 - **回归测试强制**：每个修复都附带一个修复前失败、修复后通过的测试 —— 适用于循环中的**每个** bug；证据优先轨道下该测试为 `characterization test`（先固化当前行为断言，再断言缺陷行为被修正），无法建立可执行断言时回到「只报告候选、不修复」
+- **规则基线 / 测试证据 / 一致性门强制**：Phase 2 起点 MUST 枚举并读取全部存在规则源（缺失记「不存在」，未读不得伪装）；Phase 5.5 MUST 写 `test-report.md`（范围内失败共享 ≤3 预算）；Phase 6.4 MUST 产出 `conformance-report.md`，Phase 7 只读汇总行，任一 `fail` / 缺失 MUST NOT 归档（细则见 `references/gates-and-rules.md`）
 - **回归测试编写内联调用 `iagent-test`**：传入已确认的缺陷链路、Phase 1 复现证据、测试级别/优先级与变更名；`iagent-test` 是框架/风格/用例规则的唯一来源，debug MUST NOT 复制其内联框架检测或测试生成规则；strict 无法调用时 MUST 阻断并报告，MUST NOT 以"自写 + WARN"绕过（仅显式协商 degraded 时允许本地编写并透明记录未发生的内联调用）
 - **Phase 1 临时测试不替代回归测试**：Phase 1 MAY 以内联临时测试建立失败证据，但该测试不构成回归测试；正式回归测试 SHALL 由 `iagent-test` 生成或改造落库
 - **内联调用绝不放松两条硬要求**：回归测试 MUST 仍覆盖缺陷链路的「异常节点 + 根因节点」，且 MUST 仍修复前 FAIL / 修复后 PASS —— 内联调用返回后自行核对两者

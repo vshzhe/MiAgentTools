@@ -8,10 +8,10 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:ea833920f7b1e1155da6d2b29ff56d81633a7b9c439edcab89931df80f892c5f"
+  generatedFingerprint: "sha256:900d194385c2ae0c1f0b3be0275c745c96ff905c64fc697b2ce70e1c05530d4a"
 ---
 
-**实现前先阅读 .iagent/rules/coding-rules.md 的 AI 编码护栏。** 禁止猜测数据库字段、API 参数或业务规则 —— 标 **[待确认]** 并询问用户。
+**实现前先读取项目规则基线：`.iagent/config.yaml` 的 context / rules、`.iagent/rules/*.md`、`CLAUDE.md`、`AGENTS.md`（用 `iagent rules --json` 枚举；源缺失显式记「不存在」，读取失败记 WARN 并计入未读）。** 禁止猜测数据库字段、API 参数或业务规则 —— 标 **[待确认]** 并询问用户。
 
 按 openspec/changes/ 下的变更制品（proposal/specs/design/tasks）实现任务。
 
@@ -239,6 +239,14 @@ metadata:
    - lint（TypeScript `eslint` / Java `mvn checkstyle:check`）与前端校验（JSP 标签闭合与 EL 表达式、Vue/React 组件引用）在项目适用时照常执行
    - 结果只记 WARN 与摘要，SHALL NOT 参与四值终态、SHALL NOT 计入证据 `errorCount`（避免「编译通过但有告警」被误判为 fail）
 
+   **8.11 自动单测补齐（`testGate.autoGenerate`，默认 true）** ⚠️ 强制（受配置）
+   - **位置**：§8 编译检查放行后、§9 测试门前
+   - **范围**：变更范围内「有行为」的生产改动文件；先消费 tasks.md 已规划的 `[测试]` 任务，只对未被覆盖的目标补齐
+   - **该不该测判定**：沿用 `iagent-test` 的「该不该测闸门 / 不测清单」——纯数据类、无分支转发方法、私有方法、框架生命周期回调与自动生成代码 MUST NOT 生成测试，且 MUST 在测试证据或报告中留痕「已评估、判定不生成」及依据
+   - **执行**：主 agent 内联调用 `iagent-test`（传改动文件清单、已覆盖 Scenario、变更名与测试层级）；自动管线中其测试计划门自动采用推荐计划并记 WARN「计划未经用户逐项确认」
+   - **禁止**：MUST NOT 静默增删 tasks.md 任务；缺口测试只登记到 handoff 包 `## 已产出（跨单元可见）` 与 `test-report.md`
+   - **降级**：`testGate.autoGenerate=false` → 跳过并在证据记「自动补测已由项目配置关闭」；项目无测试框架 → WARN 跳过并记 `not-applicable`；`iagent-test` 不可用 → WARN + 记录「本阶段未发生内联技能调用」，MUST NOT 伪装为已生成
+
 9. **测试执行门** ⚠️ 强制（仅限变更范围内）
    - 在编译检查（§8）之后运行。编译失败是硬错误；测试失败属于另一类问题（存量红灯测试、断言不匹配、环境问题）—— 这正是两道门分开、MUST NOT 合并为一道的原因。§8 MUST 保持其 `-DskipTests`/`compile` 语义；测试执行由本门负责。
 
@@ -266,11 +274,19 @@ metadata:
    - 3 次后仍有失败：暂停并向用户报告。MUST NOT 把对应任务标为 `[x]`，MUST NOT 进入归档
    - 若必须收窄或简化测试的预期行为才能通过 → 适用范围蔓延护栏：标 **[待确认]**，说明差异并询问用户
 
-   **9.6 测试门报告** —— 汇总：覆盖范围、范围内通过/失败数、范围外存量失败（WARN）、覆盖率工具运行时的覆盖率数据（见 `iagent-test` §5.1）
+   **9.6 测试门证据与报告** —— 写 `.openspec-tmp/pipeline-<change-name>/test-report.md`：九列固定 `change` / `command` / `exitCode` / `passCount` / `failCount` / `status` / `scope` / `timestamp` / `reason`，文末 `**summary**: status=<pass|fail|not-applicable|disabled>, commands=<n>, totalPass=<n>, totalFail=<n>`；非执行终态用 `-` 占位并写固定原因「未探测到测试框架」。向 handoff 包 `## 阶段结论` 追加 `test` 行。汇总覆盖范围、范围内通过/失败数、范围外存量失败（WARN）与覆盖率数据（见 `iagent-test` §5.1）。
 
-10. **统一临时工作区清理（保留编译证据与 handoff 包）** ⚠️ 强制
+   **9.7 实现一致性门（硬门）** ⚠️ 强制
+   - **执行**：运行 `iagent spec conformance --change "<name>" --strict --rules-read "<逗号分隔的已读取规则源>" --json`
+   - **三层判定**：①规划层每个 Requirement / Scenario 至少一个任务覆盖；②实现层每个已勾选 `[代码]` 任务具备产出证据（tasks `产出:` / `git diff` / handoff 包 `## 已产出`）；③测试层每个 Scenario 至少一个 `[测试]` 任务覆盖
+   - **规则完整性**：回执 `rulesRead` MUST 覆盖 `iagent rules --json` 中 `exists=true` 的源；存在但未读 → `rules-not-read`
+   - **证据**：写 `.openspec-tmp/pipeline-<change-name>/conformance-report.md`（九列固定 `change` / `requirement` / `scenario` / `coveringTasks` / `taskStatus` / `implementationEvidence` / `testEvidence` / `status` / `reason`，文末 `**summary**: status=<pass|fail>, requirements=<n>, scenarios=<n>, findings=<n>`）；向 handoff 包追加 `conformance` 行
+   - **终止态**：`fail` / 证据缺失 / 汇总行不可解析 → 暂停并报告缺失项（含 `file:line` 或任务 id），MUST NOT 进入 Step 10、MUST NOT 给出归档建议；`skip_specs` → 输出 `specs: not-applicable` 并放行；历史 JSON-only → 只读降级 + WARN
+   - **大变更**：任务数 > 50 时分批生成矩阵并完整落盘，MUST NOT 截断条目
+
+10. **统一临时工作区清理（保留编译 / 测试 / 一致性证据与 handoff 包）** ⚠️ 强制
    - 编译检查（§8）与测试执行门（§9）都结束后执行**一次**清理；清理对象**只限临时脚本与草稿**（编译校验脚本、临时配置、草稿输出等）
-   - **MUST 保留** `.openspec-tmp/pipeline-<change-name>/compile-report.md` 与 `handoff-pack.md` 至**父流程归档收尾** —— 它们是父流程就绪检查的唯一判据，MUST NOT 在此删除；**迁移期同时识别旧前缀 `apply-<change-name>/`**
+   - **MUST 保留** `.openspec-tmp/pipeline-<change-name>/compile-report.md`、`test-report.md`、`conformance-report.md` 与 `handoff-pack.md` 至**父流程归档收尾** —— 它们是父流程就绪检查的唯一判据，MUST NOT 在此删除；**迁移期同时识别旧前缀 `apply-<change-name>/`**
    - **独立调用（无父流程）**：保留证据并在完成摘要中报告证据文件路径，清理责任移交用户
    - **父流程调用**：由 `spec-archive` / `spec-bulk-archive` 在归档成功后清理该工作区（apply 内不删除）
    - 清理失败（文件被占用、权限不足）：记录 WARN 并给出工作区路径，MUST NOT 阻断流程
@@ -287,9 +303,10 @@ metadata:
 
    展示：
    - 编译检查终态（`pass` / `not-applicable` / `disabled`）与证据文件路径 —— 后两者显式标注「未执行编译检查」
-   - 测试执行门结果汇总
+   - 测试执行门结果汇总（含 `test-report.md` 路径与汇总状态）
+   - 实现一致性门结果（含 `conformance-report.md` 路径与缺失项）
    - 全部任务完成状态
-   - 仅在编译终态放行（`pass` / `not-applicable` / `disabled`）且测试门通过时，建议通过 iagent spec archive "<name>" --yes（或 iagent-spec-archive 技能）归档变更
+   - 仅在编译终态放行、测试门通过且一致性门 `pass` 时，建议通过 iagent spec archive "<name>" --yes（或 iagent-spec-archive 技能）归档变更
 
 <!-- CMD:SKIP -->
 **Output（实现过程中）**
@@ -452,6 +469,9 @@ What would you like to do?
 - 直接从变更目录读取制品文件 —— 除标准集合外不要假设具体文件名
 - ⚠️ **强制**：全部任务完成后执行 Step 8 编译检查（硬门：终态只有 `pass` / `fail` / `not-applicable` / `disabled` 四值，配置载体为 `.iagent/config.yaml` 的 `compileCheck`）
 - ⚠️ **强制**：编译检查后执行 Step 9 测试执行门 —— 范围限定为本次变更（范围内失败阻塞；范围外存量失败仅 WARN 且 MUST NOT 阻塞）
+- ⚠️ **强制**：测试门前执行 Step 8.11 自动单测补齐（`testGate.autoGenerate` 默认 true）—— 先消费已规划 `[测试]` 任务，只补缺口；不测清单判定 MUST 留痕；MUST NOT 静默增删 tasks.md 任务
+- ⚠️ **强制**：测试门后执行 Step 9.7 实现一致性门 —— 运行 `iagent spec conformance --strict`，校验三层覆盖与 `rulesRead` 完整性；`fail` 或证据缺失 MUST 暂停，MUST NOT 进入归档
+- ⚠️ **强制**：三类证据文件（`compile-report.md` / `test-report.md` / `conformance-report.md`）与 handoff 包 MUST 保留至归档收尾
 - ⚠️ **强制**：`[测试]` 任务 MUST 经**前台 Agent 子代理**委派 `iagent-test`（传测试层级与优先级）生成测试代码，MUST NOT 在 apply 内另立一套测试规则；该技能不可用时记录 WARN 并按同一规则本地实现（MUST NOT 伪装为委派完成）；MUST NOT 走补充文档的 `产出:` → `attachments/` 规则（放在 attachments/ 下的测试代码无法运行）。子代理返回后 MUST 继续批次调度，MUST NOT 停在子技能回执
 
 - ⚠️ **强制**：子代理派发指令 MUST 携带 EXIT GUARD（子代理退出守卫）—— 完成分配任务后立即停止并返回回执，MUST NOT 进入 plan 模式 / 设计模式，也不得提出后续步骤；编排器是唯一有权判停和推进阶段的角色

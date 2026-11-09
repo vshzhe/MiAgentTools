@@ -822,9 +822,11 @@ describe('2.11 spec-apply 编译证据', () => {
 
     it('四终态均写证据；Step 10 保留证据与 handoff 包至归档收尾', () => {
         expect(apply).toContain('四终态均须产出');
-        expect(apply).toContain('统一临时工作区清理（保留编译证据与 handoff 包）');
+        expect(apply).toContain('统一临时工作区清理（保留编译 / 测试 / 一致性证据与 handoff 包）');
         expect(apply).toContain('MUST 保留');
         expect(apply).toContain('compile-report.md');
+        expect(apply).toContain('test-report.md');
+        expect(apply).toContain('conformance-report.md');
         expect(apply).toContain('handoff-pack.md');
         expect(apply).toContain('父流程归档收尾');
         expect(apply).toContain('清理对象**只限临时脚本与草稿**');

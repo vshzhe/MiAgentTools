@@ -23,6 +23,7 @@
 | 2026-11-08 | inline-propose-apply-parallel | orchestration | propose / apply 改为主 agent 内联与单 agent 分批（批内并行只读、同文件串行、进度落盘）；仅 `spec-bulk-archive` 并行单元与 migration 阈值降级保留子代理；propose / apply 进入兼容窗。[含测试] |
 | 2026-11-08 | improve-task-ref-dedup | spec | tasks.md 追溯引用去重：Scenario Ref 改为场景叶子名，由同任务 Spec Ref 补全全路径；历史写法兼容。[含测试/使用说明] |
 | 2026-11-09 | optimize-commit-skills | templates | 提交技能优化：移除知识库推送、统一三类说明、归档未提交提案纳入提交范围 [含测试/使用说明] |
+| 2026-11-09 | improve-impl-conformance-and-test-gate | spec | 实现一致性三层判定 + 自动单测补齐 + 规则读取完整性 [含测试] |
 
 ---
 
@@ -33,7 +34,7 @@
 | templates | 5 | fix-multi-agent-skill-command-generation (2026-11-02), improve-requirement-doc-review-readiness (2026-11-08), improve-orchestration-execution-mode (2026-11-08), improve-grill-with-docs-paper-trail (2026-11-08), optimize-commit-skills (2026-11-09) |
 | orchestration | 5 | fix-mode-delegation-host-parity (2026-11-01), improve-delegation-gate-ledger (2026-11-03), skill-bridge-optimize (2026-11-08), inline-orchestration-delegation (2026-11-08), inline-propose-apply-parallel (2026-11-08) |
 | debug | 1 | feat-debug-dual-track-entry (2026-11-03) |
-| spec | 3 | improve-proposal-validation-and-spec-ref (2026-11-03), improve-archive-index-monthly (2026-11-08), improve-task-ref-dedup (2026-11-08) |
+| spec | 4 | improve-proposal-validation-and-spec-ref (2026-11-03), improve-archive-index-monthly (2026-11-08), improve-task-ref-dedup (2026-11-08), improve-impl-conformance-and-test-gate (2026-11-09) |
 | workflow | 1 | improve-compile-gate-and-archive-readonly (2026-11-01) |
 
 ---

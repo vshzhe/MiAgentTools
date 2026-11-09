@@ -84,6 +84,26 @@ const EXPLORATION_PROTOCOL_FULL = `## 强制检查点体系（delegated 模式�
 - [ ] Phase 1: 完成检测与确认
 \`\`\`
 
+### 1.1.1 项目规则基线（强制检查点）
+
+**⚠️ 强制：探索文件创建后、提示词校验门与任何追问之前执行。**
+
+1. 运行 \`iagent rules --json\` 枚举规则源（\`.iagent/config.yaml\`、\`.iagent/rules/*.md\`、\`CLAUDE.md\`、\`AGENTS.md\`；**不**包含 \`openspec/rules/**\`）
+2. 读取全部 \`exists=true\` 的源，并把结果写入探索文件的 \`## 项目规则基线\` 段：
+
+\`\`\`markdown
+## 项目规则基线
+
+| 源 | 存在 | 读取 | 关键约束摘要 |
+| :--- | :--- | :--- | :--- |
+| \`.iagent/rules/coding-rules.md\` | 是 | 已读 | <1-3 条与本次探索相关的约束> |
+\`\`\`
+
+3. **失败处置**：源缺失 → 显式记「不存在」（合法终态，不阻断）；读取失败 → 记 WARN 并标「未读」，MUST NOT 伪装为已读；全部源缺失 → 记「无规则源」并继续
+4. 规则基线 MUST 在 grill 与功能流程图之前建立，供后续制品生成与实现按同一规则集合约束
+
+**强制检查点**：没有规则基线段时 MUST NOT 进入 1.3 追问；规则源缺失不阻断探索。
+
 ### 1.1.2 提示词校验门（强制检查点）
 
 **⚠️ 强制：本门在任何探索动作之前执行，不得跳过。**
@@ -129,8 +149,16 @@ const EXPLORATION_PROTOCOL_FULL = `## 强制检查点体系（delegated 模式�
 
 <User's initial description and context>
 
-## 提示词基线 (Prompt Baseline)
+## 项目规则基线
 
+<!-- 1.1.1 强制产出：规则源枚举 + 存在性 + 读取状态 + 关键约束摘要 -->
+<!-- 源缺失写「不存在」；全部缺失写「无规则源」 -->
+
+| 源 | 存在 | 读取 | 关键约束摘要 |
+| :--- | :--- | :--- | :--- |
+| <.iagent/config.yaml 等> | <是/否> | <已读/未读> | <摘要> |
+
+## 提示词基线 (Prompt Baseline)
 **原始提示词**: <用户最初提供的原文，未经改写>
 
 **确认后的提示词基线**: <经 1.1.2 校验门确认的版本；清晰输入时即原始提示词本身>
@@ -1308,7 +1336,7 @@ ${FLOWCHART}
 
 ## 强制检查点体系（delegated 模式）
 
-**delegated 模式**（编排器传入 \`${renderDelegationModeOption('delegated')}\`）SHALL 执行强制检查点体系（不可跳过）：调用即强制创建探索文件 → 提示词校验门 → CONTEXT.md 检查 → CodeGraph 基础扫描（含多项目派发与深度分析）→ L1-L5 grill 追问 → 功能流程图与流程最终确认门 → 聚合一致性门 → 探索完成检测。**完整协议见 \`references/exploration-protocol.md\`——执行 delegated 探索前 MUST 先 \`Read\` 该文件并逐步执行。**
+**delegated 模式**（编排器传入 \`${renderDelegationModeOption('delegated')}\`）SHALL 执行强制检查点体系（不可跳过）：调用即强制创建探索文件 → **项目规则基线** → 提示词校验门 → CONTEXT.md 检查 → CodeGraph 基础扫描（含多项目派发与深度分析）→ L1-L5 grill 追问 → 功能流程图与流程最终确认门 → 聚合一致性门 → 探索完成检测。**完整协议见 \`references/exploration-protocol.md\`——执行 delegated 探索前 MUST 先 \`Read\` 该文件并逐步执行。**
 
 （interactive 模式保持立场式，不强制上述序列。）
 

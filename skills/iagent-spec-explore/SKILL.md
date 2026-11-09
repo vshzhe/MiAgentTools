@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:74abd3d36b1aeef57e86a53bf08dbfd831c21d32bd4ca40823377a94a73c4396"
+  generatedFingerprint: "sha256:7867d1b5f45ed7bbf9c2a500bcaa1e0857aac2343298bb781a9dee7d6f02bfac"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
@@ -128,7 +128,7 @@ metadata:
 
 ## 强制检查点体系（delegated 模式）
 
-**delegated 模式**（编排器传入 `mode=delegated`）SHALL 执行强制检查点体系（不可跳过）：调用即强制创建探索文件 → 提示词校验门 → CONTEXT.md 检查 → CodeGraph 基础扫描（含多项目派发与深度分析）→ L1-L5 grill 追问 → 功能流程图与流程最终确认门 → 聚合一致性门 → 探索完成检测。**完整协议见 `references/exploration-protocol.md`——执行 delegated 探索前 MUST 先 `Read` 该文件并逐步执行。**
+**delegated 模式**（编排器传入 `mode=delegated`）SHALL 执行强制检查点体系（不可跳过）：调用即强制创建探索文件 → **项目规则基线** → 提示词校验门 → CONTEXT.md 检查 → CodeGraph 基础扫描（含多项目派发与深度分析）→ L1-L5 grill 追问 → 功能流程图与流程最终确认门 → 聚合一致性门 → 探索完成检测。**完整协议见 `references/exploration-protocol.md`——执行 delegated 探索前 MUST 先 `Read` 该文件并逐步执行。**
 
 （interactive 模式保持立场式，不强制上述序列。）
 

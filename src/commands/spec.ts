@@ -44,7 +44,13 @@ import { parseProposal } from '../core/spec/parser/proposal-parser.js';
 import { parseDesign } from '../core/spec/parser/design-parser.js';
 import { parseSpec } from '../core/spec/parser/spec-parser.js';
 import { validateParsedChange } from '../core/spec/validation/artifact-validator.js';
+import {
+    buildConformance,
+    renderConformanceText,
+    type ConformanceJsonOutput,
+} from '../core/spec/validation/conformance.js';
 import { migrateChangeFromJson } from '../core/spec/migration.js';
+import { collectRuleSources } from './rules.js';
 import { computeChangeFingerprint, resolveChangeRoot } from '../core/spec/fingerprint.js';
 import type { ParsedChange } from '../core/spec/model/artifact-model.js';
 
@@ -215,14 +221,37 @@ export function buildSpecCommand(): Command {
         .requiredOption('--change <name>', '目标变更名')
         .option('--partial', '起草期模式：缺失制品记为 incomplete（不使校验失败）')
         .option('--artifact <id>', '只校验指定制品（proposal / specs / design / tasks）')
+        .option('--conformance', '一致性严格模式：未覆盖 Requirement / Scenario 与缺少测试任务升级为 error')
         .option('--json', '以 JSON 输出（供程序处理）')
-        .action((options: { change: string; partial?: boolean; artifact?: string; json?: boolean }) => {
+        .action((options: { change: string; partial?: boolean; artifact?: string; conformance?: boolean; json?: boolean }) => {
             const result = runSpecValidate(process.cwd(), options.change, {
                 partial: options.partial,
                 artifact: options.artifact,
+                conformance: options.conformance,
             });
             console.log(options.json ? JSON.stringify(result, null, 2) : formatValidationResult(result));
             if (!result.valid) {
+                process.exitCode = 1;
+            }
+        });
+
+    spec.command('conformance')
+        .description('实现一致性覆盖矩阵（Requirement / Scenario → 覆盖任务与测试任务）')
+        .requiredOption('--change <name>', '目标变更名')
+        .option('--strict', '存在缺失项时以非零退出码结束')
+        .option('--rules-read <paths>', '回执实际读取的规则源（逗号分隔）；提供时校验读取完整性')
+        .option('--json', '以 JSON 输出（供程序处理）')
+        .action((options: { change: string; strict?: boolean; rulesRead?: string; json?: boolean }) => {
+            const rulesRead = options.rulesRead === undefined
+                ? undefined
+                : options.rulesRead.split(',').map((item) => item.trim()).filter((item) => item.length > 0);
+            const result = runSpecConformance(process.cwd(), options.change, { strict: options.strict, rulesRead });
+            if (options.json) {
+                console.log(JSON.stringify(result.output, null, 2));
+            } else {
+                console.log(renderConformanceText(result.output));
+            }
+            if (options.strict === true && !result.output.valid) {
                 process.exitCode = 1;
             }
         });
@@ -441,6 +470,8 @@ export interface SpecValidateOptions {
     partial?: boolean;
     /** 只校验指定 artifact（未知 id 以非零退出码失败并列出合法 id） */
     artifact?: string;
+    /** 一致性严格模式：未覆盖 Requirement / Scenario 与缺测试任务升级为 error */
+    conformance?: boolean;
 }
 
 /** 从 Markdown 构造统一运行时模型并校验。 */
@@ -507,7 +538,10 @@ export function runSpecValidate(
         diagnostics: [],
         warnings: [],
     };
-    const result = validateParsedChange(model, { degradeUnmatchedRefs: partial && !specsCompleted });
+    const result = validateParsedChange(model, {
+        degradeUnmatchedRefs: partial && !specsCompleted,
+        conformance: options.conformance === true,
+    });
     const diagnostics = [...result.diagnostics];
     if (wants('proposal') && proposal === undefined) {
         diagnostics.push({ severity: missingSeverity, code: 'missing-proposal', message: '缺少 proposal.md', filePath: proposalPath, line: 1 });
@@ -539,8 +573,84 @@ export function runSpecValidate(
     };
 }
 
-function formatValidationResult(result: SpecValidationOutput): string {
-    if (result.valid && result.diagnostics.length === 0) {
+/** conformance 命令选项 */
+export interface SpecConformanceOptions {
+    /** 存在缺失项时以非零退出码结束 */
+    strict?: boolean;
+    /** 回执实际读取的规则源路径（逗号分隔输入由 CLI 拆分；缺省不校验规则读取完整性） */
+    rulesRead?: string[];
+}
+
+/** conformance 命令结果 */
+export interface SpecConformanceResult {
+    output: ConformanceJsonOutput;
+}
+
+/**
+ * 运行实现一致性判定并返回覆盖矩阵。
+ *
+ * 复用既有 Markdown 解析（parseSpec / parseTasks / findMarkdownFiles），
+ * MUST NOT 另立第二套解析器。
+ */
+export function runSpecConformance(
+    projectRoot: string,
+    changeName: string,
+    options: SpecConformanceOptions = {},
+): SpecConformanceResult {
+    const changeRoot = path.join(projectRoot, 'openspec', 'changes', changeName);
+    const mode: 'report' | 'strict' = options.strict === true ? 'strict' : 'report';
+    if (!fs.existsSync(changeRoot)) {
+        return {
+            output: {
+                changeName,
+                changeRoot,
+                mode,
+                valid: false,
+                matrix: [],
+                findings: [{
+                    code: 'change-not-found',
+                    message: `变更不存在：${changeName}`,
+                    filePath: changeRoot,
+                    line: 1,
+                }],
+                notices: [],
+            },
+        };
+    }
+
+    const specs = findMarkdownFiles(path.join(changeRoot, 'specs')).map((filePath) => parseSpec(filePath));
+    const tasksPath = path.join(changeRoot, 'tasks.md');
+    const tasks = fs.existsSync(tasksPath) ? parseTasks(tasksPath) : undefined;
+    const legacyJson = specs.length === 0
+        && tasks === undefined
+        && fs.existsSync(path.join(changeRoot, 'change.json'));
+    const requiredRules = options.rulesRead === undefined
+        ? undefined
+        : collectRuleSources(projectRoot).sources
+            .filter((source) => source.exists)
+            .map((source) => source.path);
+    const result = buildConformance(specs, tasks?.tasks ?? [], {
+        tasksFilePath: tasksPath,
+        skipSpecs: readSkipSpecs(changeRoot),
+        legacyJson,
+        ...(requiredRules !== undefined && options.rulesRead !== undefined
+            ? { rules: { required: requiredRules, read: options.rulesRead } }
+            : {}),
+    });
+    return {
+        output: {
+            changeName,
+            changeRoot,
+            mode,
+            valid: result.valid,
+            matrix: result.matrix,
+            findings: result.findings,
+            notices: result.notices,
+        },
+    };
+}
+
+function formatValidationResult(result: SpecValidationOutput): string {    if (result.valid && result.diagnostics.length === 0) {
         return `Markdown 制品校验通过：${result.changeName}`;
     }
     const lines = [`Markdown 制品校验${result.valid ? '通过（含警告）' : '失败'}：${result.changeName}`];

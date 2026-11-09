@@ -147,7 +147,9 @@ export interface TraceabilityIssue {
         | 'scenario-ref-missing-context'
         | 'ambiguous-scenario-ref'
         | 'pending-ref'
-        | 'untested-scenario';
+        | 'untested-scenario'
+        | 'requirement-without-task'
+        | 'scenario-without-test';
     message: string;
     filePath: string;
     line: number;

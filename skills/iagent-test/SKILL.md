@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: test
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:25e7758d70af65dab9ce61199b7499e17faeedca20426549d305b30bf5bfb003"
+  generatedFingerprint: "sha256:15817e99398693d2dc6db498c7ffc1dc689f7f9081292270b9d734d889dafe9f"
 ---
 
 生成测试 —— 多 schema 模式：检测语言/框架 → 加载对应 schema → BCDE 场景矩阵 → 分层编写 → 运行验证。
@@ -16,6 +16,8 @@ metadata:
 **目标驱动**：先把验收标准变成可执行的测试，再让它通过。"添加校验" → "先写非法输入的测试，再让它通过"；"修 bug" → "先写复现该 bug 的测试，再修复"。
 
 **输入**：`/iagent:test` 后跟被测目标（类名、方法名、文件路径或功能描述）。
+
+**自动管线调用（delegated / 门承载参数生效，强制）**：调用方可传入改动文件清单、已覆盖 Scenario 清单与变更名。此时本技能 MUST 只为未覆盖的有行为目标设计用例（沿用 2.1 不测清单），测试计划确认门自动采用推荐计划并记 WARN「计划未经用户逐项确认」，MUST NOT 阻塞自动管线；返回用例清单、覆盖映射与执行结果供调用方写入测试证据。交互式独立调用保持既有测试计划确认门与 P2 显式确认行为不变。
 
 ---
 

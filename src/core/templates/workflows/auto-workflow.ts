@@ -42,7 +42,7 @@ ${renderGateWhitelistSection()}
 
 ## Phase 1: Exploration（委派 iagent_spec_explore，交互阶段）
 
-Phase 1 SHALL 由主 agent 内联委派阶段 \`iagent_spec_explore\`（传 \`${renderDelegationModeOption('delegated')}\`）执行强制检查点体系探索（强制建探索文件、提示词校验门、CONTEXT.md 检查、CodeGraph 基础扫描含多项目派发与深度分析、L1-L5 grill 追问、功能流程图与流程最终确认门、聚合一致性门、探索完成检测），MUST NOT 内联执行探索逻辑。探索是**交互阶段**，MUST NOT 放入隔离子代理（提示词门 / 流程门需与用户交互）。
+Phase 1 SHALL 由主 agent 内联委派阶段 \`iagent_spec_explore\`（传 \`${renderDelegationModeOption('delegated')}\`）执行强制检查点体系探索（强制建探索文件、**项目规则基线**、提示词校验门、CONTEXT.md 检查、CodeGraph 基础扫描含多项目派发与深度分析、L1-L5 grill 追问、功能流程图与流程最终确认门、聚合一致性门、探索完成检测），MUST NOT 内联执行探索逻辑。探索是**交互阶段**，MUST NOT 放入隔离子代理（提示词门 / 流程门需与用户交互）。
 
 委派完成后 SHALL 消费 \`iagent_spec_explore\` 输出的**结构化 handoff**（探索文件路径、提示词基线、流程基准确认状态 \`flowBaselineConfirmed\`、Pending 影响符号），并**在同一用户回合内**推进 Phase 2 —— 回执是中间状态，MUST NOT 以回执结束回合。
 
@@ -163,11 +163,15 @@ Phase 4 继承 \`iagent_spec_apply\` 的**测试执行门**并**自动**通过 �
 - **3 次尝试后仍失败** → 暂停并向用户报告。MUST NOT 静默通过，MUST NOT 进入归档
 - 项目无测试框架 → 记录 WARN，跳过该门，继续
 
-**条件测试子阶段**：变更 \`tasks.md\` 含 \`[测试]\` 任务时，在测试执行门前由主 agent 内联调用 \`iagent_test\` skill 生成变更范围测试；门判定仍然适用（范围内失败自动重试后暂停）。内联调用返回后 MUST 在同一用户回合内继续测试门判定。
+**自动单测补齐子阶段（强制，受 \`testGate.autoGenerate\` 控制）**：编译检查放行后、测试执行门前，由主 agent 内联调用 \`iagent_test\` 对变更范围内未被 \`[测试]\` 任务覆盖的有行为改动文件补齐单测（不测清单判定 MUST 留痕；自动管线中其测试计划门自动采用推荐计划并记 WARN）。MUST NOT 静默增删 \`tasks.md\` 任务；缺口测试只登记到 handoff 包 \`## 已产出\`。\`testGate.autoGenerate=false\` 时跳过并记录配置关闭；\`iagent_test\` 不可用 → WARN + 记录「未发生内联技能调用」，MUST NOT 伪装。内联调用返回后 MUST 在同一用户回合内继续测试门判定。
+
+**测试证据**：测试门结束后只读 \`.openspec-tmp/pipeline-<change-name>/test-report.md\` 的 \`**summary**:\` 行（\`pass\` / \`not-applicable\` / \`disabled\` 放行；\`fail\` / 缺失阻断归档），MUST NOT 在 auto-workflow 内另立判定。
 
 ### 4.4 实现验证桥（主 agent 内联，强制）
 
-测试执行门通过后，MUST 由**主 agent 内联**调用 \`iagent_spec_verify\` skill 校验实现与制品（specs/tasks/design）的一致性（\`executionMode=inline\` / \`independence=self\`）；先读 handoff 包，结论含验证结果摘要与可选 \`reportPath\`；MUST NOT 为新的验证执行派生 Agent 子代理：
+**实现一致性门（前置，强制）**：测试门通过后，主 agent MUST 运行 \`iagent spec conformance --change "<name>" --strict --json\` 并写 \`conformance-report.md\`；校验三层覆盖（Requirement/Scenario→任务、勾选任务→产出证据、Scenario→\`[测试]\` 任务）与回执 \`rulesRead\` 对规则源 \`exists=true\` 集合的覆盖。\`fail\` / 证据缺失 → 暂停并报告，MUST NOT 进入验证桥或归档。
+
+一致性门通过后，MUST 由**主 agent 内联**调用 \`iagent_spec_verify\` skill 校验实现与制品（specs/tasks/design）的一致性（\`executionMode=inline\` / \`independence=self\`）；先读 handoff 包，结论含验证结果摘要与可选 \`reportPath\`；MUST NOT 为新的验证执行派生 Agent 子代理：
 
 - **验证通过** → 在同一用户回合内进入 Phase 5（自动归档）
 - **验证失败** → 回到 Phase 4 修复；MUST NOT 进入归档
@@ -183,11 +187,13 @@ Phase 4 继承 \`iagent_spec_apply\` 的**测试执行门**并**自动**通过 �
 
 ### 5.1 自动归档前置（只读编译证据）与执行归档
 
-**编译证据就绪（唯一判据，强制）**：进入归档前读取 \`.openspec-tmp/pipeline-<change-name>/compile-report.md\` 的 \`**summary**:\` 行（handoff 包 \`## 阶段结论\` 的 \`compile\` 行仅作辅助，两者不一致时以证据文件为准并记 WARN）：
+**证据就绪（唯一判据，强制）**：进入归档前读取 \`.openspec-tmp/pipeline-<change-name>/\` 下三份证据的 \`**summary**:\` 行（handoff 包 \`## 阶段结论\` 的 \`compile\` / \`test\` / \`conformance\` 行仅作辅助，不一致时以证据文件为准并记 WARN）：
 
-- \`status ∈ {pass, not-applicable, disabled}\` → 放行；\`not-applicable\` / \`disabled\` 记 WARN 并说明「未执行编译检查」的原因，MUST NOT 表述为「编译检查通过」
-- \`status=fail\`、证据缺失（\`missing\`）或证据存在但无法解析出汇总状态 → **MUST NOT 自动归档**：暂停并向用户报告（含期望路径与失败原因），回到 Phase 4 修复
-- 本技能 MUST NOT 自行执行编译或测试命令，MUST NOT 因证据缺失而询问用户是否跳过
+- \`.openspec-tmp/pipeline-<change-name>/compile-report.md\`：\`status ∈ {pass, not-applicable, disabled}\` → 放行；后两者记 WARN 并说明「未执行编译检查」，MUST NOT 表述为「编译检查通过」
+- \`.openspec-tmp/pipeline-<change-name>/test-report.md\`：\`status ∈ {pass, not-applicable, disabled}\` → 放行；后两者记 WARN 并说明未执行测试
+- \`.openspec-tmp/pipeline-<change-name>/conformance-report.md\`：\`status=pass\` → 放行
+- 任一证据 \`fail\`、缺失或汇总行无法解析 → **MUST NOT 自动归档**：暂停并向用户报告（含期望路径与失败原因），回到 Phase 4 修复
+- 本技能 MUST NOT 自行执行编译、测试或一致性命令，MUST NOT 因证据缺失而询问用户是否跳过
 
 就绪（验证桥通过或已显式省略）后：
 - 宣告：明确标题「## Auto-Archive Phase」
@@ -232,6 +238,9 @@ Phase 4 继承 \`iagent_spec_apply\` 的**测试执行门**并**自动**通过 �
 - **验证通过后自动实现** —— Phase 4 以 \`${renderGateSkipOption(GATE_SKIP_IDS)}\` 自动执行（跳过 iagent_spec_apply Step 5.5 门；\`${LEGACY_AUTO_MODE_PARAM}=true\` 为兼容写法）
 - **实现完成后自动归档** —— Phase 5 自动执行，变更名由上下文传入（遵循 iagent_spec_archive 技能模板）
 - **继承并自动通过测试执行门** —— Phase 4 执行 iagent_spec_apply §9 且仅限变更范围内；范围内失败自动重试至多 3 次，随后暂停并报告；既有的变更范围外失败仅 WARN；项目无测试框架 → WARN 并跳过
+- **自动单测补齐不得跳过** —— 测试门前 MUST 对未被 \`[测试]\` 任务覆盖的有行为改动文件补齐单测（\`testGate.autoGenerate\` 默认 true）；不测清单判定 MUST 留痕，MUST NOT 静默增删 tasks.md 任务
+- **实现一致性门不得跳过** —— 测试门后 MUST 运行 \`iagent spec conformance --strict\` 并校验 \`rulesRead\`；\`fail\` / 证据缺失 MUST NOT 进入验证桥或归档
+- **三类证据缺失即阻断** —— 归档前 MUST 读取 \`compile-report.md\` / \`test-report.md\` / \`conformance-report.md\` 的汇总行；任一缺失或 \`fail\` MUST NOT 归档
 - **测试门失败时不得静默通过** —— 范围内的测试门失败 MUST 在归档前暂停；全自动语义绝不构成跳过该门或跳过归档阻断的理由
 - **深度复查后直接续跑** —— 全部通过后经 Agent 子代理调用 \`iagent_proposal_review\` 做深度复查（不可用则内联深度复查 + WARN），展示「验证分数 + 复查结论」后**在同一用户回合内**自动转入 Phase 4；MUST NOT 展示需求文档桥、MUST NOT 委派需求文档技能
 - **验证阶段无阻塞门** —— 三父流程的需求文档桥已整体移除；验证阶段 MUST NOT 声明阻塞门，MUST NOT 追加对下一阶段技能的调用确认（宿主权限与 strict/degraded 检查仍独立生效）

@@ -59,6 +59,8 @@ export interface ProjectConfig {
      * 本字段 MUST NOT 提前填默认值 —— 生效值见 `ResolvedProjectConfig.compileCheck`。
      */
     compileCheck?: ParsedCompileCheck;
+    /** `testGate` 段的原始解析结果（段缺失即 undefined） */
+    testGate?: ParsedTestGate;
 }
 
 /** 解析后的完整配置（rules 文件内容已展开） */
@@ -74,6 +76,8 @@ export interface ResolvedProjectConfig {
     tools: string[];
     /** 生效的编译检查配置（补全默认值后的完整值） */
     compileCheck: CompileCheckConfig;
+    /** 生效的测试门配置（补全默认值后的完整值） */
+    testGate: TestGateConfig;
     /** 段级来源：段存在 = `config`（用户配置），段缺失 = `default`（默认值） */
     compileCheckSource: 'config' | 'default';
     /** 逐字段回退告警（非法取值回退默认值时给出，供 `iagent config show` 输出） */
@@ -249,6 +253,64 @@ export function resolveCompileCheck(parsed?: ParsedCompileCheck): ResolvedCompil
     const source = parsed?.present ? 'config' : 'default';
     const config: CompileCheckConfig = { ...DEFAULT_COMPILE_CHECK, ...(parsed?.values ?? {}) };
     return { config, source, warnings: [...(parsed?.warnings ?? [])] };
+}
+
+/** 测试门配置（`.iagent/config.yaml` 的可选 `testGate` 段） */
+export interface TestGateConfig {
+    /** 实现收尾时是否对未被 `[测试]` 任务覆盖的有行为改动文件自动补齐单测 */
+    autoGenerate: boolean;
+}
+
+/** 测试门默认值（单一源） */
+export const DEFAULT_TEST_GATE: Readonly<TestGateConfig> = {
+    autoGenerate: true,
+};
+
+/** `testGate` 段原始解析结果 */
+export interface ParsedTestGate {
+    present: boolean;
+    values: Partial<TestGateConfig>;
+    warnings: string[];
+}
+
+/** 解析 `testGate` 段（只识别 `autoGenerate`，未知字段忽略并 WARN） */
+export function parseTestGate(raw: string): ParsedTestGate {
+    const lines = raw.split(/\r?\n/);
+    const warnings: string[] = [];
+    const values: Partial<TestGateConfig> = {};
+    let present = false;
+    let inSection = false;
+    for (const rawLine of lines) {
+        const line = rawLine.trimEnd();
+        if (/^testGate:\s*(#.*)?$/.test(line)) {
+            present = true;
+            inSection = true;
+            continue;
+        }
+        if (!inSection) continue;
+        if (line.trim().length === 0 || line.trimStart().startsWith('#')) continue;
+        if (!/^\s+/.test(line)) {
+            inSection = false;
+            continue;
+        }
+        const match = /^\s+autoGenerate:\s*(.+)$/.exec(line);
+        if (match !== null) {
+            const value = stripInlineComment(stripQuotes(match[1]));
+            if (value === 'true') {
+                values.autoGenerate = true;
+            } else if (value === 'false') {
+                values.autoGenerate = false;
+            } else {
+                warnings.push(`testGate: autoGenerate 非法，已回退默认值 ${DEFAULT_TEST_GATE.autoGenerate}（原值：${match[1].trim()}）`);
+            }
+        }
+    }
+    return { present, values, warnings };
+}
+
+/** 由原始解析结果得到生效测试门配置 */
+export function resolveTestGate(parsed?: ParsedTestGate): TestGateConfig {
+    return { ...DEFAULT_TEST_GATE, ...(parsed?.values ?? {}) };
 }
 
 /** 默认 config.yaml 内容 */
@@ -565,6 +627,10 @@ export function parseProjectConfig(raw: string): ProjectConfig {
     if (compileCheck.present) {
         config.compileCheck = compileCheck;
     }
+    const testGate = parseTestGate(raw);
+    if (testGate.present) {
+        config.testGate = testGate;
+    }
     return config;
 }
 
@@ -640,11 +706,13 @@ export function readProjectConfig(projectRoot: string): ResolvedProjectConfig | 
         compileCheck: { ...DEFAULT_COMPILE_CHECK },
         compileCheckSource: 'default',
         compileCheckWarnings: [],
+        testGate: { ...DEFAULT_TEST_GATE },
     };
     const compileCheck = resolveCompileCheck(parseCompileCheck(raw));
     resolved.compileCheck = compileCheck.config;
     resolved.compileCheckSource = compileCheck.source;
     resolved.compileCheckWarnings = compileCheck.warnings;
+    resolved.testGate = resolveTestGate(parseTestGate(raw));
 
     for (const type of rules) {
         const ruleFile = path.join(projectRoot, RULES_DIR_NAME, ruleFileNameFor(type));

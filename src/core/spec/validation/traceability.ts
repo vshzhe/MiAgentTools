@@ -18,6 +18,12 @@ export interface TraceabilityOptions {
      * （正常中间态），不使校验失败。specs 已完成时 MUST NOT 设置本项。
      */
     degradeUnmatchedRefs?: boolean;
+    /**
+     * 一致性严格模式（`iagent spec validate --conformance`）：
+     * 追加 `requirement-without-task` / `scenario-without-test`，
+     * 并把 `untested-scenario` 从 warning 升级为 error。默认关闭（既有行为不变）。
+     */
+    enforceCoverage?: boolean;
 }
 
 /**
@@ -119,8 +125,22 @@ export function buildTraceability(
     }
 
     for (const entry of requirements) {
+        const coveringTasks = tasks.filter((task) =>
+            task.specRefs.some((ref) =>
+                normalizeRef(ref) === normalizeRef(`${entry.spec.capability} / ${entry.requirement.name}`)
+                || normalizeRef(ref) === normalizeRef(entry.requirement.name),
+            ),
+        );
+        if (options.enforceCoverage === true && coveringTasks.length === 0) {
+            issues.push({
+                kind: 'requirement-without-task',
+                message: `Requirement 未被任何任务覆盖：${entry.spec.capability} / ${entry.requirement.name}`,
+                filePath: entry.spec.filePath,
+                line: entry.requirement.line,
+            });
+        }
         for (const scenario of entry.requirement.scenarios) {
-            const covered = tasks.some((task) =>
+            const scenarioCoveringTasks = tasks.filter((task) =>
                 (resolutions.get(task) ?? []).some((resolution) =>
                     (resolution.kind === 'full-path' || resolution.kind === 'leaf-resolved')
                     && matchesScenarioRef(
@@ -131,10 +151,20 @@ export function buildTraceability(
                     ),
                 ),
             );
+            const covered = scenarioCoveringTasks.length > 0;
             if (!covered) {
                 issues.push({
                     kind: 'untested-scenario',
                     message: `Scenario 尚未关联任务：${entry.spec.capability} / ${entry.requirement.name} / ${scenario.name}`,
+                    filePath: entry.spec.filePath,
+                    line: scenario.line,
+                });
+            }
+            if (options.enforceCoverage === true
+                && !scenarioCoveringTasks.some((task) => task.kind === '测试')) {
+                issues.push({
+                    kind: 'scenario-without-test',
+                    message: `Scenario 缺少 [测试] 任务覆盖：${entry.spec.capability} / ${entry.requirement.name} / ${scenario.name}`,
                     filePath: entry.spec.filePath,
                     line: scenario.line,
                 });
@@ -144,9 +174,15 @@ export function buildTraceability(
 
     const degrade = options.degradeUnmatchedRefs === true;
     for (const issue of issues) {
-        // 场景覆盖缺失始终是 warning；引用未匹配默认 error，起草期可降级
+        // 场景覆盖缺失默认是 warning；严格模式升级为 error
         if (issue.kind === 'untested-scenario') {
-            diagnostics.push({ severity: 'warning', code: issue.kind, message: issue.message, filePath: issue.filePath, line: issue.line });
+            diagnostics.push({
+                severity: options.enforceCoverage === true ? 'error' : 'warning',
+                code: issue.kind,
+                message: issue.message,
+                filePath: issue.filePath,
+                line: issue.line,
+            });
             continue;
         }
         if (degrade) {

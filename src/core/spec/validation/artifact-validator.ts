@@ -15,6 +15,11 @@ export interface ArtifactValidationResult {
 export interface ArtifactValidationOptions {
     /** 起草期降级：specs 尚未完成时把未匹配引用降级为 pending-ref warning */
     degradeUnmatchedRefs?: boolean;
+    /**
+     * 一致性严格模式（`--conformance`）：追加 Requirement / 测试任务覆盖检查，
+     * 并把 `untested-scenario` 升级为 error。默认关闭（既有行为不变）。
+     */
+    conformance?: boolean;
 }
 
 /** 对已经解析的 Markdown artifact 执行统一校验。 */
@@ -37,6 +42,7 @@ export function validateParsedChange(
             diagnostics.push(
                 ...buildTraceability(change.specs, change.tasks.tasks, change.tasks.filePath, {
                     degradeUnmatchedRefs: options.degradeUnmatchedRefs,
+                    enforceCoverage: options.conformance,
                 }).diagnostics,
             );
         }

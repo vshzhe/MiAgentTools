@@ -213,6 +213,7 @@ ${renderGateWhitelistSection()}
 5.5 **产出变更级 handoff 包（供 verify / apply / archive 只读复用）**
 
    - 在全部 \`applyRequires\` 制品定稿后，于 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\`（用 \`path.join()\` 构造）产出**一次**六节 handoff 包：\`## 变更摘要\` / \`## 契约\` / \`## 规范要点\` / \`## 文件归属表\` / \`## Codebase 摘要\` / \`## 已产出（跨单元可见）\`；并在 \`## 契约\` 之后、\`## 规范要点\` 之前新增 \`## 制品清单\`（列：相对路径 / 字节 / sha256 前 12 / 章节锚点；与六节并列、**不计入六节**）；头部固定元信息 \`change:\` / \`producedBy: propose\` / \`producedAt:\` / \`sourceFingerprint:\`（覆盖 proposal / design / specs / tasks 的内容指纹）
+   - **\`## 规范要点\` 多源（强制）**：内容 MUST 由全部存在的规则源蒸馏——\`.iagent/config.yaml\` 的 context、\`.iagent/rules/*.md\`、\`CLAUDE.md\`、\`AGENTS.md\`，逐条标注来源路径；MUST NOT 只蒸馏 \`coding-rules.md\`。规则源可用 \`iagent rules --json\` 枚举；源缺失记「不存在」，不阻断包产出
    - **\`## 硬约束\` 并列节（强制）**：在 \`## 制品清单\` 之外新增并列节 \`## 硬约束\` —— 与六节并列、**不计入六节**、MUST NOT 改变六节与 \`## 制品清单\` 的既有语义：
      - **一行一条**：每行只承载一条不可被散文稀释的硬约束（顺序保证 / 否定式需求 / 数值型默认值等）；**逐字保留**精确片段，MUST NOT 整段复制制品或探索文件
      - **来源锚点**：每行 MUST 带 \`source: D<n>\`，指向 \`exploration.md\` 的决策 id；唯一来源是探索文件的 \`## 硬约束\` 段
@@ -284,6 +285,8 @@ ${renderGateWhitelistSection()}
 - **不可测场景**（无可验证行为的纯文档 / 配置变更）→ MUST 仍然生成一个记录判定结论及其依据的 \`[测试]\` 任务，例如 \`- [ ] [测试][单元][P2] 4.2 评估：纯文档变更，无需测试（依据：无可验证行为）\`
   - 理由：留痕的判定结论使"未编写测试"可与"从未评估"区分 —— 与 \`iagent_test\` 的不测闸门同一原则
 - 测试任务依赖其对应的实现任务 —— 当某测试任务覆盖由另一任务实现的行为时，在任务描述中标注依赖，使 apply 串行调度它们
+- **可测场景任务配对（强制）**：每个可测 Scenario MUST 同时有实现类任务与 \`[测试]\` 任务以 \`Scenario Ref\` 覆盖；仅有实现任务时，提案自检 MUST 报 \`scenario-without-test\` 并补齐 \`[测试]\` 任务（或按不测清单留痕），MUST NOT 静默省略
+- **规范要点来源**：handoff \`## 规范要点\` 的多源来源清单 MUST 与 \`iagent rules --json\` 的 \`exists=true\` 集合一致（缺失源除外）
 
 **决策可追溯（D<n>）：**
 - \`exploration.md\` 的 \`## Decisions\` 每条 MUST 带稳定 id \`D<n>\`；id 一经分配 MUST NOT 复用、重排或删除后重编号

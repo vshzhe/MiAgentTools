@@ -30,6 +30,7 @@ import { runUninstall, previewUninstall, renderUninstallOutput } from '../comman
 import { runShow } from '../commands/show.js';
 import { renderOnboardingHints } from '../commands/onboarding.js';
 import { buildSpecCommand } from '../commands/spec.js';
+import { buildRulesCommand } from '../commands/rules.js';
 import { ensureDependencies, renderDependencyReport } from '../core/dependencies.js';
 import { renderScanReport } from '../core/project-scan.js';
 import { AI_TOOLS, SKILL_TYPES } from '../core/config.js';
@@ -441,6 +442,7 @@ export function buildProgram(): Command {
 
     // 规格驱动工作流子命令组（iagent spec new / status / instructions / archive）
     program.addCommand(buildSpecCommand());
+    program.addCommand(buildRulesCommand());
 
     return program;
 }

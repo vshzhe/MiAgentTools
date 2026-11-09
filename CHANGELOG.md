@@ -7,6 +7,23 @@
 
 ## [Unreleased]
 
+## [4.8.0] - 2026-11-09
+
+### Added
+
+- 实现一致性三层判定（Requirement/Scenario → 任务、勾选任务 → 产出证据、Scenario → 测试任务），新增 `iagent spec conformance` 覆盖矩阵命令与 `conformance-report.md` 证据（`spec-conformance`）。
+- `iagent spec validate --conformance` 严格模式：未覆盖 Requirement / Scenario 与缺测试任务升级为 error；默认模式行为不变。
+- 自动单测补齐（apply Step 8.11）与 `test-report.md` 测试证据；debug Phase 5.5 范围内测试执行（`test-evidence-gate`）。
+- 规则源枚举 `iagent rules --json`、探索 / 排查起点 `## 项目规则基线`、handoff 多源 `## 规范要点` 与回执 `rulesRead` 完整性校验（`rule-baseline`）。
+- `testGate.autoGenerate` 配置（默认 true）；`iagent config show` 展示生效值。
+
+### Changed
+
+- `iagent_spec_apply` 在测试门前后新增自动补测与实现一致性门；`iagent_spec_verify` 消费一致性与测试证据，缺失判 CRITICAL。
+- `iagent_workflow` / `iagent_auto_workflow` / `iagent_debug` 归档前只读 compile / test / conformance 三类证据；debug 新增范围内测试执行。
+- `iagent_test` 自动管线调用语义：接收改动文件与已覆盖 Scenario，计划门自动采用并记 WARN；独立调用保持阻塞。
+- `iagent_spec_propose` 的 handoff `## 规范要点` 扩为多源，并强化可测场景的 `[代码]` / `[测试]` 任务配对。
+
 ## [4.7.0] - 2026-11-09
 
 ### Added
@@ -1746,7 +1763,8 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.7.0...HEAD
+[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.8.0...HEAD
+[4.8.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.7.0...v4.8.0
 [4.7.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.6.0...v4.7.0
 [4.6.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.5.0...v4.6.0
 [4.5.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.4.0...v4.5.0

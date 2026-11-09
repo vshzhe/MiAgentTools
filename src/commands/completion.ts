@@ -75,10 +75,19 @@ const IAGENT_COMMANDS: {
     },
     {
         name: 'spec',
-        description: '规格驱动工作流（new/status/migrate/validate/instructions/archive/render/sidecar/fingerprint）',
+        description: '规格驱动工作流（new/status/migrate/validate/conformance/instructions/archive/render/sidecar/fingerprint）',
         flags: [],
-        subcommands: ['new', 'status', 'migrate', 'validate', 'instructions', 'archive', 'render', 'sidecar', 'fingerprint'],
-        subcommandFlags: { fingerprint: ['--change', '--json'] },
+        subcommands: ['new', 'status', 'migrate', 'validate', 'conformance', 'instructions', 'archive', 'render', 'sidecar', 'fingerprint'],
+        subcommandFlags: {
+            fingerprint: ['--change', '--json'],
+            conformance: ['--change', '--strict', '--rules-read', '--json'],
+            validate: ['--change', '--partial', '--artifact', '--conformance', '--json'],
+        },
+    },
+    {
+        name: 'rules',
+        description: '枚举项目规则源',
+        flags: ['--json'],
     },
 ];
 
