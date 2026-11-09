@@ -155,6 +155,17 @@ const GATES_AND_RULES_FULL = `### 2.1.6 项目规则基线（强制）
 
 **强制检查点**：规则基线未建立时 MUST NOT 进入 2.2；规则源缺失不阻断排查。
 
+### 2.1.7 项目技能基线（强制）
+
+**⚠️ 强制: 本步在 2.1.6 之后、2.2 CodeGraph 排查之前执行。**
+
+1. 运行 \`iagent skills --json\` 枚举配置技能，**按阶段筛选** \`phases\` 含 \`design\` 或 \`both\`（implement-only 不进入设计约束）
+2. 读取全部 \`exists=true\` 的技能，把「源 / 存在性 / 读取状态 / 完整性 / 关键约束摘要」写入诊断记录（与规则基线并列、互不替代）
+3. 配置为空 / 全部缺失 → 记「无技能配置」并继续；读取失败 → WARN 并标「未读」；\`validation.status=incomplete\` → WARN 并列出缺失章节 / 占位符 / 无证据规则数，MUST NOT 当作完整规范使用
+4. 根因分析与修复方案以技能为约束；技能与代码冲突时显式呈现（代码事实优先）
+
+**强制检查点**：技能基线未建立时 MUST NOT 进入 2.2；配置为空不阻断排查。
+
 ## Phase 5.5: 变更范围内测试执行（强制）
 
 **位置**：Phase 5 编译检查之后、Phase 6 同步之前。
@@ -167,7 +178,7 @@ const GATES_AND_RULES_FULL = `### 2.1.6 项目规则基线（强制）
 
 ## 6.4 实现一致性证据（强制）
 
-- 运行 \`iagent spec conformance --change "<changeName>" --strict --rules-read "<逗号分隔的已读取规则源>" --json\`，校验三层覆盖与回执 \`rulesRead\` 对规则源 \`exists=true\` 集合的覆盖
+- 运行 \`iagent spec conformance --change "<changeName>" --strict --rules-read "<逗号分隔的已读取规则源>" --json\`，校验三层覆盖与回执 \`rulesRead\` 对规则源 \`exists=true\` 集合的覆盖；并校验 \`skillsRead\` 对 \`phases\` 含 \`implement\` 或 \`both\` 且 \`exists=true\` 的技能覆盖（design-only 不要求）——存在未读 → \`skills-not-read\`（fail）；已读但 \`validation.status=incomplete\` → \`skills-incomplete\`（WARN，不判 fail）
 - 写 \`.openspec-tmp/pipeline-<change-name>/conformance-report.md\`（九列 + \`**summary**:\` 汇总行），向 handoff 包追加 \`conformance\` 行
 - \`fail\` / 证据缺失 → 回到 Phase 4 修复，MUST NOT 进入 Phase 7
 
@@ -183,7 +194,7 @@ export function getDebugSkillTemplate(): SkillTemplate {
         name: 'iagent_debug',
         description: '一站式调试工作流：复现→用 CodeGraph 与能力记忆调查根因→变更关联→带强制回归测试的修复→编译检查→同步提案→验证；触发词"调试 / debug / 修复 bug / bug 报告 / 复现 / 根因"；NOT for：新功能开发用 iagent_workflow、单一阶段探索用 iagent_spec_explore',
         instructions: `
-**适用项目护栏（impl 域蒸馏，来源：\`.iagent/config.yaml\` 的 context/rules、\`.iagent/rules/*.md\`、\`CLAUDE.md\`、\`AGENTS.md\`；用 \`iagent rules --json\` 枚举）。** 未定义项标 **[待确认]**，禁止猜测。
+**适用项目护栏（impl 域蒸馏，来源：\`.iagent/config.yaml\` 的 context/rules、\`.iagent/rules/*.md\`、\`CLAUDE.md\`、\`AGENTS.md\`；用 \`iagent rules --json\` 枚举；项目技能用 \`iagent skills --json\` 枚举并记录完整性）。** 未定义项标 **[待确认]**，禁止猜测。
 
 从复现到提案同步的一站式调试工作流。
 
@@ -336,7 +347,7 @@ bug 无法用自动化测试捕获时（环境相关行为 / 时序 / 仅 UI）�
 
 并在**下次进入 Phase 2 时重新查询**该范围；MUST NOT 复用已失效结论。
 
-**2.1.6 项目规则基线（强制）**：执行与失败处置见 \`references/gates-and-rules.md\`；规则基线未建立时 MUST NOT 进入 2.2（规则源缺失不阻断）。
+**2.1.6 项目规则基线（强制）** / **2.1.7 项目技能基线（强制）**：执行与失败处置见 \`references/gates-and-rules.md\`；规则基线 / 技能基线未建立时 MUST NOT 进入 2.2（规则源缺失 / 配置为空不阻断；\`validation.status=incomplete\` 记 WARN）。
 
 > **排查细则下沉**：CodeGraph 分层排查协议与 2.2.3.5 排查深度分级见 \`references/investigation-protocol.md\`；执行 2.2 前 MUST 先 \`Read\` 该文件。
 
@@ -413,7 +424,7 @@ bug 无法用自动化测试捕获时（环境相关行为 / 时序 / 仅 UI）�
 ---
 ## Phase 4: 修复（方案判定 → 实施 → 回归测试）
 
-按 iagent_spec_apply 技能的任务执行规范实现修复（变更归属与方案已在 2.3.5 / 2.4 收束）。
+按 iagent_spec_apply 技能的任务执行规范实现修复（变更归属与方案已在 2.3.5 / 2.4 收束）；修复前读取 \`phases\` 含 \`implement\` 或 \`both\` 的项目技能并在修复回执记录 \`skillsRead\` / \`skillsIncomplete\`（design-only 不要求）；一致性门按 implement|both 过滤（\`skills-not-read\` fail / \`skills-incomplete\` WARN）。
 
 ### 4.0 可行修复方案数量判定（回退路径条件门）
 

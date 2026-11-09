@@ -156,6 +156,11 @@ ${renderGateWhitelistSection()}
    - 若发现未定义字段：添加 CRITICAL 问题 "数据字段未在 specs 中定义：<field>"
    - 建议："在 specs 中定义字段 <field> 或从实现中移除"
 
+   **项目技能一致性**：
+   - 运行 \`iagent skills --json\`，并读取实现回执的 \`skillsRead\` / \`skillsIncomplete\`
+   - 配置中 \`phases\` 含 \`implement\` 或 \`both\` 且 \`exists=true\` 的技能未被 \`skillsRead\` 覆盖 → CRITICAL（\`skills-not-read\`；design-only 不要求）
+   - 已读但 \`validation.status=incomplete\` → WARNING（\`skills-incomplete\`，列出缺失章节 / 占位符 / 无证据规则数，不判 fail）
+
    **架构分层完整性**：
    - 检查实现是否违反分层边界（例如 Controller / CLI 处理器绕过 Service 直接访问数据）
    - 若发现违规：添加 WARNING 问题 "分层违规：<细节>"

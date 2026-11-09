@@ -214,6 +214,7 @@ ${renderGateWhitelistSection()}
 
    - 在全部 \`applyRequires\` 制品定稿后，于 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\`（用 \`path.join()\` 构造）产出**一次**六节 handoff 包：\`## 变更摘要\` / \`## 契约\` / \`## 规范要点\` / \`## 文件归属表\` / \`## Codebase 摘要\` / \`## 已产出（跨单元可见）\`；并在 \`## 契约\` 之后、\`## 规范要点\` 之前新增 \`## 制品清单\`（列：相对路径 / 字节 / sha256 前 12 / 章节锚点；与六节并列、**不计入六节**）；头部固定元信息 \`change:\` / \`producedBy: propose\` / \`producedAt:\` / \`sourceFingerprint:\`（覆盖 proposal / design / specs / tasks 的内容指纹）
    - **\`## 规范要点\` 多源（强制）**：内容 MUST 由全部存在的规则源蒸馏——\`.iagent/config.yaml\` 的 context、\`.iagent/rules/*.md\`、\`CLAUDE.md\`、\`AGENTS.md\`，逐条标注来源路径；MUST NOT 只蒸馏 \`coding-rules.md\`。规则源可用 \`iagent rules --json\` 枚举；源缺失记「不存在」，不阻断包产出
+   - **技能要点子节（强制）**：\`## 规范要点\` 内 MUST 追加「技能要点」子节，内容取自探索文件 \`## 项目技能基线\` 中 \`phases\` 含 \`design\` 或 \`both\` 的技能，逐条标注来源路径；MUST NOT 重新枚举配置（基线缺失时 WARN 并执行一次 \`iagent skills --json\`）；无技能配置时写「无技能配置」，MUST NOT 留空或编造。技能要点与规则源要点并列，MUST NOT 互相替代
    - **\`## 硬约束\` 并列节（强制）**：在 \`## 制品清单\` 之外新增并列节 \`## 硬约束\` —— 与六节并列、**不计入六节**、MUST NOT 改变六节与 \`## 制品清单\` 的既有语义：
      - **一行一条**：每行只承载一条不可被散文稀释的硬约束（顺序保证 / 否定式需求 / 数值型默认值等）；**逐字保留**精确片段，MUST NOT 整段复制制品或探索文件
      - **来源锚点**：每行 MUST 带 \`source: D<n>\`，指向 \`exploration.md\` 的决策 id；唯一来源是探索文件的 \`## 硬约束\` 段

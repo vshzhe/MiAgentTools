@@ -8,11 +8,11 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:6e3632b7ac237b99b6eac6f9b482484b08b2a5902f886927dc74d9f5fc000538"
+  generatedFingerprint: "sha256:fbd48bb055fe38436998d015a9f79b8f8f8bce797956af14ba3f068396ab921c"
 ---
 
 
-**适用项目护栏（impl 域蒸馏，来源：`.iagent/config.yaml` 的 context/rules、`.iagent/rules/*.md`、`CLAUDE.md`、`AGENTS.md`；用 `iagent rules --json` 枚举）。** 未定义项标 **[待确认]**，禁止猜测。
+**适用项目护栏（impl 域蒸馏，来源：`.iagent/config.yaml` 的 context/rules、`.iagent/rules/*.md`、`CLAUDE.md`、`AGENTS.md`；用 `iagent rules --json` 枚举；项目技能用 `iagent skills --json` 枚举并记录完整性）。** 未定义项标 **[待确认]**，禁止猜测。
 
 从复现到提案同步的一站式调试工作流。
 
@@ -190,7 +190,7 @@ bug 无法用自动化测试捕获时（环境相关行为 / 时序 / 仅 UI）�
 
 并在**下次进入 Phase 2 时重新查询**该范围；MUST NOT 复用已失效结论。
 
-**2.1.6 项目规则基线（强制）**：执行与失败处置见 `references/gates-and-rules.md`；规则基线未建立时 MUST NOT 进入 2.2（规则源缺失不阻断）。
+**2.1.6 项目规则基线（强制）** / **2.1.7 项目技能基线（强制）**：执行与失败处置见 `references/gates-and-rules.md`；规则基线 / 技能基线未建立时 MUST NOT 进入 2.2（规则源缺失 / 配置为空不阻断；`validation.status=incomplete` 记 WARN）。
 
 > **排查细则下沉**：CodeGraph 分层排查协议与 2.2.3.5 排查深度分级见 `references/investigation-protocol.md`；执行 2.2 前 MUST 先 `Read` 该文件。
 
@@ -267,7 +267,7 @@ bug 无法用自动化测试捕获时（环境相关行为 / 时序 / 仅 UI）�
 ---
 ## Phase 4: 修复（方案判定 → 实施 → 回归测试）
 
-按 iagent-spec-apply 技能的任务执行规范实现修复（变更归属与方案已在 2.3.5 / 2.4 收束）。
+按 iagent-spec-apply 技能的任务执行规范实现修复（变更归属与方案已在 2.3.5 / 2.4 收束）；修复前读取 `phases` 含 `implement` 或 `both` 的项目技能并在修复回执记录 `skillsRead` / `skillsIncomplete`（design-only 不要求）；一致性门按 implement|both 过滤（`skills-not-read` fail / `skills-incomplete` WARN）。
 
 ### 4.0 可行修复方案数量判定（回退路径条件门）
 

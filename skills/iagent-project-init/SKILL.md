@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: init
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:80cab37043f6458245514b8e8ef51c7693585ae313ec6f0c4b00d5454e6cb92e"
+  generatedFingerprint: "sha256:8fa07b26015956e40b73a18c60b9ff428c140a36f4da0760a46b9c90b2db07b3"
 ---
 
 初始化项目 —— 读扫描基线 → 五类语义扫描 → 逐份确认 → 落盘 → 回写 context → 蒸馏规则。
@@ -147,6 +147,25 @@ metadata:
 - **测试规则**：有测试代码时蒸馏框架、命名与目录约定（如 `*Test.java` / `test/`）；无任何测试代码或测试目录时保留占位兜底行「（待补充）测试框架与既有用例保持一致」，并在汇报中注明「未发现测试代码，规则为占位」
 - **非阻断**：扫描或写入失败一律记 WARN 继续，MUST NOT 中断流程、MUST NOT 使流程以失败收场
 - **不新增委派与工具授权**：本步骤只用 Read / Glob / Grep / Write
+
+### 11. 项目前后端技能蒸馏（技能蒸馏）
+
+第 10 步**完成之后**执行（固定顺序：五类文档 → `AGENTS.md` → `context` → 规则蒸馏 → 技能蒸馏）。全程**非阻断**：任一步失败记 WARN 并继续，MUST NOT 中断初始化。
+
+- **证据判定**：依据第 1 步基线 `signals` / `candidates`、五类文档与源码实际使用证据判定前端 / 后端框架；依赖或 jar 的存在只作候选，MUST NOT 据此断言使用；证据不足按零猜测补扫，仍不足则该侧**不生成**（MUST NOT 造占位空壳）。
+- **产物形态**：默认每侧一份 `.iagent/skills/frontend-design.md` / `backend-design.md`（含设计要点与实现规范，frontmatter `phases: both`、`scope`、`source: distilled`）。满足任一条件时按阶段拆分：同侧 ≥2 框架 / 后端 ≥3 个分层或模块族 / 设计或实现任一段超约 150 行 → `<side>-design.md`（`phases: design`）+ `<side>-implement.md`（`phases: implement`）。多框架未拆分时在同侧文档内按框架分节，`frameworks` 逐项列出。拆分判据与结论写入报告。
+- **写入前完整性自检 C1-C6**（全部通过才可写入）：
+  - C1 frontmatter 必填：`name` / `description` / `phases` / `scope` / `source`；`name` 必须等于文件名主干；
+  - C2 必需章节齐全：`## 框架与版本` / `## 目录与分层` / `## 设计规范` / `## 实现规范` / `## 约定与禁止项` / `## 证据索引` / `## 不适用项`；无内容须写「不适用 + 探测依据」，不得删章节或留空；拆分文件按 `phases` 计算（design 可把实现规范标不适用，implement 可把设计规范标不适用）；
+  - C3 每条规则行必须带证据锚点（`文件:行` / 类.方法 / `docs/project/` 章节），无证据不写入；
+  - C4 禁止占位符：`[待补充]` / `TODO` / `TBD` / `<...>`；
+  - C5 与 `.iagent/rules/*.md` 冲突时以代码事实为准并记 WARN，冲突项在 `## 证据索引` 标注；
+  - C6 单文件超约 300 行时拆分或下沉，禁止超长无结构文件；
+  - 自检不通过先补齐；无法补齐时 MUST NOT 写入该侧，报告列出缺失章节 / 证据 / 不适用依据。
+- **已存在处理**：复用第 5 / 6 步的逐份确认（确认重新生成 / 修改 / 跳过）与人工域标记（区间逐字保留，破损取保留侧）；全部跳过时正常结束。
+- **自动注册**：写入成功后把条目追加到 `.iagent/config.yaml` 的 `skills:` 对应角色组（幂等、保留注释与未知段）；注册失败记 WARN，不回滚已生成文件。
+- **安全边界**：MUST NOT 写入凭据值或可利用的绕过细节，只写键名与位置。
+- **报告**：逐侧给出生成文件、C1-C6 结论、不适用项依据、冲突项；未生成侧写明原因（证据不足）。
 
 ## 参考文件（references/）
 

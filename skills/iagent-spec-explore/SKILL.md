@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:7867d1b5f45ed7bbf9c2a500bcaa1e0857aac2343298bb781a9dee7d6f02bfac"
+  generatedFingerprint: "sha256:df413f8aab4927c5d76648d51258c59ad4d222bceeb0f72949ae364db16ede59"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
@@ -65,6 +65,12 @@ metadata:
 - 只读校验的「是否运行 <校验>？」询问（如技术栈专项校验）—— 直接执行并在报告中说明校验项
 
 > 跨变更索引重建类动作已随索引能力退役（DEC-2），不构成任何门或动作。
+
+## 项目技能基线（强制检查点）
+
+**规则基线之后、提示词校验门与任何追问之前执行**：运行 `iagent skills --json`，按 `phases` 含 `design` 或 `both` 筛选并读取 `exists=true` 的技能，把结果写入探索产物 `## 项目技能基线`（与 `## 项目规则基线` 并列、互不替代）；配置为空记「无技能配置」并继续；读取失败 WARN 且标未读；`validation.status=incomplete` → WARN 并列出缺失章节 / 占位符 / 无证据规则数，MUST NOT 当作完整规范使用。设计与排查方案以其为约束，技能与代码冲突时显式呈现（代码事实优先）。
+
+---
 
 ---
 
@@ -128,7 +134,7 @@ metadata:
 
 ## 强制检查点体系（delegated 模式）
 
-**delegated 模式**（编排器传入 `mode=delegated`）SHALL 执行强制检查点体系（不可跳过）：调用即强制创建探索文件 → **项目规则基线** → 提示词校验门 → CONTEXT.md 检查 → CodeGraph 基础扫描（含多项目派发与深度分析）→ L1-L5 grill 追问 → 功能流程图与流程最终确认门 → 聚合一致性门 → 探索完成检测。**完整协议见 `references/exploration-protocol.md`——执行 delegated 探索前 MUST 先 `Read` 该文件并逐步执行。**
+**delegated 模式**（编排器传入 `mode=delegated`）SHALL 执行强制检查点体系（不可跳过）：调用即强制创建探索文件 → **项目规则基线** → **项目技能基线** → 提示词校验门 → CONTEXT.md 检查 → CodeGraph 基础扫描（含多项目派发与深度分析）→ L1-L5 grill 追问 → 功能流程图与流程最终确认门 → 聚合一致性门 → 探索完成检测。**完整协议见 `references/exploration-protocol.md`——执行 delegated 探索前 MUST 先 `Read` 该文件并逐步执行。**
 
 （interactive 模式保持立场式，不强制上述序列。）
 

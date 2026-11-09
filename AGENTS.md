@@ -22,6 +22,7 @@ src/
 │   ├── uninstall.ts                  iagent uninstall（dry-run 预览 + 安全边界）
 │   ├── show.ts                       iagent show（模糊匹配 + 详情）
 │   ├── completion.ts                 iagent completion（bash/pwsh 补全脚本生成与安装）
+│   ├── skills.ts                     iagent skills（项目技能枚举 + 完整性校验）
 │   ├── onboarding.ts                 init 后的引导提示
 │   ├── spec.ts                       iagent spec 子命令组（new / status / instructions / validate / migrate / archive / render / sidecar）
 │   ├── config.ts                     iagent config（交互式 workflow 配置）
@@ -40,6 +41,7 @@ src/
 │   │   ├── flowchart-gate.ts       流程图门控
 │   │   └── workflows/              技能模板（中文正文）：功能名命名的 *.ts + spec-*.ts 共 20 个模板
 │   ├── permissions.ts               会话级权限载体（settings.json 的 permissions.allow 非破坏合并）
+│   ├── project-skills.ts            项目技能载体（路径解析 / frontmatter / 完整性校验单一源）
 │   ├── command-generation/
 │   │   ├── types.ts                 ToolCommandAdapter 接口（多工具扩展点）
 │   │   ├── generator.ts             generateSkillContent / generateCommand
@@ -87,6 +89,7 @@ pnpm test               # 全量测试
 pnpm lint               # eslint（src/ + test/）
 pnpm generate:skills    # 重新生成 skills/ 快照（改模板后必须运行）
 node bin/iagent.js <cmd> # 直接运行 CLI
+node bin/iagent.js skills        # 枚举项目技能并校验完整性（--json 供程序处理）
 node bin/iagent.js version       # 查看版本判定（只读）
 node bin/iagent.js version bump  # 递增版本并写回 package.json / CHANGELOG / README
 ```
@@ -296,3 +299,11 @@ node bin/iagent.js version bump  # 递增版本并写回 package.json / CHANGELO
   其余（`specs/`、`explorations/`、`devdocs/`、`config.yaml` 等）仍忽略。模板的可提交真源是
   `skills/` 静态快照；`.claude/` 仅供本机 Claude Code 使用，其旧内容曾入库、现由 `.gitignore` 整体排除
 - 提交信息：Conventional Commits 一行式，中文描述
+- **项目技能（project skills）**：`.iagent/config.yaml` 的 `skills:` 段（`frontend` / `backend` 分组）
+  声明项目技能；文件默认 `.iagent/skills/<name>.md`，缺失时按生效 `tools` 顺序回退宿主
+  `<skillsDir>/skills/<name>/SKILL.md`（`.iagent` 优先、不合并）。`iagent skills --json` 是枚举与完整性校验
+  的单一来源；技能 frontmatter 为 `phases: design|implement|both`、`scope`、`frameworks`、`source`，
+  且 `name` 必须等于文件名主干。探索 / 排查**设计阶段**只加载 `design|both`，实现阶段（apply / debug fix）
+  只加载 `implement|both`；`skills-not-read` 仅统计 implement|both（design-only 不要求），
+  `skills-incomplete` 为 WARN。`iagent_project_init` 第 11 步按证据蒸馏技能，写入前执行 C1-C6
+  自检（必需章节 / 证据锚点 / 无占位符 / 冲突标注 / 超长拆分），无法补齐时 MUST NOT 写入该侧

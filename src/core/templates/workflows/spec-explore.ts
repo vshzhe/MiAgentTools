@@ -77,6 +77,8 @@ const EXPLORATION_PROTOCOL_FULL = `## 强制检查点体系（delegated 模式�
 **TodoWrite 跟踪**：用 Phase 1 的条目初始化 TodoWrite：
 \`\`\`
 - [ ] Phase 1: 创建探索文件
+- [ ] Phase 1: 项目规则基线
+- [ ] Phase 1: 项目技能基线
 - [ ] Phase 1: 提示词校验门
 - [ ] Phase 1: CONTEXT.md 检查
 - [ ] Phase 1: 关键词检测与分析
@@ -103,6 +105,24 @@ const EXPLORATION_PROTOCOL_FULL = `## 强制检查点体系（delegated 模式�
 4. 规则基线 MUST 在 grill 与功能流程图之前建立，供后续制品生成与实现按同一规则集合约束
 
 **强制检查点**：没有规则基线段时 MUST NOT 进入 1.3 追问；规则源缺失不阻断探索。
+
+### 1.1.1.5 项目技能基线（强制检查点）
+
+**⚠️ 强制：规则基线之后、提示词校验门与任何追问之前执行。**
+
+1. 运行 \`iagent skills --json\` 枚举配置技能；**按阶段筛选** \`phases\` 含 \`design\` 或 \`both\`（\`implement\`-only 技能不进入设计约束）
+2. 读取全部 \`exists=true\` 的技能，把结果写入探索文件 \`## 项目技能基线\`（与 \`## 项目规则基线\` 并列、互不替代）：
+
+\`\`\`markdown
+| 源 | 存在 | 读取 | 完整性 | 关键约束摘要 |
+| :--- | :--- | :--- | :--- | :--- |
+| \`.iagent/skills/frontend-design.md\` | 是 | 已读 | ok | <1-3 条与本次设计相关的约定> |
+\`\`\`
+
+3. **失败处置**：配置为空 / 全部缺失 → 记「无技能配置」并继续；读取失败 → WARN 且标「未读」；\`validation.status=incomplete\` → WARN 并列出缺失章节 / 占位符 / 无证据规则数，MUST NOT 当作完整规范使用
+4. 技能基线 MUST 在 grill 与功能流程图之前建立；设计与排查方案以其为约束，技能与代码冲突时显式呈现（代码事实优先）
+
+**强制检查点**：没有技能基线段时 MUST NOT 进入 1.3 追问；配置为空不阻断探索。
 
 ### 1.1.2 提示词校验门（强制检查点）
 
@@ -157,6 +177,15 @@ const EXPLORATION_PROTOCOL_FULL = `## 强制检查点体系（delegated 模式�
 | 源 | 存在 | 读取 | 关键约束摘要 |
 | :--- | :--- | :--- | :--- |
 | <.iagent/config.yaml 等> | <是/否> | <已读/未读> | <摘要> |
+
+## 项目技能基线
+
+<!-- 1.1.1.5 强制产出：技能枚举 + 存在性 + 读取状态 + 完整性 + 关键约束摘要 -->
+<!-- 配置为空写「无技能配置」 -->
+
+| 源 | 存在 | 读取 | 完整性 | 关键约束摘要 |
+| :--- | :--- | :--- | :--- | :--- |
+| <.iagent/skills/...> | <是/否> | <已读/未读> | <ok/incomplete/null> | <摘要> |
 
 ## 提示词基线 (Prompt Baseline)
 **原始提示词**: <用户最初提供的原文，未经改写>
@@ -1286,6 +1315,12 @@ ${GATE_PROTOCOL_PREAMBLE}
 
 ${renderGateWhitelistSection()}
 
+## 项目技能基线（强制检查点）
+
+**规则基线之后、提示词校验门与任何追问之前执行**：运行 \`iagent skills --json\`，按 \`phases\` 含 \`design\` 或 \`both\` 筛选并读取 \`exists=true\` 的技能，把结果写入探索产物 \`## 项目技能基线\`（与 \`## 项目规则基线\` 并列、互不替代）；配置为空记「无技能配置」并继续；读取失败 WARN 且标未读；\`validation.status=incomplete\` → WARN 并列出缺失章节 / 占位符 / 无证据规则数，MUST NOT 当作完整规范使用。设计与排查方案以其为约束，技能与代码冲突时显式呈现（代码事实优先）。
+
+---
+
 ---
 
 ## 提示词校验门
@@ -1336,7 +1371,7 @@ ${FLOWCHART}
 
 ## 强制检查点体系（delegated 模式）
 
-**delegated 模式**（编排器传入 \`${renderDelegationModeOption('delegated')}\`）SHALL 执行强制检查点体系（不可跳过）：调用即强制创建探索文件 → **项目规则基线** → 提示词校验门 → CONTEXT.md 检查 → CodeGraph 基础扫描（含多项目派发与深度分析）→ L1-L5 grill 追问 → 功能流程图与流程最终确认门 → 聚合一致性门 → 探索完成检测。**完整协议见 \`references/exploration-protocol.md\`——执行 delegated 探索前 MUST 先 \`Read\` 该文件并逐步执行。**
+**delegated 模式**（编排器传入 \`${renderDelegationModeOption('delegated')}\`）SHALL 执行强制检查点体系（不可跳过）：调用即强制创建探索文件 → **项目规则基线** → **项目技能基线** → 提示词校验门 → CONTEXT.md 检查 → CodeGraph 基础扫描（含多项目派发与深度分析）→ L1-L5 grill 追问 → 功能流程图与流程最终确认门 → 聚合一致性门 → 探索完成检测。**完整协议见 \`references/exploration-protocol.md\`——执行 delegated 探索前 MUST 先 \`Read\` 该文件并逐步执行。**
 
 （interactive 模式保持立场式，不强制上述序列。）
 

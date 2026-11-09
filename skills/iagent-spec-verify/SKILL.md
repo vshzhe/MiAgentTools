@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:d393e1c5f24186586a41de63865f3fcc77c13e1419dbc662d551ff138ad6b4c1"
+  generatedFingerprint: "sha256:c955ba56c17fd1bd2c5a5462a6b5325c11421b39505ca74d4a8979d16e3d8584"
 ---
 
 **验证前先读取项目规则基线（`.iagent/config.yaml` / `.iagent/rules/*.md` / `CLAUDE.md` / `AGENTS.md`）中的验证标准。** 重点检查未定义数据字段、架构分层违规、前端 UI 状态覆盖。
@@ -172,6 +172,11 @@ metadata:
    - 参考 `design.md` 中的数据库表 / 字段映射（历史 JSON-only 变更降级时只读 change.json）
    - 若发现未定义字段：添加 CRITICAL 问题 "数据字段未在 specs 中定义：<field>"
    - 建议："在 specs 中定义字段 <field> 或从实现中移除"
+
+   **项目技能一致性**：
+   - 运行 `iagent skills --json`，并读取实现回执的 `skillsRead` / `skillsIncomplete`
+   - 配置中 `phases` 含 `implement` 或 `both` 且 `exists=true` 的技能未被 `skillsRead` 覆盖 → CRITICAL（`skills-not-read`；design-only 不要求）
+   - 已读但 `validation.status=incomplete` → WARNING（`skills-incomplete`，列出缺失章节 / 占位符 / 无证据规则数，不判 fail）
 
    **架构分层完整性**：
    - 检查实现是否违反分层边界（例如 Controller / CLI 处理器绕过 Service 直接访问数据）

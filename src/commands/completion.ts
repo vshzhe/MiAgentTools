@@ -89,6 +89,11 @@ const IAGENT_COMMANDS: {
         description: '枚举项目规则源',
         flags: ['--json'],
     },
+    {
+        name: 'skills',
+        description: '枚举项目技能并校验完整性',
+        flags: ['--json'],
+    },
 ];
 
 /** 校验 shell 参数 */

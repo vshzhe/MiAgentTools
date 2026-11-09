@@ -272,7 +272,7 @@ export function getSpecApplyChangeSkillTemplate(): SkillTemplate {
         description: '实现变更。当 openspec/changes/ 下已有变更制品（proposal/specs/design/tasks），需要基于规格驱动实现任务清单时使用；触发词"实现变更 / apply / 执行任务 / 按规格实现"；NOT for 无变更制品时直接描述需求（改用 iagent_workflow 引导生成制品后再实现）。',
         allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(yarn:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(ant:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), ${skillDelegation(['test'])}`,
         type: 'spec',
-        instructions: `**实现前先读取项目规则基线：\`.iagent/config.yaml\` 的 context / rules、\`.iagent/rules/*.md\`、\`CLAUDE.md\`、\`AGENTS.md\`（用 \`iagent rules --json\` 枚举；源缺失显式记「不存在」，读取失败记 WARN 并计入未读）。** 禁止猜测数据库字段、API 参数或业务规则 —— 标 **[待确认]** 并询问用户。
+        instructions: `**实现前先读取项目规则基线：\`.iagent/config.yaml\` 的 context / rules、\`.iagent/rules/*.md\`、\`CLAUDE.md\`、\`AGENTS.md\`（用 \`iagent rules --json\` 枚举；源缺失显式记「不存在」，读取失败记 WARN 并计入未读）；并读取项目技能基线中 \`phases\` 含 \`implement\` 或 \`both\` 的技能（用 \`iagent skills --json\` 枚举；design-only 不要求读取；\`validation.status=incomplete\` 记 WARN 并列入回执 \`skillsIncomplete\`）。** 禁止猜测数据库字段、API 参数或业务规则 —— 标 **[待确认]** 并询问用户。
 
 按 openspec/changes/ 下的变更制品（proposal/specs/design/tasks）实现任务。
 
@@ -284,7 +284,7 @@ ${renderDelegationModeContract()}
 
 **执行方式与增量复验（强制）**：
 
-- 本阶段由**主 agent 内联**执行，回执声明 \`executionMode=inline\` / \`independence=self\` / \`readScope\`；MUST NOT 派发 \`Agent\` / \`Task\` 子代理；兼容窗内旧 \`subagent\` 回执记 deprecation WARN。\`iagent_test\` 子阶段以 Skill 工具内联调用。
+- 本阶段由**主 agent 内联**执行，回执声明 \`executionMode=inline\` / \`independence=self\` / \`readScope\` / \`skillsRead\`（已读项目技能路径）与 \`skillsIncomplete\`（不完整技能路径；无则空数组）；配置为空时 \`skillsRead\` 为空数组；MUST NOT 派发 \`Agent\` / \`Task\` 子代理；兼容窗内旧 \`subagent\` 回执记 deprecation WARN。\`iagent_test\` 子阶段以 Skill 工具内联调用。
 - 子代理 MUST FIRST 读 handoff 包「## 制品清单」，按锚点增量读取；回执写 readScope。
 - handoff 包内并列节 \`## 硬约束\` 只读复用（MUST NOT 写入或改写）；本技能 MUST NOT 新增 grill 纸迹校验、术语写入或 ADR 判定逻辑。
 - 增量复验：验证 FAIL 修复后新开只读代理，传 fixDiff + 上轮 reportPath；只验证增量并对未覆盖范围输出 residual 清单；禁止 resume 充当复验（contextReplay=true 记 WARN）。
@@ -519,6 +519,7 @@ ${renderDelegationModeContract()}
    - **执行**：运行 \`iagent spec conformance --change "<name>" --strict --rules-read "<逗号分隔的已读取规则源>" --json\`
    - **三层判定**：①规划层每个 Requirement / Scenario 至少一个任务覆盖；②实现层每个已勾选 \`[代码]\` 任务具备产出证据（tasks \`产出:\` / \`git diff\` / handoff 包 \`## 已产出\`）；③测试层每个 Scenario 至少一个 \`[测试]\` 任务覆盖
    - **规则完整性**：回执 \`rulesRead\` MUST 覆盖 \`iagent rules --json\` 中 \`exists=true\` 的源；存在但未读 → \`rules-not-read\`
+   - **技能完整性**：回执 \`skillsRead\` MUST 覆盖配置中 \`phases\` 含 \`implement\` 或 \`both\` 且 \`exists=true\` 的技能（design-only 不要求）；存在但未读 → \`skills-not-read\`（fail）；已读但 \`validation.status=incomplete\` → \`skills-incomplete\`（WARN，不判 fail）
    - **证据**：写 \`.openspec-tmp/pipeline-<change-name>/conformance-report.md\`（九列固定 \`change\` / \`requirement\` / \`scenario\` / \`coveringTasks\` / \`taskStatus\` / \`implementationEvidence\` / \`testEvidence\` / \`status\` / \`reason\`，文末 \`**summary**: status=<pass|fail>, requirements=<n>, scenarios=<n>, findings=<n>\`）；向 handoff 包追加 \`conformance\` 行
    - **终止态**：\`fail\` / 证据缺失 / 汇总行不可解析 → 暂停并报告缺失项（含 \`file:line\` 或任务 id），MUST NOT 进入 Step 10、MUST NOT 给出归档建议；\`skip_specs\` → 输出 \`specs: not-applicable\` 并放行；历史 JSON-only → 只读降级 + WARN
    - **大变更**：任务数 > 50 时分批生成矩阵并完整落盘，MUST NOT 截断条目

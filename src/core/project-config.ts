@@ -43,6 +43,20 @@ export const CONFIG_FILE_NAME = path.join(IAGENT_DIR_NAME, 'config.yaml');
 /** 规则目录路径（项目根下） */
 export const RULES_DIR_NAME = path.join(IAGENT_DIR_NAME, 'rules');
 
+/** 项目技能目录路径（项目根下） */
+export const SKILLS_DIR_NAME = path.join(IAGENT_DIR_NAME, 'skills');
+
+/** 项目技能角色（`skills:` 段的分组） */
+export type ProjectSkillRole = 'frontend' | 'backend';
+
+/** 项目技能分组（`skills:` 段的一项） */
+export interface ProjectSkillGroup {
+    /** 角色：frontend / backend */
+    role: ProjectSkillRole;
+    /** 技能条目（裸名，对应 `.iagent/skills/<name>.md`） */
+    entries: string[];
+}
+
 /** 项目配置结构 */
 export interface ProjectConfig {
     /** 项目背景（多行文本） */
@@ -53,6 +67,8 @@ export interface ProjectConfig {
     workflows: string[];
     /** 用户选择的目标工具 id 列表（空=未配置，用全部工具） */
     tools: string[];
+    /** 项目技能分组（`skills:` 段，缺段为空数组） */
+    skills: ProjectSkillGroup[];
     /**
      * `compileCheck` 段的**原始解析结果**（段缺失即 undefined；字段缺失即 undefined）。
      *
@@ -74,6 +90,8 @@ export interface ResolvedProjectConfig {
     workflows: string[];
     /** 用户选择的目标工具 id 列表（空=未配置，用全部工具） */
     tools: string[];
+    /** 项目技能分组（`skills:` 段，缺段为空数组） */
+    skills: ProjectSkillGroup[];
     /** 生效的编译检查配置（补全默认值后的完整值） */
     compileCheck: CompileCheckConfig;
     /** 生效的测试门配置（补全默认值后的完整值） */
@@ -601,7 +619,7 @@ function readConfigRaw(projectRoot: string): string | null {
  */
 export function parseProjectConfig(raw: string): ProjectConfig {
     const lines = raw.split(/\r?\n/);
-    const config: ProjectConfig = { context: '', rules: [], workflows: [], tools: [] };
+    const config: ProjectConfig = { context: '', rules: [], workflows: [], tools: [], skills: [] };
 
     let i = 0;
     while (i < lines.length) {
@@ -622,6 +640,8 @@ export function parseProjectConfig(raw: string): ProjectConfig {
     config.rules = readListSection(raw, /^rules:/).filter(isSkillType);
     config.workflows = readListSection(raw, /^workflows:/);
     config.tools = readListSection(raw, /^tools:/);
+    // 项目技能段：两级列表（角色组 + 裸名条目）
+    config.skills = readSkillsSection(raw);
     // compileCheck 段：仅承载原始解析结果（段缺失即 undefined，不填默认值）
     const compileCheck = parseCompileCheck(raw);
     if (compileCheck.present) {
@@ -632,6 +652,59 @@ export function parseProjectConfig(raw: string): ProjectConfig {
         config.testGate = testGate;
     }
     return config;
+}
+
+/**
+ * 读取 `skills:` 段（两级缩进列表）。
+ *
+ * ```yaml
+ * skills:
+ *   frontend:
+ *     - frontend-design
+ *   backend:
+ *     - backend-design
+ * ```
+ *
+ * 只接受 `frontend` / `backend` 两个角色；未知角色与非法条目忽略（不猜测）。
+ */
+export function readSkillsSection(raw: string): ProjectSkillGroup[] {
+    const lines = raw.split(/\r?\n/);
+    const groups: ProjectSkillGroup[] = [];
+    let inSkills = false;
+    let current: ProjectSkillGroup | null = null;
+    for (const line of lines) {
+        if (/^skills:\s*(#.*)?$/.test(line)) {
+            inSkills = true;
+            current = null;
+            continue;
+        }
+        if (!inSkills) {
+            continue;
+        }
+        if (line.trim().length === 0 || line.trim().startsWith('#')) {
+            continue;
+        }
+        // 顶层键结束本段
+        if (/^\S/.test(line)) {
+            inSkills = false;
+            current = null;
+            continue;
+        }
+        const groupMatch = /^\s{2}([A-Za-z][\w-]*):\s*(#.*)?$/.exec(line);
+        if (groupMatch) {
+            const role = groupMatch[1].toLowerCase();
+            current = role === 'frontend' || role === 'backend' ? { role, entries: [] } : null;
+            if (current) {
+                groups.push(current);
+            }
+            continue;
+        }
+        const itemMatch = /^\s{4,}-\s*(\S+)\s*$/.exec(line);
+        if (itemMatch && current) {
+            current.entries.push(itemMatch[1]);
+        }
+    }
+    return groups;
 }
 
 /**
@@ -696,13 +769,14 @@ export function readProjectConfig(projectRoot: string): ResolvedProjectConfig | 
     if (raw === null) {
         return null;
     }
-    const { context, rules, workflows, tools } = parseProjectConfig(raw);
+    const { context, rules, workflows, tools, skills } = parseProjectConfig(raw);
     const resolved: ResolvedProjectConfig = {
         context,
         rules: {},
         missingRuleFiles: [],
         workflows,
         tools,
+        skills,
         compileCheck: { ...DEFAULT_COMPILE_CHECK },
         compileCheckSource: 'default',
         compileCheckWarnings: [],
@@ -1073,6 +1147,77 @@ export function writeWorkflowsToConfig(projectRoot: string, workflows: string[])
             }
         }
     );
+}
+
+/**
+ * 缩进子段的段体结束位置（如 `skills:` 下挂角色组 + 条目）。
+ *
+ * 段体行必须带缩进；空行仅在其后仍有缩进行时才计入，避免吞掉后续段的空行。
+ */
+function findIndentedSectionEnd(lines: string[], start: number): number {
+    let i = start;
+    let bodyEnd = start;
+    while (i < lines.length) {
+        if (/^\s+\S/.test(lines[i])) {
+            i++;
+            bodyEnd = i;
+            continue;
+        }
+        if (lines[i].trim() === '') {
+            i++;
+            continue;
+        }
+        break;
+    }
+    return bodyEnd;
+}
+
+/**
+ * 回写 config.yaml 的 `skills:` 段（保留其余行逐字不变）。
+ *
+ * @param projectRoot - 项目根目录
+ * @param groups - 角色分组与条目
+ */
+export function writeSkillsToConfig(projectRoot: string, groups: readonly ProjectSkillGroup[]): void {
+    replaceConfigSection(
+        projectRoot,
+        /^skills:\s*(#.*)?$/,
+        findIndentedSectionEnd,
+        (out) => {
+            out.push('skills:');
+            for (const group of groups) {
+                out.push(`  ${group.role}:`);
+                for (const entry of group.entries) {
+                    out.push(`    - ${entry}`);
+                }
+            }
+        }
+    );
+}
+
+/**
+ * 把单个技能注册到 `skills:` 段（幂等：同名条目已存在时不重复追加）。
+ *
+ * @returns 本次是否发生写入
+ */
+export function registerSkillInConfig(
+    projectRoot: string,
+    role: ProjectSkillRole,
+    name: string
+): boolean {
+    const raw = readConfigRaw(projectRoot) ?? defaultConfigFileContent();
+    const groups = readSkillsSection(raw);
+    const existing = groups.find((group) => group.role === role);
+    if (existing) {
+        if (existing.entries.includes(name)) {
+            return false;
+        }
+        existing.entries.push(name);
+    } else {
+        groups.push({ role, entries: [name] });
+    }
+    writeSkillsToConfig(projectRoot, groups);
+    return true;
 }
 
 /**

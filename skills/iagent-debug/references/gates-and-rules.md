@@ -8,6 +8,17 @@
 
 **强制检查点**：规则基线未建立时 MUST NOT 进入 2.2；规则源缺失不阻断排查。
 
+### 2.1.7 项目技能基线（强制）
+
+**⚠️ 强制: 本步在 2.1.6 之后、2.2 CodeGraph 排查之前执行。**
+
+1. 运行 `iagent skills --json` 枚举配置技能，**按阶段筛选** `phases` 含 `design` 或 `both`（implement-only 不进入设计约束）
+2. 读取全部 `exists=true` 的技能，把「源 / 存在性 / 读取状态 / 完整性 / 关键约束摘要」写入诊断记录（与规则基线并列、互不替代）
+3. 配置为空 / 全部缺失 → 记「无技能配置」并继续；读取失败 → WARN 并标「未读」；`validation.status=incomplete` → WARN 并列出缺失章节 / 占位符 / 无证据规则数，MUST NOT 当作完整规范使用
+4. 根因分析与修复方案以技能为约束；技能与代码冲突时显式呈现（代码事实优先）
+
+**强制检查点**：技能基线未建立时 MUST NOT 进入 2.2；配置为空不阻断排查。
+
 ## Phase 5.5: 变更范围内测试执行（强制）
 
 **位置**：Phase 5 编译检查之后、Phase 6 同步之前。
@@ -20,7 +31,7 @@
 
 ## 6.4 实现一致性证据（强制）
 
-- 运行 `iagent spec conformance --change "<changeName>" --strict --rules-read "<逗号分隔的已读取规则源>" --json`，校验三层覆盖与回执 `rulesRead` 对规则源 `exists=true` 集合的覆盖
+- 运行 `iagent spec conformance --change "<changeName>" --strict --rules-read "<逗号分隔的已读取规则源>" --json`，校验三层覆盖与回执 `rulesRead` 对规则源 `exists=true` 集合的覆盖；并校验 `skillsRead` 对 `phases` 含 `implement` 或 `both` 且 `exists=true` 的技能覆盖（design-only 不要求）——存在未读 → `skills-not-read`（fail）；已读但 `validation.status=incomplete` → `skills-incomplete`（WARN，不判 fail）
 - 写 `.openspec-tmp/pipeline-<change-name>/conformance-report.md`（九列 + `**summary**:` 汇总行），向 handoff 包追加 `conformance` 行
 - `fail` / 证据缺失 → 回到 Phase 4 修复，MUST NOT 进入 Phase 7
 

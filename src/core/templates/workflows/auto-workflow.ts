@@ -42,7 +42,7 @@ ${renderGateWhitelistSection()}
 
 ## Phase 1: Exploration（委派 iagent_spec_explore，交互阶段）
 
-Phase 1 SHALL 由主 agent 内联委派阶段 \`iagent_spec_explore\`（传 \`${renderDelegationModeOption('delegated')}\`）执行强制检查点体系探索（强制建探索文件、**项目规则基线**、提示词校验门、CONTEXT.md 检查、CodeGraph 基础扫描含多项目派发与深度分析、L1-L5 grill 追问、功能流程图与流程最终确认门、聚合一致性门、探索完成检测），MUST NOT 内联执行探索逻辑。探索是**交互阶段**，MUST NOT 放入隔离子代理（提示词门 / 流程门需与用户交互）。
+Phase 1 SHALL 由主 agent 内联委派阶段 \`iagent_spec_explore\`（传 \`${renderDelegationModeOption('delegated')}\`）执行强制检查点体系探索（强制建探索文件、**项目规则基线**、**项目技能基线**、提示词校验门、CONTEXT.md 检查、CodeGraph 基础扫描含多项目派发与深度分析、L1-L5 grill 追问、功能流程图与流程最终确认门、聚合一致性门、探索完成检测），MUST NOT 内联执行探索逻辑。探索是**交互阶段**，MUST NOT 放入隔离子代理（提示词门 / 流程门需与用户交互）；回执 SHALL 携带技能基线状态，供 propose 与实现阶段读取。
 
 委派完成后 SHALL 消费 \`iagent_spec_explore\` 输出的**结构化 handoff**（探索文件路径、提示词基线、流程基准确认状态 \`flowBaselineConfirmed\`、Pending 影响符号），并**在同一用户回合内**推进 Phase 2 —— 回执是中间状态，MUST NOT 以回执结束回合。
 
@@ -142,7 +142,7 @@ Phase 2 的探索文件迁移与全部制品生成 SHALL 由主 agent 内联执�
   - **共享指令前缀** —— 固定顺序「共享前缀（包路径 / 规范要点引用 / 回执格式 / 禁止项）→ 单元增量（任务清单）」
 - Phase 4 **MUST NOT 重复声明或内联 apply 协议正文** —— 该协议的单一源留在 \`iagent_spec_apply\`；本技能只做委派（MUST NOT 内联执行 apply 工作流逻辑，也 MUST NOT 自定一套调度指令格式，二者都会与单一源规则矛盾）
 - \`${renderGateSkipOption(GATE_SKIP_IDS)}\` **仅**跳过设计确认门（\`${LEGACY_AUTO_MODE_PARAM}=true\` 为兼容写法）—— 共享资源协议继续生效（全自动语义 MUST NOT 免除它）
-- **回执续跑**：子代理回执 SHALL 含 \`tasksCompleted\` / \`compileResult\` / \`receipts\` / \`confirmedGates\`；父级校验通过后**在同一用户回合内**进入测试门 / Phase 5，MUST NOT 以回执结束回合
+- **回执续跑**：子代理回执 SHALL 含 \`tasksCompleted\` / \`compileResult\` / \`receipts\` / \`confirmedGates\` / \`skillsRead\` / \`skillsIncomplete\`；父级校验通过后**在同一用户回合内**进入测试门 / Phase 5，MUST NOT 以回执结束回合；\`skillsRead\` 缺字段或未覆盖配置中 implement|both 技能时记 WARN 并回实现阶段补齐，MUST NOT 伪造读取
 - 全部实现任务由被委派技能按其既有批次调度自动完成
 
 ### 4.2 自动实现错误处理

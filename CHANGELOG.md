@@ -7,6 +7,18 @@
 
 ## [Unreleased]
 
+## [4.9.0] - 2026-11-09
+
+### Added
+
+- 项目技能接入：`.iagent/config.yaml` 新增 `skills:` 段（`frontend` / `backend` 分组）与 `.iagent/skills/<name>.md` 载体（缺失时按生效工具回退宿主技能目录），新增 `iagent skills --json` 枚举与完整性校验（`project-skill-config`）。
+- `iagent_project_init` 第 11 步技能蒸馏：按框架证据生成前后端设计 / 实现技能，C1-C6 内容完整性自检、人工域保护、自动注册与完整性报告（`project-skill-distillation`）。
+- 探索 `## 项目技能基线`、handoff「技能要点」、apply / debug 回执 `skillsRead` / `skillsIncomplete` 与 `skills-not-read` / `skills-incomplete` 诊断（`project-skill-consumption`）。
+
+### Changed
+
+- `iagent_spec_explore` / `iagent_debug` / `iagent_spec_propose` / `iagent_spec_apply` / `iagent_workflow` / `iagent_auto_workflow` / `iagent_spec_verify` 接入项目技能基线，按 `phases` 做阶段感知加载（设计 design|both / 实现 implement|both）。
+
 ## [4.8.0] - 2026-11-09
 
 ### Added
@@ -1763,7 +1775,8 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.8.0...HEAD
+[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.9.0...HEAD
+[4.9.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.8.0...v4.9.0
 [4.8.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.7.0...v4.8.0
 [4.7.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.6.0...v4.7.0
 [4.6.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.5.0...v4.6.0

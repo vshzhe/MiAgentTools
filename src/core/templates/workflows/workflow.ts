@@ -160,7 +160,7 @@ ${renderGateWhitelistSection()}
 
 ## Phase 1: 探索（委派 iagent_spec_explore，交互阶段）
 
-Phase 1 SHALL 由主 agent 内联委派阶段 \`iagent_spec_explore\`（传 \`${renderDelegationModeOption('delegated')}\`）执行强制检查点体系探索（强制建探索文件、**项目规则基线**、提示词校验门、CONTEXT.md 检查、CodeGraph 基础扫描含多项目派发与深度分析、L1-L5 grill 追问、功能流程图与流程最终确认门、聚合一致性门、探索完成检测），MUST NOT 内联执行探索逻辑。探索是**交互阶段**，MUST NOT 放入隔离子代理（提示词门 / 流程门需与用户交互）。
+Phase 1 SHALL 由主 agent 内联委派阶段 \`iagent_spec_explore\`（传 \`${renderDelegationModeOption('delegated')}\`）执行强制检查点体系探索（强制建探索文件、**项目规则基线**、**项目技能基线**、提示词校验门、CONTEXT.md 检查、CodeGraph 基础扫描含多项目派发与深度分析、L1-L5 grill 追问、功能流程图与流程最终确认门、聚合一致性门、探索完成检测），MUST NOT 内联执行探索逻辑。探索是**交互阶段**，MUST NOT 放入隔离子代理（提示词门 / 流程门需与用户交互）；回执 SHALL 携带技能基线状态（\`## 项目技能基线\` 是否存在 / 完整性），供 propose 与实现阶段读取。
 
 委派完成后 SHALL 消费 \`iagent_spec_explore\` 输出的**结构化 handoff**（探索文件路径、提示词基线、流程基准确认状态 \`flowBaselineConfirmed\`、Pending 影响符号），并**在同一用户回合内**推进 Phase 2 —— 回执是中间状态，MUST NOT 以回执结束回合。
 
@@ -353,7 +353,7 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 - 该参数**仅**跳过设计确认门；测试执行门、范围蔓延确认与共享资源协议照常生效
 - apply 内部完成：分层代码生成（Entity/DTO → Mapper/DAO → Service → Controller）、tasks.md 勾选更新、编译检查
 - 后端架构规则由 apply 按 \`.iagent/rules/coding-rules.md\` 自行处理，workflow 不干预
-- **回执续跑**：子代理回执 SHALL 含 \`tasksCompleted\` / \`compileResult\` / \`receipts\` / \`confirmedGates\`；父级校验通过后**在同一用户回合内**进入条件测试 / 实现验证，MUST NOT 以回执结束回合
+- **回执续跑**：子代理回执 SHALL 含 \`tasksCompleted\` / \`compileResult\` / \`receipts\` / \`confirmedGates\` / \`skillsRead\` / \`skillsIncomplete\`；父级校验通过后**在同一用户回合内**进入条件测试 / 实现验证，MUST NOT 以回执结束回合；\`skillsRead\` 缺字段或未覆盖配置中 implement|both 技能时记 WARN 并回 Phase 4 补齐，MUST NOT 伪造读取
 
 ### 4.1 测试与一致性门（由 apply 承载，父级只读证据）
 
