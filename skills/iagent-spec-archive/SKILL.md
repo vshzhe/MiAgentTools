@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:547d33ceedbd56655fd4c9880d2ee3124352577354cc69ff1cdc372286dac54c"
+  generatedFingerprint: "sha256:89b02830bac7e5a9d71475a63fdd56b76f18911c1433d5e7dfd321f6b0c64866"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
@@ -155,6 +155,23 @@ metadata:
 6. **仅确认无 daemon（纯 CLI 用户）时**才按需执行一次 `codegraph sync`；同步失败只记 WARN，不阻断流程；
 7. 判 daemon 存活是显式路径读取（失败即视为无 daemon），与「MUST NOT 用目录存在性判索引可用性」是两条独立判据，MUST NOT 混用。
 
+   **CodeGraph 调用纪律（主通道优先，串行执行）**：
+1. **主通道**是 `codegraph_explore`（文件结构发现 / 符号定位 / 任务级上下文均可用一次自然语言查询完成）；`codegraph_impact` 为**可选增强**；
+2. `codegraph_files` / `codegraph_search` / `codegraph_context` / `codegraph_node` / `codegraph_callers` / `codegraph_callees` 为「**宿主暴露时可选**」通道：缺失时改用主通道，MUST NOT 记为「索引不可用」，MUST NOT 反复调用缺失工具；
+3. **一次广查询优先**：多符号或多主题合并为一次 `codegraph_explore`；单次查询 `maxFiles` 默认不超过 12；
+4. **串行**：同一时刻只发一个 CodeGraph 调用；需要多次查询时串行执行，MUST NOT 并行发起多个调用（并发正是 busy 排队的来源）。
+
+   **CodeGraph busy 阶梯（排队不是错误，也不是索引不可用）**：
+1. 识别 `busy serving other concurrent requests` 一类排队文案时，**等待 5–10 秒**；
+2. 重试**同一调用**（同一查询参数），至多 **2 次**；
+3. 仍 busy → 在**本步骤**降级为内置工具（Glob / Grep）并记 WARN，随后继续流程；
+4. MUST NOT 因 busy 判「索引不可用」，MUST NOT 执行 `codegraph unlock` 或显式 `codegraph sync`。
+
+   **CodeGraph CLI 边界（子命令白名单）**：
+1. CLI 仅允许 `codegraph status --json` / `codegraph unlock` / `codegraph sync`（后两者受锁阶梯约束）；
+2. MUST NOT 把 MCP 工具名当 CLI 子命令：`codegraph search` / `codegraph files` / `codegraph context` / `codegraph impact` 均**不存在**；
+3. 遇 `unknown command` → 立即改用 MCP 主通道完成该次检索，MUST NOT 重试同类 CLI 子命令。
+
    **强制检查点**：
    - 系统 MUST 在执行归档前完成能力探测（三条通道任一成功即视为可用）
    - 三条通道全部失败 → 自动跳过**全部** CodeGraph 步骤（本 4.6 检查 + 6.5 同步），记录 WARN 说明当前不可用且已跳过，继续归档 —— 不得询问用户是否重试或继续
@@ -218,7 +235,7 @@ metadata:
       - **确认无 daemon（纯 CLI 用户）** → 经 Bash 执行 `codegraph sync` **恰一次**，增量索引刚归档变更已实现的代码；运行前展示 "CodeGraph：正在同步已实现的代码..."
 
    2. 同步（或只读复用）后**验证一致性**：
-      - 用 MCP `codegraph_search` 查询变更名，以及变更 `tasks.md` 与 `design.md` 中提到的关键符号
+      - 用主通道 `codegraph_explore` 查询变更名，以及变更 `tasks.md` 与 `design.md` 中提到的关键符号（宿主暴露 `codegraph_search` 时 MAY 追加使用）
       - 确认已实现的符号现已被索引
       - 展示 "CodeGraph：✓ 索引中已校验 N 个符号"，无匹配时告警
       - 若未找到符号（如仅配置或仅文档变更），记录告警 —— 不要视为失败

@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:eb3b8917b85c4fa5476d29f0e1789cb19cee927d677db1a6e1094c060a2b690c"
+  generatedFingerprint: "sha256:113a4ecd2141ef1b587243af70d8be97a0a174d7bcc1a2f79e669cd4d5ea0204"
 ---
 
 
@@ -489,7 +489,7 @@ All artifacts ready! Proceeding to the Phase 4 implementation bridge...
 - **用 CodeGraph 扫描其他项目** - 探索上下文含其他项目路径时，派发子代理用 CodeGraph 的 projectPath 参数扫描；失败时降级为 Glob/Grep
 - **验证收束后进入实现 + 测试桥** - 全量通过（D1-D10 + B1-B7）后进入**实现 + 测试桥**（Phase 3.7：一次呈现「提案摘要 + 验证评分与证据摘要 + 深度复查清单结论 + 实现方案 + 测试计划预告」，一次确认）；本桥 MUST NOT 提供需求文档选项
 - **FAIL 不进入实现** - 验证失败或重验循环中 MUST NOT 呈现实现桥、MUST NOT 进入 Phase 4
-- **回执续跑** - 每个委派阶段返回有效回执后 MUST 在同一用户回合内继续下一阶段；MUST NOT 以回执结束回合
+- **回执续跑** - 每个委派阶段返回有效回执后 MUST 在同一用户回合内继续下一阶段；MUST NOT 以回执结束回合；回执 MUST NOT 作为面向用户的最终消息（用户可见至多一行进度），停点前 MUST 引用门白名单的类别 id 或锚点 id
 - **子代理数据共享** - 只传 Stage Envelope（路径 + 结构化字段），MUST NOT 内联制品正文或完整 SKILL.md；子代理先读 handoff 包，回执只含 Stage Receipt（≤40 行 / ≤2KB）
 - **委派前写门账本** - 交付桥确认后立即把 `design-confirmation` 写入 handoff 包 `## 已确认门` 并在委派前校验存在；写入 / 校验失败 → 停止并报告期望路径与原因，MUST NOT 委派；阶段回执携带 `confirmedGates: ['design-confirmation']`；`gate-skip` 仍是主通道（权威），账本仅为参数丢失时的兜底
 - **对委派执行退出守卫** - 委派的阶段子技能（spec_apply / spec_archive / test）完成后 MUST NOT 自行进入 plan 模式 / 设计模式或推进阶段；workflow 是唯一有权判定阶段完成并推进下一阶段（桥梁）的角色

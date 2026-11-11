@@ -118,6 +118,7 @@ export {
     gateLedgerPath,
     isGateSkipId,
     parseGateLedger,
+    pipelineWorkspacePath,
     renderGateLedgerEntry,
     renderGateLedgerSection,
     resolveGateLedgerConfirmation,
@@ -125,3 +126,12 @@ export {
     type GateLedgerConfirmation,
     type GateLedgerEntry,
 } from './gate-ledger.js';
+
+export {
+    RECEIPTS_DIR_NAME,
+    RECEIPT_FILE_SUFFIX,
+    readReceipt,
+    receiptStorePath,
+    writeReceipt,
+    type ReceiptStoreResult,
+} from './receipt-store.js';

@@ -4,7 +4,13 @@
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
 import { CODEGRAPH_CLI, CODEGRAPH_MCP } from '../tool-whitelist.js';
-import { CODEGRAPH_LOCK_LADDER, renderCodegraphProbeOrder } from '../codegraph-protocol.js';
+import {
+    CODEGRAPH_BUSY_LADDER,
+    CODEGRAPH_CALL_DISCIPLINE,
+    CODEGRAPH_CLI_BOUNDARY,
+    CODEGRAPH_LOCK_LADDER,
+    renderCodegraphProbeOrder,
+} from '../codegraph-protocol.js';
 import { renderGateWhitelistSection } from '../prompt-gate.js';
 
 export function getSpecArchiveChangeSkillTemplate(): SkillTemplate {
@@ -128,6 +134,12 @@ ${renderGateWhitelistSection()}
 
    ${CODEGRAPH_LOCK_LADDER}
 
+   ${CODEGRAPH_CALL_DISCIPLINE}
+
+   ${CODEGRAPH_BUSY_LADDER}
+
+   ${CODEGRAPH_CLI_BOUNDARY}
+
    **强制检查点**：
    - 系统 MUST 在执行归档前完成能力探测（三条通道任一成功即视为可用）
    - 三条通道全部失败 → 自动跳过**全部** CodeGraph 步骤（本 4.6 检查 + 6.5 同步），记录 WARN 说明当前不可用且已跳过，继续归档 —— 不得询问用户是否重试或继续
@@ -191,7 +203,7 @@ ${renderGateWhitelistSection()}
       - **确认无 daemon（纯 CLI 用户）** → 经 Bash 执行 \`codegraph sync\` **恰一次**，增量索引刚归档变更已实现的代码；运行前展示 "CodeGraph：正在同步已实现的代码..."
 
    2. 同步（或只读复用）后**验证一致性**：
-      - 用 MCP \`codegraph_search\` 查询变更名，以及变更 \`tasks.md\` 与 \`design.md\` 中提到的关键符号
+      - 用主通道 \`codegraph_explore\` 查询变更名，以及变更 \`tasks.md\` 与 \`design.md\` 中提到的关键符号（宿主暴露 \`codegraph_search\` 时 MAY 追加使用）
       - 确认已实现的符号现已被索引
       - 展示 "CodeGraph：✓ 索引中已校验 N 个符号"，无匹配时告警
       - 若未找到符号（如仅配置或仅文档变更），记录告警 —— 不要视为失败

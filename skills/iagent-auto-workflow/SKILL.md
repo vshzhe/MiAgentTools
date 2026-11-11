@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:4dc673d9ead658bf7d8bee52bf0861ca0990d2dc975e82c9d03afc5bfdf08c65"
+  generatedFingerprint: "sha256:d8bb45d894eace7c62f7486c053f7ec60c0c68083e52b4c2a7712d8a11a52a07"
 ---
 
 
@@ -265,7 +265,7 @@ Phase 4 继承 `iagent-spec-apply` 的**测试执行门**并**自动**通过 —
 - **验证阶段无阻塞门** —— 三父流程的需求文档桥已整体移除；验证阶段 MUST NOT 声明阻塞门，MUST NOT 追加对下一阶段技能的调用确认（宿主权限与 strict/degraded 检查仍独立生效）
 - **门账本双条件** —— 仅在流程基准确认 **且** 验证 PASS + 深度复查收束后写 `design-confirmation`；未满足时 MUST NOT 写账本、MUST NOT 传 `gate-skip`，暂停并报告
 - **FAIL 不进入实现** —— 验证 FAIL 或 B1-B7 未收束时 MUST NOT 进入 Phase 4
-- **回执续跑** —— 每个委派阶段返回有效回执后 MUST 在同一用户回合内继续下一阶段；MUST NOT 以回执结束回合
+- **回执续跑** —— 每个委派阶段返回有效回执后 MUST 在同一用户回合内继续下一阶段；MUST NOT 以回执结束回合；回执 MUST NOT 作为面向用户的最终消息（用户可见至多一行进度），停点前 MUST 引用门白名单的类别 id 或锚点 id
 - **子代理数据共享** —— 只传 Stage Envelope（路径 + 结构化字段），MUST NOT 内联制品正文或完整 SKILL.md；子代理先读 handoff 包，回执只含 Stage Receipt（≤40 行 / ≤2KB）；blocked 时用 `blockedGate` / `blockedReason` + `resume=true`
 - **MUST 先建探索文件再追问** —— Phase 1 检查点为强制
 - **MUST 迁移前校验文件** —— Phase 2 检查点为强制

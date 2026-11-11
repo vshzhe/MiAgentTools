@@ -92,7 +92,7 @@ export function renderDelegate(
         return `经前台 Agent 子代理执行 \`${id}\`${opts}（子代理优先经 Skill 加载该技能；不可用时 Read \`${skillPath}\`；完成后返回结构化回执并遵守 EXIT GUARD）`;
     }
     if (host === 'opencode') {
-        return `经 V2 \`subagent\` 启动项目 agent \`${id}\`${opts}`;
+        return `经 V2 \`subagent\` 启动项目 agent \`${id}\`${opts}（完成后按续跑契约继续，MUST NOT 以回执结束回合）`;
     }
     if (host === 'codex') {
         return `（degraded，skills-only）由当前 agent 本地执行 \`${id}\`${opts}，**不构成委派**（Codex 无子代理 / 技能委派机制）`;
@@ -100,7 +100,7 @@ export function renderDelegate(
     // pi
     if (mode === 'strict') {
         const prompt = `执行 ${id} 阶段${opts}`;
-        return `调用 \`Agent({ subagent_type: "${id}", prompt: ${JSON.stringify(prompt)} })\``;
+        return `调用 \`Agent({ subagent_type: "${id}", prompt: ${JSON.stringify(prompt)} })\`（完成后按续跑契约继续，MUST NOT 以回执结束回合）`;
     }
     return `（degraded）由当前 agent 本地执行 \`${id}\`${opts}，**不构成委派**`;
 }

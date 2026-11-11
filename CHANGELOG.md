@@ -7,6 +7,24 @@
 
 ## [Unreleased]
 
+## [4.10.0] - 2026-11-11
+
+### Added
+
+- 新增 `codegraph-call-protocol` 能力：`codegraph_explore` 为主通道、其余具名工具为可选通道；串行调用纪律（同一时刻只发一个调用）；busy 阶梯（等待 5–10s、重试 ≤2 次后降级内置工具并 WARN）；CLI 子命令边界（仅 `status` / `unlock` / `sync`）
+- 新增阶段回执落盘 `receipt-store.ts`（`.openspec-tmp/pipeline-<change>/receipts/<phase>.json`）与推进解析纯函数 `resolveNextPhase`
+
+### Changed
+
+- 编排器身份提示词与跨宿主委派语句改为续跑语义：`status=ok` 后在同一用户回合内继续，只有门白名单内的 5 类门是合法停点
+- 续跑断言收敛为单一源 `renderContinuationContract()`，并补充回执内部化（不作为面向用户的最终消息）与停点门自检（接受类别 id 或锚点 id）
+- 回执校验判定顺序固定为「能力 → 门 → 回执（门优先）」，自动重试仅当 `blockedBy` 恰为 `['invalid-receipt']`
+
+### Fixed
+
+- 修复阶段回执后偶发停住、需要人工确认的问题（编排器提示词曾显式授权「汇总回执后再决定推进、回退或停止」）
+- 修复 CodeGraph busy 时被误判为索引不可用、以及 `codegraph search` 等不存在的 CLI 子命令导致的失败
+
 ## [4.9.0] - 2026-11-09
 
 ### Added
@@ -1775,7 +1793,8 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.9.0...HEAD
+[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.10.0...HEAD
+[4.10.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.9.0...v4.10.0
 [4.9.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.8.0...v4.9.0
 [4.8.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.7.0...v4.8.0
 [4.7.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.6.0...v4.7.0

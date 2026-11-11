@@ -184,7 +184,12 @@ export function renderPiOrchestratorAgent(stages: readonly PiNativeStage[]): str
     lines.push('');
     lines.push('- 按共享协议推进阶段，管理确认门（gate）与阶段回执（receipt）；');
     lines.push('- 通过 `Agent` 工具按 `subagent_type` 委派阶段，并消费结构化回执；');
-    lines.push('- 汇总回执后再决定推进、回退或停止；');
+    lines.push(
+        '- 收到 `status=ok` 回执并校验通过后 MUST 在同一用户回合内继续下一阶段（先工具调用后文字），MUST NOT 以回执结束回合；'
+    );
+    lines.push(
+        '- 停点只允许门白名单内的确认门，且停点前 MUST 引用合法门 id（类别 id 或锚点 id，`destructive-change` 用类别 id）；回执 MUST NOT 作为面向用户的最终消息；'
+    );
     lines.push('- MUST NOT 把本地串行执行标记为委派完成；');
     lines.push('- MUST NOT 越权完成未分配给自己的阶段。');
     lines.push('');

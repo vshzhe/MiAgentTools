@@ -9,7 +9,12 @@ import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { buildPromptGateBlock, BUG_DIMENSIONS, GATE_PROTOCOL_PREAMBLE, renderGateWhitelistSection } from '../prompt-gate.js';
 import { buildFlowchartBlock, FAULT_CHAIN_FLOW_COLUMNS } from '../flowchart-gate.js';
 import { CODEGRAPH_CLI, CODEGRAPH_MCP, skillDelegation } from '../tool-whitelist.js';
-import { renderCodegraphProbeOrder } from '../codegraph-protocol.js';
+import {
+    CODEGRAPH_BUSY_LADDER,
+    CODEGRAPH_CALL_DISCIPLINE,
+    CODEGRAPH_CLI_BOUNDARY,
+    renderCodegraphProbeOrder,
+} from '../codegraph-protocol.js';
 import { deriveCommandContent } from '../derive-command.js';
 
 /** 提示词校验门全文（写入 references/prompt-gate.md，AI 在 Gate 触发时按需读取） */
@@ -30,25 +35,32 @@ ${renderCodegraphProbeOrder({ withCli: true })}
 
 Grep/Glob 是**最后手段**，仅在能力探测三通道全部失败后允许 —— MUST NOT 作为跳过 CodeGraph 的捷径。降级（回退）MUST NOT 阻断排查，但 MUST NOT 在可用性探测之前采用。
 
-#### 2.2.1 文件结构扫描（codegraph_files）
+${CODEGRAPH_CALL_DISCIPLINE}
 
-- 用 \`codegraph_files\` 扫描项目文件树，识别与 bug 描述相关的目录与文件
-- 将发现写入诊断记录的代码库发现 > 已发现文件段，格式为 "<file-path>: <relevance-reason>"
+${CODEGRAPH_BUSY_LADDER}
+
+${CODEGRAPH_CLI_BOUNDARY}
+
+#### 2.2.1 文件结构与符号扫描（主通道 \`codegraph_explore\`）
+
+- 用 \`codegraph_explore\` 一次查询获取相关文件树与符号，识别与 bug 描述相关的目录、文件与符号
+- 将发现写入诊断记录的代码库发现 > 已发现文件段，格式为 "<file-path>: <relevance-reason>"；符号写入已识别符号段
 - 所有文件路径 MUST 用 \`path.join()\` 构造以兼容跨平台（Windows/macOS/Linux）—— 不得硬编码分隔符
-- 降级（回退）（CodeGraph 不可用时）：用 Glob 做文件结构发现
+- 宿主同时暴露 \`codegraph_files\` / \`codegraph_search\` 时 MAY 追加使用；缺失时 MUST NOT 记为不可用
+- 降级（回退）（三通道探测全部失败时）：用 Glob 做文件结构发现、Grep 做符号搜索
 - **仅增量（摘要命中范围跳过）**: MUST NOT 重跑已覆盖的 CodeGraph 查询 —— **仅增量查询**（见 2.1.5）；摘要未覆盖的范围照常扫描
 
-#### 2.2.2 符号定位与任务级上下文（codegraph_search + codegraph_context）
+#### 2.2.2 任务级上下文（主通道追问式查询）
 
-- \`codegraph_search\` —— 定位失败行为涉及的符号；将 "<symbol-name> (<file-path>:<line>): <reason>" 记入代码库发现 > 已识别符号段
-- \`codegraph_context --task <bug-description>\` —— 围绕 bug 构建完整的任务级上下文（聚合入口点、相关符号、关键代码），把 bug 描述转化为有范围的排查上下文
-- 降级（回退）（CodeGraph 不可用时）：用 Grep 做符号搜索
+- 用 \`codegraph_explore\` 以「<bug 描述> 的入口点、相关符号与关键代码」为查询，构建有范围的排查上下文
+- 将上下文化结论记入诊断记录（入口点 / 相关符号 / 关键代码位置）
+- 降级（回退）：用 Grep 做符号搜索
 - **仅增量（摘要命中范围跳过）**: MUST NOT 重跑已覆盖的 CodeGraph 查询 —— **仅增量查询**（见 2.1.5）；摘要未覆盖的符号与上下文照常定位
 
-#### 2.2.3 调用链追踪与影响半径（codegraph_callers / codegraph_callees / codegraph_impact）
+#### 2.2.3 调用链追踪与影响半径
 
-- \`codegraph_callers\` / \`codegraph_callees\` —— 追踪疑似代码周围的调用链（上游调用者与下游被调用者）
-- \`codegraph_impact\` —— 评估疑似缺陷与候选修复的影响半径
+- **主通道**：以 \`codegraph_explore\` 返回的调用路径（Flow）与受影响符号/文件估算调用链与影响半径
+- **可选通道**：宿主同时暴露 \`codegraph_callers\` / \`codegraph_callees\` / \`codegraph_impact\` 时以其结果为准（更精确）；缺失时以上述主通道结果替代，MUST NOT 记为不可用，MUST NOT 反复调用缺失工具
 - 将调用链（适用时附 ASCII 图）与受影响符号记入诊断记录，供根因确认
 - **仅增量（摘要命中范围跳过）**: MUST NOT 重跑已覆盖的 CodeGraph 查询 —— **仅增量查询**（见 2.1.5）；摘要未覆盖的调用链与影响半径照常追踪
 
@@ -60,7 +72,7 @@ Grep/Glob 是**最后手段**，仅在能力探测三通道全部失败后允许
 
 - **(a) 影响半径**：\`codegraph_impact\` 在 depth ≤ 2 的受影响符号数 **≥ 5**，或受影响文件数 **≥ 3**
 - **(b) 跨模块**：受影响范围跨 **≥ 2** 个模块 / 目录
-- **(c) 根因清晰度**：2.2.2（\`codegraph_search\` + \`codegraph_context\`）**未能**一步定位单一高置信根因
+- **(c) 根因清晰度**：2.2.2（主通道 \`codegraph_explore\` 的任务级上下文）**未能**一步定位单一高置信根因
 
 **分级结果（两条路径）**：
 
@@ -75,7 +87,7 @@ Grep/Glob 是**最后手段**，仅在能力探测三通道全部失败后允许
 - 信号 **(b)(c)** 不依赖 CodeGraph，照常判定
 - 诊断记录 MUST 标注「信号降级」；**MUST NOT 因 CodeGraph 不可用而跳过分级**
 
-**信号可追溯（反幻觉硬约束）**：信号取值 MUST 可追溯至 \`codegraph_impact\` / \`codegraph_files\`（降级时为 Grep）的**实测查询结果**并在诊断记录留痕；MUST NOT 以"半径小"等未经实测的结论支撑轻量路径判定（违反零猜测原则）。
+**信号可追溯（反幻觉硬约束）**：信号取值 MUST 可追溯至 \`codegraph_explore\` 主通道结果（可选通道 \`codegraph_impact\` / \`codegraph_files\` 存在时以之为准；降级时为 Grep）的**实测查询结果**并在诊断记录留痕；MUST NOT 以"半径小"等未经实测的结论支撑轻量路径判定（违反零猜测原则）。
 
 **与 2.4 解耦**：分级结果**只**影响 2.2.4 是否执行；2.4 诊断确认包内的缺陷链路对两条路径**均强制**产出，轻量路径 MUST NOT 豁免。
 
@@ -470,7 +482,7 @@ bug 无法用自动化测试捕获时（环境相关行为 / 时序 / 仅 UI）�
 **验收（debug 自身职责，内联不放松）**
 
 - 内联调用返回后 MUST 自行核对：① 修复前 FAIL、修复后 PASS；② 覆盖缺陷链路的「异常节点 + 根因节点」
-- **回执续跑**：内联结果 SHALL 含 \`regressionTests\` / 失败原因（如有）；校验通过后 MUST 在同一用户回合内继续 Phase 5（编译检查），MUST NOT 以回执结束回合
+- **回执续跑**：内联结果 SHALL 含 \`regressionTests\` / 失败原因（如有）；校验通过后 MUST 在同一用户回合内继续 Phase 5（编译检查），MUST NOT 以回执结束回合；回执 MUST NOT 作为面向用户的最终消息（用户可见至多一行进度）
 - 缺少前置失败证据、修复后仍失败或覆盖不足时，MUST NOT 报告测试验收通过
 
 ### 4.3 修复后收束（调试循环的非阻塞出口）
@@ -629,12 +641,12 @@ Ready for \`/iagent:spec-apply\` (fixes already applied) or archive.
 - **诊断确认包三出口**：确认 / 修改后重呈 / **拒绝 = 终止修复并输出诊断报告**（含排查路径与证据）—— 拒绝时 MUST NOT 修改代码、MUST NOT 自动按推断继续、MUST NOT 标记可归档；不得反复要求确认
 - **修复与回归测试须覆盖异常节点与根因节点**：修复方案与回归测试 MUST 覆盖缺陷链路的「异常节点 + 根因节点」（4.1 / 4.2）；仅覆盖触发节点而未覆盖根因节点时，验证不通过
 - **默认复现优先、证据优先须硬证据（双轨）**：复现优先轨道（默认轨道）以失败测试或用户确认的显式步骤作为修复判据；证据优先轨道 MUST 先满足 1.3 的证据门槛（\`文件:行\` 静态证据 / 日志 / 测试；\`intermittent\` 须至少一条**可重复**证据）；两轨均无硬证据时只报告候选根因 / 候选缺陷清单并停止，MUST NOT 修改代码、MUST NOT 凭假设修复 —— 适用于循环中的**每个** bug
-- **按影响半径分级，而非按便利**：2.2.3.5 的分级信号取值 MUST 可追溯至实测查询结果（\`codegraph_impact\` / \`codegraph_files\`，降级时为 Grep）；MUST NOT 编造"半径小"以走轻量路径；信号缺失或阈值边界 MUST 取深度路径
+- **按影响半径分级，而非按便利**：2.2.3.5 的分级信号取值 MUST 可追溯至实测查询结果（主通道 \`codegraph_explore\`；可选通道 \`codegraph_impact\` / \`codegraph_files\`；降级时为 Grep）；MUST NOT 编造"半径小"以走轻量路径；信号缺失或阈值边界 MUST 取深度路径
 - **分级与缺陷链路图解耦**：分级只决定 2.2.4 是否执行，2.4 诊断确认包内的缺陷链路对轻量路径同样**强制产出**，MUST NOT 豁免
 - **升级兜底是触发条件，不是独立步骤**：升级兜底即 2.2.4 扩展后的触发条件之一，MUST NOT 为其新建独立章节或编号（2.2.4 的内容与编号不变）
 - **分级在 CodeGraph 降级时仍生效**：CodeGraph 不可用时分级仍生效（信号 (a) 降级为文件数代理指标，(b)(c) 照常）；MUST NOT 因降级跳过分级，诊断记录 MUST 标注「信号降级」
 - **无需求文档桥**：7.3 在验证 PASS + 深度复查收束后直接收束；MUST NOT 展示生成/跳过桥、MUST NOT 委派需求文档技能
-- **回执续跑**：内联调用 \`iagent_test\` / \`iagent_spec_verify_proposal\` / \`iagent_proposal_review\` 返回有效结果后 MUST 在同一用户回合内继续下一阶段；MUST NOT 以回执结束回合
+- **回执续跑**：内联调用 \`iagent_test\` / \`iagent_spec_verify_proposal\` / \`iagent_proposal_review\` 返回有效结果后 MUST 在同一用户回合内继续下一阶段；MUST NOT 以回执结束回合；回执 MUST NOT 作为面向用户的最终消息（用户可见至多一行进度）
 - **读取范围**：只读 handoff 包「## 制品清单」命中范围与 Stage Envelope（路径 + 结构化字段），MUST NOT 内联制品正文或完整 SKILL.md，MUST NOT 全量重读；blocked 时用 \`blockedGate\` / \`blockedReason\` + \`resume=true\`
 - **零猜测**：多个候选根因 → STOP 并让用户选择；绝不猜测
 - **方案在 2.4 合并包内一次确认**：可行修复方案（含两个及以上方案，或唯一性证据不足按多方案处理的情形）随「诊断 + 方案」合并包与根因一并确认，MUST NOT 在 Phase 4 再停一次；拒绝或要求修改时 MUST NOT 实现 —— 仅**回退路径**（变更归属依赖根因外上下文）且存在多个可行方案时，4.0 的修复方案确认门才 MUST 阻塞并等待用户确认

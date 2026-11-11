@@ -14,7 +14,12 @@
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { CODEGRAPH_CLI, CODEGRAPH_MCP, skillDelegation } from '../tool-whitelist.js';
-import { renderCodegraphProbeOrder } from '../codegraph-protocol.js';
+import {
+    CODEGRAPH_BUSY_LADDER,
+    CODEGRAPH_CALL_DISCIPLINE,
+    CODEGRAPH_CLI_BOUNDARY,
+    renderCodegraphProbeOrder,
+} from '../codegraph-protocol.js';
 import { deriveCommandContent } from '../derive-command.js';
 import { MANUAL_DOMAIN_MARKS } from '../../project-config.js';
 
@@ -199,7 +204,13 @@ export function getProjectInitSkillTemplate(): SkillTemplate {
 
 ${renderCodegraphProbeOrder({ withCli: true })}
 
-- 可用时用 \`codegraph_files\` / \`codegraph_search\` / \`codegraph_context\` 获取模块与符号结构
+${CODEGRAPH_CALL_DISCIPLINE}
+
+${CODEGRAPH_BUSY_LADDER}
+
+${CODEGRAPH_CLI_BOUNDARY}
+
+- 可用时用主通道 \`codegraph_explore\` 获取模块与符号结构；\`codegraph_files\` / \`codegraph_search\` / \`codegraph_context\` 为宿主暴露时可选
 - 该技能是信息基础的可选来源，MUST NOT 写成必须依赖；无索引亦 MUST NOT 阻断流程
 
 ### 4. 安全规范扫描

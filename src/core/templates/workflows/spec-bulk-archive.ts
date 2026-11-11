@@ -4,7 +4,13 @@
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
 import { CODEGRAPH_CLI, CODEGRAPH_MCP, SUBAGENT_DISPATCH } from '../tool-whitelist.js';
-import { CODEGRAPH_LOCK_LADDER, renderCodegraphProbeOrder } from '../codegraph-protocol.js';
+import {
+    CODEGRAPH_BUSY_LADDER,
+    CODEGRAPH_CALL_DISCIPLINE,
+    CODEGRAPH_CLI_BOUNDARY,
+    CODEGRAPH_LOCK_LADDER,
+    renderCodegraphProbeOrder,
+} from '../codegraph-protocol.js';
 import { renderGateWhitelistSection } from '../prompt-gate.js';
 
 export function getSpecBulkArchiveSkillTemplate(): SkillTemplate {
@@ -53,6 +59,12 @@ ${renderGateWhitelistSection()}
    ${renderCodegraphProbeOrder({ withCli: true })}
 
    ${CODEGRAPH_LOCK_LADDER}
+
+   ${CODEGRAPH_CALL_DISCIPLINE}
+
+   ${CODEGRAPH_BUSY_LADDER}
+
+   ${CODEGRAPH_CLI_BOUNDARY}
 
    **注意**：CodeGraph 同步是项目粒度的，不是按变更的。整批在所有变更归档后只运行一次同步（Step 11）；daemon 活跃时只读复用、不显式同步。
 

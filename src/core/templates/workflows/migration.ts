@@ -6,7 +6,11 @@ import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
 import { GATE_PROTOCOL_PREAMBLE, renderGateWhitelistSection } from '../prompt-gate.js';
 import { CODEGRAPH_MCP, SUBAGENT_DISPATCH, skillDelegation } from '../tool-whitelist.js';
-import { renderCodegraphProbeOrder } from '../codegraph-protocol.js';
+import {
+    CODEGRAPH_BUSY_LADDER,
+    CODEGRAPH_CALL_DISCIPLINE,
+    renderCodegraphProbeOrder,
+} from '../codegraph-protocol.js';
 
 export function getMigrationSkillTemplate(): SkillTemplate {
     return {
@@ -54,6 +58,10 @@ ${renderGateWhitelistSection()}
 2. **source-scan 由主 agent 内联执行**：以 CodeGraph 优先的方式探索 TARGET 项目（可选含 SOURCE_PROJECT）：按下面的能力探测顺序判定可用性（任一通道成功即可用），再以 CodeGraph 工具作为主要调查路径；按只读直通原则，CodeGraph 查询、文件读取、配置解析无需确认直接执行；CodeGraph 不可用 → 自动降级为 Glob/Grep 并记录一行日志。source-scan MUST NOT 派生源扫描子代理。
 
    ${renderCodegraphProbeOrder({ withCli: false })}
+
+   ${CODEGRAPH_CALL_DISCIPLINE}
+
+   ${CODEGRAPH_BUSY_LADDER}
 
 3. **上下文阈值判定（source-scan 后，强制）**：source-scan 完成后判定**计划读取文件数**与**制品总行数**：计划读取文件数 > **300** 或制品总行数 > **15000（15k）** 时，后续内联阶段（Phase 2 探索 / 制品生成与 Phase 4 复查）SHALL 降级为子代理执行并记 WARN（\`migration-context-threshold-degraded\`）；MUST NOT 在上下文不足时静默继续内联。阈值是初始可调常量，降级事实 MUST 在最终报告中可见。
 

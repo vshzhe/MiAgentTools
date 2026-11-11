@@ -10,7 +10,7 @@
  * 委派清单取该技能的 canonical 目标集合（保序去重），MUST NOT 维护第二份硬编码真源。
  */
 
-import type { CapabilityNegotiation } from './hosts.js';
+import type { CapabilityNegotiation, OrchestrationMode } from './hosts.js';
 import { renderDelegationList } from './actions.js';
 import { getWorkflowProtocol } from './workflows.js';
 import { getSkillTemplates } from '../templates/index.js';
@@ -166,6 +166,29 @@ export const CONDITIONAL_DELEGATIONS: Readonly<Record<string, readonly string[]>
 };
 
 /**
+ * 续跑断言单一源（变更 improve-continuation-and-codegraph-resilience，D3 / D4 / D8 / D11）。
+ *
+ * 目标：把「回执后继续、只有 5 类门可停」从多处散文收敛为一段可断言文本，
+ * 并补齐执行侧条款（回执内部化、门自检、判定顺序、落盘与重试）。
+ *
+ * 模板与宿主产物 MUST 引用本函数，MUST NOT 手写第二份门清单或续跑条款。
+ */
+export function renderContinuationContract(mode: OrchestrationMode = 'strict'): string {
+    const firstAction =
+        mode === 'strict'
+            ? '`status=ok` 且回执校验通过后，回执 `nextAllowed`（阶段 id）即本回合的下一动作'
+            : '本地阶段完成且回执校验通过后，回执 `nextAllowed`（阶段 id）即本回合的下一动作';
+    return [
+        `- **续跑断言**：${firstAction} —— MUST 在同一用户回合内继续下一阶段：先发起该阶段的委派 / 内联工具调用，再输出任何文字；MUST NOT 以回执、阶段小结或「等待确认」结束回合`,
+        '- **回执内部化**：回执 MUST NOT 作为面向用户的最终消息；用户可见输出至多一行进度',
+        '- **停点自检**：只有门白名单内的确认门是合法停点；停点前 MUST 引用门白名单的**类别 id 或锚点 id**（`destructive-change` 无阶段锚点，只认类别 id）；引用不出即继续，MUST NOT 停点',
+        '- **判定顺序**：能力（生成期协商 + `requiredCapabilities`）→ 门（白名单）→ 回执（`validateReceipt` + `resolveNextPhase`）；**门优先**',
+        '- **回执处置**：编排器先落盘 `.openspec-tmp/pipeline-<change>/receipts/<phase>.json` 再校验；`blockedBy` 恰为 `[\'invalid-receipt\']` 时同参数自动重试一次（不询问用户），仍失败 → 暂停并报告；能力缺失与未知门 → 阻断并报告，非停点',
+        '- **中断恢复**：用户在阶段之间发来「继续」类指令时，直接执行上一回执的 `nextAllowed`，MUST NOT 重新询问或重跑已确认的门',
+    ].join('\n');
+}
+
+/**
  * 渲染宿主编排段（Markdown）。
  *
  * strict：说明原生机制与门/回执契约；
@@ -188,7 +211,8 @@ export function renderHostOrchestrationSection(
         lines.push(`- 确认门：${negotiation.native.gate}`);
         lines.push('- 回执契约：阶段 MUST 返回 `phase` / `status` / 产物位置 / 下一步允许动作 / 失败原因');
         lines.push('- 回执缺失或不通过校验时 MUST NOT 自动推进下一阶段');
-        lines.push('- 续跑契约：阶段回执是**中间状态**；`status=ok` 且校验通过后 MUST 在同一用户回合内继续下一阶段；只有门白名单内的确认门是合法停点');
+        lines.push('- 续跑契约：阶段回执是**中间状态**');
+        lines.push(renderContinuationContract('strict'));
         lines.push('- 失败 / 阻塞：`blocked` / `failed` / `incomplete` MUST NOT 继续；按重试策略暂停并报告 `failure` / `blockedGate` / `blockedReason`');
         lines.push('- 子代理数据：只传 Stage Envelope（路径 + 结构化字段），MUST NOT 内联制品正文或完整 SKILL.md；子代理先读 handoff 包，回执只含 Stage Receipt（≤40 行 / ≤2KB）');
         lines.push(
@@ -216,7 +240,8 @@ export function renderHostOrchestrationSection(
         lines.push(
             '- 执行方式回执：全部阶段 MUST 为 executionMode=local-degraded，MUST NOT 声称 subagent'
         );
-        lines.push('- 续跑契约：阶段回执是**中间状态**；本地阶段完成后 MUST 在同一用户回合内继续下一阶段；只有门白名单内的确认门是合法停点');
+        lines.push('- 续跑契约：阶段回执是**中间状态**');
+        lines.push(renderContinuationContract('degraded'));
         lines.push('- 恢复 strict 需安装或配置宿主运行时后重新执行 iagent init / update');
     }
     for (const note of negotiation.notes) {

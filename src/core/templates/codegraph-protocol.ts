@@ -58,6 +58,46 @@ export function renderCodegraphProbeOrder(options: CodegraphProbeOrderOptions): 
 }
 
 /**
+ * CodeGraph 调用纪律（唯一源，变更 improve-continuation-and-codegraph-resilience / D5 / D7）。
+ *
+ * 跨宿主只保证 `codegraph_explore` 可用；其余具名工具是「宿主暴露时可选」，
+ * 缺失不构成「索引不可用」。并发调用是 busy 排队的来源，故必须串行。
+ */
+export const CODEGRAPH_CALL_DISCIPLINE: string = [
+    '**CodeGraph 调用纪律（主通道优先，串行执行）**：',
+    '1. **主通道**是 `codegraph_explore`（文件结构发现 / 符号定位 / 任务级上下文均可用一次自然语言查询完成）；`codegraph_impact` 为**可选增强**；',
+    '2. `codegraph_files` / `codegraph_search` / `codegraph_context` / `codegraph_node` / `codegraph_callers` / `codegraph_callees` 为「**宿主暴露时可选**」通道：缺失时改用主通道，MUST NOT 记为「索引不可用」，MUST NOT 反复调用缺失工具；',
+    '3. **一次广查询优先**：多符号或多主题合并为一次 `codegraph_explore`；单次查询 `maxFiles` 默认不超过 12；',
+    '4. **串行**：同一时刻只发一个 CodeGraph 调用；需要多次查询时串行执行，MUST NOT 并行发起多个调用（并发正是 busy 排队的来源）。',
+].join('\n');
+
+/**
+ * CodeGraph busy 阶梯（唯一源）：等待 → 同调用重试 ≤2 → 本步骤降级内置工具 + WARN。
+ *
+ * 与锁阶梯分工：busy 是**排队**，不是写锁争用 —— MUST NOT 触发 unlock / sync。
+ */
+export const CODEGRAPH_BUSY_LADDER: string = [
+    '**CodeGraph busy 阶梯（排队不是错误，也不是索引不可用）**：',
+    '1. 识别 `busy serving other concurrent requests` 一类排队文案时，**等待 5–10 秒**；',
+    '2. 重试**同一调用**（同一查询参数），至多 **2 次**；',
+    '3. 仍 busy → 在**本步骤**降级为内置工具（Glob / Grep）并记 WARN，随后继续流程；',
+    '4. MUST NOT 因 busy 判「索引不可用」，MUST NOT 执行 `codegraph unlock` 或显式 `codegraph sync`。',
+].join('\n');
+
+/**
+ * CodeGraph CLI 边界（唯一源）：只有 status / unlock / sync 是真实子命令。
+ *
+ * MCP 工具名（search / files / context / impact）不是 CLI 子命令，误用会产生
+ * `unknown command` 并浪费回合。
+ */
+export const CODEGRAPH_CLI_BOUNDARY: string = [
+    '**CodeGraph CLI 边界（子命令白名单）**：',
+    '1. CLI 仅允许 `codegraph status --json` / `codegraph unlock` / `codegraph sync`（后两者受锁阶梯约束）；',
+    '2. MUST NOT 把 MCP 工具名当 CLI 子命令：`codegraph search` / `codegraph files` / `codegraph context` / `codegraph impact` 均**不存在**；',
+    '3. 遇 `unknown command` → 立即改用 MCP 主通道完成该次检索，MUST NOT 重试同类 CLI 子命令。',
+].join('\n');
+
+/**
  * 锁阶梯文本（唯一源）：读 `writer.pid` 判存活 → 存活只读复用（禁止 unlock / sync）
  * → 不存活才 unlock + 重试一次 → 仍失败降级 Grep + WARN；仅确认无 daemon 时按需 sync 一次。
  */

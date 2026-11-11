@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:97899eed662c437095746915d5eb11bff936032a877aaf3088c518f46ef18b62"
+  generatedFingerprint: "sha256:f5b3e817b572be7926b39784ea5bc649d40b70f9c9c9570d57c63f1fa72379d3"
 ---
 
 提出新变更 —— 一步创建变更并生成全部制品。
@@ -272,7 +272,7 @@ metadata:
 
 **Output**
 
-> **delegated 模式分支**：若 `mode=delegated`，输出**结构化回执**（change-name、生成制品清单、apply-ready 状态、`explorationFile` / `handoffPackPath` / `sourceFingerprint`、探索文件迁移结果），MUST NOT 输出"等待用户确认"停点——回执是中间状态，父编排在同一用户回合内继续验证；阶段推进主权归编排器。下述 interactive 输出仅适用于默认模式。
+> **delegated 模式分支**：若 `mode=delegated`，输出**结构化回执**（change-name、生成制品清单、apply-ready 状态、`explorationFile` / `handoffPackPath` / `sourceFingerprint`、探索文件迁移结果），MUST NOT 输出"等待用户确认"停点——回执是中间状态，父编排在同一用户回合内继续验证；回执 MUST NOT 作为面向用户的最终消息（用户可见至多一行进度）；阶段推进主权归编排器。下述 interactive 输出仅适用于默认模式。
 
 全部制品完成且 Phase 3 验证通过后（规划边界：到此停止，等待用户发起新请求）：
 - 变更名与位置

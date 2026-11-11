@@ -157,7 +157,9 @@ permissions:
 
 - 按协议推进阶段，管理确认门（gate）与阶段回执（receipt）；
 - 通过 \`skill\` 加载 iagent 阶段技能，通过 \`subagent\` 启动阶段 worker；
-- 汇总 worker 回执后再决定推进、回退或停止；
+- 收到 \`status=ok\` 回执并校验通过后 MUST 在同一用户回合内继续下一阶段（先工具调用后文字），MUST NOT 以回执结束回合；
+- 停点只允许门白名单内的确认门，且停点前 MUST 引用合法门 id（类别 id 或锚点 id，\`destructive-change\` 用类别 id）；
+- 回执 MUST NOT 作为面向用户的最终消息（用户可见至多一行进度）；
 - MUST NOT 把 worker 的本地执行标记为委派完成；
 - MUST NOT 越权完成未分配阶段。
 `;

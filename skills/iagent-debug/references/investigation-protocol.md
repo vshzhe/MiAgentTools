@@ -18,25 +18,43 @@
 
 Grep/Glob 是**最后手段**，仅在能力探测三通道全部失败后允许 —— MUST NOT 作为跳过 CodeGraph 的捷径。降级（回退）MUST NOT 阻断排查，但 MUST NOT 在可用性探测之前采用。
 
-#### 2.2.1 文件结构扫描（codegraph_files）
+**CodeGraph 调用纪律（主通道优先，串行执行）**：
+1. **主通道**是 `codegraph_explore`（文件结构发现 / 符号定位 / 任务级上下文均可用一次自然语言查询完成）；`codegraph_impact` 为**可选增强**；
+2. `codegraph_files` / `codegraph_search` / `codegraph_context` / `codegraph_node` / `codegraph_callers` / `codegraph_callees` 为「**宿主暴露时可选**」通道：缺失时改用主通道，MUST NOT 记为「索引不可用」，MUST NOT 反复调用缺失工具；
+3. **一次广查询优先**：多符号或多主题合并为一次 `codegraph_explore`；单次查询 `maxFiles` 默认不超过 12；
+4. **串行**：同一时刻只发一个 CodeGraph 调用；需要多次查询时串行执行，MUST NOT 并行发起多个调用（并发正是 busy 排队的来源）。
 
-- 用 `codegraph_files` 扫描项目文件树，识别与 bug 描述相关的目录与文件
-- 将发现写入诊断记录的代码库发现 > 已发现文件段，格式为 "<file-path>: <relevance-reason>"
+**CodeGraph busy 阶梯（排队不是错误，也不是索引不可用）**：
+1. 识别 `busy serving other concurrent requests` 一类排队文案时，**等待 5–10 秒**；
+2. 重试**同一调用**（同一查询参数），至多 **2 次**；
+3. 仍 busy → 在**本步骤**降级为内置工具（Glob / Grep）并记 WARN，随后继续流程；
+4. MUST NOT 因 busy 判「索引不可用」，MUST NOT 执行 `codegraph unlock` 或显式 `codegraph sync`。
+
+**CodeGraph CLI 边界（子命令白名单）**：
+1. CLI 仅允许 `codegraph status --json` / `codegraph unlock` / `codegraph sync`（后两者受锁阶梯约束）；
+2. MUST NOT 把 MCP 工具名当 CLI 子命令：`codegraph search` / `codegraph files` / `codegraph context` / `codegraph impact` 均**不存在**；
+3. 遇 `unknown command` → 立即改用 MCP 主通道完成该次检索，MUST NOT 重试同类 CLI 子命令。
+
+#### 2.2.1 文件结构与符号扫描（主通道 `codegraph_explore`）
+
+- 用 `codegraph_explore` 一次查询获取相关文件树与符号，识别与 bug 描述相关的目录、文件与符号
+- 将发现写入诊断记录的代码库发现 > 已发现文件段，格式为 "<file-path>: <relevance-reason>"；符号写入已识别符号段
 - 所有文件路径 MUST 用 `path.join()` 构造以兼容跨平台（Windows/macOS/Linux）—— 不得硬编码分隔符
-- 降级（回退）（CodeGraph 不可用时）：用 Glob 做文件结构发现
+- 宿主同时暴露 `codegraph_files` / `codegraph_search` 时 MAY 追加使用；缺失时 MUST NOT 记为不可用
+- 降级（回退）（三通道探测全部失败时）：用 Glob 做文件结构发现、Grep 做符号搜索
 - **仅增量（摘要命中范围跳过）**: MUST NOT 重跑已覆盖的 CodeGraph 查询 —— **仅增量查询**（见 2.1.5）；摘要未覆盖的范围照常扫描
 
-#### 2.2.2 符号定位与任务级上下文（codegraph_search + codegraph_context）
+#### 2.2.2 任务级上下文（主通道追问式查询）
 
-- `codegraph_search` —— 定位失败行为涉及的符号；将 "<symbol-name> (<file-path>:<line>): <reason>" 记入代码库发现 > 已识别符号段
-- `codegraph_context --task <bug-description>` —— 围绕 bug 构建完整的任务级上下文（聚合入口点、相关符号、关键代码），把 bug 描述转化为有范围的排查上下文
-- 降级（回退）（CodeGraph 不可用时）：用 Grep 做符号搜索
+- 用 `codegraph_explore` 以「<bug 描述> 的入口点、相关符号与关键代码」为查询，构建有范围的排查上下文
+- 将上下文化结论记入诊断记录（入口点 / 相关符号 / 关键代码位置）
+- 降级（回退）：用 Grep 做符号搜索
 - **仅增量（摘要命中范围跳过）**: MUST NOT 重跑已覆盖的 CodeGraph 查询 —— **仅增量查询**（见 2.1.5）；摘要未覆盖的符号与上下文照常定位
 
-#### 2.2.3 调用链追踪与影响半径（codegraph_callers / codegraph_callees / codegraph_impact）
+#### 2.2.3 调用链追踪与影响半径
 
-- `codegraph_callers` / `codegraph_callees` —— 追踪疑似代码周围的调用链（上游调用者与下游被调用者）
-- `codegraph_impact` —— 评估疑似缺陷与候选修复的影响半径
+- **主通道**：以 `codegraph_explore` 返回的调用路径（Flow）与受影响符号/文件估算调用链与影响半径
+- **可选通道**：宿主同时暴露 `codegraph_callers` / `codegraph_callees` / `codegraph_impact` 时以其结果为准（更精确）；缺失时以上述主通道结果替代，MUST NOT 记为不可用，MUST NOT 反复调用缺失工具
 - 将调用链（适用时附 ASCII 图）与受影响符号记入诊断记录，供根因确认
 - **仅增量（摘要命中范围跳过）**: MUST NOT 重跑已覆盖的 CodeGraph 查询 —— **仅增量查询**（见 2.1.5）；摘要未覆盖的调用链与影响半径照常追踪
 
@@ -48,7 +66,7 @@ Grep/Glob 是**最后手段**，仅在能力探测三通道全部失败后允许
 
 - **(a) 影响半径**：`codegraph_impact` 在 depth ≤ 2 的受影响符号数 **≥ 5**，或受影响文件数 **≥ 3**
 - **(b) 跨模块**：受影响范围跨 **≥ 2** 个模块 / 目录
-- **(c) 根因清晰度**：2.2.2（`codegraph_search` + `codegraph_context`）**未能**一步定位单一高置信根因
+- **(c) 根因清晰度**：2.2.2（主通道 `codegraph_explore` 的任务级上下文）**未能**一步定位单一高置信根因
 
 **分级结果（两条路径）**：
 
@@ -63,7 +81,7 @@ Grep/Glob 是**最后手段**，仅在能力探测三通道全部失败后允许
 - 信号 **(b)(c)** 不依赖 CodeGraph，照常判定
 - 诊断记录 MUST 标注「信号降级」；**MUST NOT 因 CodeGraph 不可用而跳过分级**
 
-**信号可追溯（反幻觉硬约束）**：信号取值 MUST 可追溯至 `codegraph_impact` / `codegraph_files`（降级时为 Grep）的**实测查询结果**并在诊断记录留痕；MUST NOT 以"半径小"等未经实测的结论支撑轻量路径判定（违反零猜测原则）。
+**信号可追溯（反幻觉硬约束）**：信号取值 MUST 可追溯至 `codegraph_explore` 主通道结果（可选通道 `codegraph_impact` / `codegraph_files` 存在时以之为准；降级时为 Grep）的**实测查询结果**并在诊断记录留痕；MUST NOT 以"半径小"等未经实测的结论支撑轻量路径判定（违反零猜测原则）。
 
 **与 2.4 解耦**：分级结果**只**影响 2.2.4 是否执行；2.4 诊断确认包内的缺陷链路对两条路径**均强制**产出，轻量路径 MUST NOT 豁免。
 

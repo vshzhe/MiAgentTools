@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: init
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:8fa07b26015956e40b73a18c60b9ff428c140a36f4da0760a46b9c90b2db07b3"
+  generatedFingerprint: "sha256:2b3279b2d80c39a5340490334b4407188c15930e8cc324ddd971fe6c31f1086d"
 ---
 
 初始化项目 —— 读扫描基线 → 五类语义扫描 → 逐份确认 → 落盘 → 回写 context → 蒸馏规则。
@@ -58,7 +58,24 @@ metadata:
 - **工具名缺失 ≠ 索引不可用**：某一通道在当前宿主不存在，只说明该通道不可用，MUST NOT 据此断言索引未初始化。
 - MUST NOT 用「`.codegraph/` 目录是否存在」判定索引可用性（点号目录的 Glob 存在假阴性）；目录存在性不构成可用性判据。
 
-- 可用时用 `codegraph_files` / `codegraph_search` / `codegraph_context` 获取模块与符号结构
+**CodeGraph 调用纪律（主通道优先，串行执行）**：
+1. **主通道**是 `codegraph_explore`（文件结构发现 / 符号定位 / 任务级上下文均可用一次自然语言查询完成）；`codegraph_impact` 为**可选增强**；
+2. `codegraph_files` / `codegraph_search` / `codegraph_context` / `codegraph_node` / `codegraph_callers` / `codegraph_callees` 为「**宿主暴露时可选**」通道：缺失时改用主通道，MUST NOT 记为「索引不可用」，MUST NOT 反复调用缺失工具；
+3. **一次广查询优先**：多符号或多主题合并为一次 `codegraph_explore`；单次查询 `maxFiles` 默认不超过 12；
+4. **串行**：同一时刻只发一个 CodeGraph 调用；需要多次查询时串行执行，MUST NOT 并行发起多个调用（并发正是 busy 排队的来源）。
+
+**CodeGraph busy 阶梯（排队不是错误，也不是索引不可用）**：
+1. 识别 `busy serving other concurrent requests` 一类排队文案时，**等待 5–10 秒**；
+2. 重试**同一调用**（同一查询参数），至多 **2 次**；
+3. 仍 busy → 在**本步骤**降级为内置工具（Glob / Grep）并记 WARN，随后继续流程；
+4. MUST NOT 因 busy 判「索引不可用」，MUST NOT 执行 `codegraph unlock` 或显式 `codegraph sync`。
+
+**CodeGraph CLI 边界（子命令白名单）**：
+1. CLI 仅允许 `codegraph status --json` / `codegraph unlock` / `codegraph sync`（后两者受锁阶梯约束）；
+2. MUST NOT 把 MCP 工具名当 CLI 子命令：`codegraph search` / `codegraph files` / `codegraph context` / `codegraph impact` 均**不存在**；
+3. 遇 `unknown command` → 立即改用 MCP 主通道完成该次检索，MUST NOT 重试同类 CLI 子命令。
+
+- 可用时用主通道 `codegraph_explore` 获取模块与符号结构；`codegraph_files` / `codegraph_search` / `codegraph_context` 为宿主暴露时可选
 - 该技能是信息基础的可选来源，MUST NOT 写成必须依赖；无索引亦 MUST NOT 阻断流程
 
 ### 4. 安全规范扫描

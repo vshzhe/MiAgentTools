@@ -7,7 +7,14 @@
 
 import type { CapabilityNegotiation } from './hosts.js';
 import { phaseCapabilitiesSatisfied } from './hosts.js';
-import { GATE_WHITELIST, validateReceipt, type CapabilityId, type PhaseSpec, type Receipt } from './protocol.js';
+import {
+    GATE_WHITELIST,
+    validateReceipt,
+    type CapabilityId,
+    type PhaseSpec,
+    type Receipt,
+    type WorkflowProtocol,
+} from './protocol.js';
 import { PHASE_GATE_CATEGORY } from './workflows.js';
 
 /** 阶段推进输入 */
@@ -49,9 +56,60 @@ export const TRANSITION_BLOCKERS = {
 } as const;
 
 /**
+ * 解析阶段回执的 `nextAllowed` 指向的阶段（变更 improve-continuation-and-codegraph-resilience，D12）。
+ *
+ * 语义约束：
+ *   - `nextAllowed` 保持**阶段 id** 语义（`Receipt.nextAllowed` 既有契约），
+ *     MUST NOT 被解释为工具调用表达式；
+ *   - 只允许**当前阶段或其后**的阶段：同一阶段用于 `blocked` / `resume` 续跑；
+ *     指向更早阶段视为不可解析（防止回退被伪装成续跑）；
+ *   - 纯函数：不修改协议与回执，也不读取会话状态；
+ *   - 不可解析时调用方 MUST 按 `invalid-receipt` 处理。
+ */
+export function resolveNextPhase(
+    protocol: WorkflowProtocol,
+    phaseId: string,
+    nextAllowed: unknown
+): NextPhaseResolution {
+    if (typeof nextAllowed !== 'string' || nextAllowed.trim() === '') {
+        return { resolved: false, reason: 'nextAllowed 为空或非字符串' };
+    }
+    const currentIndex = protocol.phases.findIndex((phase) => phase.id === phaseId);
+    if (currentIndex === -1) {
+        return { resolved: false, reason: `当前阶段 ${phaseId} 不在工作流 ${protocol.workflowId} 内` };
+    }
+    const target = protocol.phases
+        .slice(currentIndex)
+        .find((phase) => phase.id === nextAllowed.trim());
+    if (target === undefined) {
+        return {
+            resolved: false,
+            reason: `nextAllowed=${nextAllowed} 不是 ${phaseId} 或其后的阶段（${protocol.workflowId}）`,
+        };
+    }
+    return { resolved: true, phase: target };
+}
+
+/** 下一阶段解析结果 */
+export interface NextPhaseResolution {
+    /** 是否解析成功 */
+    resolved: boolean;
+    /** 解析到的目标阶段（`resolved=true` 时存在） */
+    phase?: PhaseSpec;
+    /** 不可解析原因（`resolved=false` 时存在） */
+    reason?: string;
+}
+
+/**
  * 判定某阶段是否可推进到下一阶段。
  *
- * 依次检查：宿主能力 → 确认门 → 回执。任一不满足即阻塞。
+ * 固定判定顺序：**能力 → 确认门 → 回执（→ 执行方式）**。任一不满足即阻塞。
+ *
+ * **门优先**：门未确认与回执非法可能同时出现（`blockedBy` 同时含
+ * `gate-unconfirmed` 与 `invalid-receipt`）。编排器 MUST 先处理门；
+ * **自动重试仅当 `blockedBy` 恰为 `['invalid-receipt']`** 时适用，
+ * MUST NOT 因门未确认触发阶段重试。
+ * 能力缺失与未知门一律**阻断并报告**，MUST NOT 作为面向用户的停点。
  *
  * 条件门语义（`GateSpec.condition`）：
  *   - 未声明 `condition` → 保持既有静态门行为（`blocking ?? true` + `gateConfirmed`）；

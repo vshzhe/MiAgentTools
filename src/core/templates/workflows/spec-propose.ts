@@ -250,7 +250,7 @@ ${renderGateWhitelistSection()}
 
 **Output**
 
-> **delegated 模式分支**：若 \`${renderDelegationModeOption('delegated')}\`，输出**结构化回执**（change-name、生成制品清单、apply-ready 状态、\`explorationFile\` / \`handoffPackPath\` / \`sourceFingerprint\`、探索文件迁移结果），MUST NOT 输出"等待用户确认"停点——回执是中间状态，父编排在同一用户回合内继续验证；阶段推进主权归编排器。下述 interactive 输出仅适用于默认模式。
+> **delegated 模式分支**：若 \`${renderDelegationModeOption('delegated')}\`，输出**结构化回执**（change-name、生成制品清单、apply-ready 状态、\`explorationFile\` / \`handoffPackPath\` / \`sourceFingerprint\`、探索文件迁移结果），MUST NOT 输出"等待用户确认"停点——回执是中间状态，父编排在同一用户回合内继续验证；回执 MUST NOT 作为面向用户的最终消息（用户可见至多一行进度）；阶段推进主权归编排器。下述 interactive 输出仅适用于默认模式。
 
 全部制品完成且 Phase 3 验证通过后（规划边界：到此停止，等待用户发起新请求）：
 - 变更名与位置

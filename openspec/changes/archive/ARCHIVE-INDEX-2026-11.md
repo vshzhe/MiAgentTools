@@ -25,6 +25,7 @@
 | 2026-11-09 | optimize-commit-skills | templates | 提交技能优化：移除知识库推送、统一三类说明、归档未提交提案纳入提交范围 [含测试/使用说明] |
 | 2026-11-09 | improve-impl-conformance-and-test-gate | spec | 实现一致性三层判定 + 自动单测补齐 + 规则读取完整性 [含测试] |
 | 2026-11-09 | add-project-skill-integration | skills | 项目技能接入：`.iagent` skills 配置 + 技能载体/宿主回退 + `iagent skills` 枚举与完整性校验 + project-init 技能蒸馏（C1-C6 自检）+ 探索/实现技能基线与 skillsRead 诊断。[含测试/使用说明] |
+| 2026-11-11 | improve-continuation-and-codegraph-resilience | continuation | 消除编排流程回执停点，并让 CodeGraph 调用具备 busy 重试与 CLI 边界 [含测试] |
 
 ---
 
@@ -32,13 +33,14 @@
 
 | 模块 | 归档数 | 变更列表 |
 |------|-------|---------|
-| templates | 5 | fix-multi-agent-skill-command-generation (2026-11-02), improve-requirement-doc-review-readiness (2026-11-08), improve-orchestration-execution-mode (2026-11-08), improve-grill-with-docs-paper-trail (2026-11-08), optimize-commit-skills (2026-11-09) |
 | orchestration | 5 | fix-mode-delegation-host-parity (2026-11-01), improve-delegation-gate-ledger (2026-11-03), skill-bridge-optimize (2026-11-08), inline-orchestration-delegation (2026-11-08), inline-propose-apply-parallel (2026-11-08) |
-| debug | 1 | feat-debug-dual-track-entry (2026-11-03) |
+| templates | 5 | fix-multi-agent-skill-command-generation (2026-11-02), improve-requirement-doc-review-readiness (2026-11-08), improve-orchestration-execution-mode (2026-11-08), improve-grill-with-docs-paper-trail (2026-11-08), optimize-commit-skills (2026-11-09) |
 | spec | 4 | improve-proposal-validation-and-spec-ref (2026-11-03), improve-archive-index-monthly (2026-11-08), improve-task-ref-dedup (2026-11-08), improve-impl-conformance-and-test-gate (2026-11-09) |
-| workflow | 1 | improve-compile-gate-and-archive-readonly (2026-11-01) |
+| continuation | 1 | improve-continuation-and-codegraph-resilience (2026-11-11) |
+| debug | 1 | feat-debug-dual-track-entry (2026-11-03) |
 | skills | 1 | add-project-skill-integration (2026-11-09) |
+| workflow | 1 | improve-compile-gate-and-archive-readonly (2026-11-01) |
 
 ---
 
-*更新时间: 2026-11-09*
+*更新时间: 2026-11-11*

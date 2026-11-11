@@ -6,7 +6,12 @@ import { deriveCommandContent } from '../derive-command.js';
 import { buildPromptGateBlock, buildPromptGateCompact, GATE_PROTOCOL_PREAMBLE, renderGateWhitelistSection, REQUIREMENT_DIMENSIONS } from '../prompt-gate.js';
 import { buildFlowchartBlock, buildFlowchartCompact, REQUIREMENT_FLOW_COLUMNS } from '../flowchart-gate.js';
 import { CODEGRAPH_CLI, CODEGRAPH_MCP } from '../tool-whitelist.js';
-import { renderCodegraphProbeOrder } from '../codegraph-protocol.js';
+import {
+    CODEGRAPH_BUSY_LADDER,
+    CODEGRAPH_CALL_DISCIPLINE,
+    CODEGRAPH_CLI_BOUNDARY,
+    renderCodegraphProbeOrder,
+} from '../codegraph-protocol.js';
 import {
     LEGACY_AUTO_MODE_PARAM,
     renderDelegationModeContract,
@@ -373,17 +378,19 @@ const EXPLORATION_PROTOCOL_FULL = `## 强制检查点体系（delegated 模式�
    三通道全部不可用 → 记录 "CodeGraph 不可用 — 降级到 Glob/Grep" 并跳到下面的降级路径。
    Grep/Glob 是最后手段，**只有**在能力探测三通道全部失败后才允许使用 —— 绝不作为跳过 CodeGraph 的捷径。
 
-1. 用 \`codegraph_files\` 工具**扫描项目文件结构**
-   - 获取带元数据的完整项目文件树
-   - 识别与探索主题相关的目录与文件
-   - 把结果写入 \`## Codebase Findings > Discovered Files\`
+   ${CODEGRAPH_CALL_DISCIPLINE}
 
-2. 用 \`codegraph_search\` 工具**检索相关符号**
-   - 检索与探索主题关键词匹配的符号
-   - 记录发现的符号及其 file:line 位置
-   - 把结果写入 \`## Codebase Findings > Identified Symbols\`
+   ${CODEGRAPH_BUSY_LADDER}
 
-   **注意**：\`codegraph_context\` 延后到 1.4（追问之后、任务描述更清晰时）。
+   ${CODEGRAPH_CLI_BOUNDARY}
+
+1. 用 **主通道 \`codegraph_explore\`** 扫描项目文件结构并检索相关符号
+   - 一次自然语言查询同时获取：相关文件树、符号及其 \`file:line\`、关键代码
+   - 识别与探索主题相关的目录与文件 → 写入 \`## Codebase Findings > Discovered Files\`
+   - 记录发现的符号及其 file:line 位置 → 写入 \`## Codebase Findings > Identified Symbols\`
+   - 宿主同时暴露 \`codegraph_files\` / \`codegraph_search\` 时 MAY 追加使用；缺失时 MUST NOT 记为不可用
+
+2. **任务级上下文**延后到 1.4（追问之后、任务描述更清晰时），届时再用一次 \`codegraph_explore\` 获取。
 
 3. 在探索文件中**记录扫描结果**：
    \`\`\`markdown

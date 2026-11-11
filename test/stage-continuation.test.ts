@@ -6,8 +6,11 @@ import {
 } from '../src/core/host-orchestration/actions.js';
 import {
     CONDITIONAL_DELEGATIONS,
+    renderContinuationContract,
     renderHostOrchestrationSection,
 } from '../src/core/host-orchestration/render.js';
+import { renderOrchestratorAgent } from '../src/core/opencode-v2.js';
+import { renderPiOrchestratorAgent } from '../src/core/pi-native.js';
 import { renderDelegationModeContract } from '../src/core/host-orchestration/delegation-contract.js';
 import {
     DEFAULT_RECEIPT_FIELDS,
@@ -98,6 +101,47 @@ describe('Continuation contract', () => {
         expect(section).toContain('只有门白名单内的确认门是合法停点');
         expect(section).toContain('Stage Envelope');
         expect(section).toContain('Stage Receipt');
+    });
+
+    it('renders the single-source continuation assertion with receipt internalization', () => {
+        for (const mode of ['strict', 'degraded'] as const) {
+            const contract = renderContinuationContract(mode);
+            expect(contract).toContain('续跑断言');
+            expect(contract).toContain('同一用户回合内继续下一阶段');
+            expect(contract).toContain('回执内部化');
+            expect(contract).toContain('用户可见输出至多一行进度');
+            expect(contract).toContain('类别 id 或锚点 id');
+            expect(contract).toContain('destructive-change');
+            expect(contract).toContain('门优先');
+            expect(contract).toContain("['invalid-receipt']");
+        }
+    });
+
+    it('mentions receipt persistence and no-stop-on-capability rules', () => {
+        const contract = renderContinuationContract('strict');
+        expect(contract).toContain('receipts/<phase>.json');
+        expect(contract).toContain('非停点');
+        expect(contract).toContain('中断恢复');
+    });
+
+    it('orchestrator prompts no longer authorize stopping after a receipt', () => {
+        const opencode = renderOrchestratorAgent();
+        const pi = renderPiOrchestratorAgent([]);
+        for (const text of [opencode, pi]) {
+            expect(text).not.toContain('再决定推进、回退或停止');
+            expect(text).toContain('MUST NOT 以回执结束回合');
+            expect(text).toContain('类别 id 或锚点 id');
+        }
+    });
+
+    it('every strict-host delegation branch carries the continuation clause', () => {
+        for (const host of ['claude', 'opencode', 'pi'] as const) {
+            const text = renderDelegate(host, 'strict', { workflowId: 'spec-propose' });
+            expect(text, `${host} 缺续跑子句`).toMatch(/续跑契约|EXIT GUARD/);
+        }
+        expect(renderDelegate('codex', 'strict', { workflowId: 'spec-propose' })).toContain(
+            '不构成委派'
+        );
     });
 
     it('extends the delegated mode contract with continuation', () => {

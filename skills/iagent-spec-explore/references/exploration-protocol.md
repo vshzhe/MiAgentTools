@@ -347,17 +347,30 @@
    三通道全部不可用 → 记录 "CodeGraph 不可用 — 降级到 Glob/Grep" 并跳到下面的降级路径。
    Grep/Glob 是最后手段，**只有**在能力探测三通道全部失败后才允许使用 —— 绝不作为跳过 CodeGraph 的捷径。
 
-1. 用 `codegraph_files` 工具**扫描项目文件结构**
-   - 获取带元数据的完整项目文件树
-   - 识别与探索主题相关的目录与文件
-   - 把结果写入 `## Codebase Findings > Discovered Files`
+   **CodeGraph 调用纪律（主通道优先，串行执行）**：
+1. **主通道**是 `codegraph_explore`（文件结构发现 / 符号定位 / 任务级上下文均可用一次自然语言查询完成）；`codegraph_impact` 为**可选增强**；
+2. `codegraph_files` / `codegraph_search` / `codegraph_context` / `codegraph_node` / `codegraph_callers` / `codegraph_callees` 为「**宿主暴露时可选**」通道：缺失时改用主通道，MUST NOT 记为「索引不可用」，MUST NOT 反复调用缺失工具；
+3. **一次广查询优先**：多符号或多主题合并为一次 `codegraph_explore`；单次查询 `maxFiles` 默认不超过 12；
+4. **串行**：同一时刻只发一个 CodeGraph 调用；需要多次查询时串行执行，MUST NOT 并行发起多个调用（并发正是 busy 排队的来源）。
 
-2. 用 `codegraph_search` 工具**检索相关符号**
-   - 检索与探索主题关键词匹配的符号
-   - 记录发现的符号及其 file:line 位置
-   - 把结果写入 `## Codebase Findings > Identified Symbols`
+   **CodeGraph busy 阶梯（排队不是错误，也不是索引不可用）**：
+1. 识别 `busy serving other concurrent requests` 一类排队文案时，**等待 5–10 秒**；
+2. 重试**同一调用**（同一查询参数），至多 **2 次**；
+3. 仍 busy → 在**本步骤**降级为内置工具（Glob / Grep）并记 WARN，随后继续流程；
+4. MUST NOT 因 busy 判「索引不可用」，MUST NOT 执行 `codegraph unlock` 或显式 `codegraph sync`。
 
-   **注意**：`codegraph_context` 延后到 1.4（追问之后、任务描述更清晰时）。
+   **CodeGraph CLI 边界（子命令白名单）**：
+1. CLI 仅允许 `codegraph status --json` / `codegraph unlock` / `codegraph sync`（后两者受锁阶梯约束）；
+2. MUST NOT 把 MCP 工具名当 CLI 子命令：`codegraph search` / `codegraph files` / `codegraph context` / `codegraph impact` 均**不存在**；
+3. 遇 `unknown command` → 立即改用 MCP 主通道完成该次检索，MUST NOT 重试同类 CLI 子命令。
+
+1. 用 **主通道 `codegraph_explore`** 扫描项目文件结构并检索相关符号
+   - 一次自然语言查询同时获取：相关文件树、符号及其 `file:line`、关键代码
+   - 识别与探索主题相关的目录与文件 → 写入 `## Codebase Findings > Discovered Files`
+   - 记录发现的符号及其 file:line 位置 → 写入 `## Codebase Findings > Identified Symbols`
+   - 宿主同时暴露 `codegraph_files` / `codegraph_search` 时 MAY 追加使用；缺失时 MUST NOT 记为不可用
+
+2. **任务级上下文**延后到 1.4（追问之后、任务描述更清晰时），届时再用一次 `codegraph_explore` 获取。
 
 3. 在探索文件中**记录扫描结果**：
    ```markdown

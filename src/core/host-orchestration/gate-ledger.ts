@@ -70,17 +70,23 @@ export interface GateLedgerConfirmation {
 }
 
 /**
+ * 流程级临时工作区路径（`<root>/pipeline-<change-name>`）。
+ *
+ * 工作区是流程级（不是阶段级）：handoff 包、阶段回执与三类证据文件都落在其下。
+ * 由 change-name 确定性派生，MUST NOT 作为委派参数键传入。
+ */
+export function pipelineWorkspacePath(changeName: string): string {
+    return path.join(PIPELINE_WORKSPACE_ROOT, `${PIPELINE_WORKSPACE_PREFIX}${changeName}`);
+}
+
+/**
  * 账本文件的确定性派生路径。
  *
  * 由 change-name 派生，MUST NOT 作为新的委派参数键传入（参数表仍只允许
  * `mode` / `gate-skip`；`auto-mode` 为兼容写法）。
  */
 export function gateLedgerPath(changeName: string): string {
-    return path.join(
-        PIPELINE_WORKSPACE_ROOT,
-        `${PIPELINE_WORKSPACE_PREFIX}${changeName}`,
-        HANDOFF_PACK_FILE_NAME
-    );
+    return path.join(pipelineWorkspacePath(changeName), HANDOFF_PACK_FILE_NAME);
 }
 
 /** 门 id 是否落在门承载取值域内 */
