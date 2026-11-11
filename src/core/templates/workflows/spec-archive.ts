@@ -181,14 +181,14 @@ ${renderGateWhitelistSection()}
 
 5. **执行归档**
 
-   运行 iagent CLI 归档命令 —— 它一步完成状态检查与目录移动：
+   运行 iagent CLI 归档命令 —— 它一步完成状态检查、目标名唯一化与目录移动：
    \`\`\`bash
    iagent spec archive "<name>" --yes
    \`\`\`
 
    若 \`openspec/changes/\` 下不存在 \`archive\` 目录则创建它，生成带日期的目标名 \`YYYY-MM-DD-<change-name>\`，并把 \`changeRoot\` 移动到 \`openspec/changes/archive/YYYY-MM-DD-<name>/\`。
 
-   **若命令因目标归档目录已存在而失败**：报告该错误，并建议重命名既有归档、若为重复则删除、或改到另一个日期。不得覆盖。
+   **目标名冲突（D1）**：候选目录已存在时 CLI 自动追加唯一化后缀 \`-2\`、\`-3\`…（自 2 起递增，上限 99 次），绝不覆盖既有归档。技能 MUST 以命令实际报告的归档目录为唯一事实来源（后续索引与摘要均使用它），MUST NOT 因同名冲突中止归档，MUST NOT 指引用户重命名或删除既有归档，MUST NOT 覆盖既有归档。唯一化超限时命令报错，按普通失败处理并报告错误。
 
    保留 \`.openspec.yaml\` 与 \`attachments/\` 子目录 —— 它们会随变更目录自动移动。
 
@@ -234,9 +234,9 @@ ${renderGateWhitelistSection()}
 <!-- CMD:SKIP -->
 
    a. 提取条目信息：
-      - **归档日期**：取自归档目录名 \`YYYY-MM-DD-{change-name}\`
-      - **变更名称**：取自目录名（日期前缀之后）
-      - **模块**：从变更名模式 \`{prefix}-{module}-{feature}\` 提取，无法判断时用 "general"
+      - **归档日期**：取自实际归档目录名 \`YYYY-MM-DD-\` 前缀的前 10 位
+      - **变更名称**：取自实际归档目录名中日期前缀 \`YYYY-MM-DD-\` 之后的全段（含唯一化后缀，如 \`name-2\`）
+      - **模块**：先剥离变更名称尾部的 \`-<数字>\` 唯一化后缀，再从 \`{prefix}-{module}-{feature}\` 提取，无法判断时用 "general"
       - **摘要**：\`proposal.md\` Why 的首段（历史 JSON-only 降级时只读 change.json；最多 50 字符）
 
    b. 写入顺序（强制）：先向当月月度索引追加条目（步骤 c），再维护根入口（步骤 d）。
@@ -337,7 +337,7 @@ ${renderGateWhitelistSection()}
 
 **Change:** <change-name>
 **Schema:** <schema-name>
-**Archived to:** openspec/changes/archive/YYYY-MM-DD-<name>/
+**Archived to:** openspec/changes/archive/YYYY-MM-DD-<name>[-N]/ (N = 2/3… 仅当目标名冲突时出现)
 **Specs:** ✓ Synced to main specs (or "No delta specs" or "Sync failed — warning logged" or "主规格未同步（skip_specs 声明）")
 **Archive Index:** ✓ Appended to ARCHIVE-INDEX-YYYY-MM.md (纯追加；结构损坏时仅追加 + WARN); root ARCHIVE-INDEX.md links and global statistics updated
 **Exploration Memory:** ✓ Synced to specs/<capability>/explorations.md (or "Skipped — no exploration file" or "Skipped — no delta specs" or "Failed — warning logged")
@@ -355,7 +355,7 @@ All artifacts complete. All tasks complete.
 
 **Change:** <change-name>
 **Schema:** <schema-name>
-**Archived to:** openspec/changes/archive/YYYY-MM-DD-<name>/
+**Archived to:** openspec/changes/archive/YYYY-MM-DD-<name>[-N]/
 **Specs:** ✓ Synced to main specs
 
 **Warnings:**
@@ -364,28 +364,13 @@ All artifacts complete. All tasks complete.
 
 Review the archive if this was not intentional.
 \`\`\`
-
-**Output（出错：归档已存在）**
-
-\`\`\`
-## Archive Failed
-
-**Change:** <change-name>
-**Target:** openspec/changes/archive/YYYY-MM-DD-<name>/
-
-Target archive directory already exists.
-
-**Options:**
-1. Rename the existing archive
-2. Delete the existing archive if it's a duplicate
-3. Wait until a different date to archive
-\`\`\`
 <!-- /CMD:SKIP -->
 
 **Guardrails**
 - 未提供变更时始终提示选择（除非变更名由工作流上下文显式传入）
 - 用制品图（iagent spec status --json）做完成度检查
 - 不要因告警阻塞归档 —— 仅告知（无需确认）
+- **同名冲突不中止（D1/D2）**：目标名已存在时由 CLI 唯一化（\`-2\`、\`-3\`…，上限 99 次），技能以实际归档目录为事实来源；MUST NOT 指引重命名/删除既有归档，MUST NOT 覆盖既有归档
 - 移入归档时保留 .openspec.yaml（它随目录一起移动）
 - 保留 \`attachments/\` 子目录 —— 它随变更目录自动移动
 - 为月度索引 \`ARCHIVE-INDEX-YYYY-MM.md\` 提取摘要时，扫描 \`tasks.md\` 的补充类型标签，并把 \`[含xxx]\` 标注追加到摘要

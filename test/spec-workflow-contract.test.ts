@@ -10,6 +10,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { getSkillTemplates } from '../src/core/templates/index.js';
+import { buildSpecCommand } from '../src/commands/spec.js';
 import {
     GATE_SKIP_IDS,
     renderGateSkipOption,
@@ -595,6 +596,50 @@ describe('模板执行方式、读取范围与阶段结论（任务 5.8）', () 
         for (const name of ['auto-workflow', 'workflow', 'debug']) {
             expect(body(name), `${name} 含内联执行变更类阶段表述`).not.toMatch(inlineChangeStage);
         }
+    });
+});
+
+describe('归档名冲突唯一化（improve-archive-name-collision）', () => {
+    it('spec-archive 声明同名冲突由 CLI 唯一化且不中止', () => {
+        const text = body('spec-archive');
+        expect(text).toContain('唯一化后缀');
+        expect(text).toContain('MUST NOT 因同名冲突中止归档');
+        expect(text).toContain('MUST NOT 覆盖既有归档');
+        expect(text).toContain('含唯一化后缀');
+        expect(text).toContain('剥离变更名称尾部的');
+    });
+
+    it('spec-archive 不再提供「目标已存在即失败」旧指引', () => {
+        const text = body('spec-archive');
+        expect(text).not.toContain('建议重命名既有归档');
+        expect(text).not.toContain('Target archive directory already exists');
+        expect(text).not.toContain('## Archive Failed');
+    });
+
+    it('spec-bulk-archive 同名冲突不标 Failed，其余失败仍隔离', () => {
+        const text = body('spec-bulk-archive');
+        expect(text).toContain('目标名冲突（D5）');
+        expect(text).toContain('MUST NOT 因同名冲突标 Failed');
+        expect(text).toContain('含唯一化后缀');
+        expect(text).toContain('剥离变更名称尾部的');
+        expect(text).toContain('失败隔离');
+        expect(text).not.toContain('若命令因目标归档目录已存在而失败');
+        expect(text).not.toContain('Archive directory already exists');
+    });
+
+    it('spec-bulk-archive 保留并行组 / 串行链分组协议（本次不改动）', () => {
+        const text = body('spec-bulk-archive');
+        expect(text).toContain('无共享 capability 的变更构成并行组');
+        expect(text).toContain('共享同一 capability 的变更构成串行链');
+    });
+
+    it('归档 CLI 未新增严格模式 / 后缀开关', () => {
+        const spec = buildSpecCommand();
+        const archive = spec.commands.find((command) => command.name() === 'archive');
+        expect(archive).toBeDefined();
+        const longs = (archive?.options ?? []).map((option) => option.long);
+        expect(longs).not.toContain('--strict');
+        expect(longs).not.toContain('--suffix');
     });
 });
 

@@ -47,6 +47,20 @@ describe('Markdown-first spec CLI', () => {
         expect(fs.existsSync(path.join(dir, 'tasks.json'))).toBe(false);
     });
 
+    it('CLI：同名变更同日二次归档自动唯一化', () => {
+        makeChange(root, 'demo');
+        buildProgram().parse(['node', 'iagent', 'spec', 'archive', 'demo', '--yes']);
+        const today = new Date().toISOString().slice(0, 10);
+        const archiveRoot = path.join(root, 'openspec', 'changes', 'archive');
+        expect(fs.existsSync(path.join(archiveRoot, `${today}-demo`))).toBe(true);
+
+        // 重建同名变更后再次归档：目标名冲突 → 唯一化后缀
+        makeChange(root, 'demo');
+        buildProgram().parse(['node', 'iagent', 'spec', 'archive', 'demo', '--yes']);
+        expect(fs.existsSync(path.join(archiveRoot, `${today}-demo-2`))).toBe(true);
+        expect(fs.existsSync(path.join(archiveRoot, `${today}-demo`))).toBe(true);
+    });
+
     it('非法 spec 报告 invalid 和诊断行号', () => {
         const dir = makeChange(root);
         fs.writeFileSync(path.join(dir, 'specs', 'demo', 'spec.md'), '## ADDED Requirements\n\n### Requirement: Broken\n缺少 Scenario\n');

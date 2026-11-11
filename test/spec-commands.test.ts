@@ -133,12 +133,63 @@ describe('iagent spec archive（previewArchive / executeArchive）', () => {
         expect(path.basename(result.archivedPath)).toBe('2026-01-01-named-change');
     });
 
-    it('归档目标已存在：拒绝覆盖', () => {
+    it('归档目标已存在：追加唯一化后缀 -2（不覆盖既有归档）', () => {
         const today = new Date().toISOString().slice(0, 10);
         createChange(projectRoot, 'target-change');
         const conflictDir = path.join(projectRoot, 'openspec', 'changes', 'archive', `${today}-target-change`);
         fs.mkdirSync(conflictDir, { recursive: true });
-        expect(() => executeArchive(projectRoot, 'target-change')).toThrowError(/拒绝覆盖/);
+        fs.writeFileSync(path.join(conflictDir, 'proposal.md'), '# 历史归档\n', 'utf8');
+        const result = executeArchive(projectRoot, 'target-change');
+        expect(path.basename(result.archivedPath)).toBe(`${today}-target-change-2`);
+        expect(fs.existsSync(result.archivedPath)).toBe(true);
+        // 既有归档目录与其内容保持不变
+        expect(fs.readFileSync(path.join(conflictDir, 'proposal.md'), 'utf8')).toBe('# 历史归档\n');
+    });
+
+    it('-2 也已存在：递增到 -3', () => {
+        const today = new Date().toISOString().slice(0, 10);
+        createChange(projectRoot, 'target-change');
+        const archiveRoot = path.join(projectRoot, 'openspec', 'changes', 'archive');
+        fs.mkdirSync(path.join(archiveRoot, `${today}-target-change`), { recursive: true });
+        fs.mkdirSync(path.join(archiveRoot, `${today}-target-change-2`), { recursive: true });
+        const result = executeArchive(projectRoot, 'target-change');
+        expect(path.basename(result.archivedPath)).toBe(`${today}-target-change-3`);
+    });
+
+    it('预览与执行目标一致（含唯一化后缀）', () => {
+        const today = new Date().toISOString().slice(0, 10);
+        createChange(projectRoot, 'preview-change');
+        fs.mkdirSync(
+            path.join(projectRoot, 'openspec', 'changes', 'archive', `${today}-preview-change`),
+            { recursive: true },
+        );
+        const preview = previewArchive(projectRoot, 'preview-change');
+        const result = executeArchive(projectRoot, 'preview-change');
+        expect(preview.targetPath).toBe(result.archivedPath);
+        expect(path.basename(result.archivedPath)).toBe(`${today}-preview-change-2`);
+    });
+
+    it('自带日期前缀且同名归档已存在：追加后缀且不叠加今日日期', () => {
+        const { changeDir } = createChange(projectRoot, '2026-01-01-named-dup');
+        expect(fs.existsSync(changeDir)).toBe(true);
+        fs.mkdirSync(path.join(projectRoot, 'openspec', 'changes', 'archive', '2026-01-01-named-dup'), {
+            recursive: true,
+        });
+        const result = executeArchive(projectRoot, '2026-01-01-named-dup');
+        expect(path.basename(result.archivedPath)).toBe('2026-01-01-named-dup-2');
+    });
+
+    it('唯一化尝试超限：报错且源目录保留', () => {
+        const today = new Date().toISOString().slice(0, 10);
+        const { changeDir } = createChange(projectRoot, 'limit-change');
+        const archiveRoot = path.join(projectRoot, 'openspec', 'changes', 'archive');
+        const base = `${today}-limit-change`;
+        fs.mkdirSync(path.join(archiveRoot, base), { recursive: true });
+        for (let suffix = 2; suffix <= 100; suffix += 1) {
+            fs.mkdirSync(path.join(archiveRoot, `${base}-${suffix}`), { recursive: true });
+        }
+        expect(() => executeArchive(projectRoot, 'limit-change')).toThrowError(/唯一化尝试超限/);
+        expect(fs.existsSync(changeDir)).toBe(true);
     });
 
     it('变更不存在：报错', () => {

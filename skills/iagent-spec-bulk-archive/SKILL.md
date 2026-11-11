@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:139124dd8f671515c9873d38736eb3ab8f247b83d74abfde659655d890d63a56"
+  generatedFingerprint: "sha256:65aa263c71e7e8cd1468944d7ca6352b076226688dab1d0025a8034370cf2f15"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
@@ -240,16 +240,16 @@ metadata:
       需求文档桥与只读报告已随 `skill-bridge-optimize` 整体移除；本技能不再读取、报告、生成、对齐或迁出 `需求文档.md`。文件随变更目录原样移动。
 
    b. **执行归档**：
-      运行 iagent CLI 归档命令 —— 它一步完成状态检查与目录移动：
+      运行 iagent CLI 归档命令 —— 它一步完成状态检查、目标名唯一化与目录移动：
       ```bash
       iagent spec archive "<name>" --yes
       ```
       若 `openspec/changes/` 下不存在 `archive` 目录则创建它，生成带日期的目标名 `YYYY-MM-DD-<change-name>`，并把 `changeRoot` 移动到 `openspec/changes/archive/YYYY-MM-DD-<name>/`。保留 `.openspec.yaml` 与 `attachments/` 子目录 —— 它们会随变更目录自动移动。
 
-      **若命令因目标归档目录已存在而失败**：把该变更标为 Failed，并继续处理批内剩余变更（失败隔离）。不得覆盖。
+      **目标名冲突（D5）**：候选目录已存在时 CLI 自动追加唯一化后缀 `-2`、`-3`…（上限 99 次），绝不覆盖既有归档。该单元 MUST 以命令实际报告的归档目录为事实来源（b.5 / c / d 与索引均使用它），SHALL 记为 Success 并继续，MUST NOT 因同名冲突标 Failed 或中止该单元。命名冲突以外的失败（子代理超时、目录不可写等）仍按失败隔离处理。
 
-   b.5 **探索记忆同步**（在 CLI 归档移动完成后从归档目录读取；提取是复制，不是移动）：
-      - 检查 `openspec/changes/archive/YYYY-MM-DD-<name>/exploration.md` 是否存在（CLI 已移动变更目录；从归档位置读取）
+   b.5 **探索记忆同步**（在 CLI 归档移动完成后从**实际归档目录**读取 —— 可能含唯一化后缀 `-N`；提取是复制，不是移动）：
+      - 检查实际归档目录下的 `exploration.md` 是否存在（CLI 已移动变更目录；从归档位置读取）
       - 缺失时：为该变更记录日志"跳过探索记忆同步：无探索文件"并继续
       - 从 `specs/<capability>/` 子目录枚举能力（历史 JSON-only 降级时只读 change.json 的 specs 段）
       - 若变更没有 delta spec：记录日志"跳过探索记忆同步：无 delta spec"并继续
@@ -315,7 +315,7 @@ metadata:
    若有失败：
    ```
    Failed 1 change:
-   - some-change: Archive directory already exists
+   - some-change: subagent timeout after retries
    ```
 
 10. **批量归档索引更新（月度纯追加 + 根入口单点维护）**
@@ -353,9 +353,9 @@ metadata:
       ```
 
    c. **为每个成功归档的变更提取条目信息**：
-      - **归档日期**：取自目录名前缀 `YYYY-MM-DD-{change-name}`
-      - **变更名称**：取自目录名（日期前缀之后）
-      - **模块**：从变更名模式 `{prefix}-{module}-{feature}` 提取，未匹配时用 "general"
+      - **归档日期**：取自实际归档目录名 `YYYY-MM-DD-` 前缀的前 10 位
+      - **变更名称**：取自实际归档目录名中日期前缀 `YYYY-MM-DD-` 之后的全段（含唯一化后缀，如 `name-2`）
+      - **模块**：先剥离变更名称尾部的 `-<数字>` 唯一化后缀，再从 `{prefix}-{module}-{feature}` 提取，未匹配时用 "general"
       - **摘要**：`proposal.md` Why 的首段（历史 JSON-only 降级时只读 change.json；最多 50 字符）
       - **补充标注**：读取已归档变更目录中的 `tasks.md`（历史 JSON-only 降级时只读 tasks.json），通过**匹配固定标签白名单**收集补充任务类型 `[测试]` / `[DB脚本]` / `[使用说明]`（排除 `[代码]`），并把 `[含<type1>/<type2>/...]` 追加到摘要（如 `[含测试/DB脚本]`）。只按白名单匹配 —— 不得收集"所有方括号内容"：`[测试]` 任务带层级/优先级子标注（`[测试][单元][P0]`），其中 `[单元]`/`[P0]` 不是任务类型，收集它们会产生 `[含测试/单元/P0]` 噪声。白名单之外的标签一律忽略（非阻塞；MAY 记录 WARN）。若无补充任务，跳过标注。
 
@@ -455,12 +455,13 @@ CodeGraph: ✓ Synced (or "Not initialized — skipped" or "Sync skipped due to 
 
 Archived N changes:
 - <change-1> -> archive/YYYY-MM-DD-<change-1>/
+- <change-2> -> archive/YYYY-MM-DD-<change-2>-2/   ← 同名冲突已唯一化
 
 Skipped M changes:
-- <change-2> (user chose not to archive incomplete)
+- <change-3> (user chose not to archive incomplete)
 
 Failed K changes:
-- <change-3>: Archive directory already exists
+- <change-4>: subagent timeout after retries
 ```
 
 **Output（无变更时）**
@@ -487,8 +488,8 @@ No active changes found. Create a new change to get started.
 - **月度索引纯追加**：结构损坏时保留原文 + 仅追加本批最小条目 + WARN 提示人工修复，MUST NOT 全量重建或整体覆盖，MUST NOT 丢弃既有历史条目
 - **任何索引文件 MUST NOT 全量重建**：月度索引逐月纯追加；根入口只更新月份链接与全局统计（确定性重算，非增量累加）
 - 移入归档时保留 .openspec.yaml（CLI 已保证）
-- 归档目录目标名使用当前日期：YYYY-MM-DD-<name>
-- 若归档目标已存在，则该变更失败，但继续处理其他变更
+- 归档目录目标名使用当前日期：YYYY-MM-DD-<name>；目标名被占用时 CLI 唯一化追加 `-2`/`-3`…（上限 99 次）
+- **同名冲突不视为失败**：以实际归档目录（含后缀）为事实来源继续该单元；命名冲突以外的失败仍标 Failed 并继续处理其他变更
 - 所有归档完成后按月份更新各月度索引并单点更新根入口（步骤 10）
 - 索引中只记录成功归档的变更，失败/跳过变更不入索引也不参与统计
 - workspace 范围的变更不进入索引更新

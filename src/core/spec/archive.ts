@@ -59,26 +59,45 @@ export function previewArchive(projectRoot: string, changeName: string): Archive
 
 /**
  * 执行归档：将变更目录移动至 openspec/changes/archive/<今日日期>-<name>/。
- * 名称已含日期前缀（YYYY-MM-DD-）则不叠加。
+ * 名称已含日期前缀（YYYY-MM-DD-）则不叠加；目标名被占用时追加唯一化后缀（-2、-3…）。
  *
- * @throws 变更不存在或目标已占用时抛出
+ * @throws 变更不存在或唯一化尝试超限时抛出
  */
 export function executeArchive(projectRoot: string, changeName: string): ArchiveResult {
     const preview = previewArchive(projectRoot, changeName);
-    if (fs.existsSync(preview.targetPath)) {
-        throw new Error(`归档目标已存在，拒绝覆盖：${preview.targetPath}`);
-    }
     fs.mkdirSync(path.dirname(preview.targetPath), { recursive: true });
     moveDirectory(preview.changeRoot, preview.targetPath);
     return { changeName, archivedPath: preview.targetPath };
 }
 
-/** 解析归档目标路径（已含日期前缀则不叠加） */
+/** 唯一化尝试上限：后缀 `-2` … `-100` 共 99 次 */
+const MAX_UNIQUE_SUFFIX = 99;
+
+/**
+ * 解析归档目标路径（单一真源）。
+ * - 已含日期前缀 `YYYY-MM-DD-` 时不叠加
+ * - 目标名被占用时依次追加 `-2`、`-3`… 直至不存在（绝不覆盖既有归档）
+ *
+ * @throws 唯一化尝试超限时抛出
+ */
 function resolveTargetPath(projectRoot: string, changeName: string): string {
     const datedName = /^\d{4}-\d{2}-\d{2}-/.test(changeName)
         ? changeName
         : `${new Date().toISOString().slice(0, 10)}-${changeName}`;
-    return path.join(projectRoot, 'openspec', 'changes', 'archive', datedName);
+    const archiveRoot = path.join(projectRoot, 'openspec', 'changes', 'archive');
+    const baseTarget = path.join(archiveRoot, datedName);
+    if (!fs.existsSync(baseTarget)) {
+        return baseTarget;
+    }
+    for (let suffix = 2; suffix <= MAX_UNIQUE_SUFFIX + 1; suffix += 1) {
+        const candidate = path.join(archiveRoot, `${datedName}-${suffix}`);
+        if (!fs.existsSync(candidate)) {
+            return candidate;
+        }
+    }
+    throw new Error(
+        `归档目标名冲突且唯一化尝试超限（${MAX_UNIQUE_SUFFIX} 次）：${baseTarget}（最后候选 ${baseTarget}-${MAX_UNIQUE_SUFFIX + 1}）`
+    );
 }
 
 /** 移动目录：renameSync 失败（Windows EPERM/EXDEV）时回退递归复制后删除 */

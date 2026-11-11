@@ -26,6 +26,7 @@
 | 2026-11-09 | improve-impl-conformance-and-test-gate | spec | 实现一致性三层判定 + 自动单测补齐 + 规则读取完整性 [含测试] |
 | 2026-11-09 | add-project-skill-integration | skills | 项目技能接入：`.iagent` skills 配置 + 技能载体/宿主回退 + `iagent skills` 枚举与完整性校验 + project-init 技能蒸馏（C1-C6 自检）+ 探索/实现技能基线与 skillsRead 诊断。[含测试/使用说明] |
 | 2026-11-11 | improve-continuation-and-codegraph-resilience | continuation | 消除编排流程回执停点，并让 CodeGraph 调用具备 busy 重试与 CLI 边界 [含测试] |
+| 2026-11-11 | improve-archive-name-collision | archive | 归档名冲突不再阻断：目标名唯一化后缀 -2/-3…、索引保留后缀并剥离模块、批量归档冲突不标 Failed [含测试] |
 
 ---
 
@@ -40,6 +41,7 @@
 | debug | 1 | feat-debug-dual-track-entry (2026-11-03) |
 | skills | 1 | add-project-skill-integration (2026-11-09) |
 | workflow | 1 | improve-compile-gate-and-archive-readonly (2026-11-01) |
+| archive | 1 | improve-archive-name-collision (2026-11-11) |
 
 ---
 

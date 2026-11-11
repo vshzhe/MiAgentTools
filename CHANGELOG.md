@@ -7,6 +7,13 @@
 
 ## [Unreleased]
 
+## [4.10.1] - 2026-11-11
+
+### Fixed
+
+- 归档目标名冲突（同日同名 / 变更名自带日期前缀）不再阻断归档：`iagent spec archive` 在 `resolveTargetPath` 单点生成 `-2`、`-3`… 唯一化后缀（上限 99 次），预览与执行目标一致，既有归档不覆盖、不删除（`improve-archive-name-collision`）
+- `spec-archive` / `spec-bulk-archive` 技能以实际归档目录为事实来源：同名冲突不再中止单变更归档、批量单元不再标 Failed；月度索引「变更名称」保留后缀、模块提取先剥离后缀
+
 ## [4.10.0] - 2026-11-11
 
 ### Added
@@ -1793,7 +1800,8 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.10.0...HEAD
+[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.10.1...HEAD
+[4.10.1]: https://github.com/vshzhe/MiAgentTools/compare/v4.10.0...v4.10.1
 [4.10.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.9.0...v4.10.0
 [4.9.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.8.0...v4.9.0
 [4.8.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.7.0...v4.8.0
