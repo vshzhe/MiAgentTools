@@ -416,7 +416,7 @@ const EXPLORATION_PROTOCOL_FULL = `## 强制检查点体系（delegated 模式�
 - CodeGraph 与 Glob/Grep 都失败时，系统 MUST 告警但不阻塞
 - 继续之前 MUST 把扫描结果写入探索文件
 
-### 1.2.1.5 多项目 CodeGraph 子代理扫描（条件触发 — 检测到其他项目路径时执行）
+### 1.2.1.5 多项目 CodeGraph 扫描（条件触发 — 检测到其他项目路径时执行）
 
 > 完整细则见 \`references/multi-project-scan.md\`；检测到其他项目路径时 MUST 先 \`Read\` 该文件。
 
@@ -470,7 +470,7 @@ const EXPLORATION_PROTOCOL_FULL = `## 强制检查点体系（delegated 模式�
 1. 用发现的所有文件与符号更新 \`## Codebase Findings\` 段
 2. 用架构与业务流发现更新 \`## Analysis\` 段
 3. 用识别出的符号更新 \`## Pending > For Phase 2 Impact Analysis\`
-4. 若执行了 1.2.1.5 多项目子代理扫描，把其结果并入 Codebase Findings 段的 \`### Other Project Findings\` 下
+4. 若执行了 1.2.1.5 多项目扫描，把其结果并入 Codebase Findings 段的 \`### Other Project Findings\` 下
 5. 记录："CodeGraph 扫描完成 — 发现 <N> 个文件、<M> 个符号"
 
 ### 1.3 Grill-With-Docs 追问
@@ -639,7 +639,7 @@ const EXPLORATION_PROTOCOL_FULL = `## 强制检查点体系（delegated 模式�
 
 `;
 
-const MULTI_PROJECT_SCAN_FULL = `### 1.2.1.5 多项目 CodeGraph 子代理扫描（条件触发 — 检测到其他项目路径时执行）
+const MULTI_PROJECT_SCAN_FULL = `### 1.2.1.5 多项目 CodeGraph 扫描（条件触发 — 检测到其他项目路径时执行）
 
 **⚠️ 条件触发：仅当探索上下文含其他项目路径时执行**
 
@@ -649,25 +649,25 @@ const MULTI_PROJECT_SCAN_FULL = `### 1.2.1.5 多项目 CodeGraph 子代理扫描
 
 1. 对每个其他项目路径**检查 CodeGraph 初始化情况**：
    - 运行 Bash \`ls <path>/.codegraph/\` 检查目标项目是否有 \`.codegraph/\` 目录（能列出目录内容 —— 含 codegraph.db —— 即表示 CodeGraph 已初始化）。不得用 Glob 检查点号前缀目录（Glob 对它们会返回假阴性）
-   - 已初始化（ls 成功）：继续子代理扫描
+   - 已初始化（ls 成功）：继续跨项目扫描
    - 未初始化（ls 失败 —— 目录不存在）：记录 WARN "其他项目 <path> 未初始化 CodeGraph — 降级到 Glob/Grep"，并降级到 Glob/Grep
 
-2. **对所有检测到的项目用单个子代理串行扫描**：
-   - 只派发**一个**子代理，让其在自身内部**串行**扫描全部检测到的项目；系统 MUST NOT 为每个项目路径各派一个子代理（这样可避免 N 次重复冷启动）
-   - 子代理 SHALL 对每个项目各调用一次 CodeGraph MCP 工具，每次调用把 \`projectPath\` 参数切到该项目路径
+2. **由主 agent 对所有检测到的项目串行扫描**：
+   - 在单一主上下文内**串行**扫描全部检测到的项目；MUST NOT 为每个项目路径各开一个子代理（避免 N 次重复冷启动）
+   - 主 agent SHALL 对每个项目各调用一次 CodeGraph MCP 工具，每次调用把 \`projectPath\` 参数切到该项目路径
    - 对每个项目执行 \`codegraph_files\` 获取文件结构、\`codegraph_search\` 检索符号、\`codegraph_context\` 理解上下文
    - 限制扫描深度：\`maxDepth: 3\`、\`maxNodes: 20\`，避免结果过多
-   - 子代理 MUST NOT 修改任何文件
+   - 扫描过程 MUST NOT 修改任何文件
 
-   - **⛔ EXIT GUARD（退出守卫）**：子代理扫描完所有项目后 MUST 立即停止并返回发现 —— MUST NOT 进入 plan 模式 / 设计模式 / 提出后续步骤 / 建议实现；子代理只是扫描器，其唯一产出是按项目分组的结构化发现；流程推进只由编排器掌握
-   - **MUST 只做增量查询**：子代理 MUST 只扫描 1.2.1 基础扫描未覆盖的部分；MUST NOT 重新推导当前项目探索文件中已有的信息
+   - **扫描收束**：扫描完所有项目后 MUST 立即停止并返回发现 —— MUST NOT 进入 plan 模式 / 设计模式 / 提出后续步骤 / 建议实现；扫描的唯一产出是按项目分组的结构化发现；流程推进只由编排器掌握
+   - **MUST 只做增量查询**：扫描 MUST 只覆盖 1.2.1 基础扫描未覆盖的部分；MUST NOT 重新推导当前项目探索文件中已有的信息
    - 每个项目施加 120s 预算（超预算 → 该项目按 WARN 降级到 Glob/Grep）
 
 3. **按项目降级（项目粒度）**：
    - 某项目 CodeGraph 未初始化、其扫描失败或超出 120s 预算时：**只有该项目**按 WARN 日志降级到 Glob/Grep —— 其他项目照常扫描
    - 单个项目失败 MUST NOT 影响其他项目
-   - 某其他项目路径与当前项目路径相同时，子代理 SHALL 跳过该项目
-   - 运行时完全不提供子代理能力时：全部项目按 WARN 日志降级到 Glob/Grep
+   - 某其他项目路径与当前项目路径相同时，主 agent SHALL 跳过该项目
+   - 运行时无法访问其他项目索引时：全部项目按 WARN 日志降级到 Glob/Grep
 
 4. 把结果**合并**进 exploration.md：
    - 写入 \`## Codebase Findings > ### Other Project Findings\` 子段
@@ -675,18 +675,18 @@ const MULTI_PROJECT_SCAN_FULL = `### 1.2.1.5 多项目 CodeGraph 子代理扫描
    - 结果含：发现的文件、识别出的符号与调用链
 
 5. **未检测到其他项目路径时**：
-   - 不触发多项目子代理扫描
+   - 不触发跨项目扫描
    - 按既有 1.2.2 流程不变继续
 
-**降级（回退）**：子代理派发失败、子代理超时，或目标项目未初始化 CodeGraph 时：
+**降级（回退）**：跨项目扫描失败、扫描超时，或目标项目未初始化 CodeGraph 时：
 - 按 WARN 记录具体失败原因
 - 该项目降级到 Glob/Grep
-- 不重试失败的子代理扫描
+- 不重试失败的扫描
 - 该降级不影响当前项目的扫描结果
 
 **强制检查点**：
 - 系统 MUST 在 1.2.1 基础扫描完成后执行本检查
-- 存在其他项目路径时，系统 MUST 尝试子代理扫描（含降级路径）
+- 存在其他项目路径时，系统 MUST 尝试跨项目扫描（含降级路径）
 - 进入 1.2.2 之前 MUST 把结果写入 exploration.md
 - 本检查 MUST NOT 阻塞主流程 —— 失败时优雅降级
 
@@ -1295,7 +1295,7 @@ export function getSpecExploreSkillTemplate(): SkillTemplate {
     return {
         name: 'iagent_spec_explore',
         description: '进入探索模式。当用户想要在变更前或变更中思考问题、调研代码库、明确需求时使用；触发词"探索 / explore / 调研 / 思考 / 明确需求"；NOT for 一站式引导全流程（改用 iagent_workflow）或缺陷根因排查（改用 iagent_debug）。',
-        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(git:*), ${CODEGRAPH_CLI}, ${CODEGRAPH_MCP}`,
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(git:*), Bash(ls:*), ${CODEGRAPH_CLI}, ${CODEGRAPH_MCP}`,
         type: 'spec',
         instructions: `**适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
 
@@ -1378,7 +1378,7 @@ ${FLOWCHART}
 
 ## 强制检查点体系（delegated 模式）
 
-**delegated 模式**（编排器传入 \`${renderDelegationModeOption('delegated')}\`）SHALL 执行强制检查点体系（不可跳过）：调用即强制创建探索文件 → **项目规则基线** → **项目技能基线** → 提示词校验门 → CONTEXT.md 检查 → CodeGraph 基础扫描（含多项目派发与深度分析）→ L1-L5 grill 追问 → 功能流程图与流程最终确认门 → 聚合一致性门 → 探索完成检测。**完整协议见 \`references/exploration-protocol.md\`——执行 delegated 探索前 MUST 先 \`Read\` 该文件并逐步执行。**
+**delegated 模式**（编排器传入 \`${renderDelegationModeOption('delegated')}\`）SHALL 执行强制检查点体系（不可跳过）：调用即强制创建探索文件 → **项目规则基线** → **项目技能基线** → 提示词校验门 → CONTEXT.md 检查 → CodeGraph 基础扫描（含多项目串行扫描与深度分析）→ L1-L5 grill 追问 → 功能流程图与流程最终确认门 → 聚合一致性门 → 探索完成检测。**完整协议见 \`references/exploration-protocol.md\`——执行 delegated 探索前 MUST 先 \`Read\` 该文件并逐步执行。**
 
 （interactive 模式保持立场式，不强制上述序列。）
 
@@ -1406,7 +1406,7 @@ ${FLOWCHART}
 - **从磁盘重新读取文件** - 用户在会话中可能改过的文件（CONTEXT.md、exploration.md、proposal/design/specs/tasks 等变更制品）每次使用前 MUST 从磁盘重新读取。绝不依赖会话缓存的内容。
 - **实质性歧义要表面化** - 影响范围、行为契约、向后兼容或验收标准的歧义 MUST 以 **[待确认]** 问题形式提给用户。非实质性的细节级歧义可用合理假设解决，并把假设一并记录。
 - **要执行退出纪律** - 探索结束后 MUST NOT 自动进入 plan 模式 / 提案模式 / 设计模式；仅在用户显式要求时进入下一阶段；explore 的立场是思考伙伴，流程推进由用户驱动
-- **子代理扫描要强制共享数据** - 如果探索中派发了 CodeGraph 多项目扫描子代理，子代理扫描指令 MUST 包含退出守卫（完成扫描即停止返回结果，MUST NOT 进入 plan 模式）
+- **多项目扫描要强制共享数据** - 多项目扫描由主 agent 串行执行；扫描完成后 MUST 立即停止并返回发现，MUST NOT 进入 plan 模式
 - **深入前要校验提示词** - 输入含糊或多义时先过提示词校验门（Step 1-5）：优化后 MUST 等用户确认或修改才继续；清晰输入一句话复述理解后直通（不输出校验表、不要求确认）；变更名输入以该变更既有制品为校验对象；无输入则跳过本门。上游已产出提示词基线时直接通过，不重复确认
 - **不要在提示词门上死锁** - 确认门有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续），不得反复要求确认
 - **流程浮现时要产出功能流程图** - 探索浮现明确的业务功能流程时产出 \`## 功能流程图\` 段（Mermaid \`flowchart TD\` + 节点清单表）并执行流程最终确认门；节点粒度 = 可独立验证的业务操作单元，每节点 MUST 含证据位置（\`文件:行\` 或类.方法；新建功能标 \`[新建]\` + 预期产物），无法追溯证据的节点 MUST NOT 进入清单

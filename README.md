@@ -15,14 +15,14 @@ npm install -g mi-agent-tools
 验证安装：
 
 ```bash
-iagent --version    # 输出 4.10.1
+iagent --version    # 输出 4.10.2
 iagent --help       # 查看全部命令
 ```
 
 免全局安装、临时试用（版本号亦可省略，默认取 `latest`）：
 
 ```bash
-npx mi-agent-tools@4.10.1 --version
+npx mi-agent-tools@4.10.2 --version
 npx mi-agent-tools init
 ```
 
@@ -73,7 +73,7 @@ node bin/iagent.js <command>     # 效果与 iagent <command> 完全一致
 
 ```bash
 # 从 npm 安装固定版本
-npm install --save-dev mi-agent-tools@4.10.1
+npm install --save-dev mi-agent-tools@4.10.2
 npx iagent init
 
 # 或从本地仓库路径安装（开发联调用）
@@ -464,7 +464,7 @@ node bin/iagent.js list      # 直接验证新逻辑
 
 ```bash
 pnpm build          # 构建（tsc → dist/）
-pnpm test           # 运行 vitest 测试（1507 个用例 / 69 个测试文件）
+pnpm test           # 运行 vitest 测试（1559 个用例 / 71 个测试文件）
 pnpm lint           # eslint 检查（src/ + test/）
 pnpm generate:skills  # 重新生成 skills/ 静态快照（改模板后必须运行）
 pnpm dev            # 监听模式编译

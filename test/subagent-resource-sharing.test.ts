@@ -97,14 +97,14 @@ describe('A1–A4 · spec-apply 共享资源协议（单一源正文）', () => 
     });
 });
 
-describe('A5 · 多项目扫描单代理化（探索委派后归 spec_explore）', () => {
+describe('A5 · 多项目扫描主 agent 串行化（探索委派后归 spec_explore）', () => {
     const SKILL = 'iagent_spec_explore';
     const REQ = [
-        '只派发**一个**子代理，让其在自身内部**串行**扫描全部检测到的项目',
-        'MUST NOT 为每个项目路径各派一个子代理',
+        '在单一主上下文内**串行**扫描全部检测到的项目',
+        'MUST NOT 为每个项目路径各开一个子代理',
     ];
 
-    it('spec_explore skill 版：单子代理串行扫描全部项目', () => {
+    it('spec_explore skill 版：主 agent 串行扫描全部项目', () => {
         const body = skillBody(SKILL);
         for (const text of REQ) {
             expect(body).toContain(text);

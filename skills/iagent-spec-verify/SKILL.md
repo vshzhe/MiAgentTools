@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:c955ba56c17fd1bd2c5a5462a6b5325c11421b39505ca74d4a8979d16e3d8584"
+  generatedFingerprint: "sha256:2e1558c35c79766b2f67edae77743f78f7334e1b4173ea91ac00fc0299f3759b"
 ---
 
 **验证前先读取项目规则基线（`.iagent/config.yaml` / `.iagent/rules/*.md` / `CLAUDE.md` / `AGENTS.md`）中的验证标准。** 重点检查未定义数据字段、架构分层违规、前端 UI 状态覆盖。
@@ -27,8 +27,8 @@ metadata:
 
 ## 门白名单与 MUST NOT 确认清单
 
-**必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
-- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
+**本技能为只读验证，不承载阶段门与破坏性动作；以下为父流程门白名单（供识别）**：
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation / design-confirmation（可按条件豁免）
 - **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
 - **实现 + 测试桥**：implementation-bridge（不可豁免）
 - **归档桥**：archive-confirmation（不可豁免）
@@ -62,7 +62,7 @@ metadata:
 
 1. **若未提供变更名，提示选择**
 
-   运行 `iagent spec status --json` 获取可用变更列表。使用 **AskUserQuestion 工具** 让用户选择。
+   运行 `iagent spec status --json` 获取可用变更列表。使用 **用户提问 工具** 让用户选择。
 
    展示含实现任务（存在 tasks 制品）的变更。
    若可获取每个变更所用的 schema，一并展示。

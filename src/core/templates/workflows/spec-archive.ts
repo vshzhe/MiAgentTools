@@ -25,7 +25,7 @@ export function getSpecArchiveChangeSkillTemplate(): SkillTemplate {
 
 **handoff 包（只读 + 追加）**：若 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\` 存在，本技能**只读**该包并在收尾时只向 \`## 阶段结论\` 追加一行（\`phase=archive\` / \`status\` / \`artifact\` / \`nextAllowed\` / \`tokens\`，tokens 不可得填 \`—\`）；MUST NOT 重产整包。包内 \`## 已确认门\`（门账本）同样**只读** —— MUST NOT 改写、删除或回填父级已写入的条目（账本条目表达门承载语义，取值域 = \`GATE_SKIP_IDS\`，与六节并列且不计入六节）。包缺失时按需直接读取制品；\`sourceFingerprint\` 与当前制品不一致时记 WARN 并以磁盘制品为准。包内 \`## 硬约束\` 为并列节，本技能**只读复用**（MUST NOT 在该节写入或改写）；\`## 阶段结论\` 的追加只由具备 \`Write\` 权限的 apply / archive 执行（verify 只读，不声称已追加）。
 
-${renderGateWhitelistSection()}
+${renderGateWhitelistSection({ variant: 'standalone-archive' })}
 
 **Input**: 可选指定变更名；省略时检查能否从对话上下文推断。若含糊或有歧义，MUST 提示可用变更供用户选择。工作流也可能为自动执行直接传入变更名。
 
@@ -37,7 +37,7 @@ ${renderGateWhitelistSection()}
 
    若已提供变更名（来自 workflow 自动归档上下文），跳过选择提示，直接进入 Step 2（制品完成度检查）。
 
-   否则运行 \`iagent spec status --json\` 获取可用变更，用 **AskUserQuestion tool** 让用户选择。
+   否则运行 \`iagent spec status --json\` 获取可用变更，用 **{{ASK_USER}} tool** 让用户选择。
 
    只展示活动变更（尚未归档的）。
    可用时附带每个变更使用的 schema。

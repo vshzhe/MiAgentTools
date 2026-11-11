@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:c15013c9ff614606e35e0988c12aec3b1ad23a1043740a1130fda114820ae7ab"
+  generatedFingerprint: "sha256:aec71c32373b6f2bdde23525a0c714a4dee4b4c9c94dc26c9f8e4c650f60fa34"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
@@ -19,11 +19,10 @@ metadata:
 
 ## 门白名单与 MUST NOT 确认清单
 
-**必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
-- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
+**独立调用豁免 `archive-confirmation`；父工作流仍承载该门。以下为其余门白名单**：
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation / design-confirmation（可按条件豁免）
 - **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
 - **实现 + 测试桥**：implementation-bridge（不可豁免）
-- **归档桥**：archive-confirmation（不可豁免）
 - **破坏性改动确认（动作级，不可豁免：删除目录 / 覆盖既有制品 / 改写版本库跟踪 / 不可逆命令）**（不可豁免）
 
 **MUST NOT 请求确认（非门动作，MUST NOT 被实现为停止点）**：
@@ -33,6 +32,8 @@ metadata:
 - CodeGraph 查询与能力探测（含锁阶梯只读复用）
 - 状态查询（`iagent spec status` / `getChangeStatus` 等）
 - 只读校验的「是否运行 <校验>？」询问（如技术栈专项校验）—— 直接执行并在报告中说明校验项
+
+> 独立调用 `spec-archive` / `spec-bulk-archive` 时，用户直接调用即视为归档意图；该门只在父工作流中阻塞。
 
 > 跨变更索引重建类动作已随索引能力退役（DEC-2），不构成任何门或动作。
 
@@ -46,7 +47,7 @@ metadata:
 
    若已提供变更名（来自 workflow 自动归档上下文），跳过选择提示，直接进入 Step 2（制品完成度检查）。
 
-   否则运行 `iagent spec status --json` 获取可用变更，用 **AskUserQuestion tool** 让用户选择。
+   否则运行 `iagent spec status --json` 获取可用变更，用 **用户提问 tool** 让用户选择。
 
    只展示活动变更（尚未归档的）。
    可用时附带每个变更使用的 schema。

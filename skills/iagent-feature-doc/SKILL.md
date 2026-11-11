@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: docs
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:d6b5c6800e98a0d000bb1eeb68a2dc7386388740acf2df00fb198d23feae8d43"
+  generatedFingerprint: "sha256:78af8925a095cde5be5ac549635cdbdc849e9351dc2bc88f42dcf11e2c57a5ab"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
@@ -24,7 +24,7 @@ metadata:
 ## Step 0: 确定执行模式
 
 **独立模式（直接调用时的默认模式）**：
-- 使用 **AskUserQuestion 工具**交互式收集参数
+- 使用 **用户提问 工具**交互式收集参数
 - 每个参数都可跳过或有默认值 —— 绝不因缺失参数而阻塞启动
 - 调用时已提供的参数跳过，只收集缺失项
 

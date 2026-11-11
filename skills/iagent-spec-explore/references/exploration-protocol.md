@@ -396,7 +396,7 @@
 - CodeGraph 与 Glob/Grep 都失败时，系统 MUST 告警但不阻塞
 - 继续之前 MUST 把扫描结果写入探索文件
 
-### 1.2.1.5 多项目 CodeGraph 子代理扫描（条件触发 — 检测到其他项目路径时执行）
+### 1.2.1.5 多项目 CodeGraph 扫描（条件触发 — 检测到其他项目路径时执行）
 
 > 完整细则见 `references/multi-project-scan.md`；检测到其他项目路径时 MUST 先 `Read` 该文件。
 
@@ -450,7 +450,7 @@
 1. 用发现的所有文件与符号更新 `## Codebase Findings` 段
 2. 用架构与业务流发现更新 `## Analysis` 段
 3. 用识别出的符号更新 `## Pending > For Phase 2 Impact Analysis`
-4. 若执行了 1.2.1.5 多项目子代理扫描，把其结果并入 Codebase Findings 段的 `### Other Project Findings` 下
+4. 若执行了 1.2.1.5 多项目扫描，把其结果并入 Codebase Findings 段的 `### Other Project Findings` 下
 5. 记录："CodeGraph 扫描完成 — 发现 <N> 个文件、<M> 个符号"
 
 ### 1.3 Grill-With-Docs 追问

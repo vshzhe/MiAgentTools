@@ -24,10 +24,15 @@ describe('Claude 协议动作渲染', () => {
         const interactive = renderDelegate('claude', 'strict', { workflowId: 'spec-explore' });
         expect(interactive).toContain('经 Skill 工具加载');
         expect(interactive).toContain('iagent-spec-explore');
-        // 自动阶段（spec-apply）经前台 Agent 子代理执行
-        const automated = renderDelegate('claude', 'strict', { workflowId: 'spec-apply' });
-        expect(automated).toContain('经前台 Agent 子代理执行');
-        expect(automated).toContain('iagent-spec-apply');
+        // 默认内联（spec-apply）经 Skill 加载，不派发子代理
+        const inline = renderDelegate('claude', 'strict', { workflowId: 'spec-apply' });
+        expect(inline).toContain('经 Skill 工具加载');
+        expect(inline).toContain('iagent-spec-apply');
+        expect(inline).not.toContain('经前台 Agent 子代理执行');
+        // 显式子代理策略才使用前台 Agent
+        const subagent = renderDelegate('claude', 'strict', { workflowId: 'spec-apply' }, 'subagent');
+        expect(subagent).toContain('经前台 Agent 子代理执行');
+        expect(subagent).toContain('iagent-spec-apply');
     });
 
     it('技能加载使用 Skill 工具', () => {

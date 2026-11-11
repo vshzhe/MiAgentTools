@@ -31,7 +31,7 @@ export function getRequirementDocSkillTemplate(): SkillTemplate {
 ## Step 2: 选择执行模式
 
 **独立模式（直接调用时的默认模式）**：
-- 使用 **AskUserQuestion 工具**交互式收集基本信息 —— 每个问题都可跳过：
+- 使用 **{{ASK_USER}} 工具**交互式收集基本信息 —— 每个问题都可跳过：
   - 需求编号（格式：REQ-YYYY-XXX）
   - 需求名称
   - 交付时间（格式：YYYY-MM-DD）

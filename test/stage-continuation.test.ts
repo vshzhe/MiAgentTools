@@ -60,33 +60,53 @@ describe('Stage delegation mechanism', () => {
         }
     });
 
-    it('renders Skill for the interactive stage and foreground Agent for automated stages', () => {
+    it('renders Skill for interactive / inline stages and Agent only for subagent policy', () => {
         const interactive = renderDelegate('claude', 'strict', { workflowId: 'spec-explore' });
         expect(interactive).toContain('Skill');
         expect(interactive).toContain('交互阶段');
         expect(interactive).not.toContain('前台 Agent 子代理');
 
-        const automated = renderDelegate('claude', 'strict', { workflowId: 'spec-propose' });
-        expect(automated).toContain('前台 Agent 子代理');
-        expect(automated).toContain('.claude/skills/iagent-spec-propose/SKILL.md');
-        expect(automated).toContain('回执');
-        expect(automated).toContain('EXIT GUARD');
+        const inline = renderDelegate('claude', 'strict', { workflowId: 'spec-propose' });
+        expect(inline).toContain('经 Skill 工具加载');
+        expect(inline).toContain('主 agent 内联执行');
+        expect(inline).not.toContain('前台 Agent 子代理');
+
+        const subagent = renderDelegate('claude', 'strict', { workflowId: 'spec-propose' }, 'subagent');
+        expect(subagent).toContain('前台 Agent 子代理');
+        expect(subagent).toContain('.claude/skills/iagent-spec-propose/SKILL.md');
+        expect(subagent).toContain('回执');
+        expect(subagent).toContain('EXIT GUARD');
     });
 
-    it('uses Agent for other orchestrators automated stages (migration / project-init side effect)', () => {
+    it('uses inline for other orchestrators and opt-in subagent only for threshold degradation', () => {
         expect(renderDelegate('claude', 'strict', { workflowId: 'feature-doc' })).toContain(
-            '前台 Agent 子代理'
+            '主 agent 内联执行'
         );
-        expect(renderDelegate('claude', 'strict', { workflowId: 'migration-check' })).toContain(
-            '前台 Agent 子代理'
+        const conditional = renderDelegate(
+            'claude',
+            'strict',
+            { workflowId: 'migration-check' },
+            'inline-with-opt-in-subagent'
         );
+        expect(conditional).toContain('主 agent 内联执行');
+        expect(conditional).toContain('上下文超阈时经 Agent 子代理降级');
     });
 
-    it('keeps non-Claude host mechanisms unchanged', () => {
-        expect(renderDelegate('opencode', 'strict', { workflowId: 'spec-propose' })).toContain(
-            'subagent'
-        );
-        expect(renderDelegate('pi', 'strict', { workflowId: 'spec-propose' })).toContain('Agent');
+    it('keeps non-Claude host mechanisms aligned with execution policy', () => {
+        const opencodeInline = renderDelegate('opencode', 'strict', { workflowId: 'spec-propose' });
+        expect(opencodeInline).toContain('`skill` 工具加载');
+        expect(opencodeInline).not.toContain('`subagent`');
+        expect(
+            renderDelegate('opencode', 'strict', { workflowId: 'spec-propose' }, 'subagent')
+        ).toContain('`subagent`');
+
+        const piInline = renderDelegate('pi', 'strict', { workflowId: 'spec-propose' });
+        expect(piInline).toContain('加载 Pi 技能');
+        expect(piInline).not.toContain('Agent({');
+        expect(
+            renderDelegate('pi', 'strict', { workflowId: 'spec-propose' }, 'subagent')
+        ).toContain('Agent({');
+
         expect(renderDelegate('codex', 'strict', { workflowId: 'spec-propose' })).toContain(
             '不构成委派'
         );
@@ -333,7 +353,7 @@ describe('Template behavior after requirement-doc removal', () => {
 
     it('spec-apply internal test delegation continues after return', () => {
         const template = getSpecApplyChangeSkillTemplate();
-        expect(template.instructions).toContain('子代理返回后 MUST 继续批次调度');
+        expect(template.instructions).toContain('技能返回后 MUST 继续批次调度');
         expect(template.instructions).not.toContain('requirement-doc-bridge');
     });
 });

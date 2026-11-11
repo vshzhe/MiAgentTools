@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:8b53934f92d975c419515226c2d114c2ed24232c5e8c10daa75f1ecb9e1510d2"
+  generatedFingerprint: "sha256:9b9b6e21aabc039087fd6155152b67e87ebd75b50e9c792b174d0c53b4614b1a"
 ---
 
 **实现前先读取项目规则基线：`.iagent/config.yaml` 的 context / rules、`.iagent/rules/*.md`、`CLAUDE.md`、`AGENTS.md`（用 `iagent rules --json` 枚举；源缺失显式记「不存在」，读取失败记 WARN 并计入未读）；并读取项目技能基线中 `phases` 含 `implement` 或 `both` 的技能（用 `iagent skills --json` 枚举；design-only 不要求读取；`validation.status=incomplete` 记 WARN 并列入回执 `skillsIncomplete`）。** 禁止猜测数据库字段、API 参数或业务规则 —— 标 **[待确认]** 并询问用户。
@@ -18,7 +18,7 @@ metadata:
 ## 门白名单与 MUST NOT 确认清单
 
 **必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
-- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation / design-confirmation（可按条件豁免）
 - **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
 - **实现 + 测试桥**：implementation-bridge（不可豁免）
 - **归档桥**：archive-confirmation（不可豁免）
@@ -34,6 +34,8 @@ metadata:
 
 > 跨变更索引重建类动作已随索引能力退役（DEC-2），不构成任何门或动作。
 
+> 本技能的设计确认门（Step 5.5）是硬性停止点；只读扫描 / 状态查询 / 技能委派不是门。
+
 **Input**: 可选指定变更名；省略时检查能否从对话上下文推断。若含糊或有歧义，MUST 提示可用变更供用户选择。工作流可传入 `gate-skip=design-confirmation` 以跳过设计确认门，实现自动执行（`auto-mode=true` 为同语义的兼容写法；两者都**只**跳过设计确认门）。
 
 **委托模式契约（双轴正交，不可互换）**
@@ -45,7 +47,7 @@ metadata:
 
 **执行方式与增量复验（强制）**：
 
-- 本阶段由**主 agent 内联**执行，回执声明 `executionMode=inline` / `independence=self` / `readScope` / `skillsRead`（已读项目技能路径）与 `skillsIncomplete`（不完整技能路径；无则空数组）；配置为空时 `skillsRead` 为空数组；MUST NOT 派发 `Agent` / `Task` 子代理；兼容窗内旧 `subagent` 回执记 deprecation WARN。`iagent-test` 子阶段以 Skill 工具内联调用。
+- 本阶段由**主 agent 内联**执行，回执声明 `executionMode=inline` / `independence=self` / `readScope` / `skillsRead`（已读项目技能路径）与 `skillsIncomplete`（不完整技能路径；无则空数组）；配置为空时 `skillsRead` 为空数组；MUST NOT 派发 `Agent` / `Task` 子代理；兼容窗内旧 `subagent` 回执记 deprecation WARN。`iagent-test` 子阶段以内联技能调用执行。
 - 子代理 MUST FIRST 读 handoff 包「## 制品清单」，按锚点增量读取；回执写 readScope。
 - handoff 包内并列节 `## 硬约束` 只读复用（MUST NOT 写入或改写）；本技能 MUST NOT 新增 grill 纸迹校验、术语写入或 ADR 判定逻辑。
 - 增量复验：验证 FAIL 修复后新开只读代理，传 fixDiff + 上轮 reportPath；只验证增量并对未覆盖范围输出 residual 清单；禁止 resume 充当复验（contextReplay=true 记 WARN）。
@@ -58,7 +60,7 @@ metadata:
    已提供名称则直接使用；否则：
    - 用户提到变更时，从对话上下文推断
    - 仅存在一个活动变更时自动选择
-   - 若有歧义，运行 `iagent spec status --json` 获取可用变更，并用 **AskUserQuestion tool** 让用户选择
+   - 若有歧义，运行 `iagent spec status --json` 获取可用变更，并用 **用户提问 tool** 让用户选择
 
    始终声明"正在使用变更：<name>"，并说明如何覆盖（如 `/iagent:spec-apply <other>`）。
 
@@ -125,7 +127,7 @@ metadata:
    - 进度："N/M tasks complete"
    - 剩余任务概览
 
-**5.5. 设计确认门** ⚠️ 强制
+**⛔ GATE: 5.5 设计确认门（强制停止）**
 
    读完上下文文件后、实现任何任务前，先构建统一并发批计划、展示设计方案摘要，并等待用户确认：
 
@@ -139,7 +141,7 @@ metadata:
 
    **先构建统一并发批计划：**
    - iagent CLI 不返回 `batchPlan` —— 需从 design.md 推断所有任务的依赖（架构分层、模块依赖）；无依赖标注的任务视为同组内相互独立
-   - 把同组任务（`## N` 标题，取自各任务的 `group` 字段）聚合为派发单元 —— 每个单元一个子代理
+   - 把同组任务（`## N` 标题，取自各任务的 `group` 字段）聚合为执行单元 —— 每个单元由主 agent 顺序执行（批内只读调用可并行；MUST NOT 派发子代理）
    - 若 design.md 显示部分任务存在循环依赖：加入循环依赖告警行，并把这些任务降级为串行执行
    - 若 design.md 缺少依赖信息：按串行执行规划，并在蓝图中注明 "(串行执行 - 无依赖信息)"
 
@@ -188,7 +190,7 @@ metadata:
    - 流程内产生的所有临时文件（handoff 包、编译校验脚本、临时配置、草稿输出）MUST 放在该工作区内 —— 不得把临时文件散落到项目目录各处
    - 工作区是**流程级**（不是 apply 级）：流程开始时创建一次、流程结束时清理一次 —— 不得按任务或按批创建/删除临时目录
 
-> **批调度细则下沉**：Step 6 并发批调度协议（批形态判定、子代理派发、共享资源协议、失败处理）见 `references/batch-scheduling.md`；执行 Step 6 前 MUST 先 `Read` 该文件。
+> **批调度细则下沉**：Step 6 并发批调度协议（批形态判定、内联执行单元、共享资源协议、失败处理）见 `references/batch-scheduling.md`；执行 Step 6 前 MUST 先 `Read` 该文件。
 
 7. **完成或暂停时展示状态**
 
@@ -473,7 +475,7 @@ What would you like to do?
 - ⚠️ **强制**：测试门前执行 Step 8.11 自动单测补齐（`testGate.autoGenerate` 默认 true）—— 先消费已规划 `[测试]` 任务，只补缺口；不测清单判定 MUST 留痕；MUST NOT 静默增删 tasks.md 任务
 - ⚠️ **强制**：测试门后执行 Step 9.7 实现一致性门 —— 运行 `iagent spec conformance --strict`，校验三层覆盖与 `rulesRead` 完整性；`fail` 或证据缺失 MUST 暂停，MUST NOT 进入归档
 - ⚠️ **强制**：三类证据文件（`compile-report.md` / `test-report.md` / `conformance-report.md`）与 handoff 包 MUST 保留至归档收尾
-- ⚠️ **强制**：`[测试]` 任务 MUST 经**前台 Agent 子代理**委派 `iagent-test`（传测试层级与优先级）生成测试代码，MUST NOT 在 apply 内另立一套测试规则；该技能不可用时记录 WARN 并按同一规则本地实现（MUST NOT 伪装为委派完成）；MUST NOT 走补充文档的 `产出:` → `attachments/` 规则（放在 attachments/ 下的测试代码无法运行）。子代理返回后 MUST 继续批次调度，MUST NOT 停在子技能回执
+- ⚠️ **强制**：`[测试]` 任务 MUST 经**内联技能调用**委派 `iagent-test`（传测试层级与优先级）生成测试代码，MUST NOT 在 apply 内另立一套测试规则；该技能不可用时记录 WARN 并按同一规则本地实现（MUST NOT 伪装为委派完成）；MUST NOT 走补充文档的 `产出:` → `attachments/` 规则（放在 attachments/ 下的测试代码无法运行）。技能返回后 MUST 继续批次调度，MUST NOT 停在子技能回执
 
 - ⚠️ **强制**：子代理派发指令 MUST 携带 EXIT GUARD（子代理退出守卫）—— 完成分配任务后立即停止并返回回执，MUST NOT 进入 plan 模式 / 设计模式，也不得提出后续步骤；编排器是唯一有权判停和推进阶段的角色
 - ⚠️ **强制**：子代理 MUST 先读取 handoff 包（`.openspec-tmp/pipeline-<change-name>/handoff-pack.md`），再执行其它任何动作 —— 不得先做其他动作；MUST NOT 重读 proposal/specs/design，MUST NOT 重跑包已覆盖的 CodeGraph 查询；仅做增量查询

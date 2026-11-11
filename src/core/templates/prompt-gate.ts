@@ -140,26 +140,62 @@ export const GATE_MUST_NOT_CONFIRM_ITEMS: readonly string[] = [
 ];
 
 /**
+ * 门策略块变体。
+ *
+ * - `full`：本技能承载阻塞门（默认，保持既有输出）
+ * - `no-gate`：本技能不承载阶段门（仍消费负向清单）
+ * - `readonly`：只读验证技能（不承载阶段门与破坏性动作）
+ * - `standalone-archive`：独立归档技能（豁免归档确认门，父流程仍承载）
+ */
+export type GatePolicyVariant = 'full' | 'no-gate' | 'readonly' | 'standalone-archive';
+
+/** 门策略块渲染选项 */
+export interface GatePolicyOptions {
+    variant?: GatePolicyVariant;
+}
+
+/**
  * 渲染「门白名单 + MUST NOT 确认清单」段（模板正文唯一来源）。
  *
  * 必留门清单由协议层 `GATE_WHITELIST` 渲染（模板层依赖协议层），
  * 负向清单来自 `GATE_MUST_NOT_CONFIRM_ITEMS`；二者 MUST NOT 在各模板中手写副本。
  */
-export function renderGateWhitelistSection(): string {
-    const gateLines = GATE_WHITELIST.map((entry) => {
+export function renderGateWhitelistSection(options: GatePolicyOptions = {}): string {
+    const variant = options.variant ?? 'full';
+    const visibleGates =
+        variant === 'standalone-archive'
+            ? GATE_WHITELIST.filter((entry) => entry.id !== 'archive-confirmation')
+            : GATE_WHITELIST;
+    const gateLines = visibleGates.map((entry) => {
         const anchors = entry.anchors.length > 0 ? `：${entry.anchors.join(' / ')}` : '';
         const exemption = entry.conditional ? '（可按条件豁免）' : '（不可豁免）';
         return `- **${entry.label}**${anchors}${exemption}`;
     });
     const negativeLines = GATE_MUST_NOT_CONFIRM_ITEMS.map((item) => `- ${item}`);
+    const intro =
+        variant === 'no-gate'
+            ? '**本技能不承载阻塞阶段门；以下为父流程门白名单，仅负向清单对本技能停点生效**：'
+            : variant === 'readonly'
+              ? '**本技能为只读验证，不承载阶段门与破坏性动作；以下为父流程门白名单（供识别）**：'
+              : variant === 'standalone-archive'
+                ? '**独立调用豁免 `archive-confirmation`；父工作流仍承载该门。以下为其余门白名单**：'
+                : '**必留门（正向枚举 5 类，缺一即流程安全缺陷）**：';
+    const notes =
+        variant === 'standalone-archive'
+            ? [
+                  '',
+                  '> 独立调用 `spec-archive` / `spec-bulk-archive` 时，用户直接调用即视为归档意图；该门只在父工作流中阻塞。',
+              ]
+            : [];
     return [
         '## 门白名单与 MUST NOT 确认清单',
         '',
-        '**必留门（正向枚举 5 类，缺一即流程安全缺陷）**：',
+        intro,
         ...gateLines,
         '',
         '**MUST NOT 请求确认（非门动作，MUST NOT 被实现为停止点）**：',
         ...negativeLines,
+        ...notes,
         '',
         '> 跨变更索引重建类动作已随索引能力退役（DEC-2），不构成任何门或动作。',
     ].join('\n');

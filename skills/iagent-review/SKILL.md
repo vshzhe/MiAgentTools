@@ -1,19 +1,21 @@
 ---
 name: iagent-review
 description: "审查代码。当用户要检查代码质量、核对编码规范、审查变更或合并请求时使用；触发词\"代码审查 / review / code review / 检查代码 / 规范核对\"；NOT for 提案完整性复查（改用 iagent-proposal-review）或迁移一致性检查（改用 iagent-migration-check）。"
-allowed-tools: Bash(git diff:*), Bash(git log:*), Bash(git status:*), Read, Glob, Grep
+allowed-tools: Bash(iagent:*), Bash(git diff:*), Bash(git log:*), Bash(git status:*), Read, Glob, Grep
 license: MIT
 compatibility: 无特殊依赖，通用环境可用。
 metadata:
   author: mi-agent-tools
   type: review
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:26c546a1b0c347dcd46f284bace948e5f7822a80d2df30b61b98fe0b93e628b1"
+  generatedFingerprint: "sha256:c47f488297502ee69aaadfe8dbb2d6714274769450fbd8763d0670a059421780"
 ---
 
 审查代码 —— 按维度检查，只报告经过验证的问题，严重程度分级呈现。
 
 **输入**：`/iagent:review` 后跟审查范围（文件路径、分支名或 PR 标识；可省略，默认审查未提交变更）。
+
+**规则基线（强制）**：开始审查前运行 `iagent rules --json`，读取 `.iagent/config.yaml` 的 context 与全部 `exists=true` 的规则源（`.iagent/rules/*.md`、`CLAUDE.md`、`AGENTS.md`）；源缺失记「不存在」，MUST NOT 只对照 `CLAUDE.md`。
 
 ## 审查维度
 
@@ -35,7 +37,7 @@ metadata:
 2. **通读代码**
 
    - 先理解意图再挑毛病：读关联的调用方与被调方
-   - 对照项目自身规范（CLAUDE.md、已有代码风格）而非个人偏好
+   - 对照项目规则基线（`.iagent/rules/*.md`、`CLAUDE.md`、已有代码风格）而非个人偏好
 
 3. **验证每个发现**
 

@@ -16,6 +16,7 @@ export {
     readGeneratedFingerprint,
 } from './fingerprint.js';
 export { generateCommand, generateCommands, generateSkillContent } from './generator.js';
+export { rewriteReferencePaths, skillReferencesBasePath } from './reference-paths.js';
 export { normalizeHostSkillRefs } from './host-refs.js';
 export { claudeAdapter } from './adapters/claude.js';
 export { piAdapter } from './adapters/pi.js';

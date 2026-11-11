@@ -4,7 +4,7 @@
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
-import { GATE_PROTOCOL_PREAMBLE, renderGateWhitelistSection } from '../prompt-gate.js';
+import { renderGateWhitelistSection } from '../prompt-gate.js';
 import { CODEGRAPH_MCP, skillDelegation } from '../tool-whitelist.js';
 import {
     GATE_SKIP_IDS,
@@ -31,9 +31,7 @@ export function getAutoWorkflowSkillTemplate(): SkillTemplate {
 4. **自动实现阶段** —— 验证通过后不设确认门，直接自动实现
 5. **自动归档阶段** —— 完成后自动归档
 
-${GATE_PROTOCOL_PREAMBLE}
-
-${renderGateWhitelistSection()}
+${renderGateWhitelistSection({ variant: 'no-gate' })}
 
 ---
 ## 执行方式与增量复验（强制）
@@ -242,7 +240,7 @@ Phase 4 继承 \`iagent_spec_apply\` 的**测试执行门**并**自动**通过 �
 - **实现一致性门不得跳过** —— 测试门后 MUST 运行 \`iagent spec conformance --strict\` 并校验 \`rulesRead\`；\`fail\` / 证据缺失 MUST NOT 进入验证桥或归档
 - **三类证据缺失即阻断** —— 归档前 MUST 读取 \`compile-report.md\` / \`test-report.md\` / \`conformance-report.md\` 的汇总行；任一缺失或 \`fail\` MUST NOT 归档
 - **测试门失败时不得静默通过** —— 范围内的测试门失败 MUST 在归档前暂停；全自动语义绝不构成跳过该门或跳过归档阻断的理由
-- **深度复查后直接续跑** —— 全部通过后经 Agent 子代理调用 \`iagent_proposal_review\` 做深度复查（不可用则内联深度复查 + WARN），展示「验证分数 + 复查结论」后**在同一用户回合内**自动转入 Phase 4；MUST NOT 展示需求文档桥、MUST NOT 委派需求文档技能
+- **深度复查后直接续跑** —— 全部通过后内联调用 \`iagent_proposal_review\` 做深度复查（不可用则本地深度复查 + WARN），展示「验证分数 + 复查结论」后**在同一用户回合内**自动转入 Phase 4；MUST NOT 展示需求文档桥、MUST NOT 委派需求文档技能
 - **验证阶段无阻塞门** —— 三父流程的需求文档桥已整体移除；验证阶段 MUST NOT 声明阻塞门，MUST NOT 追加对下一阶段技能的调用确认（宿主权限与 strict/degraded 检查仍独立生效）
 - **门账本双条件** —— 仅在流程基准确认 **且** 验证 PASS + 深度复查收束后写 \`design-confirmation\`；未满足时 MUST NOT 写账本、MUST NOT 传 \`gate-skip\`，暂停并报告
 - **FAIL 不进入实现** —— 验证 FAIL 或 B1-B7 未收束时 MUST NOT 进入 Phase 4
@@ -259,7 +257,7 @@ Phase 4 继承 \`iagent_spec_apply\` 的**测试执行门**并**自动**通过 �
 - **使用结构化格式** —— Background、Questions、Decisions、Pending 段
 - **展示量化评分** —— 验证结果包含覆盖率百分比
 - **注入能力记忆** —— Phase 1 在存在时读取 specs/<capability>/explorations.md
-- **用 CodeGraph 扫描其他项目** —— 探索上下文含其他项目路径时，派发子代理用 CodeGraph 的 projectPath 参数扫描；失败时降级为 Glob/Grep
+- **用 CodeGraph 扫描其他项目** —— 探索上下文含其他项目路径时，由探索阶段主 agent 用 CodeGraph 的 projectPath 参数串行扫描；失败时降级为 Glob/Grep
 - **不丢失探索内容** —— 即使放弃探索文件也保留（除非被删除）
 - **MUST NOT 进入 plan 模式** —— 子代理完成分配任务后 MUST NOT 进入 plan 模式 / 设计模式 / 提出后续步骤；Phase 4 的门承载参数仅跳过设计确认门，MUST NOT 免除退出守卫或共享资源协议
 - **MUST FIRST 读取共享 handoff 包** —— 子代理 MUST 先读 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\` 再做增量查询；MUST NOT 绕过包重读 proposal/specs/design 或重跑已覆盖的 CodeGraph 查询

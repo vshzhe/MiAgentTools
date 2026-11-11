@@ -7,6 +7,19 @@
 
 ## [Unreleased]
 
+## [4.10.2] - 2026-11-11
+
+### Fixed
+
+- `iagent version bump --dry-run` 在显式 `--from` 基线无变更时不再抛错；错误消息使用实际基线标签（`fix-skill-contract-drift`）
+- 门词汇单一源：`design-confirmation` 纳入白名单锚点；`auditGateWhitelistAlignment` 覆盖账本门 id
+- 归档确认门按调用上下文分层：独立 `spec-archive` / `spec-bulk-archive` 显式豁免，父工作流仍阻塞
+- 委派执行策略单一源：内联阶段不再生成 Agent 子代理指令；迁移复查保留超阈降级；生成物与 `allowedTools` 双向一致
+- 指令形态的 `references/*.md` 重写为配对技能目录路径，Claude / Pi / OpenCode 指令可解析
+- 模板正文移除 `AskUserQuestion` / `Task 工具` 等宿主工具名，改由生成期按宿主渲染
+- `review` / `test` 接入 `.iagent/rules` 规则基线
+- 清理 4 处相邻重复短语；修正文档测试计数与技能手册版本
+
 ## [4.10.1] - 2026-11-11
 
 ### Fixed
@@ -1800,7 +1813,8 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.10.1...HEAD
+[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.10.2...HEAD
+[4.10.2]: https://github.com/vshzhe/MiAgentTools/compare/v4.10.1...v4.10.2
 [4.10.1]: https://github.com/vshzhe/MiAgentTools/compare/v4.10.0...v4.10.1
 [4.10.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.9.0...v4.10.0
 [4.9.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.8.0...v4.9.0

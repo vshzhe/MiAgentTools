@@ -272,7 +272,8 @@ export function renderHostOrchestrationSection(
             negotiation.host,
             negotiation.mode,
             delegations,
-            DELEGATION_PARAMETERS[workflowId]
+            DELEGATION_PARAMETERS[workflowId],
+            workflowId
         );
         if (list) {
             lines.push('');

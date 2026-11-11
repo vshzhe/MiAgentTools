@@ -25,7 +25,7 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
 
 **handoff 包（只读消费，不追加）**：若 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\` 存在，本技能**只读**该包（含并列节 \`## 硬约束\`，只读复用、MUST NOT 写入或改写），MUST NOT 重产整包。包内 \`## 已确认门\`（门账本）同样**只读** —— MUST NOT 改写、删除或回填父级已写入的条目（账本条目表达门承载语义，取值域 = \`GATE_SKIP_IDS\`，与六节并列且不计入六节）。**本技能无 \`Write\` 权限**：\`## 阶段结论\` MUST NOT 由本技能追加，也 MUST NOT 声称已追加；结论由父编排转交具备 \`Write\` 权限的 apply / archive 落盘。包缺失时按需直接读取制品（不强制产包）；\`sourceFingerprint\` 与当前制品不一致时记 WARN，并以磁盘制品为准完成验证。
 
-${renderGateWhitelistSection()}
+${renderGateWhitelistSection({ variant: 'readonly' })}
 
 **只读验证步骤无需确认即可执行**：读取制品、扫描文件、一致性分析等环节直接运行，无需中途确认。仅最终验证报告（以及真正需要用户决策的选项，例如发现问题后选择修复路径）需呈现给用户。
 
@@ -45,7 +45,7 @@ ${renderGateWhitelistSection()}
 
 1. **若未提供变更名，提示选择**
 
-   运行 \`iagent spec status --json\` 获取可用变更列表。使用 **AskUserQuestion 工具** 让用户选择。
+   运行 \`iagent spec status --json\` 获取可用变更列表。使用 **{{ASK_USER}} 工具** 让用户选择。
 
    展示含实现任务（存在 tasks 制品）的变更。
    若可获取每个变更所用的 schema，一并展示。

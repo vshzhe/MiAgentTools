@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: review
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:0ce5ee703c44f7a9bd0943454f063fe247a65c724550053e79773a1023fa2813"
+  generatedFingerprint: "sha256:c177c88badc584fdbb77eb599d19ad425e632e4a0a390f1042276dcebf1b3fcf"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
@@ -22,7 +22,7 @@ metadata:
 ## Step 1: 确定执行模式
 
 **独立模式（直接调用时的默认）**：
-- 使用 **AskUserQuestion 工具**交互式收集参数：
+- 使用 **用户提问 工具**交互式收集参数：
   1. SOURCE_PROJECT — 源项目根目录
   2. TARGET_PROJECT — 目标项目根目录（默认为当前项目）
   3. CHECK_SCOPE — 检查范围（模块名或功能清单；「全部」表示整个项目）

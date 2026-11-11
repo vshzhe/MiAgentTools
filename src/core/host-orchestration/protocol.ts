@@ -104,6 +104,8 @@ export const GATE_WHITELIST: readonly GateWhitelistEntry[] = [
             'grill-batch-confirmation',
             'diagnostic-confirmation',
             'fix-option-confirmation',
+            // spec-apply Step 5.5：设计确认门（方案歧义类，技能内阻塞门）
+            'design-confirmation',
         ],
         conditional: true,
     },

@@ -16,6 +16,8 @@ import {
     opencodeAdapter,
     fingerprintOf,
     readGeneratedFingerprint,
+    rewriteReferencePaths,
+    skillReferencesBasePath,
 } from '../src/core/command-generation/index.js';
 import { getSkillTemplates, getCommandTemplates } from '../src/core/templates/index.js';
 import { deriveSkillId } from '../src/core/skill-id.js';
@@ -394,5 +396,60 @@ describe('YAML 工具', () => {
 
     it('数组格式化', () => {
         expect(formatTagsArray(['iagent', 'tools'])).toBe('[iagent, tools]');
+    });
+});
+
+// 变更 fix-skill-contract-drift / D4：指令形态 references 可解析。
+describe('指令形态 references 重写', () => {
+    it('按宿主派生技能 references 目录', () => {
+        expect(skillReferencesBasePath('claude', 'spec-apply')).toBe(
+            '.claude/skills/iagent-spec-apply/references'
+        );
+        expect(skillReferencesBasePath('pi', 'spec-explore')).toBe(
+            '.pi/skills/iagent-spec-explore/references'
+        );
+        expect(skillReferencesBasePath('opencode', 'spec-apply')).toBe(
+            '.opencode/skills/iagent-spec-apply/references'
+        );
+        // skills-only 无指令产物，不重写
+        expect(skillReferencesBasePath('codex', 'spec-apply')).toBeNull();
+    });
+
+    it('重写裸 references 且幂等', () => {
+        const base = '.claude/skills/iagent-spec-apply/references';
+        const once = rewriteReferencePaths('见 references/compile-check.md', base);
+        expect(once).toBe(`见 ${base}/compile-check.md`);
+        expect(rewriteReferencePaths(once, base)).toBe(once);
+    });
+
+    it('全部指令的 references 均映射到配对技能声明', () => {
+        const skills = getSkillTemplates();
+        const offenders: string[] = [];
+        for (const { template, id } of getCommandTemplates()) {
+            const skill = skills.find((entry) => entry.commandId === id);
+            expect(skill, `指令 ${id} 无配对技能`).toBeDefined();
+            const declared = new Set((skill!.template.references ?? []).map((ref) => ref.path));
+            for (const match of template.content.matchAll(/references\/[A-Za-z0-9._-]+\.md/g)) {
+                if (!declared.has(match[0])) {
+                    offenders.push(`${id}: ${match[0]} 未在技能 references 中声明`);
+                }
+            }
+        }
+        expect(offenders).toEqual([]);
+    });
+
+    it('生成期重写覆盖 Claude / Pi / OpenCode 三种指令布局', () => {
+        const id = 'spec-apply';
+        const command = getCommandTemplates().find((entry) => entry.id === id)!;
+        for (const [tool, base] of [
+            ['claude', '.claude/skills/iagent-spec-apply/references'],
+            ['pi', '.pi/skills/iagent-spec-apply/references'],
+            ['opencode', '.opencode/skills/iagent-spec-apply/references'],
+        ] as const) {
+            const rewritten = rewriteReferencePaths(command.template.content, skillReferencesBasePath(tool, id));
+            expect(rewritten, tool).toContain(`${base}/compile-check.md`);
+            expect(rewritten, tool).toContain(`${base}/batch-scheduling.md`);
+            expect(rewritten, tool).not.toMatch(/[^/\w.-]references\/compile-check\.md/);
+        }
     });
 });

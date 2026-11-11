@@ -436,7 +436,7 @@ describe('debug 决策与回归测试职责（4.3）', () => {
     });
 
     it('strict 缺调用能力阻断而非自写，仅显式 degraded 允许本地', () => {
-        expect(debugMain).toContain('strict 模式无法调用 `iagent_test`（Skill 工具不可用）时 SHALL 按能力协商**阻断并报告**');
+        expect(debugMain).toContain('strict 模式无法调用 `iagent_test`（技能调用机制不可用）时 SHALL 按能力协商**阻断并报告**');
         expect(debugMain).toContain('MUST NOT 以"自写 + WARN"绕过');
         expect(debugMain).toContain('显式协商 degraded 时才允许本地编写');
     });
@@ -1142,9 +1142,14 @@ describe('4.6 编排技能门白名单与直通句', () => {
 
     it('每个编排技能正文含 5 类必留门文本（由 GATE_WHITELIST 渲染）', () => {
         expect(GATE_WHITELIST.length).toBe(5);
+        // 独立归档技能显式豁免 archive-confirmation（D2）
+        const standaloneArchive = new Set(['iagent_spec_archive', 'iagent_spec_bulk_archive']);
         for (const name of GATE_SKILLS) {
             const body = skillCorpus(name);
             for (const entry of GATE_WHITELIST) {
+                if (entry.id === 'archive-confirmation' && standaloneArchive.has(name)) {
+                    continue;
+                }
                 expect(body, `${name} 缺少必留门 ${entry.id}`).toContain(`**${entry.label}**`);
             }
         }

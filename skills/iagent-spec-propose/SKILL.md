@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:f5b3e817b572be7926b39784ea5bc649d40b70f9c9c9570d57c63f1fa72379d3"
+  generatedFingerprint: "sha256:d754bc74fbbbc7233ed5f594812e78e2c5b9a439d99a8cf53fef9bfcdf5a435f"
 ---
 
 提出新变更 —— 一步创建变更并生成全部制品。
@@ -36,20 +36,10 @@ metadata:
 - `auto-mode=true` **仅**映射到门承载轴（≡ `gate-skip=design-confirmation`），`mode` 保持调用方原值；MUST NOT 视为 `mode=delegated` 的等价别名。
 - 两轴正交：仅传 `mode=delegated` 时设计确认门等业务门照常触发；仅传 `gate-skip` 时停点与自验证照常生效。
 
-## ⛔ GATE PROTOCOL — ACTIVE
-
-本技能包含以 **⛔ GATE:** 标记的**确认门**。每个门都是硬性停止点：
-- 走到 ⛔ GATE 时，**本次响应到此结束** —— 输出门内容后立即停止
-- 不得执行、描述或预生成门之后的任何步骤
-- 用户的下一则消息即为确认信号 —— 仅在其响应后从门之后继续
-- **非门动作 MUST NOT 停止，也 MUST NOT 请求确认**：阶段宣告 / 技能委派（含「是否调用 <技能>」）/ 只读扫描 / CodeGraph 查询 / 状态查询 / 只读校验的「是否运行 <校验>？」询问，均不是确认门
-- **只有**门白名单（见「门白名单与 MUST NOT 确认清单」段）声明的 5 类门可以阻断推进；白名单外的动作 MUST NOT 被实现为停止点
-- **违规**：未经用户确认而执行门之后的步骤，是破坏工作流的严重错误
-
 ## 门白名单与 MUST NOT 确认清单
 
-**必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
-- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
+**本技能不承载阻塞阶段门；以下为父流程门白名单，仅负向清单对本技能停点生效**：
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation / design-confirmation（可按条件豁免）
 - **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
 - **实现 + 测试桥**：implementation-bridge（不可豁免）
 - **归档桥**：archive-confirmation（不可豁免）
@@ -127,7 +117,7 @@ metadata:
 
 1. **若未提供清晰输入，询问用户想构建什么**
 
-   使用 **AskUserQuestion tool**（开放式、不预设选项）提问：
+   使用 **用户提问 tool**（开放式、不预设选项）提问：
    > "你想处理哪个变更？描述你想构建或修复的内容。"
 
    根据其描述，按下方命名规范派生 kebab-case 名称。
@@ -211,7 +201,7 @@ metadata:
    c. **design 可选**：无跨切面设计（纯配置/文档变更）时 MUST NOT 强制创建 `design.md`；`status: optional` 表示可生成但不阻塞 `tasks` 与 apply-ready
 
    d. **若某制品需要用户输入**（上下文不清晰）：
-      - 使用 **AskUserQuestion tool** 澄清
+      - 使用 **用户提问 tool** 澄清
       - 然后继续创建
 
    e. **skipped 制品处理（skipped 联动）**：

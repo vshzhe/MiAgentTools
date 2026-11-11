@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: docs
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:600d135d5fb45cb5214c4e5fa7fa6477d9524629c3cf54186121927fdff1fdfc"
+  generatedFingerprint: "sha256:da6323e103fb63cdd90a9cf9b80d51fd811ca055f1b6cb60b0c6ce92750147e9"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
@@ -34,7 +34,7 @@ metadata:
 ## Step 2: 选择执行模式
 
 **独立模式（直接调用时的默认模式）**：
-- 使用 **AskUserQuestion 工具**交互式收集基本信息 —— 每个问题都可跳过：
+- 使用 **用户提问 工具**交互式收集基本信息 —— 每个问题都可跳过：
   - 需求编号（格式：REQ-YYYY-XXX）
   - 需求名称
   - 交付时间（格式：YYYY-MM-DD）

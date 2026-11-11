@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:0271d055c7ea2e98b7afa181c0eb1b3984be1e7d63e20c63c9359a6952f042b3"
+  generatedFingerprint: "sha256:fefbe13adfe3226b48e5c808057ea4f1a7a67b28314daf562122899885754fb4"
 ---
 
 
@@ -41,7 +41,7 @@ metadata:
 ## 门白名单与 MUST NOT 确认清单
 
 **必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
-- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation / design-confirmation（可按条件豁免）
 - **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
 - **实现 + 测试桥**：implementation-bridge（不可豁免）
 - **归档桥**：archive-confirmation（不可豁免）
@@ -305,10 +305,10 @@ bug 无法用自动化测试捕获时（环境相关行为 / 时序 / 仅 UI）�
 
 **编写动作（内联 Skill 调用，强制）**
 
-- 回归测试的编写 SHALL 由主 agent 由主 agent 内联调用 `iagent-test`，向其提供：已确认的缺陷链路（2.4）、Phase 1 的复现证据、测试级别/优先级与变更名；Stage Envelope 只传路径与结构化字段，MUST NOT 内联制品正文或完整 SKILL.md；MUST NOT 为回归测试编写派生 Agent 子代理
+- 回归测试的编写 SHALL 由主 agent 内联调用 `iagent-test`，向其提供：已确认的缺陷链路（2.4）、Phase 1 的复现证据、测试级别/优先级与变更名；Stage Envelope 只传路径与结构化字段，MUST NOT 内联制品正文或完整 SKILL.md；MUST NOT 为回归测试编写派生 Agent 子代理
 - `iagent-test` 是测试生成规则（框架探测、项目既有风格对齐、用例设计、反模式防护）的**唯一来源**；debug MUST NOT 再维护与之冲突的内联框架检测或测试生成规则
 - **Phase 1 内联临时测试的边界**：Phase 1 MAY 以内联临时测试建立失败证据，但该测试**不构成**回归测试；MUST NOT 仅以 Phase 1 临时测试充当唯一回归测试 —— 正式回归测试 SHALL 由 `iagent-test` 生成或改造落库
-- **能力缺失**：strict 模式无法调用 `iagent-test`（Skill 工具不可用）时 SHALL 按能力协商**阻断并报告**；MUST NOT 以"自写 + WARN"绕过。仅在宿主显式协商 degraded 时才允许本地编写，并须透明记录"本阶段未发生内联技能调用"—— MUST NOT 伪装为 strict 内联调用完成
+- **能力缺失**：strict 模式无法调用 `iagent-test`（技能调用机制不可用）时 SHALL 按能力协商**阻断并报告**；MUST NOT 以"自写 + WARN"绕过。仅在宿主显式协商 degraded 时才允许本地编写，并须透明记录"本阶段未发生内联技能调用"—— MUST NOT 伪装为 strict 内联调用完成
 
 **验收（debug 自身职责，内联不放松）**
 
@@ -381,7 +381,7 @@ Markdown 是唯一真源 —— 直接更新 OpenSpec Markdown 制品；不得�
 
 ### 7.1 内联执行验证（主 agent）
 
-对变更 `<name>`，由**主 agent 内联**由主 agent 内联调用 `iagent-spec-verify-proposal` 技能执行验证；Stage Envelope 只传 `changeName` / `changeRoot` / 制品路径 / `resume`，MUST NOT 内联制品正文或完整 SKILL.md；MUST NOT 为验证派生 Agent 子代理（`executionMode=inline` / `independence=self`）：
+对变更 `<name>`，由**主 agent 内联**调用 `iagent-spec-verify-proposal` 技能执行验证；Stage Envelope 只传 `changeName` / `changeRoot` / 制品路径 / `resume`，MUST NOT 内联制品正文或完整 SKILL.md；MUST NOT 为验证派生 Agent 子代理（`executionMode=inline` / `independence=self`）：
 
 - `iagent-spec-verify-proposal` 是技能名，不是有效的 `iagent spec instructions` 制品 ID —— MUST NOT 将其作为 CLI 指令运行
 - 该技能通过读取制品与 exploration.md 执行 D1-D5 核心 + D6-D10 条件评分

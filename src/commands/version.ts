@@ -455,8 +455,10 @@ export function runVersion(
     }
 
     const hasChanges = changeSet.commits.length > 0 || changeSet.files.length > 0;
-    if (level === undefined && !hasChanges && apply) {
-        throw new Error(`自 ${pkg.version} 以来没有检测到变更，无需递增版本`);
+    // dry-run 是预览：无变更时仍返回判定结果，仅写回模式拒绝递增。
+    if (level === undefined && !hasChanges && apply && !options.dryRun) {
+        const baselineLabel = changeSet.baselineLabel || baseline.label;
+        throw new Error(`自 ${baselineLabel} 以来没有检测到变更，无需递增版本`);
     }
 
     const analysis = analyzeVersionBump(pkg.version, changeSet, { level });

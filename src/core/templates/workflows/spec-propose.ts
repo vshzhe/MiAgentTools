@@ -3,7 +3,7 @@
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
-import { GATE_PROTOCOL_PREAMBLE, renderGateWhitelistSection } from '../prompt-gate.js';
+import { renderGateWhitelistSection } from '../prompt-gate.js';
 import { skillDelegation } from '../tool-whitelist.js';
 import {
     GATE_SKIP_IDS,
@@ -39,9 +39,7 @@ export function getSpecProposeSkillTemplate(): SkillTemplate {
 
 ${renderDelegationModeContract()}
 
-${GATE_PROTOCOL_PREAMBLE}
-
-${renderGateWhitelistSection()}
+${renderGateWhitelistSection({ variant: 'no-gate' })}
 
 **Steps**
 
@@ -105,7 +103,7 @@ ${renderGateWhitelistSection()}
 
 1. **若未提供清晰输入，询问用户想构建什么**
 
-   使用 **AskUserQuestion tool**（开放式、不预设选项）提问：
+   使用 **{{ASK_USER}} tool**（开放式、不预设选项）提问：
    > "你想处理哪个变更？描述你想构建或修复的内容。"
 
    根据其描述，按下方命名规范派生 kebab-case 名称。
@@ -189,7 +187,7 @@ ${renderGateWhitelistSection()}
    c. **design 可选**：无跨切面设计（纯配置/文档变更）时 MUST NOT 强制创建 \`design.md\`；\`status: optional\` 表示可生成但不阻塞 \`tasks\` 与 apply-ready
 
    d. **若某制品需要用户输入**（上下文不清晰）：
-      - 使用 **AskUserQuestion tool** 澄清
+      - 使用 **{{ASK_USER}} tool** 澄清
       - 然后继续创建
 
    e. **skipped 制品处理（skipped 联动）**：

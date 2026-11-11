@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:65aa263c71e7e8cd1468944d7ca6352b076226688dab1d0025a8034370cf2f15"
+  generatedFingerprint: "sha256:b30b3d1618f03fe5b2b94d7bd83359b54438d8eefacb74a601d87522c44cd2aa"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
@@ -19,11 +19,10 @@ metadata:
 
 ## 门白名单与 MUST NOT 确认清单
 
-**必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
-- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
+**独立调用豁免 `archive-confirmation`；父工作流仍承载该门。以下为其余门白名单**：
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation / design-confirmation（可按条件豁免）
 - **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
 - **实现 + 测试桥**：implementation-bridge（不可豁免）
-- **归档桥**：archive-confirmation（不可豁免）
 - **破坏性改动确认（动作级，不可豁免：删除目录 / 覆盖既有制品 / 改写版本库跟踪 / 不可逆命令）**（不可豁免）
 
 **MUST NOT 请求确认（非门动作，MUST NOT 被实现为停止点）**：
@@ -33,6 +32,8 @@ metadata:
 - CodeGraph 查询与能力探测（含锁阶梯只读复用）
 - 状态查询（`iagent spec status` / `getChangeStatus` 等）
 - 只读校验的「是否运行 <校验>？」询问（如技术栈专项校验）—— 直接执行并在报告中说明校验项
+
+> 独立调用 `spec-archive` / `spec-bulk-archive` 时，用户直接调用即视为归档意图；该门只在父工作流中阻塞。
 
 > 跨变更索引重建类动作已随索引能力退役（DEC-2），不构成任何门或动作。
 
@@ -47,14 +48,14 @@ metadata:
    若无活动变更，告知用户并停止。
 
    **CLI 可用性检测（首次调用失败特征）**：若 `iagent spec status --json` 调用（或 Step 3 中的 `iagent spec status --change` 调用）以"命令未找到"类错误失败（如 "command not found"、"不是内部或外部命令"、"not recognized"），判定 iagent CLI 未安装。用一行告知用户 ——"未在 PATH 中找到 iagent CLI，以 CLI 降级模式继续"—— 并以 CLI 降级模式继续（流程中不再重复该提示）：
-   - **降级变更发现**：用 Glob 扫描 `openspec/changes/*/`（排除 `archive/`）发现候选变更；仍让用户通过 **AskUserQuestion tool** 选择
+   - **降级变更发现**：用 Glob 扫描 `openspec/changes/*/`（排除 `archive/`）发现候选变更；仍让用户通过 **用户提问 tool** 选择
    - **降级制品状态推断**：按 `proposal.md` / `design.md` / `specs/**/*.md` / `tasks.md` 文件是否存在推断制品完成度 —— 不做 CLI 校验；批量归档本身（目录移动、规格同步、归档索引更新）照常进行
    - 其他错误（如 JSON 解析失败）：报告错误并停止 —— 不得进入降级模式
    - 流程结束时，恰好提醒用户一次：本次运行使用了 CLI 降级模式，建议安装 iagent CLI 以获得校验与构建顺序保证
 
 2. **提示选择变更**
 
-   用 **AskUserQuestion tool** 多选让用户选择变更：
+   用 **用户提问 tool** 多选让用户选择变更：
    - 展示每个变更及其 schema
    - 提供 "All changes"（全部变更）选项
    - 允许选择任意数量（1 个即可，2 个以上是典型用法）
@@ -122,7 +123,7 @@ metadata:
       - 对每个规格提取需求名（匹配 `### Requirement: <name>` 的行）
 
    d. **并行校验派发（多变更、只读）**：
-      - 选中 2 个以上变更且运行时支持子代理派发时：为每个变更派发一个只读校验子代理（Task 工具，同时最多 3 个）—— 每个子代理为其负责的变更收集 a-c 三项；子代理只读文件、只跑状态查询，绝不写入
+      - 选中 2 个以上变更且运行时支持子代理派发时：为每个变更派发一个只读校验子代理（子代理派发，同时最多 3 个）—— 每个子代理为其负责的变更收集 a-c 三项；子代理只读文件、只跑状态查询，绝不写入
       - 所有子代理返回后，把各变更的结果合并进统一状态表
       - 单变更批或无子代理能力：串行收集状态（既有行为）；若环境无法派发子代理，告知用户已降级为串行
       - 子代理失败时：由主代理串行收集该变更的状态（绝不阻塞整批）

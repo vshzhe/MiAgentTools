@@ -29,7 +29,7 @@ export function getMigrationCheckSkillTemplate(): SkillTemplate {
 ## Step 1: 确定执行模式
 
 **独立模式（直接调用时的默认）**：
-- 使用 **AskUserQuestion 工具**交互式收集参数：
+- 使用 **{{ASK_USER}} 工具**交互式收集参数：
   1. SOURCE_PROJECT — 源项目根目录
   2. TARGET_PROJECT — 目标项目根目录（默认为当前项目）
   3. CHECK_SCOPE — 检查范围（模块名或功能清单；「全部」表示整个项目）

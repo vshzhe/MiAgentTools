@@ -24,7 +24,7 @@ export function getFeatureDocSkillTemplate(): SkillTemplate {
 ## Step 0: 确定执行模式
 
 **独立模式（直接调用时的默认模式）**：
-- 使用 **AskUserQuestion 工具**交互式收集参数
+- 使用 **{{ASK_USER}} 工具**交互式收集参数
 - 每个参数都可跳过或有默认值 —— 绝不因缺失参数而阻塞启动
 - 调用时已提供的参数跳过，只收集缺失项
 

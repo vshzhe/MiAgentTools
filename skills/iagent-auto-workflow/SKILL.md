@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:d8bb45d894eace7c62f7486c053f7ec60c0c68083e52b4c2a7712d8a11a52a07"
+  generatedFingerprint: "sha256:5e923d9654e244aa876fdb6a246f35f33799e5d6f67e5bc3ee04b3b83e908e7b"
 ---
 
 
@@ -25,20 +25,10 @@ metadata:
 4. **自动实现阶段** —— 验证通过后不设确认门，直接自动实现
 5. **自动归档阶段** —— 完成后自动归档
 
-## ⛔ GATE PROTOCOL — ACTIVE
-
-本技能包含以 **⛔ GATE:** 标记的**确认门**。每个门都是硬性停止点：
-- 走到 ⛔ GATE 时，**本次响应到此结束** —— 输出门内容后立即停止
-- 不得执行、描述或预生成门之后的任何步骤
-- 用户的下一则消息即为确认信号 —— 仅在其响应后从门之后继续
-- **非门动作 MUST NOT 停止，也 MUST NOT 请求确认**：阶段宣告 / 技能委派（含「是否调用 <技能>」）/ 只读扫描 / CodeGraph 查询 / 状态查询 / 只读校验的「是否运行 <校验>？」询问，均不是确认门
-- **只有**门白名单（见「门白名单与 MUST NOT 确认清单」段）声明的 5 类门可以阻断推进；白名单外的动作 MUST NOT 被实现为停止点
-- **违规**：未经用户确认而执行门之后的步骤，是破坏工作流的严重错误
-
 ## 门白名单与 MUST NOT 确认清单
 
-**必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
-- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
+**本技能不承载阻塞阶段门；以下为父流程门白名单，仅负向清单对本技能停点生效**：
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation / design-confirmation（可按条件豁免）
 - **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
 - **实现 + 测试桥**：implementation-bridge（不可豁免）
 - **归档桥**：archive-confirmation（不可豁免）
@@ -261,7 +251,7 @@ Phase 4 继承 `iagent-spec-apply` 的**测试执行门**并**自动**通过 —
 - **实现一致性门不得跳过** —— 测试门后 MUST 运行 `iagent spec conformance --strict` 并校验 `rulesRead`；`fail` / 证据缺失 MUST NOT 进入验证桥或归档
 - **三类证据缺失即阻断** —— 归档前 MUST 读取 `compile-report.md` / `test-report.md` / `conformance-report.md` 的汇总行；任一缺失或 `fail` MUST NOT 归档
 - **测试门失败时不得静默通过** —— 范围内的测试门失败 MUST 在归档前暂停；全自动语义绝不构成跳过该门或跳过归档阻断的理由
-- **深度复查后直接续跑** —— 全部通过后经 Agent 子代理调用 `iagent-proposal-review` 做深度复查（不可用则内联深度复查 + WARN），展示「验证分数 + 复查结论」后**在同一用户回合内**自动转入 Phase 4；MUST NOT 展示需求文档桥、MUST NOT 委派需求文档技能
+- **深度复查后直接续跑** —— 全部通过后内联调用 `iagent-proposal-review` 做深度复查（不可用则本地深度复查 + WARN），展示「验证分数 + 复查结论」后**在同一用户回合内**自动转入 Phase 4；MUST NOT 展示需求文档桥、MUST NOT 委派需求文档技能
 - **验证阶段无阻塞门** —— 三父流程的需求文档桥已整体移除；验证阶段 MUST NOT 声明阻塞门，MUST NOT 追加对下一阶段技能的调用确认（宿主权限与 strict/degraded 检查仍独立生效）
 - **门账本双条件** —— 仅在流程基准确认 **且** 验证 PASS + 深度复查收束后写 `design-confirmation`；未满足时 MUST NOT 写账本、MUST NOT 传 `gate-skip`，暂停并报告
 - **FAIL 不进入实现** —— 验证 FAIL 或 B1-B7 未收束时 MUST NOT 进入 Phase 4
@@ -278,7 +268,7 @@ Phase 4 继承 `iagent-spec-apply` 的**测试执行门**并**自动**通过 —
 - **使用结构化格式** —— Background、Questions、Decisions、Pending 段
 - **展示量化评分** —— 验证结果包含覆盖率百分比
 - **注入能力记忆** —— Phase 1 在存在时读取 specs/<capability>/explorations.md
-- **用 CodeGraph 扫描其他项目** —— 探索上下文含其他项目路径时，派发子代理用 CodeGraph 的 projectPath 参数扫描；失败时降级为 Glob/Grep
+- **用 CodeGraph 扫描其他项目** —— 探索上下文含其他项目路径时，由探索阶段主 agent 用 CodeGraph 的 projectPath 参数串行扫描；失败时降级为 Glob/Grep
 - **不丢失探索内容** —— 即使放弃探索文件也保留（除非被删除）
 - **MUST NOT 进入 plan 模式** —— 子代理完成分配任务后 MUST NOT 进入 plan 模式 / 设计模式 / 提出后续步骤；Phase 4 的门承载参数仅跳过设计确认门，MUST NOT 免除退出守卫或共享资源协议
 - **MUST FIRST 读取共享 handoff 包** —— 子代理 MUST 先读 `.openspec-tmp/pipeline-<change-name>/handoff-pack.md` 再做增量查询；MUST NOT 绕过包重读 proposal/specs/design 或重跑已覆盖的 CodeGraph 查询

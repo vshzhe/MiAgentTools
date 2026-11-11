@@ -12,6 +12,7 @@ import {
     DEFAULT_RECEIPT_FIELDS,
     DELEGATION_PARAMETERS,
     GATE_CONDITION_IDS,
+    GATE_SKIP_IDS,
     GATE_WHITELIST,
     GATE_WHITELIST_ANCHORS,
     HOST_PROFILES,
@@ -27,6 +28,7 @@ import {
     evaluatePhaseTransition,
     getWorkflowProtocol,
     isOrchestratingWorkflow,
+    isWhitelistedGate,
     negotiateCapabilities,
     negotiationForHost,
     parseDelegationTargets,
@@ -230,7 +232,7 @@ describe('宿主编排段渲染', () => {
         expect(section).toContain('MUST NOT 把本地串行执行标记为委派完成');
     });
 
-    it('委派动作按宿主渲染原生机制（Claude 交互阶段 Skill、自动阶段前台 Agent）', () => {
+    it('委派动作按宿主与执行策略渲染（内联 Skill / 子代理 Agent）', () => {
         const claude = renderDelegate('claude', 'strict', { workflowId: 'spec-explore' });
         // 交互阶段：经 Skill 内联加载，保留确认门
         expect(claude).toContain('经 Skill 工具加载');
@@ -238,23 +240,52 @@ describe('宿主编排段渲染', () => {
         expect(claude).toContain('iagent-spec-explore');
         expect(claude).not.toContain('前台 Agent');
 
-        // 自动阶段：前台 Agent 子代理 + 技能路径回退 + 回执 / EXIT GUARD
-        const automated = renderDelegate('claude', 'strict', { workflowId: 'spec-apply' });
+        // 默认内联：不派发子代理
+        const inline = renderDelegate('claude', 'strict', { workflowId: 'spec-apply' });
+        expect(inline).toContain('经 Skill 工具加载');
+        expect(inline).toContain('iagent-spec-apply');
+        expect(inline).not.toContain('经前台 Agent 子代理执行');
+
+        // 显式子代理策略：前台 Agent + 技能路径回退 + 回执 / EXIT GUARD
+        const automated = renderDelegate('claude', 'strict', { workflowId: 'spec-apply' }, 'subagent');
         expect(automated).toContain('经前台 Agent 子代理执行');
         expect(automated).toContain('iagent-spec-apply');
         expect(automated).toContain('.claude/skills/iagent-spec-apply/SKILL.md');
         expect(automated).toContain('结构化回执');
         expect(automated).toContain('EXIT GUARD');
 
+        // 条件降级：默认内联 + 超阈提示
+        const conditional = renderDelegate(
+            'claude',
+            'strict',
+            { workflowId: 'migration-check' },
+            'inline-with-opt-in-subagent'
+        );
+        expect(conditional).toContain('主 agent 内联执行');
+        expect(conditional).toContain('上下文超阈时经 Agent 子代理降级');
+
         const opencode = renderDelegate('opencode', 'strict', { workflowId: 'spec-explore' });
-        expect(opencode).toContain('subagent');
-        expect(opencode).toContain('项目 agent');
-        expect(opencode).not.toContain('Skill 工具');
+        expect(opencode).toContain('`skill` 工具加载');
+        expect(opencode).toContain('交互阶段');
+        expect(opencode).not.toContain('`subagent`');
+
+        const opencodeSubagent = renderDelegate(
+            'opencode',
+            'strict',
+            { workflowId: 'spec-apply' },
+            'subagent'
+        );
+        expect(opencodeSubagent).toContain('`subagent`');
+        expect(opencodeSubagent).toContain('项目 agent');
 
         const piStrict = renderDelegate('pi', 'strict', { workflowId: 'spec-explore' });
-        expect(piStrict).toContain('Agent({');
-        expect(piStrict).toContain('subagent_type');
-        expect(piStrict).toContain('iagent-spec-explore');
+        expect(piStrict).toContain('加载 Pi 技能');
+        expect(piStrict).toContain('主 agent 内联执行');
+        expect(piStrict).not.toContain('Agent({');
+
+        const piSubagent = renderDelegate('pi', 'strict', { workflowId: 'spec-apply' }, 'subagent');
+        expect(piSubagent).toContain('Agent({');
+        expect(piSubagent).toContain('subagent_type');
 
         const piDegraded = renderDelegate('pi', 'degraded', { workflowId: 'spec-explore' });
         expect(piDegraded).toContain('degraded');
@@ -264,13 +295,14 @@ describe('宿主编排段渲染', () => {
     it('编排技能生成内容包含宿主原生的阶段委派清单', () => {
         const claude = adaptSkillContentForHost('# wf', negotiateCapabilities('claude', 'strict'), 'workflow');
         expect(claude).toContain('阶段委派（宿主原生）');
-        // workflow 的委派清单同时含交互阶段（spec-explore → Skill）与自动阶段（Agent）
+        // spec-explore 为交互阶段；其余默认内联（D3），均经 Skill 加载
         expect(claude).toContain('经 Skill 工具加载 `iagent-spec-explore`');
-        expect(claude).toContain('经前台 Agent 子代理执行 `iagent-spec-apply`');
+        expect(claude).toContain('经 Skill 工具加载 `iagent-spec-apply`');
+        expect(claude).not.toContain('经前台 Agent 子代理执行 `iagent-spec-apply`');
 
         const opencode = adaptSkillContentForHost('# wf', negotiateCapabilities('opencode', 'strict'), 'workflow');
-        expect(opencode).toContain('subagent');
-        expect(opencode).not.toContain('Skill 工具委派');
+        expect(opencode).toContain('经 V2 `skill` 工具加载 `iagent-spec-apply`');
+        expect(opencode).toContain('subagent + 项目级 agent');
 
         const pi = adaptSkillContentForHost(
             '# wf',
@@ -808,14 +840,25 @@ describe('3.6 编排注入面派生与四宿主产物', () => {
         expect(list).toContain('iagent-spec-explore`（mode=delegated）');
         expect(list).toContain('iagent-spec-propose`（mode=delegated）');
         expect(list).toContain('iagent-spec-apply`（gate-skip=design-confirmation）');
-        // 参数表未声明的目标不凭空填充（spec-verify 属自动阶段 → 前台 Agent）
-        expect(list).toContain('- 经前台 Agent 子代理执行 `iagent-spec-verify`');
+        // 参数表未声明的目标不凭空填充；默认内联（D3）
+        expect(list).toContain('- 经 Skill 工具加载 `iagent-spec-verify`');
         expect(list).not.toContain('iagent-spec-verify`（mode=');
         expect(list).not.toContain('iagent-spec-verify`（gate-skip=');
 
         const noParams = renderDelegationList('claude', 'strict', ['spec-apply']);
         expect(noParams).not.toContain('mode=');
         expect(noParams).not.toContain('gate-skip=');
+
+        // 条件降级策略来自单一来源：迁移复查默认内联 + 超阈提示
+        const conditional = renderDelegationList(
+            'claude',
+            'strict',
+            ['migration-check'],
+            undefined,
+            'migration'
+        );
+        expect(conditional).toContain('主 agent 内联执行');
+        expect(conditional).toContain('上下文超阈时经 Agent 子代理降级');
     });
 
     it('codex 协商返回 degraded 且不返回 null', () => {
@@ -862,11 +905,17 @@ describe('3.6 编排注入面派生与四宿主产物', () => {
         expect(SURFACE_IDS).toEqual(['interactive-ui', 'interactive-cli', 'headless']);
     });
 
-    it('OpenCode V2 委派措辞使用 subagent，不使用 Claude 专属机制', () => {
-        const delegate = renderDelegate('opencode', 'strict', { workflowId: 'spec-apply' });
-        expect(delegate).toContain('subagent');
-        expect(delegate).toContain('iagent-spec-apply');
-        expect(delegate).not.toContain('经 Skill 工具');
+    it('OpenCode V2 委派措辞使用 skill / subagent，不使用 Claude 专属机制', () => {
+        const inline = renderDelegate('opencode', 'strict', { workflowId: 'spec-apply' });
+        expect(inline).toContain('`skill` 工具加载');
+        expect(inline).toContain('iagent-spec-apply');
+        expect(inline).not.toContain('经 Skill 工具');
+        expect(inline).not.toContain('`subagent`');
+
+        const subagent = renderDelegate('opencode', 'strict', { workflowId: 'spec-apply' }, 'subagent');
+        expect(subagent).toContain('`subagent`');
+        expect(subagent).toContain('iagent-spec-apply');
+        expect(subagent).not.toContain('经 Skill 工具');
     });
 });
 
@@ -931,6 +980,7 @@ describe('3.7 协议门与白名单对齐 + surface 门兜底', () => {
             'grill-batch-confirmation',
             'diagnostic-confirmation',
             'fix-option-confirmation',
+            'design-confirmation',
             'flow-final-confirmation',
             'implementation-bridge',
             'archive-confirmation',
@@ -1488,5 +1538,50 @@ describe('分级执行契约（2.5）', () => {
                 'test'
             );
         }
+    });
+});
+
+// fix-skill-contract-drift：门词汇单一源与技能内阻塞门覆盖。
+describe('门词汇单一源（design-confirmation 收编）', () => {
+    it('design-confirmation 是 requirement-clarification 的锚点', () => {
+        expect(isWhitelistedGate('design-confirmation')).toBe(true);
+        expect(PHASE_GATE_CATEGORY['design-confirmation']).toBe('requirement-clarification');
+        const entry = GATE_WHITELIST.find((item) => item.id === 'requirement-clarification')!;
+        expect(entry.anchors).toContain('design-confirmation');
+    });
+
+    it('GATE_SKIP_IDS 全部落在白名单锚点内', () => {
+        for (const gateId of GATE_SKIP_IDS) {
+            expect(isWhitelistedGate(gateId), gateId).toBe(true);
+            expect(PHASE_GATE_CATEGORY[gateId], gateId).toBeDefined();
+        }
+        expect(auditGateWhitelistAlignment()).toEqual([]);
+    });
+
+    it('未知门被对齐审计拦截（含 workflow/phase/gate 定位）', () => {
+        const fake = {
+            fake: {
+                workflowId: 'fake',
+                phases: [
+                    {
+                        id: 'apply',
+                        input: { required: [] },
+                        requiredCapabilities: [],
+                        handoff: [],
+                        receipt: { fields: DEFAULT_RECEIPT_FIELDS },
+                        gate: { id: 'not-whitelisted' },
+                    },
+                ],
+            },
+        };
+        const violations = auditGateWhitelistAlignment(fake as never);
+        expect(violations.join('\n')).toContain('fake/apply');
+        expect(violations.join('\n')).toContain('not-whitelisted');
+    });
+
+    it('父工作流归档门仍阻塞', () => {
+        const archive = getWorkflowProtocol('workflow')!.phases.find((phase) => phase.id === 'archive')!;
+        expect(archive.gate?.id).toBe('archive-confirmation');
+        expect(archive.gate?.blocking).not.toBe(false);
     });
 });

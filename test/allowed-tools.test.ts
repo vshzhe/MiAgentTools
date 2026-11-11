@@ -19,6 +19,8 @@ import { getSkillTemplates, getCommandTemplates } from '../src/core/templates/in
 import {
     CONDITIONAL_DELEGATIONS,
     ORCHESTRATION_DELEGATIONS,
+    adaptSkillContentForHost,
+    negotiationForHost,
 } from '../src/core/host-orchestration/index.js';
 import { CODEGRAPH_CLI } from '../src/core/templates/tool-whitelist.js';
 
@@ -343,6 +345,46 @@ describe('调用类白名单条目（MCP / Skill 委派 / 子代理派发）', (
         expect(() => expectSubagentDispatchPaired({ name: 'iagent_fake', allowedTools: 'Read, Task' })).toThrow();
     });
 
+    it('正文派发与白名单双向一致（正文派发 ⇒ Agent/Task）', () => {
+        const positive = (text: string): boolean =>
+            text
+                .split('\n')
+                .filter(
+                    (line) =>
+                        !/MUST NOT|不得|禁止|不派发|不派生|MUST NOT 派发/.test(line)
+                )
+                .some((line) =>
+                    /(经[^。\n]{0,24}子代理(?:执行|调用)|派发[^。\n]{0,24}子代理|子代理派发)/.test(line)
+                );
+        const offenders: string[] = [];
+        for (const { template, commandId } of skills) {
+            if (!positive(template.instructions)) {
+                continue;
+            }
+            const entries = parseEntries(template.allowedTools);
+            if (!entries.includes('Agent') || !entries.includes('Task')) {
+                offenders.push(`${commandId}: 正文有派发动作但缺少 Agent, Task`);
+            }
+        }
+        expect(offenders).toEqual([]);
+    });
+
+    it('生成物不越权派发：Agent 子代理指令必须对应 Agent/Task 授权', () => {
+        const negotiation = negotiationForHost('claude')!;
+        const offenders: string[] = [];
+        for (const { template, commandId } of skills) {
+            const rendered = adaptSkillContentForHost(template.instructions, negotiation, commandId);
+            if (!rendered.includes('经前台 Agent 子代理执行')) {
+                continue;
+            }
+            const entries = parseEntries(template.allowedTools);
+            if (!entries.includes('Agent') || !entries.includes('Task')) {
+                offenders.push(`${commandId}: 生成物要求 Agent 子代理但未授权 Agent, Task`);
+            }
+        }
+        expect(offenders).toEqual([]);
+    });
+
     it('全部技能不存在 Skill(*) 星号通配', () => {
         for (const { template } of skills) {
             expect(template.allowedTools, `${template.name} 使用了 Skill(*) 通配`).not.toContain('Skill(*)');
@@ -434,7 +476,7 @@ describe('debug 授权与宿主委派表一致（4.5）', () => {
         for (const dep of ['spec-verify-proposal']) {
             expect(CONDITIONAL_DELEGATIONS.debug, `DEPS 覆盖的 ${dep} 不应是条件委派`).not.toContain(dep);
         }
-        expect(debug.template.instructions).toContain('strict 模式无法调用 `iagent_test`（Skill 工具不可用）时 SHALL 按能力协商**阻断并报告**');
+        expect(debug.template.instructions).toContain('strict 模式无法调用 `iagent_test`（技能调用机制不可用）时 SHALL 按能力协商**阻断并报告**');
         expect(debug.template.instructions).toContain('显式协商 degraded 时才允许本地编写');
     });
 

@@ -14,6 +14,7 @@ import {
     type PhaseSpec,
     type WorkflowProtocol,
 } from './protocol.js';
+import { GATE_SKIP_IDS } from './delegation-contract.js';
 
 /** 阶段输入契约的常用形态 */
 const TOPIC_INPUT = { required: ['topic'], optional: ['constraints'] } as const;
@@ -230,6 +231,8 @@ export const PHASE_GATE_CATEGORY: Readonly<Record<string, GateWhitelistId>> = {
     'archive-confirmation': 'archive-confirmation',
     'diagnostic-confirmation': 'requirement-clarification',
     'fix-option-confirmation': 'requirement-clarification',
+    // spec-apply 的设计确认门：技能内动作，按「方案歧义」归类
+    'design-confirmation': 'requirement-clarification',
 };
 
 /**
@@ -237,9 +240,12 @@ export const PHASE_GATE_CATEGORY: Readonly<Record<string, GateWhitelistId>> = {
  *
  * @returns 违规描述列表（空数组即对齐）；供生成期测试断言，MUST NOT 在运行期抛错
  */
-export function auditGateWhitelistAlignment(): string[] {
+export function auditGateWhitelistAlignment(
+    protocols: Readonly<Record<string, WorkflowProtocol>> = WORKFLOW_PROTOCOLS,
+    skipIds: readonly string[] = GATE_SKIP_IDS
+): string[] {
     const violations: string[] = [];
-    for (const [workflowId, protocol] of Object.entries(WORKFLOW_PROTOCOLS)) {
+    for (const [workflowId, protocol] of Object.entries(protocols)) {
         for (const phase of protocol.phases) {
             const gateId = phase.gate?.id;
             if (gateId === undefined) {
@@ -258,6 +264,23 @@ export function auditGateWhitelistAlignment(): string[] {
             if (entry === undefined || !entry.anchors.includes(gateId)) {
                 violations.push(`${workflowId}/${phase.id}：门 ${gateId} 未挂在其类别的锚点集合内`);
             }
+        }
+    }
+    // 账本 id（门承载语义）同样必须能在白名单中找到归宿，否则「白名单外不可阻断」
+    // 与账本跳过语义会互相矛盾。
+    for (const gateId of skipIds) {
+        if (!GATE_WHITELIST_ANCHORS.includes(gateId)) {
+            violations.push(`gate-skip：门 ${gateId} 不在白名单锚点集合内`);
+            continue;
+        }
+        const category = PHASE_GATE_CATEGORY[gateId];
+        if (category === undefined) {
+            violations.push(`gate-skip：门 ${gateId} 缺少白名单类别映射`);
+            continue;
+        }
+        const entry = GATE_WHITELIST.find((item) => item.id === category);
+        if (entry === undefined || !entry.anchors.includes(gateId)) {
+            violations.push(`gate-skip：门 ${gateId} 未挂在其类别的锚点集合内`);
         }
     }
     return violations;

@@ -52,9 +52,10 @@ describe('跨宿主冒烟：Claude Code', () => {
         expect(wf).toContain('name: iagent-workflow');
         expect(wf).toContain('allowed-tools:');
         expect(wf).toContain('宿主编排适配（生成期注入）');
-        // 交互阶段经 Skill 内联、自动阶段经前台 Agent 子代理
+        // 交互阶段与内联阶段均经 Skill；默认不派发子代理
         expect(wf).toContain('经 Skill 工具加载');
-        expect(wf).toContain('经前台 Agent 子代理执行');
+        expect(wf).toContain('主 agent 内联执行');
+        expect(wf).not.toContain('经前台 Agent 子代理执行');
         expect(wf).toContain('回执契约');
         expect(wf).toContain('确认门');
     });
@@ -99,12 +100,13 @@ describe('跨宿主冒烟：Pi strict', () => {
     });
     afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
 
-    it('Runtime Extension 委派 + 参数占位符 + strict 元数据', () => {
+    it('内联执行 + 参数占位符 + strict 元数据', () => {
         const wf = readSkill(root, '.pi/skills/iagent-workflow');
         expect(wf).toContain('strict 编排');
         expect(wf).toContain('Runtime Extension');
-        expect(wf).toContain('Agent({');
-        expect(wf).toContain('subagent_type');
+        expect(wf).toContain('加载 Pi 技能');
+        expect(wf).toContain('主 agent 内联执行');
+        expect(wf).not.toContain('Agent({');
         expect(wf).toContain('iagent-spec-explore');
         expect(wf).not.toContain('Skill 工具委派');
         expect(wf).not.toMatch(/^\s*allowed-tools:/m);

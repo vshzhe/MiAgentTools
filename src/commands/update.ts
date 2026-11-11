@@ -23,6 +23,8 @@ import { getSkillTemplates, getCommandTemplates, getKnownCommandIds, rewriteComm
 import {
     generateSkillContent,
     generateCommand,
+    rewriteReferencePaths,
+    skillReferencesBasePath,
     CommandAdapterRegistry,
     fingerprintOf,
     readGeneratedBy,
@@ -50,7 +52,7 @@ import {
     writeOpenCodeProjectArtifacts,
     type OpenCodeProjectArtifactsResult,
 } from '../core/opencode-v2.js';
-import { adaptSkillContentForHost, deriveOrchestrationDelegations, negotiationForHost } from '../core/host-orchestration/index.js';
+import { adaptSkillContentForHost, deriveOrchestrationDelegations, negotiationForHost, renderHostTokens } from '../core/host-orchestration/index.js';
 import {
     detectPiRuntime,
     renderPiRuntimeMetadata,
@@ -311,7 +313,14 @@ export function runUpdate(projectRoot: string, options: UpdateOptions = {}): Upd
         }
         const negotiation = negotiationForHost(tool.value, piStatus?.mode);
         for (const { template, id } of getCommandTemplates(undefined, resolved.workflows)) {
-                const baseBody = rewriteCommandRefs(template.content, tool.commandsLayout, knownCommandIds);
+                const baseBody = renderHostTokens(
+                    rewriteReferencePaths(
+                        rewriteCommandRefs(template.content, tool.commandsLayout, knownCommandIds),
+                        skillReferencesBasePath(tool.value, id)
+                    ),
+                    tool.value,
+                    negotiation?.mode
+                );
                 const content: CommandContent = {
                     id,
                     name: template.name,

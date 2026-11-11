@@ -356,3 +356,76 @@ describe('10.4 / 10.8 归档执行方式（单变更内联 / 批量并行）', (
         expect(bulk).not.toContain('主 agent 内联归档');
     });
 });
+
+// 变更 fix-skill-contract-drift / D5：宿主中立与规则基线。
+describe('宿主中立与规则基线（fix-skill-contract-drift）', () => {
+    it('模板正文不含宿主专属工具名', () => {
+        for (const { template } of skills) {
+            expect(template.instructions, template.name).not.toContain('AskUserQuestion');
+            expect(template.instructions, template.name).not.toContain('Task 工具');
+            expect(template.instructions, template.name).not.toContain('Skill 工具');
+        }
+    });
+
+    it('生成期替换 {{ASK_USER}} 且无残留', async () => {
+        const { generateSkillContent } = await import('../src/core/command-generation/index.js');
+        for (const { template } of skills) {
+            for (const hostId of ['claude', 'pi', 'opencode', 'codex', undefined]) {
+                const generated = generateSkillContent(
+                    template,
+                    'test',
+                    hostId === undefined ? {} : { hostId }
+                );
+                expect(generated.fileContent, `${template.name}/${hostId ?? 'neutral'}`).not.toContain(
+                    '{{ASK_USER}}'
+                );
+            }
+        }
+    });
+
+    it('review / test 读取项目规则基线', () => {
+        const review = skillBody('iagent_review');
+        expect(review).toContain('iagent rules --json');
+        expect(review).toContain('.iagent/rules/*.md');
+
+        const test = skillBody('iagent_test');
+        expect(test).toContain('iagent rules --json');
+        expect(test).toContain('.iagent/rules/testing-rules.md');
+    });
+
+    it('无相邻重复短语', () => {
+        for (const { template } of skills) {
+            for (const phrase of ['由主 agent 内联由主 agent 内联', '由主 agent 由主 agent']) {
+                expect(template.instructions, `${template.name} 含重复短语「${phrase}」`).not.toContain(
+                    phrase
+                );
+            }
+        }
+    });
+
+    it('零门技能不出现「本技能包含 GATE」导言', () => {
+        for (const name of [
+            'iagent_spec_propose',
+            'iagent_spec_verify',
+            'iagent_spec_archive',
+            'iagent_spec_bulk_archive',
+        ]) {
+            expect(skillBody(name), name).not.toContain(
+                '本技能包含以 **⛔ GATE:** 标记的**确认门**'
+            );
+        }
+    });
+
+    it('独立归档技能标注豁免且父流程仍承载', () => {
+        for (const name of ['iagent_spec_archive', 'iagent_spec_bulk_archive']) {
+            const body = skillBody(name);
+            expect(body, name).toContain('独立调用');
+            expect(body, name).toContain('archive-confirmation');
+            expect(body, name).toContain('父工作流');
+        }
+    });
+
+    it('spec-apply 设计门使用 ⛔ GATE 标记', () => {
+        expect(skillBody('iagent_spec_apply')).toContain('⛔ GATE: 5.5 设计确认门');
+    });
+});

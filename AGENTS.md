@@ -91,7 +91,7 @@ src/
 │   └── legacy-migration.ts          旧装机一次性迁移（旧标识常量 + 映射表的唯一落点）
 └── utils/file-system.ts             文件系统工具
 
-test/                                vitest（69 个测试文件 + setup）
+test/                                vitest（71 个测试文件 + setup）
 test/setup-home-sandbox.ts           vitest setupFiles：把主目录沙箱到临时目录
 skills/                              静态快照（勿手编，pnpm generate:skills 生成）
 scripts/generate-skills.mjs          快照生成脚本
@@ -218,7 +218,7 @@ node bin/iagent.js version bump  # 递增版本并写回 package.json / CHANGELO
   `iagent generate --type`）；`impl` 语义为「实现域编排」；`review` 语义为「审查 / 检查」（含
   `iagent_review` / `iagent_proposal_review` / `iagent_migration_check`）；`spec` 兼具类型 id 与名称领域段
 - 技能 `description` 统一结构：**中文一句话用途 + 触发词（中英）+ `NOT for …（改用 X）` 排歧**；长度
-  ≤ 1024（硬，Agent Skills 上限）、≥ 800 软告警；英文化改写 MUST 保留原英文触发关键词
+  ≤ 1024（硬，Agent Skills 上限）、≥ 800 视为过长并软告警；英文化改写 MUST 保留原英文触发关键词
 - 技能主 `SKILL.md` 渐进披露：行数 ≤ 500（`test/skill-size-budget.test.ts` 守护）；主文件保留触发/阶段骨架/
   确认门/委派清单/护栏，参考性明细下沉 `references/*.md` 并以 `Read references/...` 引导按需加载
 - 模板正文中的指令引用以**规范形** `/iagent:<id>` 书写（单一源 `command-references.ts`），生成期按工具

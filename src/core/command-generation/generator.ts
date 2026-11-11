@@ -17,6 +17,7 @@ import { fingerprintOf, FINGERPRINT_FIELD } from './fingerprint.js';
 import { normalizeHostSkillRefs } from './host-refs.js';
 import { SKILL_PREFIX } from '../config.js';
 import { deriveSkillId } from '../skill-id.js';
+import { renderHostTokens } from '../host-orchestration/actions.js';
 
 /**
  * 生成单个指令文件（工具无关内容 + 工具适配器格式化）。
@@ -91,7 +92,9 @@ export function generateSkillContent(
     const compatibility = normalizeHostSkillRefs(
         template.compatibility || '无特殊依赖，通用环境可用。'
     );
-    const instructions = normalizeHostSkillRefs(template.instructions);
+    const instructions = normalizeHostSkillRefs(
+        renderHostTokens(template.instructions, options.hostId)
+    );
     const placeholder = `---
 name: ${skillId}
 description: ${escapeYamlValue(description)}

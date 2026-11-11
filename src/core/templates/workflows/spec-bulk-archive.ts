@@ -25,7 +25,7 @@ export function getSpecBulkArchiveSkillTemplate(): SkillTemplate {
 
 本技能支持批量归档变更，并通过检查代码库判断实际已实现的内容，从而智能处理规格冲突。
 
-${renderGateWhitelistSection()}
+${renderGateWhitelistSection({ variant: 'standalone-archive' })}
 
 **Input**: 无需参数（会提示选择）
 
@@ -38,14 +38,14 @@ ${renderGateWhitelistSection()}
    若无活动变更，告知用户并停止。
 
    **CLI 可用性检测（首次调用失败特征）**：若 \`iagent spec status --json\` 调用（或 Step 3 中的 \`iagent spec status --change\` 调用）以"命令未找到"类错误失败（如 "command not found"、"不是内部或外部命令"、"not recognized"），判定 iagent CLI 未安装。用一行告知用户 ——"未在 PATH 中找到 iagent CLI，以 CLI 降级模式继续"—— 并以 CLI 降级模式继续（流程中不再重复该提示）：
-   - **降级变更发现**：用 Glob 扫描 \`openspec/changes/*/\`（排除 \`archive/\`）发现候选变更；仍让用户通过 **AskUserQuestion tool** 选择
+   - **降级变更发现**：用 Glob 扫描 \`openspec/changes/*/\`（排除 \`archive/\`）发现候选变更；仍让用户通过 **{{ASK_USER}} tool** 选择
    - **降级制品状态推断**：按 \`proposal.md\` / \`design.md\` / \`specs/**/*.md\` / \`tasks.md\` 文件是否存在推断制品完成度 —— 不做 CLI 校验；批量归档本身（目录移动、规格同步、归档索引更新）照常进行
    - 其他错误（如 JSON 解析失败）：报告错误并停止 —— 不得进入降级模式
    - 流程结束时，恰好提醒用户一次：本次运行使用了 CLI 降级模式，建议安装 iagent CLI 以获得校验与构建顺序保证
 
 2. **提示选择变更**
 
-   用 **AskUserQuestion tool** 多选让用户选择变更：
+   用 **{{ASK_USER}} tool** 多选让用户选择变更：
    - 展示每个变更及其 schema
    - 提供 "All changes"（全部变更）选项
    - 允许选择任意数量（1 个即可，2 个以上是典型用法）
@@ -90,7 +90,7 @@ ${renderGateWhitelistSection()}
       - 对每个规格提取需求名（匹配 \`### Requirement: <name>\` 的行）
 
    d. **并行校验派发（多变更、只读）**：
-      - 选中 2 个以上变更且运行时支持子代理派发时：为每个变更派发一个只读校验子代理（Task 工具，同时最多 3 个）—— 每个子代理为其负责的变更收集 a-c 三项；子代理只读文件、只跑状态查询，绝不写入
+      - 选中 2 个以上变更且运行时支持子代理派发时：为每个变更派发一个只读校验子代理（子代理派发，同时最多 3 个）—— 每个子代理为其负责的变更收集 a-c 三项；子代理只读文件、只跑状态查询，绝不写入
       - 所有子代理返回后，把各变更的结果合并进统一状态表
       - 单变更批或无子代理能力：串行收集状态（既有行为）；若环境无法派发子代理，告知用户已降级为串行
       - 子代理失败时：由主代理串行收集该变更的状态（绝不阻塞整批）

@@ -1,14 +1,14 @@
 ---
 name: iagent-spec-explore
 description: "进入探索模式。当用户想要在变更前或变更中思考问题、调研代码库、明确需求时使用；触发词\"探索 / explore / 调研 / 思考 / 明确需求\"；NOT for 一站式引导全流程（改用 iagent-workflow）或缺陷根因排查（改用 iagent-debug）。"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(git:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(git:*), Bash(ls:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）与 CodeGraph MCP（不可用时回退 Glob/Grep）。
 metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:df413f8aab4927c5d76648d51258c59ad4d222bceeb0f72949ae364db16ede59"
+  generatedFingerprint: "sha256:40aeaa502a4803be68dc754d893e1364ff68b5072bc9e75b2f60a3f53ba34196"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
@@ -50,7 +50,7 @@ metadata:
 ## 门白名单与 MUST NOT 确认清单
 
 **必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
-- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation / design-confirmation（可按条件豁免）
 - **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
 - **实现 + 测试桥**：implementation-bridge（不可豁免）
 - **归档桥**：archive-confirmation（不可豁免）
@@ -134,7 +134,7 @@ metadata:
 
 ## 强制检查点体系（delegated 模式）
 
-**delegated 模式**（编排器传入 `mode=delegated`）SHALL 执行强制检查点体系（不可跳过）：调用即强制创建探索文件 → **项目规则基线** → **项目技能基线** → 提示词校验门 → CONTEXT.md 检查 → CodeGraph 基础扫描（含多项目派发与深度分析）→ L1-L5 grill 追问 → 功能流程图与流程最终确认门 → 聚合一致性门 → 探索完成检测。**完整协议见 `references/exploration-protocol.md`——执行 delegated 探索前 MUST 先 `Read` 该文件并逐步执行。**
+**delegated 模式**（编排器传入 `mode=delegated`）SHALL 执行强制检查点体系（不可跳过）：调用即强制创建探索文件 → **项目规则基线** → **项目技能基线** → 提示词校验门 → CONTEXT.md 检查 → CodeGraph 基础扫描（含多项目串行扫描与深度分析）→ L1-L5 grill 追问 → 功能流程图与流程最终确认门 → 聚合一致性门 → 探索完成检测。**完整协议见 `references/exploration-protocol.md`——执行 delegated 探索前 MUST 先 `Read` 该文件并逐步执行。**
 
 （interactive 模式保持立场式，不强制上述序列。）
 
@@ -162,7 +162,7 @@ metadata:
 - **从磁盘重新读取文件** - 用户在会话中可能改过的文件（CONTEXT.md、exploration.md、proposal/design/specs/tasks 等变更制品）每次使用前 MUST 从磁盘重新读取。绝不依赖会话缓存的内容。
 - **实质性歧义要表面化** - 影响范围、行为契约、向后兼容或验收标准的歧义 MUST 以 **[待确认]** 问题形式提给用户。非实质性的细节级歧义可用合理假设解决，并把假设一并记录。
 - **要执行退出纪律** - 探索结束后 MUST NOT 自动进入 plan 模式 / 提案模式 / 设计模式；仅在用户显式要求时进入下一阶段；explore 的立场是思考伙伴，流程推进由用户驱动
-- **子代理扫描要强制共享数据** - 如果探索中派发了 CodeGraph 多项目扫描子代理，子代理扫描指令 MUST 包含退出守卫（完成扫描即停止返回结果，MUST NOT 进入 plan 模式）
+- **多项目扫描要强制共享数据** - 多项目扫描由主 agent 串行执行；扫描完成后 MUST 立即停止并返回发现，MUST NOT 进入 plan 模式
 - **深入前要校验提示词** - 输入含糊或多义时先过提示词校验门（Step 1-5）：优化后 MUST 等用户确认或修改才继续；清晰输入一句话复述理解后直通（不输出校验表、不要求确认）；变更名输入以该变更既有制品为校验对象；无输入则跳过本门。上游已产出提示词基线时直接通过，不重复确认
 - **不要在提示词门上死锁** - 确认门有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续），不得反复要求确认
 - **流程浮现时要产出功能流程图** - 探索浮现明确的业务功能流程时产出 `## 功能流程图` 段（Mermaid `flowchart TD` + 节点清单表）并执行流程最终确认门；节点粒度 = 可独立验证的业务操作单元，每节点 MUST 含证据位置（`文件:行` 或类.方法；新建功能标 `[新建]` + 预期产物），无法追溯证据的节点 MUST NOT 进入清单

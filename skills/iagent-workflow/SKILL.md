@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:113a4ecd2141ef1b587243af70d8be97a0a174d7bcc1a2f79e669cd4d5ea0204"
+  generatedFingerprint: "sha256:a01f2f51c14d19f86f0d8b472b3df00dba031a421fc900117b2c2beebf076e89"
 ---
 
 
@@ -40,7 +40,7 @@ metadata:
 ## 门白名单与 MUST NOT 确认清单
 
 **必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
-- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation（可按条件豁免）
+- **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation / design-confirmation（可按条件豁免）
 - **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
 - **实现 + 测试桥**：implementation-bridge（不可豁免）
 - **归档桥**：archive-confirmation（不可豁免）
@@ -290,9 +290,9 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 - **父流程 MUST NOT 自行执行编译或测试命令**（编译与测试由被委派的 `iagent-spec-apply` 单点负责），MUST NOT 以「tasks.md 全部勾选」「实现已验证」替代证据，MUST NOT 因证据缺失而询问用户是否跳过
 - 出口：确认（进入归档）／拒绝（返回 Phase 4 继续实现，不归档）
 
-### 5.2 内联执行 `iagent-spec-archive`（主 agent，Skill 工具）
+### 5.2 内联执行 `iagent-spec-archive`（主 agent，内联技能调用）
 
-- **执行方式（强制）**：单变更归档 SHALL 由**主 agent 内联**由主 agent 内联执行 `iagent-spec-archive` 的归档协议（`executionMode=inline`），MUST NOT 派生归档子代理；兼容窗内旧的 `subagent` 回执记 deprecation WARN 并允许推进（下个 major 收紧为仅 `inline`）
+- **执行方式（强制）**：单变更归档 SHALL 由**主 agent 内联**执行 `iagent-spec-archive` 的归档协议（`executionMode=inline`），MUST NOT 派生归档子代理；兼容窗内旧的 `subagent` 回执记 deprecation WARN 并允许推进（下个 major 收紧为仅 `inline`）
 - 传入 change-name（跳过选择提示）+ Stage Envelope（handoff 包路径 / `compile-report.md` 路径 / `resume`）；MUST NOT 传已移除的需求文档状态字段
 - archive 内部完成：delta spec 合并主规格、CONTEXT.md 同步、探索记忆同步到 `specs/<cap>/explorations.md`、目录迁移 `archive/`、归档索引维护（根入口 `ARCHIVE-INDEX.md` 的月份导航 + 全局模块统计；当月月度索引 `ARCHIVE-INDEX-YYYY-MM.md` 的纯追加）、归档只读校验、流程级工作区清理
 - **回执续跑**：内联执行结果 SHALL 含 `archivePath` / `specsSynced`；父级校验通过后完成流程
@@ -486,7 +486,7 @@ All artifacts ready! Proceeding to the Phase 4 implementation bridge...
 - **自动执行内联验证** - Phase 3 由主 agent 单轮内联完成（D1-D10 + B1-B7 合并清单），每条结论带 `文件:行` 或章节锚点证据、无证据不计分、报告落盘；MUST NOT 派生 iagent-spec-verify-proposal / iagent-proposal-review 子代理（兼容窗旧 subagent 回执记 deprecation WARN）
 - **记录检查点状态** - 告知用户文件创建、校验与迁移状态
 - **注入能力记忆** - Phase 1 在 specs/<capability>/explorations.md 存在时读取它
-- **用 CodeGraph 扫描其他项目** - 探索上下文含其他项目路径时，派发子代理用 CodeGraph 的 projectPath 参数扫描；失败时降级为 Glob/Grep
+- **用 CodeGraph 扫描其他项目** - 探索上下文含其他项目路径时，由探索阶段主 agent 用 CodeGraph 的 projectPath 参数串行扫描；失败时降级为 Glob/Grep
 - **验证收束后进入实现 + 测试桥** - 全量通过（D1-D10 + B1-B7）后进入**实现 + 测试桥**（Phase 3.7：一次呈现「提案摘要 + 验证评分与证据摘要 + 深度复查清单结论 + 实现方案 + 测试计划预告」，一次确认）；本桥 MUST NOT 提供需求文档选项
 - **FAIL 不进入实现** - 验证失败或重验循环中 MUST NOT 呈现实现桥、MUST NOT 进入 Phase 4
 - **回执续跑** - 每个委派阶段返回有效回执后 MUST 在同一用户回合内继续下一阶段；MUST NOT 以回执结束回合；回执 MUST NOT 作为面向用户的最终消息（用户可见至多一行进度），停点前 MUST 引用门白名单的类别 id 或锚点 id
