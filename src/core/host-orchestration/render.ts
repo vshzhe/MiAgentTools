@@ -160,8 +160,9 @@ export const CONDITIONAL_DELEGATIONS: Readonly<Record<string, readonly string[]>
     ],
     // debug：仅 proposal-review（内联只读复查）与 test（仅显式 degraded 本地编写）声明了降级路径。
     debug: ['proposal-review', 'test'],
-    // project-init：委派 feature-doc 生成文档，不可得时正文已声明自行扫描（降级路径）。
-    'project-init': ['feature-doc'],
+    // project-init：委派 feature-doc 生成文档，不可得时正文已声明自行扫描（降级路径）；
+    // 委派两侧生成侧技能蒸馏，派发失败重试仍失败时正文已声明该侧内联降级（降级路径）。
+    'project-init': ['feature-doc', 'frontend-skill-gen', 'backend-skill-gen'],
     migration: [],
 };
 

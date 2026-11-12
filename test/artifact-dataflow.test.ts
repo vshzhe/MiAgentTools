@@ -243,9 +243,9 @@ describe('A5 DEPS 注入口径', () => {
         expect(resolveWorkflows(['debug']).workflows).not.toContain('requirement-doc');
     });
 
-    it('未配置时默认集无注入项（8 项）', () => {
-        expect(resolveWorkflows().injected).toEqual([]);
-        expect(resolveWorkflows().workflows.length).toBe(8);
+    it('未配置时默认集注入生成侧套件（8 显式 + 2 = 10 项）', () => {
+        expect(resolveWorkflows().injected).toEqual(['frontend-skill-gen', 'backend-skill-gen']);
+        expect(resolveWorkflows().workflows.length).toBe(10);
     });
 });
 

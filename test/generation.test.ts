@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 生成层测试：SKILL.md 内容、指令文件格式、YAML 转义。
  */
 
@@ -286,7 +286,7 @@ describe('Pi / OpenCode 参数注入矩阵', () => {
         ['Pi', piAdapter],
         ['OpenCode', opencodeAdapter],
     ] as const) {
-        it(`${label}：20 个内置指令中 19 个注入 $ARGUMENTS，spec-bulk-archive 跳过`, () => {
+        it(`${label}：22 个内置指令中 21 个注入 $ARGUMENTS，spec-bulk-archive 跳过`, () => {
             const injected: string[] = [];
             const skipped: string[] = [];
             for (const { template, id } of commandTemplates) {
@@ -297,7 +297,7 @@ describe('Pi / OpenCode 参数注入矩阵', () => {
                     skipped.push(id);
                 }
             }
-            expect(injected.length).toBe(19);
+            expect(injected.length).toBe(21);
             expect(skipped).toEqual(['spec-bulk-archive']);
         });
 

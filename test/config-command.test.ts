@@ -1,4 +1,4 @@
-/**
+﻿/**
  * config 命令测试：listAllWorkflowIds / runConfigShow / runConfigSet。
  * 交互式 runConfigInteractive 依赖 TTY 与 @inquirer/prompts，跳过单测。
  */
@@ -27,9 +27,9 @@ afterAll(() => {
 });
 
 describe('listAllWorkflowIds', () => {
-    it('返回全部 20 个 workflow id', () => {
+    it('返回全部 22 个 workflow id', () => {
         const ids = listAllWorkflowIds();
-        expect(ids.length).toBe(20);
+        expect(ids.length).toBe(22);
         expect(ids).toContain('project-init');
         expect(ids).toContain('spec-explore');
         expect(ids).toContain('spec-verify-proposal');
@@ -38,13 +38,13 @@ describe('listAllWorkflowIds', () => {
 });
 
 describe('runConfigShow', () => {
-    it('无 config 时提示不存在与默认集来源（默认集 8 项）', () => {
+    it('无 config 时提示不存在与默认集来源（默认集 10 项）', () => {
         const emptyRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-nocfg-show-'));
         try {
             const output = runConfigShow(emptyRoot);
             expect(output).toContain('不存在');
             expect(output).toContain('默认集');
-            expect(output).toContain('8 项');
+            expect(output).toContain('10 项');
             expect(output).toContain('project-init');
         } finally {
             fs.rmSync(emptyRoot, { recursive: true, force: true });

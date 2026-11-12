@@ -1,7 +1,7 @@
-/**
+﻿/**
  * 模板派生一致性测试（全模板单一源）。
  *
- * 保证全部 20 个技能模板的 command content 由 skill instructions（唯一源）经
+ * 保证全部 22 个技能模板的 command content 由 skill instructions（唯一源）经
  * deriveCommandContent 派生生成，防止双模板手工双写回归（2026-09-14 漂移教训）：
  *   1. command.content === deriveCommandContent(skill.instructions) —— 派生关系锁定
  *   2. 派生输出非空且无 CMD:SKIP 标记泄漏
@@ -17,9 +17,9 @@ describe('模板派生一致性（全模板单一源）', () => {
     const commandEntries = getCommandTemplates();
     const commandById = new Map(commandEntries.map(({ template, id }) => [id, template]));
 
-    it('技能与指令成对注册且均为 20 个', () => {
-        expect(skillEntries.length).toBe(20);
-        expect(commandEntries.length).toBe(20);
+    it('技能与指令成对注册且均为 22 个', () => {
+        expect(skillEntries.length).toBe(22);
+        expect(commandEntries.length).toBe(22);
     });
 
     for (const { template: skill, commandId } of skillEntries) {
@@ -78,7 +78,7 @@ describe('模板派生一致性（全模板单一源）', () => {
 
 describe('模板派生一致性（project-init 迁移后的代表性回归）', () => {
     // 作用域说明（变更 improve-template-language-consistency 后已全量扩张）：
-    // 上方「全模板单一源」块已锁定全部 20 个技能/指令对均由 deriveCommandContent 派生。
+    // 上方「全模板单一源」块已锁定全部 22 个技能/指令对均由 deriveCommandContent 派生。
     // 本块保留 project-init 的**代表性细粒度断言** —— 它是功能命名家族首个纳入派生的模板
     // （增量迁移先例），其「双模板漂移已消除」「关键防护语句全部保留」「未标记 CMD:SKIP」
     // 三条断言验证派生改造未丢失任何步骤或防护语句，作为回归样例长期保留。

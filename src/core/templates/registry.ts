@@ -10,6 +10,14 @@ import { SKILL_PREFIX, SKILL_TYPES, type SkillType } from '../config.js';
 import type { SkillTemplate, SkillTemplateEntry, CommandTemplate } from './types.js';
 import { getProjectInitSkillTemplate, getProjectInitCommandTemplate } from './workflows/project-init.js';
 import {
+    getFrontendSkillGenSkillTemplate,
+    getFrontendSkillGenCommandTemplate,
+} from './workflows/frontend-skill-gen.js';
+import {
+    getBackendSkillGenSkillTemplate,
+    getBackendSkillGenCommandTemplate,
+} from './workflows/backend-skill-gen.js';
+import {
     getMigrationCheckSkillTemplate,
     getMigrationCheckCommandTemplate,
 } from './workflows/migration-check.js';
@@ -96,6 +104,9 @@ type ResolvedCommandTemplate = CommandTemplate & { allowedTools: string };
 /** 全部内置技能（顺序即安装与展示顺序） */
 const WORKFLOW_PAIRS: WorkflowPair[] = [
     { skill: getProjectInitSkillTemplate(), command: getProjectInitCommandTemplate() },
+    // 生成侧套件（init）：project-init 第 11 步委派的前后端单侧技能蒸馏（可独立调用）
+    { skill: getFrontendSkillGenSkillTemplate(), command: getFrontendSkillGenCommandTemplate() },
+    { skill: getBackendSkillGenSkillTemplate(), command: getBackendSkillGenCommandTemplate() },
     // 迁移套件（impl）：迁移后一致性检查 + 一站式迁移编排
     { skill: getMigrationCheckSkillTemplate(), command: getMigrationCheckCommandTemplate() },
     { skill: getMigrationSkillTemplate(), command: getMigrationCommandTemplate() },

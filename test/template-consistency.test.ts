@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 跨切面一致性回归锁（变更 improve-skill-orchestration-consistency）。
  *
  * 锁定四项不变量，防止同类漂移再次逃逸：
@@ -137,19 +137,19 @@ describe('提案验证维度契约唯一', () => {
 });
 
 describe('指令正文派生覆盖度可观测', () => {
-    it('全部 20 个模板均为 skill 单一源（deriveCommandContent）', () => {
+    it('全部 22 个模板均为 skill 单一源（deriveCommandContent）', () => {
         const derived = fs
             .readdirSync(WORKFLOWS_DIR)
             .filter((f) => f.endsWith('.ts'))
             .filter((f) => fs.readFileSync(path.join(WORKFLOWS_DIR, f), 'utf8').includes('deriveCommandContent'));
-        expect(derived.length).toBe(20);
+        expect(derived.length).toBe(22);
     });
 });
 
 // 变更 fix-multi-agent-skill-command-generation / 任务 1.3 / 1.4：
 // frontmatter 元数据不含游离 version（产物版本由 metadata.generatedBy 承载）。
 describe('frontmatter 元数据无游离 version', () => {
-    it('全部 20 个技能模板的 metadata 不含 version 字段', () => {
+    it('全部 22 个技能模板的 metadata 不含 version 字段', () => {
         const offenders = skills
             .filter(({ template }) => template.metadata !== undefined && 'version' in template.metadata)
             .map(({ template }) => template.name);

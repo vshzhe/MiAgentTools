@@ -6,19 +6,19 @@ import { describe, it, expect } from 'vitest';
 import { resolveWorkflows, DEFAULT_WORKFLOWS, DEPS } from '../src/core/profiles.js';
 
 describe('resolveWorkflows', () => {
-    it('未配置时默认集 8 显式项且无注入 = 8 项', () => {
+    it('未配置时默认集 8 显式项 + project-init 注入 2 = 10 项', () => {
         const result = resolveWorkflows(undefined);
-        // 归档类不再注入 requirement-doc ⇒ 默认集自身无注入项
-        expect(result.workflows).toEqual([...DEFAULT_WORKFLOWS]);
-        expect(result.injected).toEqual([]);
-        expect(result.workflows.length).toBe(8);
+        // 归档类不再注入 requirement-doc；project-init 注入生成侧套件（frontend/backend-skill-gen）
+        expect(result.workflows).toEqual([...DEFAULT_WORKFLOWS, 'frontend-skill-gen', 'backend-skill-gen']);
+        expect(result.injected).toEqual(['frontend-skill-gen', 'backend-skill-gen']);
+        expect(result.workflows.length).toBe(10);
     });
 
-    it('空数组视为未配置，返回默认集 8 项且无注入', () => {
+    it('空数组视为未配置，返回默认集 10 项（含注入）', () => {
         const result = resolveWorkflows([]);
-        expect(result.workflows).toEqual([...DEFAULT_WORKFLOWS]);
-        expect(result.injected).toEqual([]);
-        expect(result.workflows.length).toBe(8);
+        expect(result.workflows).toEqual([...DEFAULT_WORKFLOWS, 'frontend-skill-gen', 'backend-skill-gen']);
+        expect(result.injected).toEqual(['frontend-skill-gen', 'backend-skill-gen']);
+        expect(result.workflows.length).toBe(10);
     });
 
     it('用户配置子集完全覆盖默认集（非合并）', () => {
@@ -89,12 +89,27 @@ describe('resolveWorkflows', () => {
             'auto-workflow',
             'debug',
             'migration',
+            'project-init',
             'spec-apply',
             'spec-archive',
             'spec-bulk-archive',
             'spec-propose',
             'workflow',
         ]);
+    });
+
+    it('project-init 注入两侧生成侧技能（默认集连带补全）', () => {
+        const result = resolveWorkflows(['project-init']);
+        expect(result.workflows).toEqual(['project-init', 'frontend-skill-gen', 'backend-skill-gen']);
+        expect(result.injected).toEqual(['frontend-skill-gen', 'backend-skill-gen']);
+        // 已显式选择时不重复注入
+        const explicit = resolveWorkflows(['project-init', 'frontend-skill-gen', 'backend-skill-gen']);
+        expect(explicit.injected).toEqual([]);
+        // 默认集含 project-init ⇒ 默认安装集 10 项（显式 8 + 生成侧注入 2）
+        const defaults = resolveWorkflows(undefined);
+        expect(defaults.workflows).toContain('frontend-skill-gen');
+        expect(defaults.workflows).toContain('backend-skill-gen');
+        expect(defaults.workflows).toHaveLength(10);
     });
 
     it('workflow 注入验证/实现/归档技能并连带补全传递依赖（不再注入 requirement-doc）', () => {

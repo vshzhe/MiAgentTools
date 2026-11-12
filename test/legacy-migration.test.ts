@@ -204,13 +204,13 @@ describe('2.1 遗留产物检测与映射表', () => {
         expect(new Set(Object.values(LEGACY_TYPE_RENAME))).toEqual(new Set(SKILL_TYPES.map((t) => t.id)));
     });
 
-    it('workflow id 映射 21 项，映射目标覆盖当前全部指令 id（不可能与注册表漂移）', () => {
+    it('workflow id 映射 23 项，映射目标覆盖当前全部指令 id（不可能与注册表漂移）', () => {
         const currentCommandIds = getSkillTemplates().map((entry) => entry.commandId);
-        expect(currentCommandIds.length).toBe(20);
-        expect(Object.keys(LEGACY_WORKFLOW_ID_MAP).length).toBe(21);
+        expect(currentCommandIds.length).toBe(22);
+        expect(Object.keys(LEGACY_WORKFLOW_ID_MAP).length).toBe(23);
         expect(new Set(Object.values(LEGACY_WORKFLOW_ID_MAP))).toEqual(new Set(currentCommandIds));
         // 目标名去重后 == 当前指令 id 集（genfull 与 workflow 均映射到 workflow）
-        expect(new Set(Object.values(LEGACY_WORKFLOW_ID_MAP)).size).toBe(20);
+        expect(new Set(Object.values(LEGACY_WORKFLOW_ID_MAP)).size).toBe(22);
         // spec 领域段的旧 id 与新 id 相同
         expect(renameLegacyWorkflowId('spec-explore')).toBe('spec-explore');
         // genfull（引导式全流程）已并入 workflow
@@ -554,8 +554,8 @@ describe('2.5 边界容错与跳过开关', () => {
         const result = runUpdate(projectRoot, { homeDir });
 
         expect(result.legacyMigration.warnings.some((w) => w.includes('迁移未完成'))).toBe(true);
-        // 主流程照常：未配置 workflows 时按默认集刷新（8 模板 × 3 工具）
-        expect(result.installed.length).toBe(24);
+        // 主流程照常：未配置 workflows 时按默认集刷新（10 项生效集 × 3 工具）
+        expect(result.installed.length).toBe(30);
         // 异常后清理未执行，旧产物保留待下次重跑
         expect(fs.existsSync(path.join(projectRoot, '.claude', 'skills', `${LEGACY_SKILL_PREFIX}tr_impl_feature`))).toBe(
             true

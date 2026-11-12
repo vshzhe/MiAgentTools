@@ -30,7 +30,8 @@ export const DEFAULT_WORKFLOWS: readonly string[] = [
  *  - spec-archive / spec-bulk-archive ⇒ spec-verify
  *    （spec-verify：实现完成后、归档前验证。归档侧已删除需求文档相关逻辑，
  *     正文不再委派 `iagent_requirement_doc`，故 MUST NOT 注入）
- *  - 默认集后果：DEFAULT_WORKFLOWS 8 项自身无注入项 ⇒ 默认安装集为 8 项
+ *  - 默认集后果：DEFAULT_WORKFLOWS 含 project-init ⇒ 默认安装集 10 项
+ *    （显式 8 + project-init 注入的 frontend-skill-gen / backend-skill-gen）
  *  - migration ⇒ feature-doc + migration-check
  *    （编排技能 Phase 1 源项目扫描与 Phase 4 迁移检查依赖两子技能）
  *  - workflow ⇒ spec-explore + spec-propose + spec-verify-proposal + proposal-review
@@ -49,12 +50,17 @@ export const DEFAULT_WORKFLOWS: readonly string[] = [
  *     `test` 属条件委派且正文已声明缺省降级路径，不触发注入）
  *  - spec-apply ⇒ test
  *    （`[测试]` 任务**无条件委派** `iagent_test` 生成测试代码；缺该技能会形成死引用，
- *     故随装补全。设计确认门由父流程实现桥或 apply 自身承载，不注入其他技能） */
+ *     故随装补全。设计确认门由父流程实现桥或 apply 自身承载，不注入其他技能）
+ *  - project-init ⇒ frontend-skill-gen + backend-skill-gen
+ *    （第 11 步委派两侧生成侧技能执行单侧蒸馏；缺技能会形成死委派引用，故随装补全。
+ *     DEFAULT_WORKFLOWS 不显式加入两 id —— 仅选装 project-init 的用户需要它们，
+ *     注入承担安装，避免默认集膨胀） */
 export const DEPS: Record<string, readonly string[]> = {
     'spec-propose': ['spec-verify-proposal'],
     'spec-apply': ['test'],
     'spec-archive': ['spec-verify'],
     'spec-bulk-archive': ['spec-verify'],
+    'project-init': ['frontend-skill-gen', 'backend-skill-gen'],
     'migration': ['feature-doc', 'migration-check'],
     'workflow': ['spec-explore', 'spec-propose', 'spec-verify-proposal', 'proposal-review', 'spec-apply', 'spec-archive'],
     'auto-workflow': ['spec-explore', 'spec-propose', 'spec-verify-proposal', 'proposal-review', 'spec-apply', 'spec-archive'],

@@ -28,6 +28,7 @@
 | 2026-11-11 | improve-continuation-and-codegraph-resilience | continuation | 消除编排流程回执停点，并让 CodeGraph 调用具备 busy 重试与 CLI 边界 [含测试] |
 | 2026-11-11 | improve-archive-name-collision | archive | 归档名冲突不再阻断：目标名唯一化后缀 -2/-3…、索引保留后缀并剥离模块、批量归档冲突不标 Failed [含测试] |
 | 2026-11-11 | fix-skill-contract-drift | orchestration | 统一门词汇 / 派发执行 / 指令 references，修复 version dry-run 与宿主中立性漂移 [含测试] |
+| 2026-11-12 | refactor-project-init-skill-split | project-init | project-init 第 11 步技能蒸馏内嵌单模板：不可单独调用、串行慢、生成范围粗。[含测试] |
 
 ---
 
@@ -35,7 +36,7 @@
 
 | 模块 | 归档数 | 变更列表 |
 |------|-------|---------|
-| orchestration | 5 | fix-mode-delegation-host-parity (2026-11-01), improve-delegation-gate-ledger (2026-11-03), skill-bridge-optimize (2026-11-08), inline-orchestration-delegation (2026-11-08), inline-propose-apply-parallel (2026-11-08) |
+| orchestration | 6 | fix-mode-delegation-host-parity (2026-11-01), improve-delegation-gate-ledger (2026-11-03), skill-bridge-optimize (2026-11-08), inline-orchestration-delegation (2026-11-08), inline-propose-apply-parallel (2026-11-08), fix-skill-contract-drift (2026-11-11) |
 | templates | 5 | fix-multi-agent-skill-command-generation (2026-11-02), improve-requirement-doc-review-readiness (2026-11-08), improve-orchestration-execution-mode (2026-11-08), improve-grill-with-docs-paper-trail (2026-11-08), optimize-commit-skills (2026-11-09) |
 | spec | 4 | improve-proposal-validation-and-spec-ref (2026-11-03), improve-archive-index-monthly (2026-11-08), improve-task-ref-dedup (2026-11-08), improve-impl-conformance-and-test-gate (2026-11-09) |
 | continuation | 1 | improve-continuation-and-codegraph-resilience (2026-11-11) |
@@ -43,7 +44,8 @@
 | skills | 1 | add-project-skill-integration (2026-11-09) |
 | workflow | 1 | improve-compile-gate-and-archive-readonly (2026-11-01) |
 | archive | 1 | improve-archive-name-collision (2026-11-11) |
+| project-init | 1 | refactor-project-init-skill-split (2026-11-12) |
 
 ---
 
-*更新时间: 2026-11-11*
+*更新时间: 2026-11-12*

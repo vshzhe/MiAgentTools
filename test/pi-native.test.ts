@@ -469,13 +469,13 @@ describe('5.2 Pi 派生清单与门声明对齐', () => {
         expect(md).not.toContain('get_subagent_result');
     });
 
-    it('project-init 的 feature-doc 缺口属条件委派（默认安装集不产生必需缺口）', () => {
+    it('project-init 的 feature-doc 与生成侧缺口属条件委派（默认安装集不产生必需缺口）', () => {
         const result = resolvePiNestingDelegations('project-init', ['project-init']);
         expect(result.allowed).toEqual([]);
         expect(result.gap).toBeDefined();
-        expect(result.gap?.missing).toEqual(['feature-doc']);
-        // 正文已声明自行扫描的降级路径 → 条件委派，MUST NOT 判为无条件必需
-        expect(result.gap?.conditional).toEqual(['feature-doc']);
+        expect(result.gap?.missing).toEqual(['feature-doc', 'frontend-skill-gen', 'backend-skill-gen']);
+        // 正文已声明降级路径（feature-doc 自行扫描 / 生成侧该侧内联降级）→ 条件委派，MUST NOT 判为无条件必需
+        expect(result.gap?.conditional).toEqual(['feature-doc', 'frontend-skill-gen', 'backend-skill-gen']);
         expect(result.gap?.required).toEqual([]);
     });
 
@@ -487,7 +487,7 @@ describe('5.2 Pi 派生清单与门声明对齐', () => {
                 { workflowId: 'spec-explore', description: '探索' },
             ]);
             const gap = result.nestingGaps.find((item) => item.workflowId === 'project-init');
-            expect(gap?.conditional).toEqual(['feature-doc']);
+            expect(gap?.conditional).toEqual(['feature-doc', 'frontend-skill-gen', 'backend-skill-gen']);
             expect(gap?.required).toEqual([]);
             expect(
                 result.warnings.some(

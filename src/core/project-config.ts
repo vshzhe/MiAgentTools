@@ -351,8 +351,9 @@ rules:
 
 # 选择本项目要安装的 workflow（iagent init/update 据此过滤生成）
 # 未配置或为空时使用默认集（DEFAULT_WORKFLOWS 8 项：project-init + test + spec 全 6）
-# 下列写回的默认内容为 7 项显式（不含 test）：test 由 spec-apply ⇒ test 依赖注入补足，安装总数同为 8
+# 下列写回的默认内容为 7 项显式（不含 test）：test 由 spec-apply ⇒ test 依赖注入补足
 # 选了 spec-propose 自动带 spec-verify-proposal；选了 spec-archive 自动带 spec-verify
+# 选了 project-init 自动带 frontend-skill-gen + backend-skill-gen（生成侧套件，安装总数 10）
 workflows:
   - project-init
   - spec-explore

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 模板正文指令引用单一源与死引用校验。
  *
  * 锁定三件事（对应变更 improve-template-generation-consistency 的
@@ -268,7 +268,7 @@ describe('模板源码卫生：无硬编码宿主路径与废弃 version', () =>
             text: fs.readFileSync(path.join(WORKFLOWS_DIR, name), 'utf8'),
         }));
 
-    it('全部 20 个技能模板与 generate 命令骨架不含 metadata version', () => {
+    it('全部 22 个技能模板与 generate 命令骨架不含 metadata version', () => {
         const offenders = templateFiles
             .filter(({ text }) => /version:\s*'1\.0'/.test(text))
             .map(({ name }) => name);

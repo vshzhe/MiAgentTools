@@ -9,11 +9,18 @@
  * MUST NOT 在模板中手写字符串。
  *
  * 模板单一源：command 版正文由 deriveCommandContent() 从 skill 版 instructions 派生，
- * MUST NOT 手工双写两份 markdown 字符串（与 spec-*.ts 同构；本模板是 tr-* 家族纳入派生
- * 的第一步，其余功能名模板仍在此作用域外）。
+ * MUST NOT 手工双写两份 markdown 字符串（全部功能名模板与 spec-*.ts 均走同一单一源，
+ * 由 test/template-consistency.test.ts『指令正文派生覆盖度可观测』锁定）。
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
-import { CODEGRAPH_CLI, CODEGRAPH_MCP, skillDelegation } from '../tool-whitelist.js';
+import { CODEGRAPH_CLI, CODEGRAPH_MCP, skillDelegation, SUBAGENT_DISPATCH } from '../tool-whitelist.js';
+import {
+    SKILL_DISTILL_EVIDENCE_RULE,
+    SKILL_DISTILL_PRODUCT_SHAPE,
+    SKILL_DISTILL_CHECKLIST_C1_C6,
+    SKILL_DISTILL_EXISTING_HANDLING,
+    SKILL_DISTILL_SECURITY_BAN,
+} from '../skill-distill.js';
 import {
     CODEGRAPH_BUSY_LADDER,
     CODEGRAPH_CALL_DISCIPLINE,
@@ -160,7 +167,9 @@ export function getProjectInitSkillTemplate(): SkillTemplate {
             ', ' +
             CODEGRAPH_MCP +
             ', ' +
-            skillDelegation(['feature_doc']),
+            skillDelegation(['feature_doc', 'frontend_skill_gen', 'backend_skill_gen']) +
+            ', ' +
+            SUBAGENT_DISPATCH,
         type: 'init',
         instructions: `初始化项目 —— 读扫描基线 → 五类语义扫描 → 逐份确认 → 落盘 → 回写 context → 蒸馏规则。
 
@@ -300,24 +309,30 @@ ${CODEGRAPH_CLI_BOUNDARY}
 - **非阻断**：扫描或写入失败一律记 WARN 继续，MUST NOT 中断流程、MUST NOT 使流程以失败收场
 - **不新增委派与工具授权**：本步骤只用 Read / Glob / Grep / Write
 
-### 11. 项目前后端技能蒸馏（技能蒸馏）
+### 11. 项目前后端技能蒸馏（编排）
 
 第 10 步**完成之后**执行（固定顺序：五类文档 → \`AGENTS.md\` → \`context\` → 规则蒸馏 → 技能蒸馏）。全程**非阻断**：任一步失败记 WARN 并继续，MUST NOT 中断初始化。
 
-- **证据判定**：依据第 1 步基线 \`signals\` / \`candidates\`、五类文档与源码实际使用证据判定前端 / 后端框架；依赖或 jar 的存在只作候选，MUST NOT 据此断言使用；证据不足按零猜测补扫，仍不足则该侧**不生成**（MUST NOT 造占位空壳）。
-- **产物形态**：默认每侧一份 \`.iagent/skills/frontend-design.md\` / \`backend-design.md\`（含设计要点与实现规范，frontmatter \`phases: both\`、\`scope\`、\`source: distilled\`）。满足任一条件时按阶段拆分：同侧 ≥2 框架 / 后端 ≥3 个分层或模块族 / 设计或实现任一段超约 150 行 → \`<side>-design.md\`（\`phases: design\`）+ \`<side>-implement.md\`（\`phases: implement\`）。多框架未拆分时在同侧文档内按框架分节，\`frameworks\` 逐项列出。拆分判据与结论写入报告。
-- **写入前完整性自检 C1-C6**（全部通过才可写入）：
-  - C1 frontmatter 必填：\`name\` / \`description\` / \`phases\` / \`scope\` / \`source\`；\`name\` 必须等于文件名主干；
-  - C2 必需章节齐全：\`## 框架与版本\` / \`## 目录与分层\` / \`## 设计规范\` / \`## 实现规范\` / \`## 约定与禁止项\` / \`## 证据索引\` / \`## 不适用项\`；无内容须写「不适用 + 探测依据」，不得删章节或留空；拆分文件按 \`phases\` 计算（design 可把实现规范标不适用，implement 可把设计规范标不适用）；
-  - C3 每条规则行必须带证据锚点（\`文件:行\` / 类.方法 / \`docs/project/\` 章节），无证据不写入；
-  - C4 禁止占位符：\`[待补充]\` / \`TODO\` / \`TBD\` / \`<...>\`；
-  - C5 与 \`.iagent/rules/*.md\` 冲突时以代码事实为准并记 WARN，冲突项在 \`## 证据索引\` 标注；
-  - C6 单文件超约 300 行时拆分或下沉，禁止超长无结构文件；
-  - 自检不通过先补齐；无法补齐时 MUST NOT 写入该侧，报告列出缺失章节 / 证据 / 不适用依据。
-- **已存在处理**：复用第 5 / 6 步的逐份确认（确认重新生成 / 修改 / 跳过）与人工域标记（区间逐字保留，破损取保留侧）；全部跳过时正常结束。
-- **自动注册**：写入成功后把条目追加到 \`.iagent/config.yaml\` 的 \`skills:\` 对应角色组（幂等、保留注释与未知段）；注册失败记 WARN，不回滚已生成文件。
-- **安全边界**：MUST NOT 写入凭据值或可利用的绕过细节，只写键名与位置。
-- **报告**：逐侧给出生成文件、C1-C6 结论、不适用项依据、冲突项；未生成侧写明原因（证据不足）。
+本步骤为**编排者**：两侧蒸馏由生成侧技能承担 —— 前端侧 \`iagent_frontend_skill_gen\`、后端侧 \`iagent_backend_skill_gen\`，本技能负责派发、注册与汇总。
+
+- **委派输入（Stage Envelope 最小输入）**：委派指令只传路径与结构化字段 —— \`integration-mode: project-init\` 标记、扫描基线路径、五类文档路径、\`.iagent/config.yaml\` 路径、输出路径；MUST NOT 内联制品正文或蒸馏协议全文（被委派技能自带同源协议）。
+- **并发派发**：宿主具备子代理派发能力时，同回合并发派发前端、后端两个子代理（MUST NOT 串行等待）；派发失败自动重试一次，仍失败 → 该侧降级（见下）。
+- **降级路径（非并发）**：宿主无子代理派发能力，或某侧派发重试仍失败 → 主 agent 按下方共享蒸馏协议**串行内联**执行该侧，并在报告标注「降级路径（非并发）」；降级 MUST NOT 被表述为已并发委派完成。
+- **共享蒸馏协议（降级内联执行时逐侧适用）**：
+
+${SKILL_DISTILL_EVIDENCE_RULE}
+
+${SKILL_DISTILL_PRODUCT_SHAPE}
+
+${SKILL_DISTILL_CHECKLIST_C1_C6}
+
+${SKILL_DISTILL_EXISTING_HANDLING}
+
+${SKILL_DISTILL_SECURITY_BAN}
+
+- **config 注册单点**：两侧子代理（及降级内联产物）MUST NOT 自行写 \`.iagent/config.yaml\`；两侧全部完成后由本技能**单点串行**注册：逐行段替换把成功侧条目幂等追加到 \`skills:\` 对应角色组（保留注释与未知段，MUST NOT 重新序列化整个 YAML）；注册失败记 WARN，不回滚已生成文件。
+- **单侧失败隔离**：单侧失败或证据不足 → 该侧不生成并报告原因，另一侧继续完成；config 注册只登记成功侧。
+- **汇总报告**：逐侧生成文件、C1-C6 结论、设计模板清单（前端侧）、不适用项依据、冲突项、降级与失败原因；未生成侧写明原因（证据不足）。
 
 ## 参考文件（references/）
 

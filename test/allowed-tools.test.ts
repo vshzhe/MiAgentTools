@@ -259,8 +259,8 @@ describe('调用类白名单条目（MCP / Skill 委派 / 子代理派发）', (
             ({ template }) => /codegraph_/.test(template.instructions) || parseEntries(template.allowedTools).includes('mcp__codegraph')
         );
         // 判据自检：命中数不得为 0，否则断言静默空转
-        // 10 = 既有 11 项 - full-workflow（已并入 workflow）
-        expect(derived.length).toBe(10);
+        // 12 = 既有 10 项 + 生成侧套件（frontend/backend-skill-gen 正文含 codegraph_explore）
+        expect(derived.length).toBe(12);
         for (const { template } of derived) {
             expectCodegraphEntries(template);
         }
@@ -327,10 +327,11 @@ describe('调用类白名单条目（MCP / Skill 委派 / 子代理派发）', (
         const dispatching = skills.filter(({ template }) =>
             parseEntries(template.allowedTools).includes('Agent')
         );
-        // 派发技能集合（回归锁）：propose / apply 内联 ⇒ 仅 migration（阈值降级）与
-        // spec-bulk-archive（并行单元）保留子代理
+        // 派发技能集合（回归锁）：propose / apply 内联 ⇒ migration（阈值降级）、
+        // spec-bulk-archive（并行单元）与 project-init（第 11 步并发派发两侧生成侧技能）保留子代理
         expect(dispatching.map((s) => s.commandId).sort()).toEqual([
             'migration',
+            'project-init',
             'spec-bulk-archive',
         ]);
         for (const { template } of dispatching) {

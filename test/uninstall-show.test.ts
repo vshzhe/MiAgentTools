@@ -1,4 +1,4 @@
-/**
+﻿/**
  * uninstall / show 命令测试。
  */
 
@@ -17,7 +17,7 @@ let tempRoot: string;
 
 beforeAll(() => {
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-uninst-'));
-    // 配置全量 workflows，让 init 装全部 20 个技能（默认集仅 9 个）
+    // 配置全量 workflows，让 init 装全部 22 个技能（默认集仅 9 个）
     ensureProjectConfig(tempRoot);
     writeWorkflowsToConfig(tempRoot, getSkillTemplates().map((e) => e.commandId));
 });
@@ -32,8 +32,8 @@ describe('iagent uninstall', () => {
         runGenerate(tempRoot, { type: 'tools', name: 'extra-one' });
 
         const preview = previewUninstall(tempRoot);
-        expect(preview.removedSkills.length).toBe(63); // (20 内置 + 1 生成) × 3 工具
-        expect(preview.removedCommands.length).toBe(61); // 20 内置 × 2 适配器 + Pi 21 个 agent（orchestrator + 20 阶段）
+        expect(preview.removedSkills.length).toBe(69); // (22 内置 + 1 生成) × 3 工具
+        expect(preview.removedCommands.length).toBe(67); // 22 内置 × 2 适配器 + Pi 23 个 agent（orchestrator + 22 阶段）
         // 未删除：文件仍在
         expect(fs.existsSync(path.join(tempRoot, '.claude', 'skills', 'iagent-project-init', 'SKILL.md'))).toBe(true);
     });
@@ -44,7 +44,7 @@ describe('iagent uninstall', () => {
         fs.writeFileSync(path.join(otherDir, 'SKILL.md'), 'other', 'utf8');
 
         const result = runUninstall(tempRoot, { yes: true });
-        expect(result.removedSkills.length).toBe(63);
+        expect(result.removedSkills.length).toBe(69);
         expect(result.skipped.some((s) => s.includes('other_tool_skill'))).toBe(true);
         // 其他技能保留
         expect(fs.existsSync(path.join(otherDir, 'SKILL.md'))).toBe(true);

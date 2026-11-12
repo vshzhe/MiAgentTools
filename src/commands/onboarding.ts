@@ -1,7 +1,7 @@
 /**
  * init 完成后的 onboarding 提示。
  *
- * 按生效 workflow 集过滤，只展示当前配置集内的引导（默认集生效 9 项）。
+ * 按生效 workflow 集过滤，只展示当前配置集内的引导（默认集生效 10 项：显式 7 + test 注入 1 + 生成侧注入 2）。
  * 提示是有状态的：.iagent/config.yaml 存在（说明已 init 过）时不重复打扰，
  * 可用 --onboarding 强制再次展示。
  */

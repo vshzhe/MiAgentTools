@@ -776,8 +776,12 @@ describe('3.6 编排注入面派生与四宿主产物', () => {
             }
             expect(derived.delegations[commandId], `${commandId} 派生目标不一致`).toEqual(targets);
         }
-        // project-init 派生后成为编排技能（委派 feature-doc）
-        expect(derived.delegations['project-init']).toEqual(['feature-doc']);
+        // project-init 派生后成为编排技能（委派 feature-doc 与两侧生成侧技能）
+        expect(derived.delegations['project-init']).toEqual([
+            'feature-doc',
+            'frontend-skill-gen',
+            'backend-skill-gen',
+        ]);
     });
 
     it('有委派即注入、无委派不注入（归档类已退出编排面）', () => {

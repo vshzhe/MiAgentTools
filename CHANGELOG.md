@@ -7,6 +7,14 @@
 
 ## [Unreleased]
 
+## [4.11.0] - 2026-11-12
+
+### Added
+
+- 前后端生成侧技能（`iagent-frontend-skill-gen` / `iagent-backend-skill-gen`）：可独立调用或由 project-init 委派执行单侧技能蒸馏；生成范围细化为前端 8 维 / 后端 6 维扫描清单，前端侧按 UI 证据产出 `.iagent/templates/frontend/` 设计模板（页面骨架 / 弹窗骨架 / 数据交换约定）
+- project-init 第 11 步改为编排：具备子代理能力时并发派发两侧生成侧技能，派发失败重试一次后该侧降级内联（标注「降级路径（非并发）」）、config 注册单点串行、单侧失败隔离与汇总报告
+- 蒸馏协议共享真源 `src/core/templates/skill-distill.ts`（C1-C6 自检 / 证据判定 / 产物形态，project-init 与两生成侧模板同一真源）；选装 project-init 自动注入两生成侧技能（默认安装集 8 显式 + 2 注入 = 10）
+
 ## [4.10.2] - 2026-11-11
 
 ### Fixed
@@ -1813,7 +1821,8 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.10.2...HEAD
+[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.11.0...HEAD
+[4.11.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.10.2...v4.11.0
 [4.10.2]: https://github.com/vshzhe/MiAgentTools/compare/v4.10.1...v4.10.2
 [4.10.1]: https://github.com/vshzhe/MiAgentTools/compare/v4.10.0...v4.10.1
 [4.10.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.9.0...v4.10.0

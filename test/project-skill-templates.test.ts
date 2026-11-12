@@ -49,7 +49,7 @@ describe('项目技能蒸馏（project-init）', () => {
     });
 
     it('包含默认单文档 / 拆分判定 / 多框架分节', () => {
-        expect(init).toContain('默认每侧一份');
+        expect(init).toContain('默认本侧一份');
         expect(init).toContain('phases: design');
         expect(init).toContain('phases: implement');
         expect(init).toContain('frameworks');

@@ -1,0 +1,143 @@
+﻿# Tasks: refactor-project-init-skill-split
+
+## 1. 模板层：共享清单与生成侧技能模板
+
+- [x] 1.1 [代码] 新增共享蒸馏检查清单常量模块：提取 C1-C6 自检、单侧证据判定骨架、安全边界（不写凭据值 / 不写绕过细节）文本为共享常量，供 project-init 与两生成侧模板引用同一真源（防三处漂移） [N5][N6]
+  - 文件：`src/core/templates/skill-distill.ts`（新建）
+  - 验证：三处模板正文引用同一常量；`pnpm build` 通过
+  - Spec Ref：skill-gen-workflows / 蒸馏质量自检 C1-C6
+  - Scenario Ref：自检通过写入
+- [x] 1.2 [代码] 新增前端生成侧技能模板 `iagent_frontend_skill_gen`：范围清单（前端框架 / 常用组件[选择框、下拉框、复选框、tree、单选框] / 分页 / table / 前后端交互逻辑 / 新能力 vs 历史能力注意事项 / 页面设计 / 弹窗设计）、设计模板协议（`.iagent/templates/frontend/` 页面骨架 / 弹窗骨架 / 数据交换约定，无证据不生成）、双态注册（独立调用自身幂等注册；被委派跳过）、委派回执（四列最小回执） [N5][N11]
+  - 文件：`src/core/templates/workflows/frontend-skill-gen.ts`（新建）
+  - 验证：模板正文含范围清单逐项与 C1-C6 引用；`pnpm build` 通过
+  - Spec Ref：skill-gen-workflows / 前端生成侧技能独立调用
+  - Scenario Ref：独立调用生成前端技能与设计模板
+  - Scenario Ref：证据不足该侧不生成
+- [x] 1.3 [代码] 新增后端生成侧技能模板 `iagent_backend_skill_gen`：范围清单（技术框架 / 数据库设计 / MVC 架构 / 接口设计 / 前后端接口交互 / 网络安全）、双态注册、委派回执；无设计模板产出 [N6][N11]
+  - 文件：`src/core/templates/workflows/backend-skill-gen.ts`（新建）
+  - 验证：模板正文含范围清单逐项与 C1-C6 引用；`pnpm build` 通过
+  - Spec Ref：skill-gen-workflows / 后端生成侧技能独立调用
+  - Scenario Ref：独立调用生成后端技能
+  - Scenario Ref：后端证据不足不生成
+- [x] 1.4 [测试][单元][P0] 前端模板范围清单与设计模板协议断言：清单逐项存在、设计模板落点与三类产物、无证据不生成语句、allowedTools 含 CodeGraph + Write/Glob/Grep 且不含 Agent/Task [N5]
+  - 文件：`test/skill-gen-templates.test.ts`（新建）
+  - 验证：`pnpm test -- skill-gen-templates`
+  - Spec Ref：skill-gen-workflows / 生成范围细化清单
+  - Spec Ref：skill-gen-workflows / 前端生成侧技能独立调用
+  - Scenario Ref：skill-gen-workflows / 生成范围细化清单 / 前端范围清单覆盖
+  - Scenario Ref：skill-gen-workflows / 生成范围细化清单 / 无证据维度标不适用
+  - Scenario Ref：skill-gen-workflows / 前端生成侧技能独立调用 / 独立调用生成前端技能与设计模板
+  - Scenario Ref：skill-gen-workflows / 前端生成侧技能独立调用 / 证据不足该侧不生成
+- [x] 1.5 [测试][单元][P0] 后端模板范围清单断言：六维度逐项存在、无设计模板段、allowedTools 断言 [N6]
+  - 文件：`test/skill-gen-templates.test.ts`
+  - 验证：`pnpm test -- skill-gen-templates`
+  - Spec Ref：skill-gen-workflows / 生成范围细化清单
+  - Spec Ref：skill-gen-workflows / 后端生成侧技能独立调用
+  - Scenario Ref：skill-gen-workflows / 生成范围细化清单 / 后端范围清单覆盖
+  - Scenario Ref：skill-gen-workflows / 后端生成侧技能独立调用 / 独立调用生成后端技能
+  - Scenario Ref：skill-gen-workflows / 后端生成侧技能独立调用 / 后端证据不足不生成
+- [x] 1.6 [测试][单元][P0] 双态注册断言：独立调用注册段与「被 project-init 委派时 MUST NOT 自行注册」语句存在 [N11]
+  - 文件：`test/skill-gen-templates.test.ts`
+  - 验证：`pnpm test -- skill-gen-templates`
+  - Spec Ref：skill-gen-workflows / 注册模式双态
+  - Scenario Ref：被委派跳过自身注册
+  - Scenario Ref：独立调用自身注册
+- [x] 1.7 [测试][单元][P1] 设计模板证据约束断言：模板正文含「无 UI 证据不生成模板」与 C1-C6 适用语句 [N5]
+  - 文件：`test/skill-gen-templates.test.ts`
+  - 验证：`pnpm test -- skill-gen-templates`
+  - Spec Ref：skill-gen-workflows / 前端设计模板生成
+  - Scenario Ref：无 UI 证据不生成模板
+  - Scenario Ref：按 UI 证据生成设计模板
+- [x] 1.8 [测试][单元][P1] 蒸馏质量自检与已存在处理断言：C1-C6 共享常量被两模板引用、已存在逐份确认 + 人工域标记语句存在 [N5][N6]
+  - 文件：`test/skill-gen-templates.test.ts`
+  - 验证：`pnpm test -- skill-gen-templates`
+  - Spec Ref：skill-gen-workflows / 蒸馏质量自检 C1-C6
+  - Scenario Ref：自检不通过不写入
+  - Scenario Ref：自检通过写入
+
+- [x] 1.9 [测试][单元][P1] 已存在处理断言：模板正文含「已存在 → 逐份确认（重新生成 / 修改 / 跳过）」与人工域标记逐字保留（破损取保留侧）语句 [N5][N6]
+  - 文件：`test/skill-gen-templates.test.ts`
+  - 验证：`pnpm test -- skill-gen-templates`
+  - Spec Ref：skill-gen-workflows / 已存在处理复用
+  - Scenario Ref：已存在走逐份确认与人工域
+
+## 2. project-init 编排改写
+
+- [x] 2.1 [代码] Step 11 改写（一）：内联蒸馏正文替换为派发编排——派发能力判定、经 `${SUBAGENT_DISPATCH}` 并发派发两侧、Stage Envelope 最小输入（基线 / 五类文档 / config / 输出路径）、重试一次后降级主 agent 串行内联并标注「降级路径（非并发）」 [N3][N4][N9]
+  - 文件：`src/core/templates/workflows/project-init.ts`
+  - 验证：正文无旧内联蒸馏步骤残留；`pnpm build` 通过
+  - Spec Ref：project-init-skill-dispatch / 并发派发两侧生成侧技能
+  - Scenario Ref：具备子代理能力时并发派发
+- [x] 2.2 [代码] Step 11 改写（二）：注册收敛为父级单点串行（逐行段替换幂等追加成功侧条目，失败 WARN 不回滚）；allowedTools 增加 `skillDelegation(['frontend_skill_gen','backend_skill_gen'])` 与 `${SUBAGENT_DISPATCH}` 共享常量引用 [N7]
+  - 文件：`src/core/templates/workflows/project-init.ts`
+  - 验证：白名单条目由共享常量构造；`pnpm build` 通过
+  - Spec Ref：project-init-skill-dispatch / config 注册单点串行
+  - Scenario Ref：注册幂等且失败不回滚
+  - Scenario Ref：子代理不写 config
+- [x] 2.3 [代码] Step 11 改写（三）：汇总报告段——逐侧生成文件 / C1-C6 结论 / 设计模板清单 / 不适用依据 / 降级与失败原因 / 单侧失败隔离语义（失败侧不生成并报告，成功侧继续与注册） [N8]
+  - 文件：`src/core/templates/workflows/project-init.ts`
+  - 验证：正文含隔离与报告语句；`pnpm build` 通过
+  - Spec Ref：project-init-skill-dispatch / 汇总报告
+  - Scenario Ref：报告呈现两侧结论与模板清单
+- [x] 2.4 [测试][单元][P0] project-init 模板正文断言：固定顺序语句（技能蒸馏在规则蒸馏之后）、旧内联蒸馏正文无残留、C1-C6 引用走共享常量 [N3]
+  - 文件：`test/project-init-scan.test.ts`（更新）
+  - 验证：`pnpm test -- project-init-scan`
+  - Spec Ref：project-init-skill-dispatch / 固定顺序保持
+  - Scenario Ref：技能蒸馏在规则蒸馏之后
+- [x] 2.5 [测试][单元][P0] 并发派发与降级断言：`${SUBAGENT_DISPATCH}` 条目存在、Stage Envelope 最小输入语句、降级标注语句（degraded 不伪装委派） [N4][N9]
+  - 文件：`test/project-init-scan.test.ts`
+  - 验证：`pnpm test -- project-init-scan`
+  - Spec Ref：project-init-skill-dispatch / 降级串行执行
+  - Spec Ref：project-init-skill-dispatch / 并发派发两侧生成侧技能
+  - Scenario Ref：project-init-skill-dispatch / 降级串行执行 / 无子代理能力降级
+  - Scenario Ref：project-init-skill-dispatch / 降级串行执行 / 派发失败重试后降级
+  - Scenario Ref：project-init-skill-dispatch / 并发派发两侧生成侧技能 / 具备子代理能力时并发派发
+- [x] 2.6 [测试][单元][P1] 单侧失败隔离与注册单点断言：失败侧不生成并报告、成功侧继续注册、子代理不写 config 语句 [N7][N8]
+  - 文件：`test/project-init-scan.test.ts`
+  - 验证：`pnpm test -- project-init-scan`
+  - Spec Ref：project-init-skill-dispatch / 单侧失败隔离
+  - Spec Ref：project-init-skill-dispatch / config 注册单点串行
+  - Scenario Ref：project-init-skill-dispatch / 单侧失败隔离 / 单侧失败另一侧继续
+  - Scenario Ref：project-init-skill-dispatch / config 注册单点串行 / 子代理不写 config
+  - Scenario Ref：project-init-skill-dispatch / config 注册单点串行 / 注册幂等且失败不回滚
+
+## 3. 注册表与安装
+
+- [x] 3.1 [代码] registry 注册与版本信号核对：`WORKFLOW_PAIRS` 新增两成对注册；核对 `collectFileSignals` 的「新增技能模板」信号是否按注册表自动覆盖（为硬编码清单时补条目）；`src/commands/config.ts` 计数注释 14→16 [N10]
+  - 文件：`src/core/templates/registry.ts`、`src/core/version-bump.ts`（如需）、`src/commands/config.ts`
+  - 验证：`iagent list` 显示两新技能；`node bin/iagent.js version` 判定 minor
+  - Spec Ref：skill-gen-workflows / 前端生成侧技能独立调用
+  - Scenario Ref：独立调用生成前端技能与设计模板
+- [x] 3.2 [代码] 依赖注入：`DEPS` 表新增 project-init → frontend-skill-gen / backend-skill-gen 注入边 [N10]
+  - 文件：`src/core/profiles.ts`
+  - 验证：`resolveWorkflows(['project-init'])` 结果含两新 id
+  - Spec Ref：skill-gen-workflows / 依赖注入安装
+  - Scenario Ref：选装 project-init 自动安装两技能
+- [x] 3.3 [测试][单元][P1] DEPS 注入断言：仅选 project-init 时生效集自动补全两 id 并标注注入来源 [N10]
+  - 文件：`test/profiles.test.ts`（更新）
+  - 验证：`pnpm test -- profiles`
+  - Spec Ref：skill-gen-workflows / 依赖注入安装
+  - Scenario Ref：选装 project-init 自动安装两技能
+
+## 4. 构建、快照与端到端
+
+- [x] 4.1 [代码] 执行 `pnpm build && pnpm generate:skills` 重新生成 `skills/` 快照，并确认 skills-parity / template-derivation / 语言一致性 / allowed-tools 回归通过 [N5][N6]
+  - 文件：`skills/`（重新生成）
+  - 验证：`pnpm test`（相关回归文件全绿）
+  - Spec Ref：skill-gen-workflows / 前端生成侧技能独立调用
+  - Scenario Ref：独立调用生成前端技能与设计模板
+- [x] 4.2 [代码] AGENTS.md 仓库地图同步：模板计数 20→22、新增两生成侧技能条目与 project-init 委派关系说明 [N10]
+  - 文件：`AGENTS.md`
+  - 验证：文档计数与 registry 一致
+  - Spec Ref：skill-gen-workflows / 生成范围细化清单
+  - Scenario Ref：前端范围清单覆盖
+- [x] 4.3 [测试][功能][P0] CLI 端到端：构建后验证 `node bin/iagent.js list` 展示两新技能、`iagent config` 交互清单含新 id、版本判定输出 minor 信号 [N10]
+  - 文件：`test/commands.test.ts`（更新或新增 e2e 用例）
+  - 验证：`pnpm build && pnpm test -- commands`
+  - Spec Ref：skill-gen-workflows / 依赖注入安装
+  - Scenario Ref：选装 project-init 自动安装两技能
+- [x] 4.4 [测试][单元][P2] 评估：无数据库 / HTTP 变更，本变更无 [DB脚本] 任务；纯模板与编排变更，端到端以 CLI 断言承担（依据：无可执行运行时行为变化于本仓代码） [N7]
+  - 文件：无（留痕判定）
+  - 验证：本条即为「已评估、判定无需测试」记录
+  - Spec Ref：project-init-skill-dispatch / 汇总报告
+  - Scenario Ref：报告呈现两侧结论与模板清单

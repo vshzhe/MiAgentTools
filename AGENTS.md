@@ -40,7 +40,9 @@ src/
 │   │   ├── derive-command.ts        spec 模板 command 压缩版派生（CMD:SKIP 标记裁剪）
 │   │   ├── prompt-gate.ts          提示门控逻辑
 │   │   ├── flowchart-gate.ts       流程图门控
-│   │   └── workflows/              技能模板（中文正文）：功能名命名的 *.ts + spec-*.ts 共 20 个模板
+│   │   ├── skill-distill.ts        项目技能蒸馏共享协议（C1-C6 / 证据判定 / 产物形态，三模板同一真源）
+│   │   └── workflows/              技能模板（中文正文）：功能名命名的 *.ts + spec-*.ts 共 22 个模板
+│   │                               （project-init 第 11 步为编排：委派 frontend/backend-skill-gen 两侧生成）
 │   ├── permissions.ts               会话级权限载体（settings.json 的 permissions.allow 非破坏合并）
 │   ├── command-artifacts.ts         指令产物布局与归属识别单一源（namespace-dir / prefixed-file）
 │   ├── skill-id.ts                  宿主技能 ID 派生单一源（iagent_<name> → iagent-<name>）

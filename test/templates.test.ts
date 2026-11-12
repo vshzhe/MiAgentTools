@@ -24,8 +24,8 @@ describe('模板注册表', () => {
     const skills = getSkillTemplates();
     const commands = getCommandTemplates();
 
-    it('内置 20 个技能（9 类类型；release/tools 当前无内置技能）', () => {
-        expect(skills.length).toBe(20);
+    it('内置 22 个技能（9 类类型；release/tools 当前无内置技能）', () => {
+        expect(skills.length).toBe(22);
     });
 
     it('全部技能名以 iagent_ 开头', () => {
@@ -99,7 +99,11 @@ describe('模板注册表', () => {
             'iagent_commit',
             'iagent_svn_commit',
         ]);
-        expect(getCommandTemplates('init').map((c) => c.id)).toEqual(['project-init']);
+        expect(getCommandTemplates('init').map((c) => c.id)).toEqual([
+            'project-init',
+            'frontend-skill-gen',
+            'backend-skill-gen',
+        ]);
     });
 
     it('类型统计覆盖全部 9 类', () => {
@@ -107,7 +111,7 @@ describe('模板注册表', () => {
         expect(counts.size).toBe(9);
         expect(counts.get('tools')).toBe(0);
         expect(counts.get('release')).toBe(0);
-        expect(counts.get('init')).toBe(1);
+        expect(counts.get('init')).toBe(3);
         expect(counts.get('impl')).toBe(4);
         expect(counts.get('review')).toBe(3);
         expect(counts.get('test')).toBe(1);

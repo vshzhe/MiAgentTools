@@ -38,7 +38,7 @@ export interface ConfigResult {
     cancelled?: boolean;
 }
 
-/** 获取全部合法 workflow id（registry 全部技能派生，14 项） */
+/** 获取全部合法 workflow id（registry 全部技能派生；数量随注册表增长，MUST NOT 写死计数） */
 export function listAllWorkflowIds(): string[] {
     return getSkillTemplates().map((entry) => entry.commandId);
 }

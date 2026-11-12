@@ -206,17 +206,19 @@ describe('project-init 参考文件与白名单', () => {
         expect(body).not.toContain('### 表格形态');
     });
 
-    it('allowedTools 含 CodeGraph MCP 与 Skill 委派，且无星号通配', () => {
+    it('allowedTools 含 CodeGraph MCP、Skill 委派与子代理派发条目，且无星号通配', () => {
         const entries = parseEntries(template.allowedTools);
         expect(entries).toContain('mcp__codegraph');
         expect(entries).toContain('mcp__codegraph__codegraph_status');
         // 委派条目为 canonical 宿主技能 ID（入参裸名由 skillDelegation 归一化）；
         // 裸名 / 下划线形态是永不放行的死条目
         expect(entries).toContain('Skill(iagent-feature-doc)');
+        expect(entries).toContain('Skill(iagent-frontend-skill-gen)');
+        expect(entries).toContain('Skill(iagent-backend-skill-gen)');
         expect(template.allowedTools).not.toContain('Skill(*)');
-        // 正文无派发动作 → 不得写入子代理派发条目
-        expect(entries).not.toContain('Agent');
-        expect(entries).not.toContain('Task');
+        // 第 11 步编排确有子代理派发动作 → Agent, Task 双写条目（新旧运行时兼容）
+        expect(entries).toContain('Agent');
+        expect(entries).toContain('Task');
         // 只读探查手段按正文实际使用保留
         expect(entries).toContain('Read');
         expect(entries).toContain('Glob');
@@ -231,5 +233,51 @@ describe('project-init 参考文件与白名单', () => {
         const entries = parseEntries(raw);
         expect(new Set(entries).size).toBe(entries.length);
         expect(entries.join(', ')).toBe(raw);
+    });
+});
+
+describe('project-init 技能正文：第 11 步技能蒸馏编排', () => {
+    it('委派两侧生成侧技能 + Stage Envelope 最小输入（不内联制品正文）', () => {
+        expect(body).toContain('iagent_frontend_skill_gen');
+        expect(body).toContain('iagent_backend_skill_gen');
+        expect(body).toContain('integration-mode: project-init');
+        expect(body).toContain('Stage Envelope 最小输入');
+        expect(body).toContain('MUST NOT 内联制品正文');
+    });
+
+    it('并发派发与重试一次后降级', () => {
+        expect(body).toContain('并发派发');
+        expect(body).toContain('自动重试一次');
+        expect(body).toContain('降级路径（非并发）');
+        expect(body).toContain('MUST NOT 被表述为已并发委派完成');
+    });
+
+    it('固定顺序保持：技能蒸馏在规则蒸馏之后', () => {
+        expect(body).toContain('第 10 步**完成之后**执行');
+        expect(body).toContain('规则蒸馏 → 技能蒸馏');
+    });
+
+    it('旧内联蒸馏正文无残留（C1-C6 引用走共享常量）', () => {
+        // 共享真源文本仍被引用（插值），但旧版手写段落特征语句 MUST NOT 残留
+        expect(body).toContain('写入前完整性自检 C1-C6');
+        expect(body).not.toContain('### 11. 项目前后端技能蒸馏（技能蒸馏）');
+        expect(body).not.toContain('**自动注册**：写入成功后把条目追加到');
+    });
+
+    it('config 注册单点串行：子代理不写 config、幂等、失败不回滚', () => {
+        expect(body).toContain('MUST NOT 自行写 `.iagent/config.yaml`');
+        expect(body).toContain('单点串行');
+        expect(body).toContain('幂等追加');
+        expect(body).toContain('MUST NOT 重新序列化整个 YAML');
+        expect(body).toContain('不回滚已生成文件');
+    });
+
+    it('单侧失败隔离与汇总报告', () => {
+        expect(body).toContain('单侧失败隔离');
+        expect(body).toContain('另一侧继续完成');
+        expect(body).toContain('config 注册只登记成功侧');
+        expect(body).toContain('汇总报告');
+        expect(body).toContain('设计模板清单（前端侧）');
+        expect(body).toContain('未生成侧写明原因');
     });
 });
