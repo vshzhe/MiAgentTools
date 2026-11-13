@@ -29,6 +29,7 @@
 | 2026-11-11 | improve-archive-name-collision | archive | 归档名冲突不再阻断：目标名唯一化后缀 -2/-3…、索引保留后缀并剥离模块、批量归档冲突不标 Failed [含测试] |
 | 2026-11-11 | fix-skill-contract-drift | orchestration | 统一门词汇 / 派发执行 / 指令 references，修复 version dry-run 与宿主中立性漂移 [含测试] |
 | 2026-11-12 | refactor-project-init-skill-split | project-init | project-init 第 11 步技能蒸馏内嵌单模板：不可单独调用、串行慢、生成范围粗。[含测试] |
+| 2026-11-13 | improve-verify-review | spec | 验证链补齐三类能力点：待实现功能覆盖 / 影响范围一致性 / 提案↔实现一致性（并入既有维度）。[含测试] |
 
 ---
 
@@ -38,7 +39,7 @@
 |------|-------|---------|
 | orchestration | 6 | fix-mode-delegation-host-parity (2026-11-01), improve-delegation-gate-ledger (2026-11-03), skill-bridge-optimize (2026-11-08), inline-orchestration-delegation (2026-11-08), inline-propose-apply-parallel (2026-11-08), fix-skill-contract-drift (2026-11-11) |
 | templates | 5 | fix-multi-agent-skill-command-generation (2026-11-02), improve-requirement-doc-review-readiness (2026-11-08), improve-orchestration-execution-mode (2026-11-08), improve-grill-with-docs-paper-trail (2026-11-08), optimize-commit-skills (2026-11-09) |
-| spec | 4 | improve-proposal-validation-and-spec-ref (2026-11-03), improve-archive-index-monthly (2026-11-08), improve-task-ref-dedup (2026-11-08), improve-impl-conformance-and-test-gate (2026-11-09) |
+| spec | 5 | improve-proposal-validation-and-spec-ref (2026-11-03), improve-archive-index-monthly (2026-11-08), improve-task-ref-dedup (2026-11-08), improve-impl-conformance-and-test-gate (2026-11-09), improve-verify-review (2026-11-13) |
 | continuation | 1 | improve-continuation-and-codegraph-resilience (2026-11-11) |
 | debug | 1 | feat-debug-dual-track-entry (2026-11-03) |
 | skills | 1 | add-project-skill-integration (2026-11-09) |
@@ -48,4 +49,4 @@
 
 ---
 
-*更新时间: 2026-11-12*
+*更新时间: 2026-11-13*

@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:1e6604aeb2b4b639fc9a203853ba6f00f36978a1b925da964522db5f405a0638"
+  generatedFingerprint: "sha256:41bb3264d248869a3755e226d1987efe52bb1ddc36c610adeb5c21f5f49c2e44"
 ---
 
 **验证前先阅读 .iagent/rules/coding-rules.md 中的验证标准。**
@@ -138,6 +138,40 @@ Enabled Dimensions: D6 [✓/✗], D7 [✓/✗], D8 [✓/✗], D9 [✓/✗], D10 
 
 ---
 
+## 影响面制品存在性判定（条件检查点，流程节点 N3）
+
+执行 D1-D10 评分前，先对**影响面三制品**做存在性判定（决定「影响范围一致性检查点」是否激活）：
+
+| 制品 | 存在判定锚点 |
+| :--- | :--- |
+| `proposal.md` 影响面 | `## Impact` 下的影响面分析小节（标题锚点：影响面分析 / Impact Analysis） |
+| `design.md` 影响面 | `## Context` 下的架构影响小节（标题锚点：架构影响 / Architecture Impact） |
+| `tasks.md` 影响面 | `### Caller Updates` 小节 |
+
+**判定结果与处置**：
+
+- 三制品**均存在**（影响分析已触发）→ 执行「影响范围一致性检查」，结论并入 D2/D3 评分
+- **任一缺失**（影响分析未触发，含独立 spec-propose 路径未产影响面小节）→ 影响范围一致性检查标 **SKIP** 并从总分分母排除（不计入 triggered_count），MUST NOT 按 0 分拉低总分、MUST NOT 据此判 FAIL（对齐 D10 缺失处理先例）
+- **存量 JSON-only 降级**（Markdown 缺失且仅有历史 JSON）→ **SKIP + WARN**（注明降级原因），MUST NOT 阻断评分，验证报告注明该处置
+
+---
+
+## 影响范围一致性检查（条件检查点，并入 D2/D3，流程节点 N5）
+
+三制品均存在时，对以下对齐关系核查（细则见 `references/impact-consistency.md`，评分前 MUST 先 `Read` 该文件）：
+
+1. **proposal Impact ↔ design 架构影响**：Impact 声明的影响模块在架构影响小节有对应描述；模块缺失或描述矛盾 → 不一致
+2. **proposal Impact ↔ tasks 承接**：Impact 声明的每个影响模块在 tasks.md 有对应任务（Caller Updates 条目或直接改动该模块的任务）；无任何承接 → 不一致
+3. **design 架构影响 ↔ specs 范围**：架构影响声明与 specs 能力范围一致；越出 specs 覆盖范围 → 不一致
+
+**处置**：
+
+- 全部对齐 → 影响范围一致性 **PASS**，D2/D3 评分计入该结论，报告标注各制品对齐状态
+- 任一不一致（脱节）→ 计入评分 **FAIL**，逐条列出偏差模块（模块名 + 断裂点：tasks 缺承接 / design 矛盾 / specs 越界），MUST NOT 仅给出百分比
+- 语义等价判定：模块措辞不同但指向同一目标时 MAY 计为对齐，MUST 能指出具体对应之处，MUST NOT 笼统放行
+
+---
+
 ## 带评分的维度验证（D1-D10）
 
 ### Dimension 1: 需求覆盖
@@ -204,6 +238,15 @@ D3 Score = (requirements with tasks / total requirements) * 100%
 **FAIL 示例**：
 - "缺失任务：'用户可导出数据' 需求没有实现任务"
 - "缺 Requirement：`- Spec Ref：checkout-flow` 只到 capability，无法计入覆盖"
+
+**待实现功能覆盖检查点（并入本维度，不新增维度编号）**：
+
+在既有「需求 → 任务」覆盖核查之上，对 `proposal.md` What Changes 的每个声明项执行**链路核查**（What Changes 变更项 → `specs/**/*.md` 对应 Requirement → `tasks.md` 承接任务）：
+
+- **链路完整**：声明项在 specs 有对应 Requirement 且 tasks 有带规范形态 `Spec Ref` 的承接任务 → 报告标注「待实现功能覆盖：链路完整（What Changes → <capability>/<Requirement> → <task id>）」，该声明项计入 D3 已覆盖
+- **缺口可定位**：声明项断链（specs 缺 Requirement，或 tasks 无承接任务）→ 在 D3 报告中逐条列出缺口链路，指明断在 specs 级还是 tasks 级，覆盖率下降并计入 FAIL 输出，MUST NOT 仅给出百分比
+
+检查点为 D3 内部的增量核查步骤（报告仍按 D3 口径输出覆盖率），MUST NOT 触碰总分公式与维度编号。
 
 ### Dimension 4: 边界覆盖
 

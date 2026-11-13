@@ -35,11 +35,14 @@ ${renderGateWhitelistSection({ variant: 'readonly' })}
 
 ## 执行方式与读取范围（强制）
 
-- **主 agent 内联**：本技能以 \`executionMode=inline\` 执行，回执 \`independence=self\`（自证记 WARN，可信度由固定清单 + 每条 \`文件:行\` 证据 + 报告落盘承担）；MUST NOT 为验证启动子代理。
-- **单轮验证**：一次合并执行 D1-D10 核心维度 + B1-B7 边界清单；每条结论 MUST 带 \`文件:行\` 或制品章节锚点，**无证据的结论 MUST NOT 计入通过**。
-- **报告路径**：验证报告 MUST 落盘 \`.openspec-tmp/pipeline-<change-name>/verify-report.md\`。
-- **读取范围**：MUST FIRST 读 handoff 包「## 制品清单」，按锚点增量读取；回执写 \`readScope\`。
-- **同上下文复跑**：FAIL 修复后在同一主上下文按 \`fixDiff\` 与上轮 \`reportPath\` 增量重跑，**禁止新开验证代理或全量重读**；循环上限 3 次；禁止 resume 充当复验（\`contextReplay=true 记 WARN\`）。
+本技能存在**两种调用形态**，正文显式区分并给出判定信号（消除「单轮合并清单」与「独立三维度」的双语义歧义）：
+
+- **判定信号**：存在**编排上下文** → 合并清单模式；否则 → 三维度 report-only 模式。编排上下文判定：由工作流编排内联调用（如 auto-workflow 验证阶段、实现验证桥），工作区标志为 \`.openspec-tmp/pipeline-<change-name>/\` 下已存在 handoff 包等编排产物。
+- **父编排内联合并清单模式**：**主 agent 内联**，一次合并执行 D1-D10 核心维度 + B1-B7 边界清单；回执写 \`executionMode=inline\`、\`independence=self\`（自证记 WARN，可信度由固定清单 + 每条 \`文件:行\` 证据 + 报告落盘承担）；MUST NOT 为验证启动子代理；**报告路径**：验证报告 MUST 落盘 \`.openspec-tmp/pipeline-<change-name>/verify-report.md\`。
+- **独立调用三维度 report-only 模式**：用户独立调用（无编排上下文、无 pipeline 工作区）时，按执行步骤 4-8 的 Completeness / Correctness / Coherence 三维度执行 report-only 验证；不要求合并清单产物路径，报告按「输出格式」呈现给用户，MUST NOT 写 pipeline 工作区。
+- **读取范围（两形态通用）**：MUST FIRST 读 handoff 包「## 制品清单」，按锚点增量读取；合并清单模式回执写 \`readScope\`（独立调用无回执载体时在报告头部注明读取范围）。
+- **同上下文复跑（仅合并清单模式）**：FAIL 修复后在同一主上下文按 \`fixDiff\` 与上轮 \`reportPath\` 增量重跑，**禁止新开验证代理或全量重读**；循环上限 3 次；禁止 resume 充当复验（\`contextReplay=true 记 WARN\`）。
+- **两形态通用边界**：每条结论 MUST 带 \`文件:行\` 或制品章节锚点，**无证据的结论 MUST NOT 计入通过**；均保持 **report-only** —— 不修改任何文件、不执行归档。
 
 ## 执行步骤
 
@@ -122,6 +125,14 @@ ${renderGateWhitelistSection({ variant: 'readonly' })}
      - 若检测到偏离：
        - 添加 WARNING："实现可能与 spec 偏离：<细节>"
        - 建议："对照需求 X 审查 <file>:<lines>"
+
+   **实现影响面 vs 提案声明影响面对比**（流程节点 N12，并入本维度）：
+   - **声明影响面**：读 \`proposal.md\` 的 \`## Impact\` 下影响面分析小节（标题锚点：影响面分析 / Impact Analysis）与 \`### 直接影响的文件\` 小节，得到提案声明的影响文件集
+   - **实现改动文件集**：汇总「需求实现映射」收集的 \`文件:行\` 实现证据与 tasks.md 完成任务涉及的文件（Glob / Read 检索）
+   - 对比判定：
+     - 实现越出声明影响面（改动文件不在声明影响面内）→ 添加 WARNING 并逐条列出："实现越出声明影响面：<file>（提案影响面未声明）"，建议："核对是否需把该文件补入 proposal.md 影响面，或确认实现是否应收敛"（BS-4）；MUST NOT 判 CRITICAL 阻断归档
+     - proposal.md 无影响面分析小节（影响分析未触发或存量 JSON-only 降级无对应字段）→ 本对比检查点 SKIP + WARN（注明原因），三维度其余检查照常，MUST NOT 判 CRITICAL（BS-5）
+   - **结构层分工**：结构层拦截由 \`iagent spec conformance\`（conformance-report.md 的 \`**summary**:\` 行）承担，本检查点为语义层对比，MUST NOT 重复执行结构校验（D2/D4）
 
    **场景覆盖**：
    - 对场景清单中的每个场景（读 \`specs/**/*.md\` 中的 \`#### Scenario:\` 标记）：

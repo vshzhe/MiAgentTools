@@ -7,6 +7,13 @@
 
 ## [Unreleased]
 
+## [4.12.0] - 2026-11-13
+
+### Added
+
+- 验证链三类一致性检查点并入既有维度（不新增 D 编号，总分公式与 90% 统一阈值不变）：`spec-verify-proposal` 新增「待实现功能覆盖检查点」（What Changes → specs Requirement → tasks 承接任务逐级核查，并入 D3）与「影响面制品存在性判定 + 影响范围一致性检查」（N3/N5，并入 D2/D3，细则下沉 `references/impact-consistency.md`）；`spec-verify` Correctness 并入「实现影响面 vs 提案声明影响面对比」（N12）并显式化执行方式双语义（编排内联合并清单 vs 独立三维度 report-only）；`review` 新增变更关联检测（N17）→ 提案与实现一致性检查（N19，语义层结论与 conformance 结构层结论并列）
+- 边界处置六条（BS-1..BS-6）：影响面制品缺失 → SKIP 排除分母（对齐 D10 先例）、脱节 → FAIL 逐条可定位、review 无变更关联不触发且五维度行为不变、实现越出声明影响面 → WARNING 逐条列出（结构层由 `iagent spec conformance` 硬拦）、存量 JSON-only 降级 → SKIP + WARN、「评估后不改」以 design.md 评估记录留痕
+
 ## [4.11.0] - 2026-11-12
 
 ### Added
@@ -1821,7 +1828,8 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.11.0...HEAD
+[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.12.0...HEAD
+[4.12.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.11.0...v4.12.0
 [4.11.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.10.2...v4.11.0
 [4.10.2]: https://github.com/vshzhe/MiAgentTools/compare/v4.10.1...v4.10.2
 [4.10.1]: https://github.com/vshzhe/MiAgentTools/compare/v4.10.0...v4.10.1

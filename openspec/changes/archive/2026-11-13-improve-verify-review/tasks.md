@@ -1,0 +1,132 @@
+# Tasks: improve-verify-review
+
+## 1. spec-verify-proposal：待实现功能覆盖与影响范围一致性检查点
+
+- [x] 1.1 [代码] D3（任务完整性）检查段并入「待实现功能覆盖检查点」：新增 What Changes 声明项 → specs Requirement → tasks 承接任务的逐级核查步骤、链路完整标注口径、缺口逐条可定位输出（含「断在 specs 级 / tasks 级」定位） [N4]
+  - 文件：`src/core/templates/workflows/spec-verify-proposal.ts`（Dimension 3 检查段，:320-349 附近）
+  - 验证：`pnpm build` 通过；正文含「待实现功能覆盖」检查点与逐级链路表述
+  - Spec Ref：spec-verify-proposal / 待实现功能覆盖检查
+  - Scenario Ref：声明项逐级有承接
+  - Scenario Ref：声明项无任务承接
+- [x] 1.2 [代码] 新增「影响面制品存在性判定」步骤（N3）与「影响范围一致性检查」段（N5，并入 D2/D3）：三制品小节锚点判定（影响面分析 / 架构影响 / Caller Updates）、对齐核查、脱节 FAIL 逐条列出偏差模块、缺失 SKIP 排除分母（不计入 triggered_count）、JSON-only 降级 SKIP+WARN [N3][N5]
+  - 文件：`src/core/templates/workflows/spec-verify-proposal.ts`（变更类型自动检测之后、D1-D5 评分段之前）
+  - 验证：`pnpm build` 通过；正文含 SKIP / FAIL / WARN 三种处置且与 D10 先例口径一致
+  - Spec Ref：spec-verify-proposal / 影响范围一致性检查
+  - Scenario Ref：三制品存在且对齐
+  - Scenario Ref：有制品但与 tasks 脱节
+  - Scenario Ref：无影响面制品
+  - Scenario Ref：存量 JSON-only 降级
+- [x] 1.3 [代码] 新增 `references/impact-consistency.md` 常量与 references 数组条目：影响范围一致性判定矩阵细则（存在性判定表 / 对齐规则 / SKIP-FAIL-WARN 处置）下沉，SKILL.md 正文保留读文件引导（`Read references/impact-consistency.md`） [N5]
+  - 文件：`src/core/templates/workflows/spec-verify-proposal.ts`（新常量 + `references:` 数组追加）
+  - 验证：`pnpm build && pnpm generate:skills` 后 `.opencode/skills/iagent-spec-verify-proposal/references/impact-consistency.md` 存在；`pnpm test -- skill-size-budget` 通过
+  - Spec Ref：spec-verify-proposal / 影响范围一致性检查
+  - Scenario Ref：三制品存在且对齐
+- [x] 1.4 [测试][单元][P0] 待实现功能覆盖检查点单测：正文断言（What Changes→specs→tasks 链路步骤、链路完整标注、缺口逐条可定位、不新增 D 编号） [N4]
+  - 文件：`test/verify-review-checkpoints.test.ts`（新建）
+  - 验证：`pnpm test -- verify-review-checkpoints`
+  - Spec Ref：spec-verify-proposal / 待实现功能覆盖检查
+  - Scenario Ref：声明项逐级有承接
+  - Scenario Ref：声明项无任务承接
+- [x] 1.5 [测试][单元][P0] 影响范围一致性检查单测：存在性判定矩阵（三制品在 / 脱节 FAIL / 缺失 SKIP 排除分母 / 降级 SKIP+WARN）正文断言 + references 文件存在与内容断言 [N3][N5]
+  - 文件：`test/verify-review-checkpoints.test.ts`
+  - 验证：`pnpm test -- verify-review-checkpoints`
+  - Spec Ref：spec-verify-proposal / 影响范围一致性检查
+  - Scenario Ref：三制品存在且对齐
+  - Scenario Ref：有制品但与 tasks 脱节
+  - Scenario Ref：无影响面制品
+  - Scenario Ref：存量 JSON-only 降级
+- [x] 1.6 [测试][单元][P2] 评估结论留痕检查：design.md 评估记录段存在且含「不改」结论行（总分公式 / 90% 阈值 / D9 / 五维度 / 枚举点），tasks 存在对应评估执行任务 [N4][N5][N12][N17][N19]
+  - 文件：`test/verify-review-checkpoints.test.ts`
+  - 验证：`pnpm test -- verify-review-checkpoints`
+  - Spec Ref：spec-verify-proposal / 检查能力点评估结论留痕
+  - Scenario Ref：评估后不改留痕
+
+## 2. spec-verify：Correctness 影响面对比与双语义显式化
+
+- [x] 2.1 [代码] Correctness 检查段并入「实现影响面 vs 提案声明影响面对比」：读 proposal.md Impact 影响面分析小节与实现改动文件集对比、越面 WARNING 逐条列出（BS-4）、无制品 SKIP+WARN（BS-5）、注明结构层由 conformance 承担 [N12]
+  - 文件：`src/core/templates/workflows/spec-verify.ts`（步骤 6 验证 Correctness 段，:115-132）
+  - 验证：`pnpm build` 通过；正文含对比步骤与 WARNING / SKIP 处置
+  - Spec Ref：spec-verify / Correctness 实现影响面对比
+  - Scenario Ref：实现越出声明影响面
+  - Scenario Ref：提案无影响面制品
+- [x] 2.2 [代码] 执行方式段双语义显式化：合并清单模式（父编排内联，executionMode/independence/readScope 回执字段 + verify-report.md 落盘）与三维度 report-only 模式（独立调用）的判定信号与行为差异写明，替换 :39 的单一表述 [N10]
+  - 文件：`src/core/templates/workflows/spec-verify.ts`（执行方式与读取范围段，:36-42）
+  - 验证：`pnpm build` 通过；正文含两形态判定信号（编排上下文 / pipeline 工作区存在性）
+  - Spec Ref：spec-verify / 执行方式双语义显式化
+  - Spec Ref：spec-verify / report-only 权限边界
+  - Scenario Ref：spec-verify / 执行方式双语义显式化 / 父编排内联合并清单模式
+  - Scenario Ref：spec-verify / 执行方式双语义显式化 / 独立调用三维度模式
+  - Scenario Ref：spec-verify / report-only 权限边界 / 验证不改文件
+- [x] 2.3 [测试][单元][P0] Correctness 影响面对比单测：越面 WARNING 逐条口径、无制品 SKIP+WARN 口径、结构层分工表述断言 [N12]
+  - 文件：`test/verify-review-checkpoints.test.ts`
+  - 验证：`pnpm test -- verify-review-checkpoints`
+  - Spec Ref：spec-verify / Correctness 实现影响面对比
+  - Scenario Ref：实现越出声明影响面
+  - Scenario Ref：提案无影响面制品
+- [x] 2.4 [测试][单元][P1] 双语义判定信号单测：合并清单模式关键词（D1-D10 + B1-B7 / verify-report.md / executionMode）与三维度模式关键词（Completeness / Correctness / Coherence）两形态断言 [N10]
+  - 文件：`test/verify-review-checkpoints.test.ts`
+  - 验证：`pnpm test -- verify-review-checkpoints`
+  - Spec Ref：spec-verify / 执行方式双语义显式化
+  - Scenario Ref：父编排内联合并清单模式
+  - Scenario Ref：独立调用三维度模式
+- [x] 2.5 [测试][单元][P1] report-only 边界单测：spec-verify / review 的 allowedTools 字面量与既有完全一致（零新增）、正文保留 report-only 语义表述 [N12]
+  - 文件：`test/verify-review-checkpoints.test.ts`
+  - 验证：`pnpm test -- verify-review-checkpoints`
+  - Spec Ref：spec-verify / report-only 权限边界
+  - Scenario Ref：验证不改文件
+
+## 3. review：变更关联检测与一致性检查点
+
+- [x] 3.1 [代码] 新增「变更关联检测」步骤（N17）：活跃变更枚举（openspec/changes/ 非 archive）+ 声明影响面 / tasks 涉及文件与审查范围相交判定；未检出关联时五维度行为不变（BS-3） [N17]
+  - 文件：`src/core/templates/workflows/review.ts`（执行步骤段，步骤 1 之后）
+  - 验证：`pnpm build` 通过；正文含检测步骤与「不触发」分支
+  - Spec Ref：review / 变更关联检测
+  - Scenario Ref：检测到变更关联
+  - Scenario Ref：无变更关联
+- [x] 3.2 [代码] 新增「提案与实现一致性检查」段（N19）：设计决策遵循 / 场景实现 / 影响面越界三类语义核对，CRITICAL/WARNING/SUGGESTION 分级、制品锚点 + `文件:行` 证据；结构层证据引用 `conformance-report.md` 的 `**summary**:` 行（缺失标注非阻断） [N19]
+  - 文件：`src/core/templates/workflows/review.ts`（五维度检查与输出报告之间）
+  - 验证：`pnpm build` 通过；正文含三类核对、分级口径、结构层引用与非阻断标注
+  - Spec Ref：review / 提案与实现一致性检查
+  - Spec Ref：review / 结构层证据分工
+  - Scenario Ref：review / 提案与实现一致性检查 / 设计决策未遵循
+  - Scenario Ref：review / 提案与实现一致性检查 / 影响面越界
+  - Scenario Ref：review / 结构层证据分工 / 引用结构层证据
+  - Scenario Ref：review / 结构层证据分工 / 结构层证据缺失
+- [x] 3.3 [测试][单元][P0] 关联检测触发矩阵单测：检测步骤存在、相交触发 / 不相交不触发两分支断言、既有五维度文本不被改写 [N17]
+  - 文件：`test/verify-review-checkpoints.test.ts`
+  - 验证：`pnpm test -- verify-review-checkpoints`
+  - Spec Ref：review / 变更关联检测
+  - Scenario Ref：检测到变更关联
+  - Scenario Ref：无变更关联
+- [x] 3.4 [测试][单元][P1] 一致性检查点单测：三类语义核对关键词、分级口径、`**summary**:` 证据引用与非阻断标注断言 [N19]
+  - 文件：`test/verify-review-checkpoints.test.ts`
+  - 验证：`pnpm test -- verify-review-checkpoints`
+  - Spec Ref：review / 提案与实现一致性检查
+  - Spec Ref：review / 结构层证据分工
+  - Scenario Ref：review / 提案与实现一致性检查 / 设计决策未遵循
+  - Scenario Ref：review / 提案与实现一致性检查 / 影响面越界
+  - Scenario Ref：review / 结构层证据分工 / 引用结构层证据
+  - Scenario Ref：review / 结构层证据分工 / 结构层证据缺失
+
+## 4. 再分析评估、构建链与回归
+
+- [x] 4.1 [代码] 执行再分析评估并复核 design.md 评估记录：对每个检查能力点产出「保留 / 调整 / 不改」结论，与实际改动一致性复核（评估记录 8 行结论逐条核对） [N4][N5][N12][N17][N19]
+  - 文件：`openspec/changes/improve-verify-review/design.md`
+  - 验证：评估记录行与实际模板改动一一对应；结论为「调整」的行有对应实现任务
+  - Spec Ref：spec-verify-proposal / 检查能力点评估结论留痕
+  - Scenario Ref：评估后不改留痕
+- [x] 4.2 [代码] 构建链执行：`pnpm build && pnpm generate:skills` 再生成 skills/ 静态快照（含新增 references 文件） [N4][N5][N12][N17][N19]
+  - 文件：`skills/`（快照，非手工编辑）
+  - 验证：`pnpm test -- skills-parity` 通过
+  - Spec Ref：spec-verify-proposal / 影响范围一致性检查
+  - Scenario Ref：三制品存在且对齐
+- [x] 4.3 [测试][单元][P1] 改动边界守护测试：断言模板改动未触碰 src/core/spec/**、维度名枚举消费点文件（workflow.ts / auto-workflow.ts / debug.ts / proposal-review.ts）无新增维度编号、总分公式与 90% 阈值字符串未被改写（硬约束 D1/D2/D3 守护） [N4][N5][N12][N17][N19]
+  - 文件：`test/verify-review-checkpoints.test.ts`
+  - 验证：`pnpm test -- verify-review-checkpoints`
+  - Spec Ref：spec-verify-proposal / 检查能力点评估结论留痕
+  - Scenario Ref：评估后不改留痕
+- [x] 4.4 [测试][单元][P0] 既有回归全绿：stage-continuation / template-derivation / allowed-tools / skills-parity / skill-size-budget / command-reference-refs 同步核对（正文扩展不改名、allowedTools 零新增、快照一致） [N4][N5][N12][N17][N19]
+  - 文件：`test/`（既有测试文件，按需同步断言）
+  - 验证：`pnpm test` 全量通过
+  - Spec Ref：spec-verify / report-only 权限边界
+  - Scenario Ref：验证不改文件
