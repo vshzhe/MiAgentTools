@@ -54,6 +54,7 @@ src/
 │   │   ├── fingerprint.ts           产物内容指纹（手改保护判定信号）
 │   │   ├── host-refs.ts             宿主技能引用归一化
 │   │   ├── yaml.ts                  YAML 转义
+│   │   ├── reference-paths.ts       指令形态 references 路径重写（指令单文件无同名目录）
 │   │   └── adapters/                指令适配器（claude / pi / opencode / inject-args；codex 无适配器）
 │   ├── host-orchestration/          宿主原生编排（协议 / 能力协商 / 门台账 / 宿主渲染）
 │   │   ├── protocol.ts              能力顺序 / 门白名单 / 回执校验
@@ -63,6 +64,8 @@ src/
 │   │   ├── transition.ts            阶段迁移阻断（evaluatePhaseTransition）
 │   │   ├── render.ts                宿主正文适配（adaptSkillContentForHost）
 │   │   ├── delegation-contract.ts   委派契约解析
+│   │   ├── delegation-execution.ts  委派执行策略单一源（默认 inline，fail-safe）
+│   │   ├── receipt-store.ts         阶段回执落盘单一源（pipeline 工作区 receipts/）
 │   │   └── gate-ledger.ts           门台账解析与渲染
 │   ├── spec/                        规格驱动工作流
 │   │   ├── schema.ts               内置 spec-driven 依赖图（Markdown 输出路径）
@@ -93,7 +96,7 @@ src/
 │   └── legacy-migration.ts          旧装机一次性迁移（旧标识常量 + 映射表的唯一落点）
 └── utils/file-system.ts             文件系统工具
 
-test/                                vitest（71 个测试文件 + setup）
+test/                                vitest（74 个测试文件 + setup）
 test/setup-home-sandbox.ts           vitest setupFiles：把主目录沙箱到临时目录
 skills/                              静态快照（勿手编，pnpm generate:skills 生成）
 scripts/generate-skills.mjs          快照生成脚本

@@ -1,6 +1,6 @@
 # 项目文档索引
 
-> 生成时间：2026-11-09 | 基于 `iagent_project_init` 全量语义扫描
+> 生成时间：2026-11-13（2026-11-09 初版；2026-11-12 随文档增量对齐 `20d30ae..7bcf567`） | 基于 `iagent_project_init` 全量语义扫描
 
 ## 文档清单
 
@@ -27,10 +27,10 @@
 ## 扫描元信息
 
 - 扫描基线：`.iagent/scan-baseline.json`（v2，`2026-11-09T14:34:53Z`；57 目录 / 251 文件）
-- CodeGraph 索引：233 文件 / 3291 节点 / 10075 边（`2026-11-09T14:29:30Z`）
+- CodeGraph 索引：可用（2026-11-12 复扫经 MCP 主通道 `codegraph_explore` 完成增量校准）
 - 基线 failures：无（`failures: []`）
 - 基线 limits（v2，无深度 / 文件数上限）：
   - `skipped.ignored = 12`、`skipped.timeout = 0`、`skipped.unreadable = 0`
   - `limits.softTimeout.exceeded = false`（30s 软超时未触发）
   - ⚠️ **跳过所致 ≠ 项目无该内容**：12 项按内置忽略清单与 `.gitignore` / 自定义 ignore 跳过，不代表这些位置不存在相关内容
-- 降级路径：`iagent_feature_doc` 已委派用于模块 / 数据库 / API 信息基础；技术框架与安全规范由主 agent 源码扫描补足
+- 降级路径：`iagent_feature_doc` 已委派用于模块 / 数据库 / API 信息基础；技术框架与安全规范由主 agent 源码扫描补足；2026-11-12 增量对齐未重跑全量委派，按 Git 增量（`20d30ae..7bcf567`）+ CodeGraph 主通道定点校准
