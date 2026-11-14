@@ -7,6 +7,18 @@
 
 ## [Unreleased]
 
+## [4.13.0] - 2026-11-14
+
+### Added
+
+- 三父编排技能（`iagent-workflow` / `iagent-auto-workflow` / `iagent-debug`）实现后链路统一强制化（能力规格 `workflow-implementation-chain`）：实现后测试调用为显式强制子阶段（`iagent-test` 不可用 → strict 阻断并报告、`testGate.autoGenerate=false` → 显式 degraded 留痕 + WARN，MUST NOT 表述为「已测试」；`spec-apply` Step 8.11 旧「WARN 继续」口径同步收紧）；实现后 review 环节（实现验证桥通过后、归档门前内联 `iagent-review`，报告落盘 `.openspec-tmp/pipeline-<change>/review-report.md` 并纳入归档就绪检查，P0/P1 回修复循环共用 ≤3 预算、未收束不进归档门、P2 记录不阻断、无代码改动 `not-applicable` 直通）；auto-workflow Phase 5 归档确认门（⛔ GATE：呈现实现摘要 + 三类证据 + 测试结果 + review 结论，用户确认功能完成后再归档，拒绝/含糊 = 返回实现阶段、不提供「跳过归档」选项，协议层 `AUTO_ARCHIVE_PHASE` 声明 `archive-confirmation` 阻塞门）
+- 三模板 `skillDelegation([...])` 委派清单同步追加 review 条目（共享常量派生、无通配）；`CONDITIONAL_DELEGATIONS`（宿主运行时表 + 测试本地表）补 review 条件委派；workflow 新增 `references/review-protocol.md` 细则下沉、debug 细则并入 `references/gates-and-rules.md`
+- 新增 `test/workflow-implementation-chain.test.ts`（19 用例：委派白名单 / 归档门四出口 / 测试降级二分 / review 段落 / 既有语义回归核对）
+
+### Changed
+
+- workflow / auto-workflow 模板 Phase 3 TodoWrite 代码块压缩为引用（清单下沉 `references/verification-protocol.md`）；debug Guardrails 末段合并压缩（行数预算 ≤500）
+
 ## [4.12.0] - 2026-11-13
 
 ### Added
@@ -1828,7 +1840,8 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.12.0...HEAD
+[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.13.0...HEAD
+[4.13.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.12.0...v4.13.0
 [4.12.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.11.0...v4.12.0
 [4.11.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.10.2...v4.11.0
 [4.10.2]: https://github.com/vshzhe/MiAgentTools/compare/v4.10.1...v4.10.2

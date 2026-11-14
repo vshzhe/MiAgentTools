@@ -452,6 +452,7 @@ describe('debug 授权与宿主委派表一致（4.5）', () => {
         expect(ORCHESTRATION_DELEGATIONS.debug).toEqual([
             'spec-verify-proposal',
             'proposal-review',
+            'review',
             'test',
         ]);
     });
@@ -494,6 +495,7 @@ describe('debug 授权与宿主委派表一致（4.5）', () => {
         expect(ORCHESTRATION_DELEGATIONS.debug).toEqual([
             'spec-verify-proposal',
             'proposal-review',
+            'review',
             'test',
         ]);
     });

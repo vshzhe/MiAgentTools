@@ -1,14 +1,14 @@
 ---
 name: iagent-workflow
 description: "一站式引导工作流：从探索到归档。创建持久化探索文件，追问澄清直至明确（grill-with-docs、L1-L5 逐级门），由主 agent 内联执行制品生成（iagent-spec-propose），主 agent 单轮内联验证（D1-D10 + B1-B7 + 证据），再内联实现（iagent-spec-apply）并内联归档（iagent-spec-archive），阶段间以确认桥衔接。当用户需要带追问（grill-with-docs）问答与自动质量验证的引导式端到端管道时使用；触发词\"一站式引导工作流 / guided workflow / workflow from exploration / 引导式全流程\"；NOT for 全自动无门管道（改用 iagent-auto-workflow）、单一阶段探索（改用 iagent-spec-explore）或调试（改用 iagent-debug）。"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(git:*), Bash(ls:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(iagent-spec-explore), Skill(iagent-spec-propose), Skill(iagent-spec-verify-proposal), Skill(iagent-proposal-review), Skill(iagent-spec-apply), Skill(iagent-spec-verify), Skill(iagent-test), Skill(iagent-spec-archive)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(git:*), Bash(ls:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(iagent-spec-explore), Skill(iagent-spec-propose), Skill(iagent-spec-verify-proposal), Skill(iagent-proposal-review), Skill(iagent-spec-apply), Skill(iagent-spec-verify), Skill(iagent-review), Skill(iagent-test), Skill(iagent-spec-archive)
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）与阶段技能（iagent-spec-apply / iagent-spec-archive，条件 iagent-test）；CLI 缺失时探索/提案降级为 AI 内联生成（CLI-degraded generation）。
 metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:a01f2f51c14d19f86f0d8b472b3df00dba031a421fc900117b2c2beebf076e89"
+  generatedFingerprint: "sha256:5ff0ed3dbf29b417ad58f616a2368c4e4dc2ecb6bc6760f31450e2ff195c591f"
 ---
 
 
@@ -217,12 +217,7 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 
 **证据与复跑（强制）**：每条结论 MUST 带 `文件:行` 或制品章节锚点，**无证据的结论 MUST NOT 计入通过**；报告 MUST 落盘 `.openspec-tmp/pipeline-<change-name>/verify-report.md`，回执记 `readScope`。FAIL 后在**同一主上下文**按 `fixDiff` 只重跑受影响清单项（≤3），MUST NOT 新开验证代理、重读未改动制品或全量重读；读取范围 MUST FIRST 取 handoff 包「## 制品清单」并按锚点增量读取。
 
-**TodoWrite 跟踪**：把 Phase 3 事项加入 TodoWrite：
-```
-- [ ] Phase 3: D1-D10 + B1-B7 清单（内联）
-- [ ] Phase 3: 逐项证据核对（文件:行 / 章节锚点）
-- [ ] Phase 3: 验证报告落盘 verify-report.md
-```
+**TodoWrite 跟踪**：把 Phase 3 事项（D1-D10 + B1-B7 清单 / 逐项证据核对 `文件:行` / 验证报告落盘）加入 TodoWrite（逐项清单见 `references/verification-protocol.md`）。
 
 全部制品在 Phase 2.5 生成并校验后，自动进入 Phase 3 验证。
 
@@ -276,6 +271,10 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 - 实现与条件测试完成后，MUST 由**主 agent 内联**调用 `iagent-spec-verify` 技能验证实现与制品（specs/tasks/design）一致性（`executionMode=inline` / `independence=self`）；先读 handoff 包，结论含验证结果摘要与可选 `reportPath`；MUST NOT 为新的验证执行派生 Agent 子代理
 - 通过 → 在同一用户回合内进入 Phase 5 归档桥；失败 → 回 Phase 4 修复，MUST NOT 进入归档
 - **省略声明（fallback）**：若 `iagent-spec-verify` 不可用或项目约定不单独跑实现验证，MUST 在归档桥就绪检查中显式声明「实现验证由 apply 编译检查 + 归档一致性承担」并记录该决策；MUST NOT 静默省略
+
+### 4.4 实现后 review 环节（主 agent 内联，强制）
+
+实现验证桥（4.3）通过后、Phase 5 归档桥之前，MUST 由主 agent 内联调用 `iagent-review` skill 执行代码审查（`executionMode=inline`），检查功能实现完整度；结论写入 `.openspec-tmp/pipeline-<change-name>/review-report.md`（文末 `**summary**: pass|not-applicable|fail`）并纳入归档桥前置——未收束（`fail`，P0/P1 未修复）MUST NOT 进入 5.1 归档确认门；**P0/P1** → 回 Phase 4 修复循环（与编译 / 测试共用既有 ≤3 预算）后重跑，3 次耗尽仍未收束 → 暂停并报告；**P2 问题** 记录不阻断；**无代码改动** → `not-applicable` 留痕直通；**`iagent-review` 不可用**（未经显式 degraded 协商）→ **strict 阻断并报告**，记录「本阶段未发生内联技能调用」，MUST NOT 静默跳过、MUST NOT 伪装为「已审查」，仅显式协商 degraded 时降级为本地深度复查 + WARN（分级与降级细则见 `references/review-protocol.md`，执行本步前 MUST 先 `Read`）。
 
 ---
 ## Phase 5: 归档（委派 iagent-spec-archive）

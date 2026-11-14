@@ -60,11 +60,12 @@ describe('apply 自动补测与一致性门模板', () => {
 });
 
 describe('编排技能消费测试与一致性证据', () => {
-    it('auto-workflow 归档前置三证据', () => {
+    it('auto-workflow 归档前置四证据（三类证据 + review 结论）', () => {
         const body = instructionsOf('iagent_auto_workflow');
         expect(body).toContain('.openspec-tmp/pipeline-<change-name>/compile-report.md');
         expect(body).toContain('.openspec-tmp/pipeline-<change-name>/test-report.md');
         expect(body).toContain('.openspec-tmp/pipeline-<change-name>/conformance-report.md');
+        expect(body).toContain('.openspec-tmp/pipeline-<change-name>/review-report.md');
         expect(body).toContain('MUST NOT 自动归档');
     });
 

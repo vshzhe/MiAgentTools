@@ -30,6 +30,7 @@
 | 2026-11-11 | fix-skill-contract-drift | orchestration | 统一门词汇 / 派发执行 / 指令 references，修复 version dry-run 与宿主中立性漂移 [含测试] |
 | 2026-11-12 | refactor-project-init-skill-split | project-init | project-init 第 11 步技能蒸馏内嵌单模板：不可单独调用、串行慢、生成范围粗。[含测试] |
 | 2026-11-13 | improve-verify-review | spec | 验证链补齐三类能力点：待实现功能覆盖 / 影响范围一致性 / 提案↔实现一致性（并入既有维度）。[含测试] |
+| 2026-11-14 | improve-workflow-skills-flow | workflow | 三父编排技能（workflow/auto-workflow/debug）实现后链路统一强制化：测试强制子阶段、实现后 review 环节、auto-workflow 归档确认门。[含测试] |
 
 ---
 
@@ -43,10 +44,10 @@
 | continuation | 1 | improve-continuation-and-codegraph-resilience (2026-11-11) |
 | debug | 1 | feat-debug-dual-track-entry (2026-11-03) |
 | skills | 1 | add-project-skill-integration (2026-11-09) |
-| workflow | 1 | improve-compile-gate-and-archive-readonly (2026-11-01) |
+| workflow | 2 | improve-compile-gate-and-archive-readonly (2026-11-01), improve-workflow-skills-flow (2026-11-14) |
 | archive | 1 | improve-archive-name-collision (2026-11-11) |
 | project-init | 1 | refactor-project-init-skill-split (2026-11-12) |
 
 ---
 
-*更新时间: 2026-11-13*
+*更新时间: 2026-11-14*

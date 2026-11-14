@@ -187,14 +187,18 @@ describe('Continuation contract', () => {
 });
 
 describe('Protocol gates after requirement-doc removal', () => {
-    it('auto-workflow verify / apply / archive have no blocking gates', () => {
+    it('auto-workflow verify / apply have no blocking gates; archive hosts archive-confirmation', () => {
         const protocol = getWorkflowProtocol('auto-workflow');
         expect(protocol).toBeDefined();
-        for (const id of ['verify', 'apply', 'archive']) {
+        for (const id of ['verify', 'apply']) {
             const phase = protocol!.phases.find((item) => item.id === id);
             expect(phase).toBeDefined();
             expect(phase!.gate).toBeUndefined();
         }
+        const archive = protocol!.phases.find((item) => item.id === 'archive');
+        expect(archive).toBeDefined();
+        expect(archive!.gate?.id).toBe('archive-confirmation');
+        expect(archive!.gate?.blocking).toBe(true);
     });
 
     it('workflow keeps implementation-bridge and has no verify gate', () => {

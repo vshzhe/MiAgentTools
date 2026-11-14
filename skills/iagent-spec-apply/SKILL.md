@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:9b9b6e21aabc039087fd6155152b67e87ebd75b50e9c792b174d0c53b4614b1a"
+  generatedFingerprint: "sha256:eab8f584aa9482f183b251b7845397b6829099b4f38d7a5c32f6c0389fa280e4"
 ---
 
 **实现前先读取项目规则基线：`.iagent/config.yaml` 的 context / rules、`.iagent/rules/*.md`、`CLAUDE.md`、`AGENTS.md`（用 `iagent rules --json` 枚举；源缺失显式记「不存在」，读取失败记 WARN 并计入未读）；并读取项目技能基线中 `phases` 含 `implement` 或 `both` 的技能（用 `iagent skills --json` 枚举；design-only 不要求读取；`validation.status=incomplete` 记 WARN 并列入回执 `skillsIncomplete`）。** 禁止猜测数据库字段、API 参数或业务规则 —— 标 **[待确认]** 并询问用户。
@@ -247,7 +247,7 @@ metadata:
    - **该不该测判定**：沿用 `iagent-test` 的「该不该测闸门 / 不测清单」——纯数据类、无分支转发方法、私有方法、框架生命周期回调与自动生成代码 MUST NOT 生成测试，且 MUST 在测试证据或报告中留痕「已评估、判定不生成」及依据
    - **执行**：主 agent 内联调用 `iagent-test`（传改动文件清单、已覆盖 Scenario、变更名与测试层级）；自动管线中其测试计划门自动采用推荐计划并记 WARN「计划未经用户逐项确认」
    - **禁止**：MUST NOT 静默增删 tasks.md 任务；缺口测试只登记到 handoff 包 `## 已产出（跨单元可见）` 与 `test-report.md`
-   - **降级**：`testGate.autoGenerate=false` → 跳过并在证据记「自动补测已由项目配置关闭」；项目无测试框架 → WARN 跳过并记 `not-applicable`；`iagent-test` 不可用 → WARN + 记录「本阶段未发生内联技能调用」，MUST NOT 伪装为已生成
+   - **降级二分（strict / 显式 degraded）**：`testGate.autoGenerate=false`（项目配置显式关闭）→ 显式 degraded：跳过并在证据记「自动补测已由项目配置关闭」+ WARN，不阻断，MUST NOT 表述为「已测试」；项目无测试框架 → WARN 跳过并记 `not-applicable`（不测判定留痕）；`iagent-test` 不可用（宿主不支持内联调用且未经显式 degraded 协商）→ **strict 阻断并报告**，记录「本阶段未发生内联技能调用」，MUST NOT 继续测试门、MUST NOT 静默跳过、MUST NOT 表述为「已测试」；仅宿主显式协商 degraded 时才降级为跳过 + WARN 透明记录
 
 9. **测试执行门** ⚠️ 强制（仅限变更范围内）
    - 在编译检查（§8）之后运行。编译失败是硬错误；测试失败属于另一类问题（存量红灯测试、断言不匹配、环境问题）—— 这正是两道门分开、MUST NOT 合并为一道的原因。§8 MUST 保持其 `-DskipTests`/`compile` 语义；测试执行由本门负责。

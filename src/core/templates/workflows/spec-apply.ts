@@ -486,7 +486,7 @@ ${renderDelegationModeContract()}
    - **该不该测判定**：沿用 \`iagent_test\` 的「该不该测闸门 / 不测清单」——纯数据类、无分支转发方法、私有方法、框架生命周期回调与自动生成代码 MUST NOT 生成测试，且 MUST 在测试证据或报告中留痕「已评估、判定不生成」及依据
    - **执行**：主 agent 内联调用 \`iagent_test\`（传改动文件清单、已覆盖 Scenario、变更名与测试层级）；自动管线中其测试计划门自动采用推荐计划并记 WARN「计划未经用户逐项确认」
    - **禁止**：MUST NOT 静默增删 tasks.md 任务；缺口测试只登记到 handoff 包 \`## 已产出（跨单元可见）\` 与 \`test-report.md\`
-   - **降级**：\`testGate.autoGenerate=false\` → 跳过并在证据记「自动补测已由项目配置关闭」；项目无测试框架 → WARN 跳过并记 \`not-applicable\`；\`iagent_test\` 不可用 → WARN + 记录「本阶段未发生内联技能调用」，MUST NOT 伪装为已生成
+   - **降级二分（strict / 显式 degraded）**：\`testGate.autoGenerate=false\`（项目配置显式关闭）→ 显式 degraded：跳过并在证据记「自动补测已由项目配置关闭」+ WARN，不阻断，MUST NOT 表述为「已测试」；项目无测试框架 → WARN 跳过并记 \`not-applicable\`（不测判定留痕）；\`iagent_test\` 不可用（宿主不支持内联调用且未经显式 degraded 协商）→ **strict 阻断并报告**，记录「本阶段未发生内联技能调用」，MUST NOT 继续测试门、MUST NOT 静默跳过、MUST NOT 表述为「已测试」；仅宿主显式协商 degraded 时才降级为跳过 + WARN 透明记录
 
 9. **测试执行门** ⚠️ 强制（仅限变更范围内）
    - 在编译检查（§8）之后运行。编译失败是硬错误；测试失败属于另一类问题（存量红灯测试、断言不匹配、环境问题）—— 这正是两道门分开、MUST NOT 合并为一道的原因。§8 MUST 保持其 \`-DskipTests\`/\`compile\` 语义；测试执行由本门负责。

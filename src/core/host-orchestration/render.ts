@@ -138,7 +138,8 @@ export const DELEGATION_PARAMETERS: Readonly<
  * MUST NOT 以本地执行替代。
  *
  * 列出的目标在其宿主缺口中按正文既有降级路径执行并记 WARN（例如
- * `debug → proposal-review` 的内联只读复查、`debug → test` 的显式 degraded 本地编写，
+ * `debug → proposal-review` 的内联只读复查、`debug → review` 的实现后审查显式 degraded 降级、
+ * `debug → test` 的显式 degraded 本地编写，
  * 以及 `project-init → feature-doc` 的自行扫描降级），
  * 两类情形均 MUST NOT 伪装为 strict 委派完成。
  *
@@ -150,16 +151,19 @@ export const CONDITIONAL_DELEGATIONS: Readonly<Record<string, readonly string[]>
         'spec-verify-proposal',
         'proposal-review',
         'spec-verify',
+        'review',
         'test',
     ],
     'auto-workflow': [
         'spec-verify-proposal',
         'proposal-review',
         'spec-verify',
+        'review',
         'test',
     ],
-    // debug：仅 proposal-review（内联只读复查）与 test（仅显式 degraded 本地编写）声明了降级路径。
-    debug: ['proposal-review', 'test'],
+    // debug：proposal-review（内联只读复查）、review（实现后审查，显式 degraded 降级）
+    // 与 test（仅显式 degraded 本地编写）声明了降级路径。
+    debug: ['proposal-review', 'review', 'test'],
     // project-init：委派 feature-doc 生成文档，不可得时正文已声明自行扫描（降级路径）；
     // 委派两侧生成侧技能蒸馏，派发失败重试仍失败时正文已声明该侧内联降级（降级路径）。
     'project-init': ['feature-doc', 'frontend-skill-gen', 'backend-skill-gen'],

@@ -58,13 +58,14 @@ describe('调用类白名单与委派齐备', () => {
         expect(offenders).toEqual([]);
     });
 
-    it('auto-workflow 白名单含委派 apply/archive/verify/test', () => {
+    it('auto-workflow 白名单含委派 apply/archive/verify/review/test', () => {
         const aw = skills.find((s) => s.template.name === 'iagent_auto_workflow');
         expect(aw).toBeDefined();
         for (const [bare, canonical] of [
             ['spec_apply', 'iagent-spec-apply'],
             ['spec_archive', 'iagent-spec-archive'],
             ['spec_verify', 'iagent-spec-verify'],
+            ['review', 'iagent-review'],
             ['test', 'iagent-test'],
         ] as const) {
             expect(aw?.template.allowedTools, `缺 Skill(${canonical})`).toContain(`Skill(${canonical})`);

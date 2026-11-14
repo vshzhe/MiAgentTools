@@ -10,7 +10,7 @@
 |------|---------|-------|
 | 2026-09 | [ARCHIVE-INDEX-2026-09.md](ARCHIVE-INDEX-2026-09.md) | 17 |
 | 2026-10 | [ARCHIVE-INDEX-2026-10.md](ARCHIVE-INDEX-2026-10.md) | 18 |
-| 2026-11 | [ARCHIVE-INDEX-2026-11.md](ARCHIVE-INDEX-2026-11.md) | 22 |
+| 2026-11 | [ARCHIVE-INDEX-2026-11.md](ARCHIVE-INDEX-2026-11.md) | 23 |
 
 ---
 
@@ -22,7 +22,7 @@
 | spec | 9 | add-spec-bulk-archive (2026-09-14), add-spec-workflow (2026-09-14), refactor-spec-workflow-template-single-source (2026-09-16), consolidate-skills-and-genericize-checks (2026-10-13), improve-proposal-validation-and-spec-ref (2026-11-03), improve-archive-index-monthly (2026-11-08), improve-task-ref-dedup (2026-11-08), improve-impl-conformance-and-test-gate (2026-11-09), improve-verify-review (2026-11-13) |
 | orchestration | 8 | add-host-orchestration-adapters (2026-10-18), fix-pi-native-orchestration (2026-10-18), fix-mode-delegation-host-parity (2026-11-01), improve-delegation-gate-ledger (2026-11-03), skill-bridge-optimize (2026-11-08), inline-orchestration-delegation (2026-11-08), inline-propose-apply-parallel (2026-11-08), fix-skill-contract-drift (2026-11-11) |
 | skills | 6 | improve-skills-tool-whitelist (2026-09-28), improve-skill-type-and-description (2026-10-16), improve-skill-progressive-disclosure (2026-10-16), improve-skill-orchestration-consistency (2026-10-16), streamline-explore-size-and-gates (2026-10-16), add-project-skill-integration (2026-11-09) |
-| workflow | 5 | refactor-orchestrator-propose-delegation (2026-10-16), refactor-orchestrator-explore-delegation (2026-10-16), improve-workflow-debug-bridges (2026-10-25), upgrade-workflow-efficiency (2026-10-26), improve-compile-gate-and-archive-readonly (2026-11-01) |
+| workflow | 6 | refactor-orchestrator-propose-delegation (2026-10-16), refactor-orchestrator-explore-delegation (2026-10-16), improve-workflow-debug-bridges (2026-10-25), upgrade-workflow-efficiency (2026-10-26), improve-compile-gate-and-archive-readonly (2026-11-01), improve-workflow-skills-flow (2026-11-14) |
 | config | 2 | add-config-profile (2026-09-11), integrate-init-rules (2026-10-25) |
 | test | 2 | enhance-test-generate (2026-09-16), improve-tr-test-generate-case-rationalize (2026-09-28) |
 | artifacts | 1 | markdown-first-artifacts (2026-10-16) |
@@ -34,4 +34,4 @@
 
 ---
 
-*更新时间: 2026-11-13*
+*更新时间: 2026-11-14*

@@ -265,6 +265,7 @@ describe('编排阶段 agent 的嵌套委派授予（4.4 / 4.5）', () => {
         'debug',
         'spec-verify-proposal',
         'proposal-review',
+        'review',
         'test',
     ];
 
@@ -273,6 +274,7 @@ describe('编排阶段 agent 的嵌套委派授予（4.4 / 4.5）', () => {
         expect(result.allowed).toEqual([
             'iagent-spec-verify-proposal',
             'iagent-proposal-review',
+            'iagent-review',
             'iagent-test',
         ]);
         expect(result.gap).toBeUndefined();
@@ -288,6 +290,7 @@ describe('编排阶段 agent 的嵌套委派授予（4.4 / 4.5）', () => {
             'proposal-review',
             'spec-apply',
             'spec-verify',
+            'review',
             'test',
             'spec-archive',
         ];
@@ -301,6 +304,7 @@ describe('编排阶段 agent 的嵌套委派授予（4.4 / 4.5）', () => {
                 'iagent-proposal-review',
                 'iagent-spec-apply',
                 'iagent-spec-verify',
+                'iagent-review',
                 'iagent-test',
                 'iagent-spec-archive',
             ]);
@@ -319,9 +323,9 @@ describe('编排阶段 agent 的嵌套委派授予（4.4 / 4.5）', () => {
             'spec-archive',
         ];
         const workflow = resolvePiNestingDelegations('workflow', partial);
-        expect(workflow.gap?.missing).toEqual(['spec-verify', 'test']);
-        // 两者正文均声明 fallback（省略声明 / 条件测试子阶段）→ 条件委派
-        expect(workflow.gap?.conditional).toEqual(['spec-verify', 'test']);
+        expect(workflow.gap?.missing).toEqual(['spec-verify', 'review', 'test']);
+        // 三者正文均声明 fallback（省略声明 / 显式 degraded 降级 / 条件测试子阶段）→ 条件委派
+        expect(workflow.gap?.conditional).toEqual(['spec-verify', 'review', 'test']);
         expect(workflow.gap?.required).toEqual([]);
 
         const auto = resolvePiNestingDelegations('auto-workflow', ['auto-workflow']);
@@ -329,6 +333,7 @@ describe('编排阶段 agent 的嵌套委派授予（4.4 / 4.5）', () => {
             'spec-verify-proposal',
             'proposal-review',
             'spec-verify',
+            'review',
             'test',
         ]);
         expect(auto.gap?.required).toEqual([
@@ -347,12 +352,14 @@ describe('编排阶段 agent 的嵌套委派授予（4.4 / 4.5）', () => {
         expect(result.gap?.missing).toEqual([
             'spec-verify-proposal',
             'proposal-review',
+            'review',
             'test',
         ]);
         // spec-verify-proposal 由 DEPS 随装且正文无降级路径 → 无条件必需委派（缺口按能力阻断）
         expect(result.gap?.required).toEqual(['spec-verify-proposal']);
-        // proposal-review（内联只读复查）与 test（仅显式 degraded 本地）声明了降级路径 → 条件委派
-        expect(result.gap?.conditional).toEqual(['proposal-review', 'test']);
+        // proposal-review（内联只读复查）、review（显式 degraded 降级）与 test（仅显式 degraded 本地）
+        // 声明了降级路径 → 条件委派
+        expect(result.gap?.conditional).toEqual(['proposal-review', 'review', 'test']);
     });
 
     it('无条件必需委派缺口记入 required（strict 下按能力阻断）', () => {
@@ -360,11 +367,12 @@ describe('编排阶段 agent 的嵌套委派授予（4.4 / 4.5）', () => {
         expect(result.gap).toBeDefined();
         // spec-explore / spec-apply / spec-archive 正文无降级路径 → 无条件必需
         expect(result.gap?.required).toEqual(['spec-explore', 'spec-apply', 'spec-archive']);
-        // 验证评分/深度复查/实现验证/条件测试均声明了降级路径 → 条件委派
+        // 验证评分/深度复查/实现验证/实现后 review/条件测试均声明了降级路径 → 条件委派
         expect(result.gap?.conditional).toEqual([
             'spec-verify-proposal',
             'proposal-review',
             'spec-verify',
+            'review',
             'test',
         ]);
         expect(result.allowed).toEqual(['iagent-spec-propose']);
@@ -384,11 +392,12 @@ describe('编排阶段 agent 的嵌套委派授予（4.4 / 4.5）', () => {
                 { workflowId: 'workflow', description: '引导工作流' },
             ]);
             expect(result.nestingGaps.map((gap) => gap.workflowId)).toEqual(['workflow']);
-            // 条件委派缺口（验证评分 / 深度复查 / 实现验证 / 条件测试）→ 条件缺口 WARN
+            // 条件委派缺口（验证评分 / 深度复查 / 实现验证 / 实现后 review / 条件测试）→ 条件缺口 WARN
             expect(result.nestingGaps[0].conditional).toEqual([
                 'spec-verify-proposal',
                 'proposal-review',
                 'spec-verify',
+                'review',
                 'test',
             ]);
             expect(
@@ -436,14 +445,16 @@ describe('编排阶段 agent 的嵌套委派授予（4.4 / 4.5）', () => {
             );
             // DEPS 注入 spec-verify-proposal → 必须可嵌套委派
             expect(content).toContain('allowed_subagents: iagent-spec-verify-proposal');
-            // 需求文档桥已移除：不授予 requirement-doc；test 属条件委派且未安装
+            // 需求文档桥已移除：不授予 requirement-doc；test / review 属条件委派且未安装
             expect(content).not.toContain('iagent-requirement-doc');
             expect(content).not.toContain('iagent-test');
+            expect(content).not.toContain('iagent-review');
 
-            // proposal-review / test 未安装 → 缺口诊断（条件委派，不一律阻断）
+            // proposal-review / review / test 未安装 → 缺口诊断（条件委派，不一律阻断）
             expect(result.piNative?.nestingGaps.map((gap) => gap.workflowId)).toEqual(['debug']);
             expect(result.piNative?.nestingGaps[0].conditional).toEqual([
                 'proposal-review',
+                'review',
                 'test',
             ]);
             expect(result.piNative?.nestingGaps[0].required).toEqual([]);

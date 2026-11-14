@@ -636,10 +636,11 @@ describe('已授权技能直接推进与宿主委派同步（4.4）', () => {
         expect(section).toContain('strict/degraded 能力协商');
     });
 
-    it('debug 委派清单覆盖验证/复查/测试，且阶段声明含条件门标注', () => {
+    it('debug 委派清单覆盖验证/复查/审查/测试，且阶段声明含条件门标注', () => {
         expect(ORCHESTRATION_DELEGATIONS.debug).toEqual([
             'spec-verify-proposal',
             'proposal-review',
+            'review',
             'test',
         ]);
         // 需求文档桥已移除：不再出现在委派清单
@@ -932,13 +933,16 @@ describe('3.7 协议门与白名单对齐 + surface 门兜底', () => {
         nextAllowed: 'next',
     });
 
-    it('auto-workflow 的 VERIFY / APPLY / ARCHIVE 均无阻塞门', () => {
+    it('auto-workflow 的 VERIFY / APPLY 无阻塞门，ARCHIVE 承载归档确认门', () => {
         const auto = getWorkflowProtocol('auto-workflow')!;
-        for (const phaseId of ['verify', 'apply', 'archive']) {
+        for (const phaseId of ['verify', 'apply']) {
             const phase = auto.phases.find((item) => item.id === phaseId)!;
             expect(phase.gate, `auto-workflow/${phaseId} 不应声明阻塞门`).toBeUndefined();
         }
-        // 无门阶段不依赖 gate 能力
+        const archive = auto.phases.find((item) => item.id === 'archive')!;
+        expect(archive.gate?.id, 'auto-workflow/archive 应声明归档确认门').toBe('archive-confirmation');
+        expect(archive.gate?.blocking).toBe(true);
+        // 门阶段不依赖 gate 能力（与 ARCHIVE_PHASE 一致：门由模板正文承载，能力协商只看执行面）
         for (const phaseId of ['verify', 'apply', 'archive']) {
             const phase = auto.phases.find((item) => item.id === phaseId)!;
             expect(phase.requiredCapabilities).not.toContain('gate');

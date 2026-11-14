@@ -40,6 +40,14 @@ const VERIFICATION_PROTOCOL_FULL = `### 3.1 自动执行验证（无用户询问
 
 **证据契约（强制）**：每条结论 MUST 带 \`文件:行\` 或制品章节锚点；**无证据的结论 MUST NOT 计入通过**（标为「缺证据」）。报告 MUST 落盘 \`.openspec-tmp/pipeline-<change-name>/verify-report.md\`；回执记 \`executionMode=inline\` / \`independence=self\` / \`readScope\`。
 
+**TodoWrite 跟踪清单**（主文件引用本文件时逐项加入 TodoWrite）：
+
+\`\`\`
+- [ ] Phase 3: D1-D10 + B1-B7 清单（内联）
+- [ ] Phase 3: 逐项证据核对（文件:行 / 章节锚点）
+- [ ] Phase 3: 验证报告落盘 verify-report.md
+\`\`\`
+
 ### 3.3 量化评分报告
 
 展示带评分的验证结果：
@@ -128,6 +136,16 @@ const PAPER_TRAIL_HANDOFF_FULL = `### 探索→提案纸迹衔接（编排口径
 - **父级复核纸迹自证**：收到 \`paperTrailStatus=complete\` 时，父级 SHALL 至少核对一次 \`exploration.md\` 的 Decisions / 术语表 / ADR 三项确实存在或有显式「无」字面量；核对不一致时 SHALL 记 WARN 并按实际值透传，MUST NOT 静默采信子级自证（复核纠偏不等于改写子级值）。
 - **唯一停点不变**：纸迹校验 MUST 在探索的流程最终确认门之内完成，MUST NOT 在 Phase 2 追加第二次用户停顿，MUST NOT 因 \`paperTrailStatus=incomplete\` 自动阻断管线（由流程门内的用户处置决定）。
 - **只读消费**：\`spec-verify\` / \`spec-apply\` / \`spec-archive\` 只读复用 handoff 包 \`## 硬约束\`；\`## 阶段结论\` 的追加只由具备 \`Write\` 权限的 apply / archive 执行（verify 只读，不声称已追加）。
+`;
+
+/** 实现后 review 环节细则（写入 references/review-protocol.md；主文件仅保留骨架指针，保证 ≤500 行） */
+const REVIEW_PROTOCOL_FULL = `### 实现后 review 环节（4.4 细则）
+
+- **调用形态**：由主 agent 内联调用 \`iagent_review\` skill（\`executionMode=inline\` / \`independence=self\`，self 记 WARN），MUST NOT 派发子代理；review 检查功能实现完整度（规格→实现对照、缺口行为、明显缺陷），MUST NOT 重复 spec_verify 的一致性清单。
+- **报告落盘（强制）**：结论写入 \`.openspec-tmp/pipeline-<change-name>/review-report.md\`，文末汇总行 \`**summary**: pass|not-applicable|fail\`；报告纳入归档桥前置（5.1 就绪检查读取其一）。
+- **问题分级与预算**：P0/P1 → 回 Phase 4 修复循环（与编译 / 测试共用既有 ≤3 预算）后重跑 review，3 次耗尽仍未收束 → 暂停并报告；未收束（\`fail\`）MUST NOT 进入 5.1 归档确认门。P2 → 记录到 review 报告，不阻断流程推进。
+- **not-applicable 直通**：变更范围无代码改动（纯制品 / 文档变更）→ review 判定 \`not-applicable\` 并留痕，直接进入 Phase 5。
+- **降级二分（strict / 显式 degraded）**：\`iagent_review\` 不可用（宿主不支持内联调用且未经显式 degraded 协商）→ strict 阻断并报告，记录「本阶段未发生内联技能调用」，MUST NOT 静默跳过、MUST NOT 伪装为「已审查」；仅宿主显式协商 degraded 时才降级为本地深度复查 + WARN 透明记录。
 `;
 
 export function getWorkflowSkillTemplate(): SkillTemplate {
@@ -315,12 +333,7 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 
 **证据与复跑（强制）**：每条结论 MUST 带 \`文件:行\` 或制品章节锚点，**无证据的结论 MUST NOT 计入通过**；报告 MUST 落盘 \`.openspec-tmp/pipeline-<change-name>/verify-report.md\`，回执记 \`readScope\`。FAIL 后在**同一主上下文**按 \`fixDiff\` 只重跑受影响清单项（≤3），MUST NOT 新开验证代理、重读未改动制品或全量重读；读取范围 MUST FIRST 取 handoff 包「## 制品清单」并按锚点增量读取。
 
-**TodoWrite 跟踪**：把 Phase 3 事项加入 TodoWrite：
-\`\`\`
-- [ ] Phase 3: D1-D10 + B1-B7 清单（内联）
-- [ ] Phase 3: 逐项证据核对（文件:行 / 章节锚点）
-- [ ] Phase 3: 验证报告落盘 verify-report.md
-\`\`\`
+**TodoWrite 跟踪**：把 Phase 3 事项（D1-D10 + B1-B7 清单 / 逐项证据核对 \`文件:行\` / 验证报告落盘）加入 TodoWrite（逐项清单见 \`references/verification-protocol.md\`）。
 
 全部制品在 Phase 2.5 生成并校验后，自动进入 Phase 3 验证。
 
@@ -374,6 +387,10 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 - 实现与条件测试完成后，MUST 由**主 agent 内联**调用 \`iagent_spec_verify\` 技能验证实现与制品（specs/tasks/design）一致性（\`executionMode=inline\` / \`independence=self\`）；先读 handoff 包，结论含验证结果摘要与可选 \`reportPath\`；MUST NOT 为新的验证执行派生 Agent 子代理
 - 通过 → 在同一用户回合内进入 Phase 5 归档桥；失败 → 回 Phase 4 修复，MUST NOT 进入归档
 - **省略声明（fallback）**：若 \`iagent_spec_verify\` 不可用或项目约定不单独跑实现验证，MUST 在归档桥就绪检查中显式声明「实现验证由 apply 编译检查 + 归档一致性承担」并记录该决策；MUST NOT 静默省略
+
+### 4.4 实现后 review 环节（主 agent 内联，强制）
+
+实现验证桥（4.3）通过后、Phase 5 归档桥之前，MUST 由主 agent 内联调用 \`iagent_review\` skill 执行代码审查（\`executionMode=inline\`），检查功能实现完整度；结论写入 \`.openspec-tmp/pipeline-<change-name>/review-report.md\`（文末 \`**summary**: pass|not-applicable|fail\`）并纳入归档桥前置——未收束（\`fail\`，P0/P1 未修复）MUST NOT 进入 5.1 归档确认门；**P0/P1** → 回 Phase 4 修复循环（与编译 / 测试共用既有 ≤3 预算）后重跑，3 次耗尽仍未收束 → 暂停并报告；**P2 问题** 记录不阻断；**无代码改动** → \`not-applicable\` 留痕直通；**\`iagent_review\` 不可用**（未经显式 degraded 协商）→ **strict 阻断并报告**，记录「本阶段未发生内联技能调用」，MUST NOT 静默跳过、MUST NOT 伪装为「已审查」，仅显式协商 degraded 时降级为本地深度复查 + WARN（分级与降级细则见 \`references/review-protocol.md\`，执行本步前 MUST 先 \`Read\`）。
 
 ---
 ## Phase 5: 归档（委派 iagent_spec_archive）
@@ -595,7 +612,7 @@ All artifacts ready! Proceeding to the Phase 4 implementation bridge...
 - **向 archive 传 change-name** - Phase 5 向 spec_archive 传 change-name 跳过选择
 - **条件委派测试** - tasks.md 含 \`[测试]\` 任务时委派 iagent_test；测试计划已在 Phase 3.7 实现 + 测试桥一次确认，MUST NOT 再设独立门
 `,
-        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(git:*), Bash(ls:*), ${CODEGRAPH_MCP}, ${skillDelegation(['spec_explore', 'spec_propose', 'spec_verify_proposal', 'proposal_review', 'spec_apply', 'spec_verify', 'test', 'spec_archive'])}`,
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(git:*), Bash(ls:*), ${CODEGRAPH_MCP}, ${skillDelegation(['spec_explore', 'spec_propose', 'spec_verify_proposal', 'proposal_review', 'spec_apply', 'spec_verify', 'review', 'test', 'spec_archive'])}`,
         type: 'impl',
         license: 'MIT',
         compatibility: '依赖 iagent CLI（spec 命令组）与阶段技能（iagent_spec_apply / iagent_spec_archive，条件 iagent_test）；CLI 缺失时探索/提案降级为 AI 内联生成（CLI-degraded generation）。',
@@ -603,6 +620,7 @@ All artifacts ready! Proceeding to the Phase 4 implementation bridge...
         references: [
             { path: 'references/verification-protocol.md', content: VERIFICATION_PROTOCOL_FULL },
             { path: 'references/paper-trail-handoff.md', content: PAPER_TRAIL_HANDOFF_FULL },
+            { path: 'references/review-protocol.md', content: REVIEW_PROTOCOL_FULL },
         ],
     };
 }

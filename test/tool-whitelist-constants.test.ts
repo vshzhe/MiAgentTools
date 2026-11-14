@@ -116,11 +116,12 @@ describe('debug 文档与回归测试委派授权（4.5）', () => {
         const expected = skillDelegation([
             'spec_verify_proposal',
             'proposal_review',
+            'review',
             'test',
         ]);
         expect(debug.template.allowedTools).toContain(expected);
         expect(expected).toBe(
-            'Skill(iagent-spec-verify-proposal), Skill(iagent-proposal-review), Skill(iagent-test)'
+            'Skill(iagent-spec-verify-proposal), Skill(iagent-proposal-review), Skill(iagent-review), Skill(iagent-test)'
         );
     });
 
@@ -135,6 +136,7 @@ describe('debug 文档与回归测试委派授权（4.5）', () => {
         expect(skillEntries).toEqual([
             'Skill(iagent-spec-verify-proposal)',
             'Skill(iagent-proposal-review)',
+            'Skill(iagent-review)',
             'Skill(iagent-test)',
         ]);
         for (const entry of skillEntries) {

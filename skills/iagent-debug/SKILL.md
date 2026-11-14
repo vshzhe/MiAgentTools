@@ -1,14 +1,14 @@
 ---
 name: iagent-debug
 description: "一站式调试工作流：复现→用 CodeGraph 与能力记忆调查根因→变更关联→带强制回归测试的修复→编译检查→同步提案→验证；触发词\"调试 / debug / 修复 bug / bug 报告 / 复现 / 根因\"；NOT for：新功能开发用 iagent-workflow、单一阶段探索用 iagent-spec-explore"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(iagent-spec-verify-proposal), Skill(iagent-proposal-review), Skill(iagent-test)
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(iagent-spec-verify-proposal), Skill(iagent-proposal-review), Skill(iagent-review), Skill(iagent-test)
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）与 iagent-spec-verify-proposal / iagent-proposal-review / iagent-test 技能（test 为条件内联调用）；CodeGraph MCP 可选（不可用时降级 Glob/Grep）。
 metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:fefbe13adfe3226b48e5c808057ea4f1a7a67b28314daf562122899885754fb4"
+  generatedFingerprint: "sha256:0961e4f5248e54bba4b1966bd75a6e8f9d22b707d84174a9f8cd5691f43ded9b"
 ---
 
 
@@ -400,7 +400,7 @@ Markdown 是唯一真源 —— 直接更新 OpenSpec Markdown 制品；不得�
 - 显示修复摘要（「已应用自动修复 —— 重新运行验证……」）
 - 重跑仍失败时：呈现遗留问题与选项 —— [1] 手动编辑，[2] 返回探索，[3] 查看详细差异报告。**没有跳过直接实现的路径。**
 
-### 7.3 验证 PASS → 内联深度复查 → 收束（verify-close）
+### 7.3 验证 PASS → 内联深度复查 → 实现 review → 收束（verify-close）
 
 验证通过后：
 
@@ -408,9 +408,10 @@ Markdown 是唯一真源 —— 直接更新 OpenSpec Markdown 制品；不得�
    - **降级（回退）（技能不可用）**：技能未安装或调用失败时，降级为主 agent 内联只读深度复查并 WARN："iagent-proposal-review 技能不可用，降级为内联复查"。MUST NOT 静默跳过深度复查。
    - 回执 SHALL 含 `reviewSummary` / 可选 `reportPath`；完整报告 MUST NOT 内联进回执。
    - **同上下文修复重跑**：复查 FAIL 时在同一主上下文按 `fixDiff` 增量重跑，MUST NOT 新开验证代理或全量重读；循环上限 3 次。
-2. **收束（verify-close）**：深度复查收束后直接报告该变更已可归档；debug 不自动归档。MUST NOT 展示需求文档桥、MUST NOT 生成需求文档、MUST NOT 携带已移除的需求文档状态字段。
-3. **报告**：显示验证结果、深度复查结论与可归档提示：
-   > 「调试完成。验证与深度复查已通过；需求文档请按需单独调用 iagent-requirement-doc。」
+2. **实现后 review（内联调用 `iagent-review`，强制）**：深度复查收束后、收束提示之前，由主 agent 内联调用 `iagent-review` skill 执行代码审查（`executionMode=inline`），检查修复实现完整度；结论写入 `.openspec-tmp/pipeline-<change-name>/review-report.md`（文末 `**summary**: pass|not-applicable|fail`）——未收束（`fail`，P0/P1 未修复）MUST NOT 输出「已可归档」收束提示，回 Phase 4 修复循环（与编译 / 测试共用既有 ≤3 预算，3 次耗尽 → 暂停并报告）；**P2 问题** 记录不阻断；**无代码改动** → `not-applicable` 留痕直通；**`iagent-review` 不可用**（未经显式 degraded 协商）→ **strict 阻断并报告**，记录「本阶段未发生内联技能调用」，MUST NOT 静默跳过、MUST NOT 伪装为「已审查」，仅显式协商 degraded 时降级为本地深度复查 + WARN（细则见 `references/gates-and-rules.md`）
+3. **收束（verify-close）**：深度复查与实现后 review 收束后直接报告该变更已可归档；debug 不自动归档。MUST NOT 展示需求文档桥、MUST NOT 生成需求文档、MUST NOT 携带已移除的需求文档状态字段。
+4. **报告**：显示验证结果、深度复查结论、review 结论与可归档提示：
+   > 「调试完成。验证、深度复查与 review 已通过；需求文档请按需单独调用 iagent-requirement-doc。」
    > 「已可归档 —— 运行 /iagent:spec-archive。」
 
 ### 7.4 清理流程级调试工作区（强制）
@@ -457,6 +458,7 @@ Markdown 是唯一真源 —— 直接更新 OpenSpec Markdown 制品；不得�
 ### Phase 7: Verification (覆盖所有修复)
 - Score: XX% — PASS/FAIL
 - Deep review: completed ✓ / WARN (reason)
+- Review: <pass / not-applicable / fail> — review-report.md
 - Verification close: ready for archive (no requirement-doc bridge)
 
 Ready for `/iagent:spec-apply` (fixes already applied) or archive.
@@ -477,6 +479,7 @@ Ready for `/iagent:spec-apply` (fixes already applied) or archive.
 - **升级兜底是触发条件，不是独立步骤**：升级兜底即 2.2.4 扩展后的触发条件之一，MUST NOT 为其新建独立章节或编号（2.2.4 的内容与编号不变）
 - **分级在 CodeGraph 降级时仍生效**：CodeGraph 不可用时分级仍生效（信号 (a) 降级为文件数代理指标，(b)(c) 照常）；MUST NOT 因降级跳过分级，诊断记录 MUST 标注「信号降级」
 - **无需求文档桥**：7.3 在验证 PASS + 深度复查收束后直接收束；MUST NOT 展示生成/跳过桥、MUST NOT 委派需求文档技能
+- **实现后 review 环节不得跳过**：深度复查收束后、verify-close 收束提示之前 MUST 由主 agent 内联调用 `iagent-review` 执行代码审查；报告落盘 `.openspec-tmp/pipeline-<change-name>/review-report.md`，未收束（P0/P1 未修复）MUST NOT 输出「已可归档」收束提示；P2 记录不阻断；无代码改动 → `not-applicable` 留痕直通；`iagent-review` 不可用（未经显式 degraded 协商）→ strict 阻断，MUST NOT 静默跳过
 - **回执续跑**：内联调用 `iagent-test` / `iagent-spec-verify-proposal` / `iagent-proposal-review` 返回有效结果后 MUST 在同一用户回合内继续下一阶段；MUST NOT 以回执结束回合；回执 MUST NOT 作为面向用户的最终消息（用户可见至多一行进度）
 - **读取范围**：只读 handoff 包「## 制品清单」命中范围与 Stage Envelope（路径 + 结构化字段），MUST NOT 内联制品正文或完整 SKILL.md，MUST NOT 全量重读；blocked 时用 `blockedGate` / `blockedReason` + `resume=true`
 - **零猜测**：多个候选根因 → STOP 并让用户选择；绝不猜测
@@ -489,11 +492,8 @@ Ready for `/iagent:spec-apply` (fixes already applied) or archive.
 - **回归测试编写内联调用 `iagent-test`**：传入已确认的缺陷链路、Phase 1 复现证据、测试级别/优先级与变更名；`iagent-test` 是框架/风格/用例规则的唯一来源，debug MUST NOT 复制其内联框架检测或测试生成规则；strict 无法调用时 MUST 阻断并报告，MUST NOT 以"自写 + WARN"绕过（仅显式协商 degraded 时允许本地编写并透明记录未发生的内联调用）
 - **Phase 1 临时测试不替代回归测试**：Phase 1 MAY 以内联临时测试建立失败证据，但该测试不构成回归测试；正式回归测试 SHALL 由 `iagent-test` 生成或改造落库
 - **内联调用绝不放松两条硬要求**：回归测试 MUST 仍覆盖缺陷链路的「异常节点 + 根因节点」，且 MUST 仍修复前 FAIL / 修复后 PASS —— 内联调用返回后自行核对两者
-- **提案同步强制**：验证前制品必须反映**所有**已实现的修复
-- **验证绝不跳过**：技能 → 内联降级（回退）+ WARN；FAIL → 自动修复循环，无跳过路径；PASS → 深度复查（技能 → 内联降级（回退）+ WARN）→ verify-close 收束
-- **循环中非缺陷不阻塞**：循环中的非缺陷发现 MUST NOT 阻塞其他 bug —— 记录诊断并继续
-- **循环退出保留已完成工作**：中途退出保留已完成修复，丢弃未完成的当前 bug
-- **独立变更分离**：用户声明某 bug 需要独立变更时，收尾当前变更并提示单独调试
+- **提案同步强制 / 验证绝不跳过**：验证前制品必须反映**所有**已实现的修复；验证无跳过路径 —— 技能 → 内联降级（回退）+ WARN；FAIL → 自动修复循环；PASS → 深度复查（技能 → 内联降级（回退）+ WARN）→ verify-close 收束
+- **循环退出保留已完成工作**：中途退出保留已完成修复，丢弃未完成的当前 bug；循环中的非缺陷发现 MUST NOT 阻塞其他 bug（记录诊断并继续）；用户声明某 bug 需要独立变更时，收尾当前变更并提示单独调试
 - **使用 `path.join()`** 处理所有文件路径（跨平台：macOS/Linux/Windows）
 - **术语实时收敛**：排查中确定的术语立即写入 CONTEXT.md
 

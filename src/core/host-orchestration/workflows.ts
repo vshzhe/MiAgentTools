@@ -106,7 +106,7 @@ const AUTO_APPLY_PHASE: PhaseSpec = {
     retry: { maxAttempts: 3, on: ['compile-failed', 'test-failed'] },
 };
 
-/** auto-workflow 专用归档阶段：模板声明自动归档无用户确认，MUST NOT 声明阻塞门 */
+/** auto-workflow 专用归档阶段：模板在归档执行前呈现归档确认门（⛔ GATE，§5.2），与 ARCHIVE_PHASE 同门 */
 const AUTO_ARCHIVE_PHASE: PhaseSpec = {
     id: 'archive',
     input: { required: ['changeName'] },
@@ -115,6 +115,7 @@ const AUTO_ARCHIVE_PHASE: PhaseSpec = {
     execution: { allowed: ['inline', 'subagent'] },
     handoff: ['archivePath', 'specsSynced'],
     receipt: RECEIPT,
+    gate: { id: 'archive-confirmation', blocking: true },
     retry: { maxAttempts: 2, on: ['sync-failed'] },
 };
 

@@ -32,15 +32,15 @@ import { normalizeHostSkillRefs } from '../src/core/command-generation/host-refs
 const CONDITIONAL_DELEGATIONS: Record<string, readonly string[]> = {
     // project-init：委派 feature_doc 生成文档，不可得时自行扫描（模板含降级路径一）
     iagent_project_init: ['feature-doc'],
-    // workflow：仅当 tasks 含 [测试] 任务时条件委派 test
-    iagent_workflow: ['test'],
-    // auto-workflow：仅当 tasks 含 [测试] 任务时条件委派 test
-    iagent_auto_workflow: ['test'],
-    // debug：深度复查委派 proposal_review，不可用时内联复查；回归测试委派 test，
-    // strict 缺能阻断、仅显式 degraded 允许本地编写。
+    // workflow：仅当 tasks 含 [测试] 任务时条件委派 test；实现后 review 声明显式 degraded 降级
+    iagent_workflow: ['review', 'test'],
+    // auto-workflow：仅当 tasks 含 [测试] 任务时条件委派 test；实现后 review 声明显式 degraded 降级
+    iagent_auto_workflow: ['review', 'test'],
+    // debug：深度复查委派 proposal_review，不可用时内联复查；实现后 review 委派 iagent_review，
+    // 声明显式 degraded 降级；回归测试委派 test，strict 缺能阻断、仅显式 degraded 允许本地编写。
     // spec-verify-proposal 不在此列 —— 它由 DEPS 随装、属无条件必需委派，必须由 DEPS 覆盖。
     // requirement-doc 已随需求文档桥整体移除，不再出现在任何委派面。
-    iagent_debug: ['proposal-review', 'test'],
+    iagent_debug: ['proposal-review', 'review', 'test'],
 };
 
 describe('模板正文指令引用单一源与死引用校验', () => {

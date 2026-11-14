@@ -1,14 +1,14 @@
 ---
 name: iagent-auto-workflow
-description: "一站式全自动工作流：探索→提案→验证→自动实现→自动归档，L1-L5 与流程最终确认后全自动（无需求文档桥）；触发词\"全自动工作流 / auto workflow / fully automated pipeline\"。当用户需要完全自动化、无需手工 apply/archive 步骤的管道时使用；NOT for 交互式引导工作流（改用 iagent-workflow）。"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(mvn:*), Bash(gradle:*), Bash(ant:*), Bash(go:*), Bash(cargo:*), Bash(git:*), Bash(ls:*), Bash(mv:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(iagent-spec-explore), Skill(iagent-spec-propose), Skill(iagent-spec-verify-proposal), Skill(iagent-proposal-review), Skill(iagent-spec-apply), Skill(iagent-spec-verify), Skill(iagent-test), Skill(iagent-spec-archive)
+description: "一站式全自动工作流：探索→提案→验证→自动实现→归档确认门→自动归档，L1-L5 与流程最终确认后实现全自动（无需求文档桥），归档执行前 MUST 经用户确认功能完成；触发词\"全自动工作流 / auto workflow / fully automated pipeline\"。当用户需要实现阶段全自动、归档前确认的管道时使用；NOT for 交互式引导工作流（改用 iagent-workflow）。"
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(mvn:*), Bash(gradle:*), Bash(ant:*), Bash(go:*), Bash(cargo:*), Bash(git:*), Bash(ls:*), Bash(mv:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(iagent-spec-explore), Skill(iagent-spec-propose), Skill(iagent-spec-verify-proposal), Skill(iagent-proposal-review), Skill(iagent-spec-apply), Skill(iagent-spec-verify), Skill(iagent-review), Skill(iagent-test), Skill(iagent-spec-archive)
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）与 spec 系列技能（iagent-spec-apply / iagent-spec-archive）；CLI 缺失时降级为 AI 内联生成。
 metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:5e923d9654e244aa876fdb6a246f35f33799e5d6f67e5bc3ee04b3b83e908e7b"
+  generatedFingerprint: "sha256:9e6a6e836a333a402f9fb875a0e44fc39caa02d205c8b159830f0966c2c8978f"
 ---
 
 
@@ -23,11 +23,11 @@ metadata:
 2. **提案阶段** —— 生成变更及其全部制品（自动）
 3. **验证阶段** —— 主 agent 单轮内联质量校验（D1-D10 + B1-B7 + 证据）；不再有需求文档桥
 4. **自动实现阶段** —— 验证通过后不设确认门，直接自动实现
-5. **自动归档阶段** —— 完成后自动归档
+5. **自动归档阶段** —— 三类证据与 review 结论就绪后呈现归档确认门（⛔ GATE），用户确认功能完成后自动归档
 
 ## 门白名单与 MUST NOT 确认清单
 
-**本技能不承载阻塞阶段门；以下为父流程门白名单，仅负向清单对本技能停点生效**：
+**必留门（正向枚举 5 类，缺一即流程安全缺陷）**：
 - **需求澄清（需求 / 方案歧义）**：prompt-gate / grill-batch-confirmation / diagnostic-confirmation / fix-option-confirmation / design-confirmation（可按条件豁免）
 - **功能流程图门（流程基准确认）**：flow-final-confirmation（不可豁免）
 - **实现 + 测试桥**：implementation-bridge（不可豁免）
@@ -47,7 +47,7 @@ metadata:
 ---
 ## 执行方式与增量复验（强制）
 
-分级执行：Phase 1 / Phase 2 提案 / Phase 3 验证 / Phase 4 实现 / Phase 5 归档均由主 agent 内联（`executionMode=inline`）；仅 `spec-bulk-archive` 内部并行单元保留子代理。验证**一次**完成（合并 D1-D10 + B1-B7 清单），MUST NOT 派生验证子代理。兼容窗：propose / apply / verify / archive 的旧 `subagent` 回执记 deprecation WARN 并允许推进，下个 major 收紧。增量复验：验证 FAIL 后**在同一主上下文**按 fixDiff 增量重跑清单（≤3 次），禁止新开验证代理、禁止重读未改动制品与全量重读；禁止 resume 充当复验（contextReplay=true 记 WARN）。只读验证以固定清单 + 每条结论 `文件:行` 证据 + 报告落盘承担可信度。iagent-test 为 Phase 4 条件子阶段（主 agent 内联调用）。内联执行前先读 handoff 包「## 制品清单」并按锚点增量读取，回执写 readScope；「## 阶段结论」5 列（tokens 可用时填 tokens=<数值>，不可得填 —）。
+分级执行：Phase 1 / Phase 2 提案 / Phase 3 验证 / Phase 4 实现 / Phase 5 归档均由主 agent 内联（`executionMode=inline`）；仅 `spec-bulk-archive` 内部并行单元保留子代理。验证**一次**完成（合并 D1-D10 + B1-B7 清单），MUST NOT 派生验证子代理。兼容窗：propose / apply / verify / archive 的旧 `subagent` 回执记 deprecation WARN 并允许推进，下个 major 收紧。增量复验：验证 FAIL 后**在同一主上下文**按 fixDiff 增量重跑清单（≤3 次），禁止新开验证代理、禁止重读未改动制品与全量重读；禁止 resume 充当复验（contextReplay=true 记 WARN）。只读验证以固定清单 + 每条结论 `文件:行` 证据 + 报告落盘承担可信度。iagent-test 为 Phase 4 强制子阶段（主 agent 内联调用；降级二分：能力缺失 strict 阻断 / 配置关闭显式 degraded）。内联执行前先读 handoff 包「## 制品清单」并按锚点增量读取，回执写 readScope；「## 阶段结论」5 列（tokens 可用时填 tokens=<数值>，不可得填 —）。
 
 ## Phase 1: Exploration（委派 iagent-spec-explore，交互阶段）
 
@@ -172,7 +172,7 @@ Phase 4 继承 `iagent-spec-apply` 的**测试执行门**并**自动**通过 —
 - **3 次尝试后仍失败** → 暂停并向用户报告。MUST NOT 静默通过，MUST NOT 进入归档
 - 项目无测试框架 → 记录 WARN，跳过该门，继续
 
-**自动单测补齐子阶段（强制，受 `testGate.autoGenerate` 控制）**：编译检查放行后、测试执行门前，由主 agent 内联调用 `iagent-test` 对变更范围内未被 `[测试]` 任务覆盖的有行为改动文件补齐单测（不测清单判定 MUST 留痕；自动管线中其测试计划门自动采用推荐计划并记 WARN）。MUST NOT 静默增删 `tasks.md` 任务；缺口测试只登记到 handoff 包 `## 已产出`。`testGate.autoGenerate=false` 时跳过并记录配置关闭；`iagent-test` 不可用 → WARN + 记录「未发生内联技能调用」，MUST NOT 伪装。内联调用返回后 MUST 在同一用户回合内继续测试门判定。
+**自动单测补齐子阶段（强制）**：编译检查放行后、测试执行门前，由主 agent 内联调用 `iagent-test` 对变更范围内未被 `[测试]` 任务覆盖的有行为改动文件补齐单测（不测清单判定 MUST 留痕；自动管线中其测试计划门自动采用推荐计划并记 WARN）。MUST NOT 静默增删 `tasks.md` 任务；缺口测试只登记到 handoff 包 `## 已产出`。**降级二分（strict / 显式 degraded）**：`testGate.autoGenerate=false`（项目配置显式关闭）→ 显式 degraded：跳过并记录「自动补测已由项目配置关闭」+ WARN，不阻断，MUST NOT 表述为「已测试」；变更范围无可测文件 → 不测清单留痕 + 测试门 `not-applicable` 放行；`iagent-test` 不可用（宿主不支持内联调用且未经显式 degraded 协商）→ **strict 阻断并报告**，记录「本阶段未发生内联技能调用」，MUST NOT 静默跳过、MUST NOT 表述为「已测试」；仅宿主显式协商 degraded 时才降级为跳过 + WARN 透明记录。内联调用返回后 MUST 在同一用户回合内继续测试门判定。
 
 **测试证据**：测试门结束后只读 `.openspec-tmp/pipeline-<change-name>/test-report.md` 的 `**summary**:` 行（`pass` / `not-applicable` / `disabled` 放行；`fail` / 缺失阻断归档），MUST NOT 在 auto-workflow 内另立判定。
 
@@ -182,31 +182,60 @@ Phase 4 继承 `iagent-spec-apply` 的**测试执行门**并**自动**通过 —
 
 一致性门通过后，MUST 由**主 agent 内联**调用 `iagent-spec-verify` skill 校验实现与制品（specs/tasks/design）的一致性（`executionMode=inline` / `independence=self`）；先读 handoff 包，结论含验证结果摘要与可选 `reportPath`；MUST NOT 为新的验证执行派生 Agent 子代理：
 
-- **验证通过** → 在同一用户回合内进入 Phase 5（自动归档）
+- **验证通过** → 在同一用户回合内进入 Phase 5（证据就绪检查 → 归档确认门）
 - **验证失败** → 回到 Phase 4 修复；MUST NOT 进入归档
 - **降级（`iagent-spec-verify` 不可用）**：记录 WARN 并显式记录省略决策（「实现验证由 apply 编译检查 + 归档一致性承担」）—— MUST NOT 静默跳过
 
 - **⛔ EXIT GUARD (强制 — 子代理退出守卫)**：每条**子代理**调度指令（仅 Phase 2 propose / Phase 4 apply）MUST 携带退出守卫 —— 完成分配任务后立即停止并返回回执，MUST NOT 进入 plan 模式 / 设计模式 / 提出后续步骤 / 超出分配范围继续；编排器是唯一有权判停、汇总、推进阶段的角色；子代理 MUST NOT 越权替代编排器做阶段收尾决策
 - **MUST FIRST 先读取 handoff 包**：子代理调度指令 MUST 强制子代理在任何其他动作之前先读 handoff 包（`.openspec-tmp/pipeline-<change-name>/handoff-pack.md`）—— MUST NOT 重读 proposal/specs/design 或重跑包已覆盖的 CodeGraph 查询；仅做增量查询
 
+### 4.5 实现后 review 环节（主 agent 内联，强制）
+
+实现验证桥（§4.4）通过后、Phase 5 归档确认门前，MUST 由主 agent 内联调用 `iagent-review` skill 执行代码审查（`executionMode=inline` / `independence=self`），检查功能实现完整度；MUST NOT 为 review 派发子代理，MUST NOT 静默跳过 review 环节：
+
+- **报告落盘（强制）**：review 结论写入 `.openspec-tmp/pipeline-<change-name>/review-report.md`，文末汇总行 `**summary**: pass|not-applicable|fail`；报告纳入 Phase 5 归档就绪检查（第四证据）
+- **P0/P1 问题** → 回 Phase 4 修复循环（与编译 / 测试共用既有 ≤3 预算）后重跑 review；未收束（P0/P1 未修复）MUST NOT 进入归档确认门；3 次耗尽仍未收束 → 暂停并报告
+- **P2 问题** → 记录到 review 报告，不阻断流程推进
+- **无代码改动**（纯制品 / 文档变更）→ review 判定 `not-applicable` 并留痕，直接进入 Phase 5
+- **`iagent-review` 不可用**（宿主不支持内联调用且未经显式 degraded 协商）→ **strict 阻断并报告**，记录「本阶段未发生内联技能调用」，MUST NOT 静默跳过、MUST NOT 伪装为「已审查」；仅宿主显式协商 degraded 时才降级为本地深度复查 + WARN 透明记录
+
 ---
-## Phase 5: Auto-Archive
+## Phase 5: Auto-Archive（自动执行至归档确认门）
 
-**Phase 5 在 Phase 4（自动实现）完成、编译证据放行（§5.1）、测试门通过、且实现验证桥（§4.4）通过或已显式省略后自动执行。无额外用户确认。**
+**Phase 5 在 Phase 4（自动实现 + 测试门 + 实现验证桥）完成后自动执行证据就绪检查（§5.1），随后呈现 ⛔ 归档确认门（§5.2）—— 用户确认功能完成后才执行归档（§5.3）；拒绝/含糊 = 返回实现阶段（不归档）。**
 
-### 5.1 自动归档前置（只读编译证据）与执行归档
+### 5.1 归档前置证据就绪检查（只读）
 
-**证据就绪（唯一判据，强制）**：进入归档前读取 `.openspec-tmp/pipeline-<change-name>/` 下三份证据的 `**summary**:` 行（handoff 包 `## 阶段结论` 的 `compile` / `test` / `conformance` 行仅作辅助，不一致时以证据文件为准并记 WARN）：
+**证据就绪（唯一判据，强制）**：进入归档确认门前读取 `.openspec-tmp/pipeline-<change-name>/` 下四份证据的 `**summary**:` 行（handoff 包 `## 阶段结论` 的 `compile` / `test` / `conformance` / `review` 行仅作辅助，不一致时以证据文件为准并记 WARN）：
 
 - `.openspec-tmp/pipeline-<change-name>/compile-report.md`：`status ∈ {pass, not-applicable, disabled}` → 放行；后两者记 WARN 并说明「未执行编译检查」，MUST NOT 表述为「编译检查通过」
 - `.openspec-tmp/pipeline-<change-name>/test-report.md`：`status ∈ {pass, not-applicable, disabled}` → 放行；后两者记 WARN 并说明未执行测试
 - `.openspec-tmp/pipeline-<change-name>/conformance-report.md`：`status=pass` → 放行
-- 任一证据 `fail`、缺失或汇总行无法解析 → **MUST NOT 自动归档**：暂停并向用户报告（含期望路径与失败原因），回到 Phase 4 修复
-- 本技能 MUST NOT 自行执行编译、测试或一致性命令，MUST NOT 因证据缺失而询问用户是否跳过
+- `.openspec-tmp/pipeline-<change-name>/review-report.md`：`summary ∈ {pass, not-applicable}` → 放行；`fail`（P0/P1 未收束）或缺失 → 阻断，回 §4.5 修复循环
+- 任一证据 `fail`、缺失或汇总行无法解析 → **MUST NOT 自动归档**：暂停并向用户报告（含期望路径与失败原因），回到 Phase 4 修复，MUST NOT 呈现归档确认门
+- 本技能 MUST NOT 自行执行编译、测试、一致性或 review 命令，MUST NOT 因证据缺失而询问用户是否跳过
 
-就绪（验证桥通过或已显式省略）后：
+### 5.2 归档确认门（⛔ GATE，用户确认功能完成）
+
+四份证据就绪后 **MUST 暂停**呈现归档确认门（门白名单类别：归档桥 `archive-confirmation`，不可豁免；门语义对齐 `iagent-workflow` §5.1 蓝本），等待用户确认，呈现内容包含：
+
+- **实现摘要** —— 变更做了什么（proposal 变更摘要）、主要实现文件与任务完成情况
+- **三类证据** —— compile / test / conformance 证据的 summary 状态与关键数字
+- **测试结果** —— 范围内测试通过情况（新增与既有）
+- **review 结论** —— review-report.md 的 summary 与 P2 记录（如有）
+
+出口（MUST NOT 提供「跳过归档」选项）：
+
+- **确认功能完成** → 进入 §5.3 执行归档，不再追加其它停点
+- **拒绝** → 返回实现阶段继续（不归档）
+- **含糊回复**（未给出具体确认项）→ 按拒绝处理，MUST NOT 猜测意图为确认
+- **等待期间用户中断** → 保持暂停不归档；resume 时重新呈现本门（确认门无超时跳过）
+
+### 5.3 执行归档（门确认后自动）
+
+确认后立即执行：
 - 宣告：明确标题「## Auto-Archive Phase」
-- 展示：「实现完成 —— 自动进入归档阶段」
+- 展示：「功能已确认 —— 自动进入归档阶段」
 - 构造归档上下文，包含：
   - `change-name` —— 当前变更名（跳过变更选择提示）
   - **Stage Envelope** —— handoff 包路径 / `compile-report.md` 路径 / `resume`；MUST NOT 内联制品正文
@@ -214,7 +243,7 @@ Phase 4 继承 `iagent-spec-apply` 的**测试执行门**并**自动**通过 —
 - 全部归档步骤在内联执行的 `iagent-spec-archive` 协议内部自动完成
 - **回执续跑**：内联执行结果 SHALL 含 `archivePath` / `specsSynced`；父级校验通过后完成流程
 
-### 5.2 自动归档错误处理
+### 5.4 自动归档错误处理
 
 - **delta spec 同步冲突**：以冲突标记自动合并（非阻断）
 - **CONTEXT.md 同步失败**：记录 warning 并继续（非阻断）
@@ -222,7 +251,7 @@ Phase 4 继承 `iagent-spec-apply` 的**测试执行门**并**自动**通过 —
 - **探索记忆同步失败**：记录 warning 并继续（非阻断）
 - **归档目标已存在**：以错误失败，建议改名
 
-### 5.3 完成
+### 5.5 完成
 
 自动归档完成后：
 - 展示含全部阶段的完整完成摘要
@@ -245,11 +274,12 @@ Phase 4 继承 `iagent-spec-apply` 的**测试执行门**并**自动**通过 —
 - **只读直通不覆盖澄清门** —— grill L1-L5 需求澄清门仍等待用户确认
 - **自动验证** —— 提案后无需用户提示即自动验证
 - **验证通过后自动实现** —— Phase 4 以 `gate-skip=design-confirmation` 自动执行（跳过 iagent-spec-apply Step 5.5 门；`auto-mode=true` 为兼容写法）
-- **实现完成后自动归档** —— Phase 5 自动执行，变更名由上下文传入（遵循 iagent-spec-archive 技能模板）
+- **实现完成后经归档确认门再归档** —— Phase 5 证据就绪后 MUST 暂停呈现归档确认门（⛔ GATE，门白名单类别 archive-confirmation），用户确认功能完成后再执行归档；拒绝/含糊 = 返回实现阶段（不归档），MUST NOT 提供「跳过归档」选项
 - **继承并自动通过测试执行门** —— Phase 4 执行 iagent-spec-apply §9 且仅限变更范围内；范围内失败自动重试至多 3 次，随后暂停并报告；既有的变更范围外失败仅 WARN；项目无测试框架 → WARN 并跳过
-- **自动单测补齐不得跳过** —— 测试门前 MUST 对未被 `[测试]` 任务覆盖的有行为改动文件补齐单测（`testGate.autoGenerate` 默认 true）；不测清单判定 MUST 留痕，MUST NOT 静默增删 tasks.md 任务
+- **自动单测补齐不得跳过** —— 测试门前 MUST 对未被 `[测试]` 任务覆盖的有行为改动文件补齐单测（`testGate.autoGenerate` 默认 true）；不测清单判定 MUST 留痕，MUST NOT 静默增删 tasks.md 任务；`iagent-test` 不可用（未经显式 degraded 协商）→ strict 阻断，配置关闭 → 显式 degraded 留痕，MUST NOT 表述为「已测试」
 - **实现一致性门不得跳过** —— 测试门后 MUST 运行 `iagent spec conformance --strict` 并校验 `rulesRead`；`fail` / 证据缺失 MUST NOT 进入验证桥或归档
-- **三类证据缺失即阻断** —— 归档前 MUST 读取 `compile-report.md` / `test-report.md` / `conformance-report.md` 的汇总行；任一缺失或 `fail` MUST NOT 归档
+- **实现后 review 环节不得跳过** —— 实现验证桥通过后、归档确认门前 MUST 由主 agent 内联调用 `iagent-review` 执行代码审查；报告落盘 `.openspec-tmp/pipeline-<change-name>/review-report.md` 并纳入归档就绪检查；P0/P1 回实现修复循环（共用 ≤3 预算），未收束 MUST NOT 进入归档门；P2 记录不阻断；无代码改动 → `not-applicable` 留痕直通；`iagent-review` 不可用（未经显式 degraded 协商）→ strict 阻断，MUST NOT 静默跳过
+- **三类证据与 review 结论缺失即阻断** —— 归档确认门前 MUST 读取 `compile-report.md` / `test-report.md` / `conformance-report.md` / `review-report.md` 的汇总行；任一缺失或 `fail` MUST NOT 呈现归档确认门
 - **测试门失败时不得静默通过** —— 范围内的测试门失败 MUST 在归档前暂停；全自动语义绝不构成跳过该门或跳过归档阻断的理由
 - **深度复查后直接续跑** —— 全部通过后内联调用 `iagent-proposal-review` 做深度复查（不可用则本地深度复查 + WARN），展示「验证分数 + 复查结论」后**在同一用户回合内**自动转入 Phase 4；MUST NOT 展示需求文档桥、MUST NOT 委派需求文档技能
 - **验证阶段无阻塞门** —— 三父流程的需求文档桥已整体移除；验证阶段 MUST NOT 声明阻塞门，MUST NOT 追加对下一阶段技能的调用确认（宿主权限与 strict/degraded 检查仍独立生效）
