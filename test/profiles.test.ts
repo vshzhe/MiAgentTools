@@ -84,7 +84,7 @@ describe('resolveWorkflows', () => {
         expect(result.workflows).toEqual(['spec-propose', 'spec-verify-proposal']);
     });
 
-    it('DEPS 规则表含 propose/apply/archive/bulk-archive/migration/workflow 套件条目', () => {
+    it('DEPS 规则表含 propose/apply/archive/bulk-archive/migration/workflow/spec-update 套件条目', () => {
         expect(Object.keys(DEPS).sort()).toEqual([
             'auto-workflow',
             'debug',
@@ -94,8 +94,37 @@ describe('resolveWorkflows', () => {
             'spec-archive',
             'spec-bulk-archive',
             'spec-propose',
+            'spec-update',
             'workflow',
         ]);
+    });
+
+    it('spec-update 注入再实现/验证/测试/降级调试四技能（委派面与依赖面一致）', () => {
+        const result = resolveWorkflows(['spec-update']);
+        expect(result.workflows).toContain('spec-update');
+        for (const dep of ['spec-apply', 'spec-verify', 'test', 'debug']) {
+            expect(result.workflows, `缺少注入 ${dep}`).toContain(dep);
+        }
+        expect(result.injected).toEqual([
+            'spec-apply',
+            'spec-verify',
+            'test',
+            'debug',
+            'spec-verify-proposal', // 经 debug ⇒ spec-verify-proposal 传递补全
+        ]);
+        // 全部依赖齐备时不重复注入
+        const explicit = resolveWorkflows([
+            'spec-update',
+            'spec-apply',
+            'spec-verify',
+            'test',
+            'debug',
+            'spec-verify-proposal',
+        ]);
+        expect(explicit.injected).toEqual([]);
+        // 不进默认集：默认安装集规模不变
+        expect(DEFAULT_WORKFLOWS).not.toContain('spec-update');
+        expect(DEPS['spec-update']).toEqual(['spec-apply', 'spec-verify', 'test', 'debug']);
     });
 
     it('project-init 注入两侧生成侧技能（默认集连带补全）', () => {

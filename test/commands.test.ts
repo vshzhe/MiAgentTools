@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 命令层测试：init / list / generate 的端到端行为（基于临时目录）。
  */
 
@@ -19,7 +19,7 @@ let tempRoot: string;
 
 beforeAll(() => {
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'iagent-test-'));
-    // 配置全量 workflows，让 init 装全部 22 个技能（默认集 8 显式 + 生成侧注入 2）
+    // 配置全量 workflows，让 init 装全部 23 个技能（默认集 8 显式 + 生成侧注入 2）
     ensureProjectConfig(tempRoot);
     writeWorkflowsToConfig(tempRoot, getSkillTemplates().map((e) => e.commandId));
 });
@@ -29,10 +29,10 @@ afterAll(() => {
 });
 
 describe('iagent init', () => {
-    it('生成 66 个 SKILL.md（3 工具 × 22 模板）与 44 个指令文件（2 适配器 × 22 模板）', () => {
+    it('生成 69 个 SKILL.md（3 工具 × 23 模板）与 46 个指令文件（2 适配器 × 23 模板）', () => {
         const result = runInit(tempRoot);
-        expect(result.skillsInstalled.length).toBe(66);
-        expect(result.commandsInstalled.length).toBe(44);
+        expect(result.skillsInstalled.length).toBe(69);
+        expect(result.commandsInstalled.length).toBe(46);
         expect(result.skipped.length).toBe(0);
 
         // 技能文件实际存在且内容合法
@@ -53,10 +53,10 @@ describe('iagent init', () => {
     it('重复 init 跳过已存在文件，--force 覆盖', () => {
         const skipped = runInit(tempRoot);
         expect(skipped.skillsInstalled.length).toBe(0);
-        expect(skipped.skipped.length).toBe(110); // 66 技能 + 44 指令已存在
+        expect(skipped.skipped.length).toBe(115); // 69 技能 + 46 指令已存在
 
         const forced = runInit(tempRoot, { force: true });
-        expect(forced.skillsInstalled.length).toBe(66);
+        expect(forced.skillsInstalled.length).toBe(69);
         expect(forced.skipped.length).toBe(0);
     });
 
@@ -148,7 +148,7 @@ describe('3.4 纳管策略提示', () => {
 describe('iagent list', () => {
     it('扫描结果包含 20 个技能且类型解析正确', () => {
         const skills = scanInstalledSkills(tempRoot);
-        expect(skills.length).toBe(22);
+        expect(skills.length).toBe(23);
         const wf = skills.find((s) => s.name === 'iagent-workflow');
         expect(wf?.type).toBe('impl');
         expect(wf?.description).toBeTruthy();
@@ -159,7 +159,7 @@ describe('iagent list', () => {
             total: number;
             skills: { name: string; type: string | null }[];
         };
-        expect(json.total).toBe(22);
+        expect(json.total).toBe(23);
         expect(json.skills.filter((s) => s.type === 'init').length).toBe(3);
     });
 
@@ -270,9 +270,9 @@ describe('workflows 过滤（profile 生效）', () => {
             writeWorkflowsToConfig(root, ['spec-explore']);
             const result = runInit(root, { force: true });
             expect(result.workflowsSource).toBe('user');
-            // 遗留 21 个技能 × 3 工具 = 63，21 个指令 × 2 适配器 = 42
-            expect(result.reconcileOrphans.skills.length).toBe(63);
-            expect(result.reconcileOrphans.commands.length).toBe(42);
+            // 遗留 22 个技能 × 3 工具 = 66，22 个指令 × 2 适配器 = 44
+            expect(result.reconcileOrphans.skills.length).toBe(66);
+            expect(result.reconcileOrphans.commands.length).toBe(44);
             expect(
                 result.reconcileOrphans.skills.some((s) => s.includes('iagent-workflow'))
             ).toBe(true);
@@ -598,7 +598,7 @@ describe('指令白名单继承与会话级权限载体（端到端）', () => {
             getSkillTemplates().map((entry) => [entry.commandId, entry.template.allowedTools])
         );
         const commands = getCommandTemplates();
-        expect(commands.length).toBe(22);
+        expect(commands.length).toBe(23);
 
         for (const { id } of commands) {
             const commandFile = artifactPath('commands', id);
@@ -612,7 +612,7 @@ describe('指令白名单继承与会话级权限载体（端到端）', () => {
 
     it('技能产物与指令产物的 frontmatter 白名单逐对一致（20 对）', () => {
         const skills = getSkillTemplates();
-        expect(skills.length).toBe(22);
+        expect(skills.length).toBe(23);
         for (const { template, commandId } of skills) {
             const skillAllowed = readAllowedTools(
                 fs.readFileSync(artifactPath('skills', template.name.replaceAll('_', '-')), 'utf8')

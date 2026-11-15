@@ -768,6 +768,7 @@ describe('3.6 编排注入面派生与四宿主产物', () => {
             'project-init',
             'spec-apply',
             'spec-propose',
+            'spec-update',
             'workflow',
         ]);
         for (const { template, commandId } of skills) {

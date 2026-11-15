@@ -72,6 +72,10 @@ import {
     getSpecVerifyProposalCommandTemplate,
 } from './workflows/spec-verify-proposal.js';
 import {
+    getSpecUpdateSkillTemplate,
+    getSpecUpdateCommandTemplate,
+} from './workflows/spec-update.js';
+import {
     getProposalReviewSkillTemplate,
     getProposalReviewCommandTemplate,
 } from './workflows/proposal-review.js';
@@ -131,6 +135,7 @@ const WORKFLOW_PAIRS: WorkflowPair[] = [
     { skill: getSpecBulkArchiveSkillTemplate(), command: getSpecBulkArchiveCommandTemplate() },
     { skill: getSpecVerifyChangeSkillTemplate(), command: getSpecVerifyChangeCommandTemplate() },
     { skill: getSpecVerifyProposalSkillTemplate(), command: getSpecVerifyProposalCommandTemplate() },
+    { skill: getSpecUpdateSkillTemplate(), command: getSpecUpdateCommandTemplate() },
 ];
 
 /**

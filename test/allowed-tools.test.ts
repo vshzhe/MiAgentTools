@@ -259,8 +259,8 @@ describe('调用类白名单条目（MCP / Skill 委派 / 子代理派发）', (
             ({ template }) => /codegraph_/.test(template.instructions) || parseEntries(template.allowedTools).includes('mcp__codegraph')
         );
         // 判据自检：命中数不得为 0，否则断言静默空转
-        // 12 = 既有 10 项 + 生成侧套件（frontend/backend-skill-gen 正文含 codegraph_explore）
-        expect(derived.length).toBe(12);
+        // 13 = 既有 10 项 + 生成侧套件（frontend/backend-skill-gen 正文含 codegraph_explore）+ spec-update
+        expect(derived.length).toBe(13);
         for (const { template } of derived) {
             expectCodegraphEntries(template);
         }
@@ -298,6 +298,7 @@ describe('调用类白名单条目（MCP / Skill 委派 / 子代理派发）', (
             'project-init',
             'spec-apply',
             'spec-propose',
+            'spec-update',
             'workflow',
         ]);
 

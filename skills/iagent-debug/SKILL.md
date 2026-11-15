@@ -1,6 +1,6 @@
 ---
 name: iagent-debug
-description: "一站式调试工作流：复现→用 CodeGraph 与能力记忆调查根因→变更关联→带强制回归测试的修复→编译检查→同步提案→验证；触发词\"调试 / debug / 修复 bug / bug 报告 / 复现 / 根因\"；NOT for：新功能开发用 iagent-workflow、单一阶段探索用 iagent-spec-explore"
+description: "一站式调试工作流：复现→用 CodeGraph 与能力记忆调查根因→变更关联→带强制回归测试的修复→编译检查→同步提案→验证；触发词\"调试 / debug / 修复 bug / bug 报告 / 复现 / 根因\"；NOT for：新功能开发用 iagent-workflow、单一阶段探索用 iagent-spec-explore、已实现变更的提案修订用 iagent-spec-update"
 allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(iagent-spec-verify-proposal), Skill(iagent-proposal-review), Skill(iagent-review), Skill(iagent-test)
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）与 iagent-spec-verify-proposal / iagent-proposal-review / iagent-test 技能（test 为条件内联调用）；CodeGraph MCP 可选（不可用时降级 Glob/Grep）。
@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:0961e4f5248e54bba4b1966bd75a6e8f9d22b707d84174a9f8cd5691f43ded9b"
+  generatedFingerprint: "sha256:f71a626fbc100d98931d32cd30fbafbfd7a8f5e3c44b564fb9ac3e5b2a19499e"
 ---
 
 

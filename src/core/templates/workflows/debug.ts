@@ -212,7 +212,7 @@ const GATES_AND_RULES_FULL = `### 7.3 实现后 review 环节（细则）
 export function getDebugSkillTemplate(): SkillTemplate {
     return {
         name: 'iagent_debug',
-        description: '一站式调试工作流：复现→用 CodeGraph 与能力记忆调查根因→变更关联→带强制回归测试的修复→编译检查→同步提案→验证；触发词"调试 / debug / 修复 bug / bug 报告 / 复现 / 根因"；NOT for：新功能开发用 iagent_workflow、单一阶段探索用 iagent_spec_explore',
+        description: '一站式调试工作流：复现→用 CodeGraph 与能力记忆调查根因→变更关联→带强制回归测试的修复→编译检查→同步提案→验证；触发词"调试 / debug / 修复 bug / bug 报告 / 复现 / 根因"；NOT for：新功能开发用 iagent_workflow、单一阶段探索用 iagent_spec_explore、已实现变更的提案修订用 iagent_spec_update',
         instructions: `
 **适用项目护栏（impl 域蒸馏，来源：\`.iagent/config.yaml\` 的 context/rules、\`.iagent/rules/*.md\`、\`CLAUDE.md\`、\`AGENTS.md\`；用 \`iagent rules --json\` 枚举；项目技能用 \`iagent skills --json\` 枚举并记录完整性）。** 未定义项标 **[待确认]**，禁止猜测。
 

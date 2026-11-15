@@ -1,0 +1,3 @@
+schema: spec-driven
+created: 2026-11-14
+goal: "新增 spec-update 能力：变更已实现并测试后的问题修订闭环（探索分析 → 更新提案 → 再实现优化 → 能力测试对比）"

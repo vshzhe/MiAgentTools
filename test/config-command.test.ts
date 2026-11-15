@@ -1,4 +1,4 @@
-﻿/**
+/**
  * config 命令测试：listAllWorkflowIds / runConfigShow / runConfigSet。
  * 交互式 runConfigInteractive 依赖 TTY 与 @inquirer/prompts，跳过单测。
  */
@@ -27,9 +27,9 @@ afterAll(() => {
 });
 
 describe('listAllWorkflowIds', () => {
-    it('返回全部 22 个 workflow id', () => {
+    it('返回全部 23 个 workflow id', () => {
         const ids = listAllWorkflowIds();
-        expect(ids.length).toBe(22);
+        expect(ids.length).toBe(23);
         expect(ids).toContain('project-init');
         expect(ids).toContain('spec-explore');
         expect(ids).toContain('spec-verify-proposal');

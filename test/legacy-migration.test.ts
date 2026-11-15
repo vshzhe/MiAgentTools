@@ -204,13 +204,13 @@ describe('2.1 遗留产物检测与映射表', () => {
         expect(new Set(Object.values(LEGACY_TYPE_RENAME))).toEqual(new Set(SKILL_TYPES.map((t) => t.id)));
     });
 
-    it('workflow id 映射 23 项，映射目标覆盖当前全部指令 id（不可能与注册表漂移）', () => {
+    it('workflow id 映射 24 项，映射目标覆盖当前全部指令 id（不可能与注册表漂移）', () => {
         const currentCommandIds = getSkillTemplates().map((entry) => entry.commandId);
-        expect(currentCommandIds.length).toBe(22);
-        expect(Object.keys(LEGACY_WORKFLOW_ID_MAP).length).toBe(23);
+        expect(currentCommandIds.length).toBe(23);
+        expect(Object.keys(LEGACY_WORKFLOW_ID_MAP).length).toBe(24);
         expect(new Set(Object.values(LEGACY_WORKFLOW_ID_MAP))).toEqual(new Set(currentCommandIds));
         // 目标名去重后 == 当前指令 id 集（genfull 与 workflow 均映射到 workflow）
-        expect(new Set(Object.values(LEGACY_WORKFLOW_ID_MAP)).size).toBe(22);
+        expect(new Set(Object.values(LEGACY_WORKFLOW_ID_MAP)).size).toBe(23);
         // spec 领域段的旧 id 与新 id 相同
         expect(renameLegacyWorkflowId('spec-explore')).toBe('spec-explore');
         // genfull（引导式全流程）已并入 workflow

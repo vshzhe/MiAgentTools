@@ -24,8 +24,8 @@ describe('模板注册表', () => {
     const skills = getSkillTemplates();
     const commands = getCommandTemplates();
 
-    it('内置 22 个技能（9 类类型；release/tools 当前无内置技能）', () => {
-        expect(skills.length).toBe(22);
+    it('内置 23 个技能（9 类类型；release/tools 当前无内置技能）', () => {
+        expect(skills.length).toBe(23);
     });
 
     it('全部技能名以 iagent_ 开头', () => {
@@ -116,7 +116,7 @@ describe('模板注册表', () => {
         expect(counts.get('review')).toBe(3);
         expect(counts.get('test')).toBe(1);
         expect(counts.get('docs')).toBe(2);
-        expect(counts.get('spec')).toBe(7);
+        expect(counts.get('spec')).toBe(8);
     });
 
     it('isSkillType 校验', () => {

@@ -299,6 +299,7 @@ node bin/iagent.js version bump  # 递增版本并写回 package.json / CHANGELO
   `openspec/specs/**`、`explorations/**`、`devdocs/**`、`rules/**`、`config.yaml`、`CONTEXT.md`
   仍由 `openspec/*` 忽略（`openspec/docs/adr/**` 例外放行 —— 决策记录随仓库走）；`.openspec-tmp/`（含 handoff 包）永不进提交面。`iagent init` 只提示该策略，
   MUST NOT 改写业务 `.gitignore`
+- **决策编号分域**：变更制品的决策编号 MUST 按文档分域且不得同形 —— 探索决策 `D<n>`（`exploration.md` §Decisions）与设计决策建议用独立前缀 `DD<n>`（`design.md` §Decisions）；跨文档引用 MUST 写明 `(探索 D<n>)` / `(设计 DD<n>)`，MUST NOT 以裸 `D<n>` 指代另一文档的决策。已归档变更只读（MUST NOT 为改编号回写 `openspec/changes/archive/`）
 - 自定义 iagent 流程为 **Markdown-first**：新变更以 `proposal.md`、`design.md`、
   `specs/<capability>/spec.md`、`tasks.md` 为唯一可编辑真源；CLI `--json` 仅为机器响应，不写回制品。
   技能逐个任务在 `tasks.md` 上勾选；`iagent spec render` 仅保留渲染兼容提示（不再生成/覆盖 tasks.md）。

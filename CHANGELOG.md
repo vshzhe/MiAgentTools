@@ -7,6 +7,22 @@
 
 ## [Unreleased]
 
+## [4.14.0] - 2026-11-15
+
+### Added
+
+- 新增 spec 类技能 `iagent-spec-update`（指令 `/iagent:spec-update`）：承载「变更已提案 → 已实现 → 用户已测试」之后**发现问题**的修复闭环，四环节顺序固定（探索分析 → 更新提案 → 再实现优化 → 能力测试对比，MUST NOT 重排）。探索分析按 ADR-0003 双轨（默认轻量差异定位，无结论降级委派 `iagent-debug`，两者皆无结论则输出「根因未定位」且不改任何制品）；更新提案在**同一变更身份**内原地改写 Markdown 制品并追加 `revision.md`（改写前设不可豁免的破坏性改动确认门，归门白名单第 5 类 `destructive-change`；部分失败整体回滚）；再实现委派 `iagent-spec-apply`；能力测试对比产出 `capability-comparison.md`（修复前 / 修复后 / 证据 / 结论，与 `spec-verify` 三维度口径互补）并委派 `iagent-spec-verify` 做一致性验证，结论 FAIL 时不进入归档出口。已归档变更先复制为 `update-<原名>-<YYYYMMDD>`，原归档目录保持不动
+- `src/core/profiles.ts` 新增 `DEPS['spec-update'] = ['spec-apply','spec-verify','test','debug']`（随装补全，委派面与依赖面一致）；`src/core/legacy-migration.ts` 的 `LEGACY_WORKFLOW_ID_MAP` 登记同名透传条目以维持「映射目标集合 == 注册表指令 id 集」不变量
+- `iagent-debug` description 补反向排歧句（NOT for 已实现变更的提案修订，改用 `iagent-spec-update`），仅改路由描述、不改行为
+- 新增 `test/spec-update-skill.test.ts`（27 用例：注册与派生形态 / 旧标识映射表对齐 / 前置阻断 / 复活复制 / 双轨根因 / 破坏性门 / 改写与回滚 / 能力对比 / 四环节顺序与回执 / 依赖注入一致）；`test/profiles.test.ts` 补 `spec-update` 注入断言
+
+### Changed
+
+- 技能与指令总数 22 → 23，既有计数断言同步（templates / template-derivation / template-consistency / skills-parity / commands / config-command / validate-update / generation / uninstall-show / legacy-migration；只改计数与固定文案，不改测试语义）
+- 新增技能不进入 `DEFAULT_WORKFLOWS` 与 `WORKFLOW_PROTOCOLS`，默认安装集规模不变；门白名单仍为 5 类
+- `CONDITIONAL_DELEGATIONS` 登记 `spec-update: ['debug']`（宿主运行时表 + 测试镜像表 `test/command-reference-refs.test.ts`）：Pi 嵌套派发在缺 `debug` 时走正文声明的「根因未定位」降级路径（WARN）而非能力阻断，`spec-apply` / `spec-verify` / `test` 保持无条件必需委派
+- `AGENTS.md` 新增「决策编号分域」约定：探索决策 `D<n>` 与设计决策建议 `DD<n>` 不得同形，跨文档引用须写明 `(探索 D<n>)` / `(设计 DD<n>)`；已归档变更只读，不得为改编号回写 `archive/`
+
 ## [4.13.0] - 2026-11-14
 
 ### Added
@@ -1840,7 +1856,8 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.13.0...HEAD
+[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.14.0...HEAD
+[4.14.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.13.0...v4.14.0
 [4.13.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.12.0...v4.13.0
 [4.12.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.11.0...v4.12.0
 [4.11.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.10.2...v4.11.0

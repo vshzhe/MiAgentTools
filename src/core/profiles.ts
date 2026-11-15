@@ -65,6 +65,9 @@ export const DEPS: Record<string, readonly string[]> = {
     'workflow': ['spec-explore', 'spec-propose', 'spec-verify-proposal', 'proposal-review', 'spec-apply', 'spec-archive'],
     'auto-workflow': ['spec-explore', 'spec-propose', 'spec-verify-proposal', 'proposal-review', 'spec-apply', 'spec-archive'],
     'debug': ['spec-verify-proposal'],
+    // spec-update ⇒ spec-apply（再实现优化）/ spec-verify（三维度一致性验证）/ test（能力测试对比用例）
+    // / debug（轻量差异定位无结论时的降级委派目标）—— 均为正文实际委派目标，随装补全避免死引用
+    'spec-update': ['spec-apply', 'spec-verify', 'test', 'debug'],
 };
 
 /** resolveWorkflows 结果 */

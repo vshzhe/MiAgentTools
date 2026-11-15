@@ -149,6 +149,8 @@ export const LEGACY_WORKFLOW_ID_MAP: Readonly<Record<string, string>> = {
     // 生成侧套件为新增能力（无旧前身）：同名透传保持「映射目标 == 注册表指令 id 集」锁不变
     'frontend-skill-gen': 'frontend-skill-gen',
     'backend-skill-gen': 'backend-skill-gen',
+    // spec-update 为新增能力（无旧前身）：同名透传保持同一映射不变量
+    'spec-update': 'spec-update',
 };
 
 /** 旧 workflow id 改名（表内无此项时原样返回，不丢项） */
