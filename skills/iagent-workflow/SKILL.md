@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:5ff0ed3dbf29b417ad58f616a2368c4e4dc2ecb6bc6760f31450e2ff195c591f"
+  generatedFingerprint: "sha256:8efaa28083f70ea85b10155ff10e7a03f079422db1098877e379bc71521ed963"
 ---
 
 
@@ -74,7 +74,7 @@ Phase 1 SHALL 由主 agent 内联委派阶段 `iagent-spec-explore`（传 `mode=
 
 **⚠️ Phase 1 完成后本阶段立即开始 —— 不停顿、不宣告、不向用户提问。** 下一个动作 MUST 是 Phase 2.0 预迁移验证，MUST NOT 输出「探索完成」类单独消息等待确认。
 
-**TodoWrite 跟踪**：把 Phase 2 事项加入 TodoWrite：
+**任务跟踪**：把 Phase 2 事项加入宿主待办工具（可用时）或文字清单：
 ```
 - [ ] Phase 2: 预迁移验证
 - [ ] Phase 2: 委派 iagent-spec-propose 生成全部制品
@@ -152,7 +152,7 @@ Pending 段含符号时，影响分析始终运行，不询问用户。
 
 **使用 CodeGraph 影响面工具**：
 ```bash
-mcp__codegraph__codegraph_impact --symbol <symbol> --direction upstream --maxDepth 3
+codegraph_impact --symbol <symbol> --direction upstream --maxDepth 3（宿主暴露时可选；缺失时回落 codegraph_explore）
 ```
 
 **多符号并行执行**：识别出两个及以上影响面符号时，把影响面查询并行发起（单轮响应内多个工具调用），而不是逐个串行。全部结果合并进制品的影响面小节；单个符号沿用既有的单次查询行为。
@@ -217,7 +217,7 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 
 **证据与复跑（强制）**：每条结论 MUST 带 `文件:行` 或制品章节锚点，**无证据的结论 MUST NOT 计入通过**；报告 MUST 落盘 `.openspec-tmp/pipeline-<change-name>/verify-report.md`，回执记 `readScope`。FAIL 后在**同一主上下文**按 `fixDiff` 只重跑受影响清单项（≤3），MUST NOT 新开验证代理、重读未改动制品或全量重读；读取范围 MUST FIRST 取 handoff 包「## 制品清单」并按锚点增量读取。
 
-**TodoWrite 跟踪**：把 Phase 3 事项（D1-D10 + B1-B7 清单 / 逐项证据核对 `文件:行` / 验证报告落盘）加入 TodoWrite（逐项清单见 `references/verification-protocol.md`）。
+**任务跟踪**：把 Phase 3 事项（D1-D10 + B1-B7 清单 / 逐项证据核对 `文件:行` / 验证报告落盘）加入宿主待办工具（可用时）或文字清单（逐项清单见 `references/verification-protocol.md`）。
 
 全部制品在 Phase 2.5 生成并校验后，自动进入 Phase 3 验证。
 
@@ -303,151 +303,9 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 - 输出全流程总结
 
 ---
-## Output（工作流输出示例）
+## Output
 
-### 示例 1：提案方式（低复杂度）
-
-```
-## Exploration Phase
-
-**检查点：创建探索文件**
-✓ Created: openspec/explorations/user-auth-explore-001.md
-✓ Verified: File exists and is writable
-✓ Ready to proceed with exploration
-
-Question 1: What authentication methods?
-Your answer: Email/password + OAuth
-→ Recorded in Decisions
-
-Question 2: OAuth providers needed?
-Your answer: Google, GitHub
-→ Recorded in Decisions
-
-[Continues until clear...]
-
-## Exploration Complete ✓
-
-Checks passed — generating proposal directly
-
-## Proposal Phase
-
-**检查点：预迁移验证**
-✓ Verified: openspec/explorations/user-auth-explore-001.md exists
-✓ Validated: File has Background and Decisions sections
-
-**检查点：委派提案生成（Phase 2.3）**
-✓ Skipped complexity evaluation (removed)
-✓ Skipped method selection (removed)
-✓ Delegating iagent-spec-propose (mode=delegated + exploration-file)
-
-**检查点：制品生成（委派 spec_propose）**
-✓ Created change directory: openspec/changes/add-user-auth/
-✓ Delegated skill generated artifacts
-✓ Generated: proposal.md (1/4)
-✓ Generated: specs/auth/spec.md (2/4)
-✓ Generated: design.md (3/4)
-✓ Generated: tasks.md (4/4)
-✓ All artifacts complete
-
-## Verification Phase
-
-Phase 3 验证自动执行，无询问（不因 Propose 方式而询问 [立即验证]/[跳过验证]）
-
-Auto-invoking `iagent-spec-verify-proposal` skill for D1-D5 scoring...
-
-Running 5-dimension verification...
-
-| Dimension | Coverage | Status |
-|-----------|----------|--------|
-| D1: Requirements | 85% | PASS |
-| D2: Technical | 90% | PASS |
-| D3: Tasks | 100% | PASS |
-| D4: Boundaries | 70% | FAIL |
-| D5: Pending | 100% | PASS |
-| D6-D10: 条件维度 | N/A | SKIP（无触发） |
-
-Overall Score: 89% (<90%, FAIL)
-
-D4 auto-fix: adding missing boundary scenarios to specs/auth/spec.md...
-Artifacts updated. Re-running verification...
-
-Re-run Overall Score: 92% (≥90%, PASS) → auto-triggering iagent-proposal-review deep check...
-
-[deep review results displayed]
-
-内联验证（D1-D10 + B1-B7）收束 → 进入实现 + 测试桥（无需求文档桥）
-
-## Verification Complete ✓
-
-All artifacts ready! Proceeding to the Phase 4 implementation bridge...
-```
-
-### 示例 2：直接通过（验证后进入实现 + 测试桥）
-
-```
-## Exploration Phase
-
-**检查点：创建探索文件**
-✓ Created: openspec/explorations/complex-refactor-explore-001.md
-✓ Verified: File exists and is writable
-
-[Complex exploration with multiple modules...]
-
-## Exploration Complete ✓
-
-Checks passed — generating proposal directly
-
-## Proposal Phase
-
-**检查点：预迁移验证**
-✓ Verified: exploration.md exists
-
-**检查点：委派提案生成（Phase 2.3）**
-✓ Skipped complexity evaluation (removed)
-✓ Skipped method selection (removed)
-
-**检查点：制品生成（委派 spec_propose）**
-✓ Created change: openspec/changes/complex-refactor/
-✓ Delegated skill generated artifacts
-✓ Generated: proposal.md (1/4)
-✓ Generated: specs/module1/spec.md (2/4)
-✓ Generated: specs/module2/spec.md (3/4)
-✓ Generated: design.md (4/4)
-✓ All artifacts complete
-
-## Verification Phase
-
-Phase 3 验证自动执行，无询问
-
-Auto-invoking `iagent-spec-verify-proposal` skill for D1-D5 scoring...
-
-Running 5-dimension verification...
-
-| Dimension | Coverage | Status |
-|-----------|----------|--------|
-| D1: Requirements | 92% | PASS |
-| D2: Technical | 95% | PASS |
-| D3: Tasks | 100% | PASS |
-| D4: Boundaries | 90% | PASS |
-| D5: Pending | 100% | PASS |
-| D6-D10: 条件维度 | N/A | SKIP（无触发） |
-
-Overall Score: 95% (≥90%, PASS) → auto-triggering iagent-proposal-review deep check...
-
-[deep review results displayed]
-
-Deep review complete.
-内联验证（D1-D10 + B1-B7）收束 → 进入实现 + 测试桥（无需求文档桥）
-
-## Verification Complete ✓
-
-All artifacts ready! Proceeding to the Phase 4 implementation bridge...
-```
-
-**检查点日志格式**：
-- 每个检查点展示：✓/✗ 状态、文件路径、校验结果
-- 失败展示：✗ 操作、错误原因、恢复选项
-- 所有操作均记录日志以便追溯
+完成时展示：变更名 / 制品清单 / 验证分数与证据摘要 / 实现桥结论；检查点日志按 Phase 3/4 的任务跟踪记录即可。
 
 ---
 ## 跨平台注意事项
@@ -459,6 +317,7 @@ All artifacts ready! Proceeding to the Phase 4 implementation bridge...
 
 ## Guardrails
 
+- **无需求文档桥**：MUST NOT 展示需求文档桥、MUST NOT 生成需求文档、MUST NOT 委派需求文档技能；需要时请按需单独调用 iagent-requirement-doc。
 - **不要跳过追问** - 一直问到真正清晰为止
 - **冲突时不要自动推进** - 1.6 一致性检查通过（一致性直通）时阶段自动推进；仅在检测到硬冲突时才询问用户
 - **只读操作直接执行** - 文件读取、CodeGraph 查询与分析步骤（Semgrep、影响面分析）无需征得用户确认即可运行

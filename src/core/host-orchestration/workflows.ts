@@ -200,7 +200,7 @@ export const WORKFLOW_PROTOCOLS: Readonly<Record<string, WorkflowProtocol>> = {
     },
     'auto-workflow': {
         workflowId: 'auto-workflow',
-        // 自动管线：需求文档桥已移除；VERIFY / APPLY / ARCHIVE 均无阻塞门
+        // 自动管线：需求文档桥已移除；VERIFY / APPLY 无阻塞门，ARCHIVE 声明 archive-confirmation
         phases: [EXPLORE_PHASE, PROPOSE_PHASE, VERIFY_PHASE, AUTO_APPLY_PHASE, AUTO_ARCHIVE_PHASE],
     },
     debug: {

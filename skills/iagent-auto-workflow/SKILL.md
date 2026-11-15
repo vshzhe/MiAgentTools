@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:9e6a6e836a333a402f9fb875a0e44fc39caa02d205c8b159830f0966c2c8978f"
+  generatedFingerprint: "sha256:17b91f9daed33e82636675e71d0f34f1d7ca6b8489be5d3d907d68a2e80573d3"
 ---
 
 
@@ -69,7 +69,7 @@ Phase 1 SHALL 由主 agent 内联委派阶段 `iagent-spec-explore`（传 `mode=
 
 Pending 段含符号时，逐个符号运行影响分析：
 ```bash
-mcp__codegraph__codegraph_impact --symbol <symbol> --direction upstream
+codegraph_impact --symbol <symbol> --direction upstream（宿主暴露时可选；缺失时回落 codegraph_explore）
 ```
 
 **多符号并行执行**：识别出两个及以上影响符号时，在单轮回复中并行发起影响查询（多个工具调用）。全部结果合并写入制品的对应影响段；单个符号维持现有的单次查询行为。
@@ -161,43 +161,28 @@ Phase 2 的探索文件迁移与全部制品生成 SHALL 由主 agent 内联执�
 - **子代理阻塞**（`blockedGate` / `blockedReason`）：呈现门 / 决策并等待用户；确认后写账本或 `userDecision` 并以 `resume=true` 重委派
 - **用户中断**：完成当前批次，其余任务标记为未完成，然后暂停
 
-### 4.3 测试执行门（继承自 iagent-spec-apply §9，自动通过）
+### 4.3 继承 `iagent-spec-apply` 的**测试执行门**（自动通过）
 
-Phase 4 继承 `iagent-spec-apply` 的**测试执行门**并**自动**通过 —— 全自动管线 MUST NOT 跳过该门，也 MUST NOT 把它当作「无需确认因此无需跑测试」：
+Phase 4 继承 `iagent-spec-apply` 的测试执行门并自动通过：**仅变更范围内**；范围内测试失败自动修复重跑至多 3 次；**自动单测补齐子阶段（强制）**；**降级二分（strict / 显式 degraded）**；不测清单留痕；MUST NOT 委派需求文档技能；范围、out-of-scope WARN、无测试框架 WARN 跳过、`test-report.md` 汇总行口径**以该技能 §9 为唯一源**，本技能不复述。MUST NOT 跳过该门，MUST NOT 在 auto-workflow 内另立判定。
 
-- 范围：**仅变更范围内** —— 本次变更 `[测试]` 任务产出的测试，以及覆盖被改文件的既有测试
-- **范围内测试通过** → 自动通过并进入 Phase 5
-- **变更范围外的既有失败** → 仅报告 WARN；MUST NOT 计入本次变更的失败，MUST NOT 阻断
-- **范围内测试失败** → 自动修复并重跑，至多 3 次尝试（与编译检查同一预算）
-- **3 次尝试后仍失败** → 暂停并向用户报告。MUST NOT 静默通过，MUST NOT 进入归档
-- 项目无测试框架 → 记录 WARN，跳过该门，继续
+**自动单测补齐**：编译检查放行后、测试门前，由主 agent 内联调用 `iagent-test` 补齐未被 `[测试]` 任务覆盖的有行为改动文件；不测清单判定留痕；缺口只登记 handoff `## 已产出` 与 `test-report.md`。`testGate.autoGenerate=false` → 显式 degraded 留痕，记录「自动补测已由项目配置关闭」；`iagent-test` 不可用 → strict 阻断；MUST NOT 表述为「已测试」。
 
-**自动单测补齐子阶段（强制）**：编译检查放行后、测试执行门前，由主 agent 内联调用 `iagent-test` 对变更范围内未被 `[测试]` 任务覆盖的有行为改动文件补齐单测（不测清单判定 MUST 留痕；自动管线中其测试计划门自动采用推荐计划并记 WARN）。MUST NOT 静默增删 `tasks.md` 任务；缺口测试只登记到 handoff 包 `## 已产出`。**降级二分（strict / 显式 degraded）**：`testGate.autoGenerate=false`（项目配置显式关闭）→ 显式 degraded：跳过并记录「自动补测已由项目配置关闭」+ WARN，不阻断，MUST NOT 表述为「已测试」；变更范围无可测文件 → 不测清单留痕 + 测试门 `not-applicable` 放行；`iagent-test` 不可用（宿主不支持内联调用且未经显式 degraded 协商）→ **strict 阻断并报告**，记录「本阶段未发生内联技能调用」，MUST NOT 静默跳过、MUST NOT 表述为「已测试」；仅宿主显式协商 degraded 时才降级为跳过 + WARN 透明记录。内联调用返回后 MUST 在同一用户回合内继续测试门判定。
-
-**测试证据**：测试门结束后只读 `.openspec-tmp/pipeline-<change-name>/test-report.md` 的 `**summary**:` 行（`pass` / `not-applicable` / `disabled` 放行；`fail` / 缺失阻断归档），MUST NOT 在 auto-workflow 内另立判定。
+**测试证据**：只读 `.openspec-tmp/pipeline-<change-name>/test-report.md` 的 `**summary**:` 行；`pass` / `not-applicable` / `disabled` 放行，`fail` / 缺失阻断归档。测试门失败时不得静默通过，MUST NOT 静默通过，MUST NOT 进入归档；范围内的测试门失败 MUST 在归档前暂停。
 
 ### 4.4 实现验证桥（主 agent 内联，强制）
 
-**实现一致性门（前置，强制）**：测试门通过后，主 agent MUST 运行 `iagent spec conformance --change "<name>" --strict --json` 并写 `conformance-report.md`；校验三层覆盖（Requirement/Scenario→任务、勾选任务→产出证据、Scenario→`[测试]` 任务）与回执 `rulesRead` 对规则源 `exists=true` 集合的覆盖。`fail` / 证据缺失 → 暂停并报告，MUST NOT 进入验证桥或归档。
+**实现一致性门（前置）**：测试门通过后运行 `iagent spec conformance --change "<name>" --strict --json` 并写 `conformance-report.md`；`fail` / 证据缺失 → 暂停，MUST NOT 进入验证桥或归档。
 
-一致性门通过后，MUST 由**主 agent 内联**调用 `iagent-spec-verify` skill 校验实现与制品（specs/tasks/design）的一致性（`executionMode=inline` / `independence=self`）；先读 handoff 包，结论含验证结果摘要与可选 `reportPath`；MUST NOT 为新的验证执行派生 Agent 子代理：
+一致性门通过后，主 agent 内联调用 `iagent-spec-verify` 校验实现与制品（`executionMode=inline` / `independence=self`），先读 handoff 包；结论含验证摘要与可选 `reportPath`。验证通过 → Phase 5；失败 → 回 Phase 4 修复；技能不可用 → 记录 WARN 与省略决策，MUST NOT 静默跳过。
 
-- **验证通过** → 在同一用户回合内进入 Phase 5（证据就绪检查 → 归档确认门）
-- **验证失败** → 回到 Phase 4 修复；MUST NOT 进入归档
-- **降级（`iagent-spec-verify` 不可用）**：记录 WARN 并显式记录省略决策（「实现验证由 apply 编译检查 + 归档一致性承担」）—— MUST NOT 静默跳过
-
-- **⛔ EXIT GUARD (强制 — 子代理退出守卫)**：每条**子代理**调度指令（仅 Phase 2 propose / Phase 4 apply）MUST 携带退出守卫 —— 完成分配任务后立即停止并返回回执，MUST NOT 进入 plan 模式 / 设计模式 / 提出后续步骤 / 超出分配范围继续；编排器是唯一有权判停、汇总、推进阶段的角色；子代理 MUST NOT 越权替代编排器做阶段收尾决策
-- **MUST FIRST 先读取 handoff 包**：子代理调度指令 MUST 强制子代理在任何其他动作之前先读 handoff 包（`.openspec-tmp/pipeline-<change-name>/handoff-pack.md`）—— MUST NOT 重读 proposal/specs/design 或重跑包已覆盖的 CodeGraph 查询；仅做增量查询
+- **⛔ EXIT GUARD（子代理调度）**：仅 Phase 2 propose / Phase 4 apply 的子代理调度指令携带退出守卫；子代理完成即返回回执，MUST NOT 进入 plan / 设计模式或越权推进阶段。
+- **MUST FIRST 读 handoff 包**：子代理先读 `.openspec-tmp/pipeline-<change-name>/handoff-pack.md`，再做增量查询。
 
 ### 4.5 实现后 review 环节（主 agent 内联，强制）
 
-实现验证桥（§4.4）通过后、Phase 5 归档确认门前，MUST 由主 agent 内联调用 `iagent-review` skill 执行代码审查（`executionMode=inline` / `independence=self`），检查功能实现完整度；MUST NOT 为 review 派发子代理，MUST NOT 静默跳过 review 环节：
+P0/P1 未修复 → strict 阻断并报告并回 Phase 4；P2 问题记录不阻断。
 
-- **报告落盘（强制）**：review 结论写入 `.openspec-tmp/pipeline-<change-name>/review-report.md`，文末汇总行 `**summary**: pass|not-applicable|fail`；报告纳入 Phase 5 归档就绪检查（第四证据）
-- **P0/P1 问题** → 回 Phase 4 修复循环（与编译 / 测试共用既有 ≤3 预算）后重跑 review；未收束（P0/P1 未修复）MUST NOT 进入归档确认门；3 次耗尽仍未收束 → 暂停并报告
-- **P2 问题** → 记录到 review 报告，不阻断流程推进
-- **无代码改动**（纯制品 / 文档变更）→ review 判定 `not-applicable` 并留痕，直接进入 Phase 5
-- **`iagent-review` 不可用**（宿主不支持内联调用且未经显式 degraded 协商）→ **strict 阻断并报告**，记录「本阶段未发生内联技能调用」，MUST NOT 静默跳过、MUST NOT 伪装为「已审查」；仅宿主显式协商 degraded 时才降级为本地深度复查 + WARN 透明记录
+实现验证桥通过后、Phase 5 归档确认门前，主 agent 内联调用 `iagent-review`（`executionMode=inline` / `independence=self`）；报告落盘 `.openspec-tmp/pipeline-<change-name>/review-report.md`，汇总行 `**summary**: pass|not-applicable|fail`，纳入归档就绪检查。P0/P1 回 Phase 4 修复循环（与编译/测试共用 ≤3 预算），未收束 MUST NOT 进入归档门；P2 记录不阻断；无代码改动 → `not-applicable` 留痕。`iagent-review` 不可用（未经显式 degraded 协商）→ strict 阻断，MUST NOT 伪装修复完成。
 
 ---
 ## Phase 5: Auto-Archive（自动执行至归档确认门）
@@ -206,14 +191,7 @@ Phase 4 继承 `iagent-spec-apply` 的**测试执行门**并**自动**通过 —
 
 ### 5.1 归档前置证据就绪检查（只读）
 
-**证据就绪（唯一判据，强制）**：进入归档确认门前读取 `.openspec-tmp/pipeline-<change-name>/` 下四份证据的 `**summary**:` 行（handoff 包 `## 阶段结论` 的 `compile` / `test` / `conformance` / `review` 行仅作辅助，不一致时以证据文件为准并记 WARN）：
-
-- `.openspec-tmp/pipeline-<change-name>/compile-report.md`：`status ∈ {pass, not-applicable, disabled}` → 放行；后两者记 WARN 并说明「未执行编译检查」，MUST NOT 表述为「编译检查通过」
-- `.openspec-tmp/pipeline-<change-name>/test-report.md`：`status ∈ {pass, not-applicable, disabled}` → 放行；后两者记 WARN 并说明未执行测试
-- `.openspec-tmp/pipeline-<change-name>/conformance-report.md`：`status=pass` → 放行
-- `.openspec-tmp/pipeline-<change-name>/review-report.md`：`summary ∈ {pass, not-applicable}` → 放行；`fail`（P0/P1 未收束）或缺失 → 阻断，回 §4.5 修复循环
-- 任一证据 `fail`、缺失或汇总行无法解析 → **MUST NOT 自动归档**：暂停并向用户报告（含期望路径与失败原因），回到 Phase 4 修复，MUST NOT 呈现归档确认门
-- 本技能 MUST NOT 自行执行编译、测试、一致性或 review 命令，MUST NOT 因证据缺失而询问用户是否跳过
+进入归档确认门前，只读 `.openspec-tmp/pipeline-<change-name>/` 下四份证据的 `**summary**:` 行：`compile-report.md`（`{pass, not-applicable, disabled}` 放行，后两者记 WARN 且不得表述为通过）、`test-report.md`（同上）、`conformance-report.md`（`pass` 放行）、`review-report.md`（`pass|not-applicable` 放行）；任一 `fail`、缺失或不可解析 → 暂停并报告，MUST NOT 呈现归档确认门、MUST NOT 自动归档。本技能不执行编译/测试/一致性/review 命令，也不询问用户是否跳过。证据文件完整路径：`.openspec-tmp/pipeline-<change-name>/compile-report.md` / `.openspec-tmp/pipeline-<change-name>/test-report.md` / `.openspec-tmp/pipeline-<change-name>/conformance-report.md` / `.openspec-tmp/pipeline-<change-name>/review-report.md`；后两者记 WARN 并说明「未执行编译检查」，MUST NOT 表述为「编译检查通过」；任一 fail、缺失或无法解析 → 暂停并向用户报告。
 
 ### 5.2 归档确认门（⛔ GATE，用户确认功能完成）
 
@@ -260,46 +238,19 @@ Phase 4 继承 `iagent-spec-apply` 的**测试执行门**并**自动**通过 —
 ---
 ## Guardrails
 
-- **不要跳过追问** —— 一直问到真正清晰为止
-- **MUST 在探索前校验提示词** —— 委派的 spec_explore（delegated）提示词校验门是强制检查点：清晰输入一句话复述理解后直通；不明确输入须先做提示词优化并等待用户确认或修改，未确认前 MUST NOT 推进到后续步骤
-- **全自动语义不得跳过澄清门** —— 委派的 spec_explore 提示词门是澄清门（确认 WHAT），管线为全自动不构成跳过理由；基线确认是自动化的起点
-- **不得在确认门上死锁** —— 委派的 spec_explore 提示词门有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续），不得反复要求确认
-- **持久化提示词基线** —— 原始提示词与确认后的基线一并写入探索文件 `## 提示词基线` 段；基线变更 MUST 回到委派的 spec_explore 提示词门重新确认
-- **MUST 产出功能流程图** —— 委派的 spec_explore 流程最终确认门是强制检查点：探索分析完成后 MUST 产出探索文件 `## 功能流程图` 段（Mermaid + 节点清单）并执行流程最终确认门；确认前 MUST NOT 进入完成检测，MUST NOT 把未确认流程图当作 propose 锚点
-- **全自动语义不得跳过流程确认门** —— 委派的 spec_explore 流程最终确认门是确认门（确认流程基准），管线为全自动不构成跳过理由；流程基准的确认是自动化的前置条件
-- **不得在流程门上死锁** —— 委派的 spec_explore 流程确认门有四条出口（确认 / 修改 / 拒绝后记录未确认状态并按原理解继续 / 显式授权按推断继续），拒绝时 propose 降级为仅凭 exploration.md、verify 节点覆盖度维度 SKIP，不得反复要求确认
-- **MUST NOT 在 tasks 中静默补流程图节点** —— 发现遗漏节点 MUST 回到委派的 spec_explore 更新流程图并重新经用户确认，MUST NOT 在 tasks.md 中静默补节点
-- **硬冲突时不得自动推进** —— 1.6 一致性检查通过时阶段自动推进（一致性直通）；仅在检测到硬冲突时询问用户
-- **只读操作直接执行** —— 文件读取、CodeGraph 查询与分析步骤（影响分析）无需用户确认即可运行
-- **只读直通不覆盖澄清门** —— grill L1-L5 需求澄清门仍等待用户确认
-- **自动验证** —— 提案后无需用户提示即自动验证
-- **验证通过后自动实现** —— Phase 4 以 `gate-skip=design-confirmation` 自动执行（跳过 iagent-spec-apply Step 5.5 门；`auto-mode=true` 为兼容写法）
-- **实现完成后经归档确认门再归档** —— Phase 5 证据就绪后 MUST 暂停呈现归档确认门（⛔ GATE，门白名单类别 archive-confirmation），用户确认功能完成后再执行归档；拒绝/含糊 = 返回实现阶段（不归档），MUST NOT 提供「跳过归档」选项
-- **继承并自动通过测试执行门** —— Phase 4 执行 iagent-spec-apply §9 且仅限变更范围内；范围内失败自动重试至多 3 次，随后暂停并报告；既有的变更范围外失败仅 WARN；项目无测试框架 → WARN 并跳过
-- **自动单测补齐不得跳过** —— 测试门前 MUST 对未被 `[测试]` 任务覆盖的有行为改动文件补齐单测（`testGate.autoGenerate` 默认 true）；不测清单判定 MUST 留痕，MUST NOT 静默增删 tasks.md 任务；`iagent-test` 不可用（未经显式 degraded 协商）→ strict 阻断，配置关闭 → 显式 degraded 留痕，MUST NOT 表述为「已测试」
-- **实现一致性门不得跳过** —— 测试门后 MUST 运行 `iagent spec conformance --strict` 并校验 `rulesRead`；`fail` / 证据缺失 MUST NOT 进入验证桥或归档
-- **实现后 review 环节不得跳过** —— 实现验证桥通过后、归档确认门前 MUST 由主 agent 内联调用 `iagent-review` 执行代码审查；报告落盘 `.openspec-tmp/pipeline-<change-name>/review-report.md` 并纳入归档就绪检查；P0/P1 回实现修复循环（共用 ≤3 预算），未收束 MUST NOT 进入归档门；P2 记录不阻断；无代码改动 → `not-applicable` 留痕直通；`iagent-review` 不可用（未经显式 degraded 协商）→ strict 阻断，MUST NOT 静默跳过
-- **三类证据与 review 结论缺失即阻断** —— 归档确认门前 MUST 读取 `compile-report.md` / `test-report.md` / `conformance-report.md` / `review-report.md` 的汇总行；任一缺失或 `fail` MUST NOT 呈现归档确认门
-- **测试门失败时不得静默通过** —— 范围内的测试门失败 MUST 在归档前暂停；全自动语义绝不构成跳过该门或跳过归档阻断的理由
-- **深度复查后直接续跑** —— 全部通过后内联调用 `iagent-proposal-review` 做深度复查（不可用则本地深度复查 + WARN），展示「验证分数 + 复查结论」后**在同一用户回合内**自动转入 Phase 4；MUST NOT 展示需求文档桥、MUST NOT 委派需求文档技能
-- **验证阶段无阻塞门** —— 三父流程的需求文档桥已整体移除；验证阶段 MUST NOT 声明阻塞门，MUST NOT 追加对下一阶段技能的调用确认（宿主权限与 strict/degraded 检查仍独立生效）
-- **门账本双条件** —— 仅在流程基准确认 **且** 验证 PASS + 深度复查收束后写 `design-confirmation`；未满足时 MUST NOT 写账本、MUST NOT 传 `gate-skip`，暂停并报告
-- **FAIL 不进入实现** —— 验证 FAIL 或 B1-B7 未收束时 MUST NOT 进入 Phase 4
-- **回执续跑** —— 每个委派阶段返回有效回执后 MUST 在同一用户回合内继续下一阶段；MUST NOT 以回执结束回合；回执 MUST NOT 作为面向用户的最终消息（用户可见至多一行进度），停点前 MUST 引用门白名单的类别 id 或锚点 id
-- **子代理数据共享** —— 只传 Stage Envelope（路径 + 结构化字段），MUST NOT 内联制品正文或完整 SKILL.md；子代理先读 handoff 包，回执只含 Stage Receipt（≤40 行 / ≤2KB）；blocked 时用 `blockedGate` / `blockedReason` + `resume=true`
-- **MUST 先建探索文件再追问** —— Phase 1 检查点为强制
-- **MUST 迁移前校验文件** —— Phase 2 检查点为强制
-- **MUST 迁移失败时保留源文件** —— 绝不丢失用户数据
-- **MUST NOT 提供方式选择** —— Phase 2 直接委派 propose 生成
-- **Phase 2 MUST 遵循 Markdown-first 协议** —— 内联生成 MUST 遵循项目侧制品协议 `.iagent/rules/spec.md`（缺失时以本步内联要点为准并记 WARN，MUST NOT 阻断）：写入 Markdown 真源（proposal.md / specs/**/*.md / design.md / tasks.md）→ `iagent spec validate --change "<name>"` → 校验失败则修正 Markdown 并重跑；校验不可用则产出 WARN
-- **先探索代码库** —— 提问前先看代码库能否回答该问题
-- **给出推荐** —— 每个问题都附 AI 的推荐
-- **实时更新文件** —— 每轮交互后即时写入探索文件
-- **使用结构化格式** —— Background、Questions、Decisions、Pending 段
-- **展示量化评分** —— 验证结果包含覆盖率百分比
-- **注入能力记忆** —— Phase 1 在存在时读取 specs/<capability>/explorations.md
-- **用 CodeGraph 扫描其他项目** —— 探索上下文含其他项目路径时，由探索阶段主 agent 用 CodeGraph 的 projectPath 参数串行扫描；失败时降级为 Glob/Grep
-- **不丢失探索内容** —— 即使放弃探索文件也保留（除非被删除）
-- **MUST NOT 进入 plan 模式** —— 子代理完成分配任务后 MUST NOT 进入 plan 模式 / 设计模式 / 提出后续步骤；Phase 4 的门承载参数仅跳过设计确认门，MUST NOT 免除退出守卫或共享资源协议
-- **MUST FIRST 读取共享 handoff 包** —— 子代理 MUST 先读 `.openspec-tmp/pipeline-<change-name>/handoff-pack.md` 再做增量查询；MUST NOT 绕过包重读 proposal/specs/design 或重跑已覆盖的 CodeGraph 查询
+- **不要跳过追问** —— 一直问到真正清晰为止。
+- **提示词门与流程门是强制检查点** —— spec_explore 的提示词门 / 流程最终确认门各有四条出口，不得死锁；全自动语义不构成跳过理由。
+- **流程基准是唯一锚点** —— 确认后的功能流程图供 propose/verify 使用；遗漏节点回 explore 更新并重新确认，MUST NOT 在 tasks 静默补节点。
+- **只读操作直接执行** —— 文件读取、CodeGraph 查询与影响分析无需确认；只读直通不覆盖澄清门。
+- **验证一次内联完成** —— D1-D10 + B1-B7 一次跑完，每条结论带 `文件:行` 证据；FAIL 同上下文按 fixDiff 增量重跑 ≤3，禁止新开验证代理或全量重读。
+- **门账本双条件** —— 流程基准确认且验证 PASS + 深度复查收束后才写 `design-confirmation`；未满足时不得写账本、不得传 `gate-skip`。
+- **FAIL 不进入实现** —— 验证 FAIL 或 B1-B7 未收束时 MUST NOT 进入 Phase 4。
+- **Phase 4 只跳过设计确认门** —— 共享资源协议、退出守卫与其余门照常生效。
+- **测试门 / 自动补测 / 一致性门 / review 不得跳过** —— 证据缺失或 `fail` 阻断归档；判定口径以子技能为唯一源。
+- **归档确认门不可跳过** —— 四份证据就绪后呈现归档门；拒绝/含糊回实现阶段，不提供「跳过归档」选项。
+- **回执续跑** —— 每个委派阶段回执是中间状态，父级在同一用户回合内继续；回执不作为最终消息；停点前引用门白名单类别 id 或锚点 id。
+- **子代理数据共享** —— 只传 Stage Envelope（路径 + 结构化字段）；子代理先读 handoff 包；回执 ≤40 行 / ≤2KB；blocked 用 `blockedGate` / `blockedReason` + `resume=true`。
+- **MUST 先建探索文件再追问** —— Phase 1 检查点；迁移前校验，迁移失败保留源文件。
+- **Phase 2 不提供方式选择** —— 直接内联 propose；制品遵循 Markdown-first。
+- **MUST NOT 进入 plan 模式** —— 子代理完成分配任务后立即返回回执；MUST FIRST 读 handoff 包。
 

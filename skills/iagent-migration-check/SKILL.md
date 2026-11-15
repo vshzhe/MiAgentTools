@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: review
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:c177c88badc584fdbb77eb599d19ad425e632e4a0a390f1042276dcebf1b3fcf"
+  generatedFingerprint: "sha256:7738af31406d247d72d258b0687fdd0747bd3477de76ddcdce2395a329225ca3"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
@@ -91,7 +91,7 @@ metadata:
 3. 将分析结果写入该层的对比文档。
 4. 回读该文档，确认其含真实数据（Step 7）。
 
-使用 **TodoWrite 工具**跟踪六层以及问题清单与摘要，仅在某层回读验证通过后才标记该层完成。
+使用**宿主待办工具（可用时）**跟踪六层以及问题清单与摘要；无待办工具时以文字清单跟踪，仅在某层回读验证通过后才标记该层完成。
 
 ### 技术栈探测（一次，在 Layer 1 之前）
 

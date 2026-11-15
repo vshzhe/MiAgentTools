@@ -31,6 +31,7 @@
 | 2026-11-12 | refactor-project-init-skill-split | project-init | project-init 第 11 步技能蒸馏内嵌单模板：不可单独调用、串行慢、生成范围粗。[含测试] |
 | 2026-11-13 | improve-verify-review | spec | 验证链补齐三类能力点：待实现功能覆盖 / 影响范围一致性 / 提案↔实现一致性（并入既有维度）。[含测试] |
 | 2026-11-14 | improve-workflow-skills-flow | workflow | 三父编排技能（workflow/auto-workflow/debug）实现后链路统一强制化：测试强制子阶段、实现后 review 环节、auto-workflow 归档确认门。[含测试] |
+| 2026-11-15 | improve-skill-token-and-host-parity | skills | 技能 token 体积双预算、auto-workflow 去重、宿主工具词中立化 [含测试] |
 
 ---
 
@@ -43,12 +44,12 @@
 | spec | 5 | improve-proposal-validation-and-spec-ref (2026-11-03), improve-archive-index-monthly (2026-11-08), improve-task-ref-dedup (2026-11-08), improve-impl-conformance-and-test-gate (2026-11-09), improve-verify-review (2026-11-13) |
 | continuation | 1 | improve-continuation-and-codegraph-resilience (2026-11-11) |
 | debug | 1 | feat-debug-dual-track-entry (2026-11-03) |
-| skills | 1 | add-project-skill-integration (2026-11-09) |
+| skills | 2 | add-project-skill-integration (2026-11-09), improve-skill-token-and-host-parity (2026-11-15) |
 | workflow | 2 | improve-compile-gate-and-archive-readonly (2026-11-01), improve-workflow-skills-flow (2026-11-14) |
 | archive | 1 | improve-archive-name-collision (2026-11-11) |
 | project-init | 1 | refactor-project-init-skill-split (2026-11-12) |
 
 ---
 
-*更新时间: 2026-11-14*
+*更新时间: 2026-11-15*
 | 2026-11-15 | add-spec-update-capability | spec | 新增 spec 类技能 iagent-spec-update：已实现变更在测试暴露问题后的修订闭环（探索分析 → 原地更新提案 + revision.md → 再实现优化 → 修复前后能力测试对比），双轨根因定位 + 不可豁免破坏性改动确认门 + 写前快照回滚。 [代码/测试/使用说明] |

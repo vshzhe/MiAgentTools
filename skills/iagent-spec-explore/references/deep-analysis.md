@@ -61,32 +61,32 @@
 Semgrep MCP 为可选增强：不可用时该分析跳过并记录，不阻塞工作流。
 
 ```bash
-# Use MCP tool for security scanning
-mcp__plugin_semgrep_semgrep__semgrep_scan --code-files <paths>
+# 宿主暴露 Semgrep MCP 时使用；不可用时跳过并记录，不阻断
+semgrep_scan --code-files <paths>
 
-# Or for findings from platform:
-mcp__plugin_semgrep_semgrep__semgrep_findings --repos <repo> --issue-type ISSUE_TYPE_SAST
+# 或从平台获取 findings（宿主暴露时）：
+semgrep_findings --repos <repo> --issue-type ISSUE_TYPE_SAST
 ```
 
 **架构分析（CodeGraph）**:
 ```bash
 # Use symbols from 1.2.1 base scan results (already searched)
-# Find callers/callees for deeper understanding
-mcp__codegraph__codegraph_callers --symbol <symbol>
-mcp__codegraph__codegraph_callees --symbol <symbol>
+# Find callers/callees for deeper understanding（宿主暴露时可选）
+codegraph_callers --symbol <symbol>
+codegraph_callees --symbol <symbol>
 
 # Build context after questioning (task description now clearer)
-mcp__codegraph__codegraph_context --task <description>
+codegraph_context --task <description>
 ```
 
 **业务分析（CodeGraph）**:
 ```bash
 # Use symbols from 1.2.1 base scan results (already searched)
 # Build context from task description (after questioning, now clearer)
-mcp__codegraph__codegraph_context --task <business-flow>
+codegraph_context --task <business-flow>
 
 # Deep exploration of business logic
-mcp__codegraph__codegraph_explore --query <topic>
+codegraph_explore --query <topic>
 ```
 
 #### 分析结果写入探索文件

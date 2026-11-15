@@ -489,42 +489,12 @@ ${renderDelegationModeContract()}
    - **降级二分（strict / 显式 degraded）**：\`testGate.autoGenerate=false\`（项目配置显式关闭）→ 显式 degraded：跳过并在证据记「自动补测已由项目配置关闭」+ WARN，不阻断，MUST NOT 表述为「已测试」；项目无测试框架 → WARN 跳过并记 \`not-applicable\`（不测判定留痕）；\`iagent_test\` 不可用（宿主不支持内联调用且未经显式 degraded 协商）→ **strict 阻断并报告**，记录「本阶段未发生内联技能调用」，MUST NOT 继续测试门、MUST NOT 静默跳过、MUST NOT 表述为「已测试」；仅宿主显式协商 degraded 时才降级为跳过 + WARN 透明记录
 
 9. **测试执行门** ⚠️ 强制（仅限变更范围内）
-   - 在编译检查（§8）之后运行。编译失败是硬错误；测试失败属于另一类问题（存量红灯测试、断言不匹配、环境问题）—— 这正是两道门分开、MUST NOT 合并为一道的原因。§8 MUST 保持其 \`-DskipTests\`/\`compile\` 语义；测试执行由本门负责。
-
-   **9.1 探测测试命令** —— 基于 §8.4 命中的构建描述符（同一项目生态）：
-   - Java-Maven：\`mvn test\`（仅跑选定类时用 \`-Dtest=...\` 限定范围）
-   - Java-Gradle：\`gradle test\`
-   - Java-Ant：\`ant test\`
-   - TypeScript/Node：\`pnpm test\` / \`npm test\`
-   - Go：\`go test ./...\`  |  Rust：\`cargo test\`
-   - 项目中未探测到测试框架 → 记录 WARN，跳过本门并继续（非阻塞）
-
-   **9.2 确定变更范围** —— 需要运行的测试集为：
-   - 本变更 \`[测试]\` 任务产出的测试文件（从 \`tasks.md\` 读取其 \`Spec Ref\` / 文件路径）
-   - 覆盖本变更所修改文件的既有测试文件（按镜像包路径 / 命名约定匹配，如 \`UserServiceImpl\` → \`UserServiceImplTest\`）
-
-   **9.3 运行变更范围测试** —— 只执行 §9.2 的范围。不得把全量测试套件的结果作为通过/失败判据。
-
-   **9.4 判定**
-   - **范围内测试全部通过** → 记录并进入 §10
-   - **变更范围外的存量失败** → 仅作为 WARN 报告。MUST NOT 计为本变更的失败，MUST NOT 阻塞流程（存量红灯套件很常见；以全量套件为判据会让本门不可用，并促使用户绕过它）
-   - **变更范围内的失败** → 进入失败处理分支（§9.5）
-
-   **9.5 范围内失败处理**
-   - 自动修复并重跑，最多 3 次（与 §8.7 相同的重试预算）。区分：测试代码有误 → 修测试；生产代码有缺陷 → 修实现（按 \`.iagent/rules/coding-rules.md\`）
-   - 3 次后仍有失败：暂停并向用户报告。MUST NOT 把对应任务标为 \`[x]\`，MUST NOT 进入归档
-   - 若必须收窄或简化测试的预期行为才能通过 → 适用范围蔓延护栏：标 **[待确认]**，说明差异并询问用户
-
-   **9.6 测试门证据与报告** —— 写 \`.openspec-tmp/pipeline-<change-name>/test-report.md\`：九列固定 \`change\` / \`command\` / \`exitCode\` / \`passCount\` / \`failCount\` / \`status\` / \`scope\` / \`timestamp\` / \`reason\`，文末 \`**summary**: status=<pass|fail|not-applicable|disabled>, commands=<n>, totalPass=<n>, totalFail=<n>\`；非执行终态用 \`-\` 占位并写固定原因「未探测到测试框架」。向 handoff 包 \`## 阶段结论\` 追加 \`test\` 行。汇总覆盖范围、范围内通过/失败数、范围外存量失败（WARN）与覆盖率数据（见 \`iagent_test\` §5.1）。
-
-   **9.7 实现一致性门（硬门）** ⚠️ 强制
-   - **执行**：运行 \`iagent spec conformance --change "<name>" --strict --rules-read "<逗号分隔的已读取规则源>" --json\`
-   - **三层判定**：①规划层每个 Requirement / Scenario 至少一个任务覆盖；②实现层每个已勾选 \`[代码]\` 任务具备产出证据（tasks \`产出:\` / \`git diff\` / handoff 包 \`## 已产出\`）；③测试层每个 Scenario 至少一个 \`[测试]\` 任务覆盖
-   - **规则完整性**：回执 \`rulesRead\` MUST 覆盖 \`iagent rules --json\` 中 \`exists=true\` 的源；存在但未读 → \`rules-not-read\`
-   - **技能完整性**：回执 \`skillsRead\` MUST 覆盖配置中 \`phases\` 含 \`implement\` 或 \`both\` 且 \`exists=true\` 的技能（design-only 不要求）；存在但未读 → \`skills-not-read\`（fail）；已读但 \`validation.status=incomplete\` → \`skills-incomplete\`（WARN，不判 fail）
-   - **证据**：写 \`.openspec-tmp/pipeline-<change-name>/conformance-report.md\`（九列固定 \`change\` / \`requirement\` / \`scenario\` / \`coveringTasks\` / \`taskStatus\` / \`implementationEvidence\` / \`testEvidence\` / \`status\` / \`reason\`，文末 \`**summary**: status=<pass|fail>, requirements=<n>, scenarios=<n>, findings=<n>\`）；向 handoff 包追加 \`conformance\` 行
-   - **终止态**：\`fail\` / 证据缺失 / 汇总行不可解析 → 暂停并报告缺失项（含 \`file:line\` 或任务 id），MUST NOT 进入 Step 10、MUST NOT 给出归档建议；\`skip_specs\` → 输出 \`specs: not-applicable\` 并放行；历史 JSON-only → 只读降级 + WARN
-   - **大变更**：任务数 > 50 时分批生成矩阵并完整落盘，MUST NOT 截断条目
+   - 在编译检查（§8）之后运行；§8 保持 \`-DskipTests\`/\`compile\` 语义，MUST NOT 合并两道门。
+   - **探测**：按 §8.4 命中的构建描述符选择 \`mvn test\` / \`gradle test\` / \`ant test\` / \`pnpm test\` / \`npm test\` / \`go test ./...\` / \`cargo test\`；未探测到测试框架 → WARN 跳过并记 \`not-applicable\`（跳过本门并继续（非阻塞））。
+   - **范围**：本变更 \`[测试]\` 任务产出的测试 + 覆盖被改文件的既有测试；变更范围外的存量失败仅 WARN，MUST NOT 计为本变更的失败。
+   - **范围内失败处理**：范围内失败自动修复并重跑，至多 3 次；仍失败 → 暂停并报告，MUST NOT 把对应任务标为 \`[x]\`、MUST NOT 进入归档。
+   - **证据**：写 \`.openspec-tmp/pipeline-<change-name>/test-report.md\`（九列 + \`**summary**: status=<pass|fail|not-applicable|disabled>, commands=<n>, totalPass=<n>, totalFail=<n>\`），向 handoff 包追加 \`test\` 行。
+   - **实现一致性门**：运行 \`iagent spec conformance --change "<name>" --strict --rules-read "<...>" --json\` 并写 \`conformance-report.md\`；三层覆盖 + \`rulesRead\` / \`skillsRead\` 完整性（\`skills-not-read\` fail / \`skills-incomplete\` WARN）；\`fail\` / 证据缺失 → 暂停，MUST NOT 进入 Step 10。
 
 10. **统一临时工作区清理（保留编译 / 测试 / 一致性证据与 handoff 包）** ⚠️ 强制
    - 编译检查（§8）与测试执行门（§9）都结束后执行**一次**清理；清理对象**只限临时脚本与草稿**（编译校验脚本、临时配置、草稿输出等）
@@ -550,149 +520,6 @@ ${renderDelegationModeContract()}
    - 全部任务完成状态
    - 仅在编译终态放行、测试门通过且一致性门 \`pass\` 时，建议通过 iagent spec archive "<name>" --yes（或 iagent_spec_archive 技能）归档变更
 
-<!-- CMD:SKIP -->
-**Output（实现过程中）**
-
-\`\`\`
-## Implementing: <change-name> (schema: <schema-name>)
-
-⏳ Concurrent execution — Batch 2/4
-   Dispatching 3 sub-agents (groups: 1. Data contract / 3. Template / 4. Tests)
-   Coordinator is centrally managing task checkboxes and failure retries
-- Task 3: <task description> → ✓ Task complete (produced: <file list>)
-- Task 4: <task description> → ✓ Task complete (produced: <file list>)
-- Task 5: <task description> → ✗ failed → serial retry in progress
-
-Batch 3/4: 1 task — serial execution (single-task batch — implemented directly)
-Working on task 6/7: <task description>
-[...implementation happening...]
-✓ Task complete
-\`\`\`
-
-**Output（完成时）**
-
-\`\`\`
-## Implementation Complete
-
-**Change:** <change-name>
-**Schema:** <schema-name>
-**Progress:** 7/7 tasks complete ✓
-
-### Completed This Session
-- [x] Task 1
-- [x] Task 2
-...
-
-Starting compile check...
-
-## 编译检查报告
-
-**编译终态**: pass | 证据：.openspec-tmp/pipeline-<change-name>/compile-report.md
-**命令**: <command>（scope: <range>）→ exitCode 0
-
-| 检查项 | 状态 | 详情 |
-|-------|------|------|
-| Backend Compile | ✓ pass | <command>（exitCode 0） |
-| Backend Lint | ⚠ WARN | eslint: 0 issues（辅助项，不计入编译终态） |
-| Frontend | - 不适用 | 无前端文件（辅助项，不计入编译终态） |
-
-**自动修复**: 2 issues fixed (type annotations, import order)
-
-编译门通过。归档前父流程会读取上述证据文件判定就绪。
-\`\`\`
-
-**Output（编译门放行但未执行：not-applicable / disabled）**
-
-\`\`\`
-## Implementation Complete
-
-**Change:** <change-name>
-**Schema:** <schema-name>
-**Progress:** 7/7 tasks complete ✓
-
-## 编译检查报告
-
-**编译终态**: not-applicable（未执行编译检查：无可编译产物）
-              或 disabled（未执行编译检查：项目级显式禁用）
-**证据**: .openspec-tmp/pipeline-<change-name>/compile-report.md（command / exitCode / scope 记 \`-\`，errorCount / fixedCount 记 \`0\`）
-
-未执行编译检查 —— 这不等于通过。父流程会读取该证据并按对应终态记 WARN 后放行（不阻断归档）。
-\`\`\`
-
-**Output（编译检查失败时）**
-
-\`\`\`
-## Implementation Complete
-
-**Change:** <change-name>
-**Progress:** 7/7 tasks complete ✓
-
-## 编译检查报告
-
-**编译终态**: fail | 证据：.openspec-tmp/pipeline-<change-name>/compile-report.md
-
-| 检查项 | 状态 | 详情 |
-|-------|------|------|
-| Backend Compile | ✗ fail | 3 errors |
-| Backend Lint | ⚠ WARN | eslint: 0 issues（辅助项） |
-| Frontend | - 不适用 | 无前端文件（辅助项） |
-
-**自动修复**: Applied 2 fixes, 3 issues remain
-
-### 需人工处理的问题
-1. \`src/main.ts:45\` - Type mismatch: string vs number
-2. \`src/utils.ts:12\` - Cannot find name 'config'
-3. \`src/api.ts:78\` - Missing return type
-
-**已暂停** —— 编译检查是硬门，没有「跳过检查」出口，也不会给出归档建议。
-修复上述错误后重新执行 apply（测试执行门与归档均未进入）。
-\`\`\`
-
-**Output（暂停：遇到问题时）**
-
-\`\`\`
-## Implementation Paused
-
-**Change:** <change-name>
-**Schema:** <schema-name>
-**Progress:** 4/7 tasks complete
-
-### Issue Encountered
-<description of the issue>
-
-**Options:**
-1. <option 1>
-2. <option 2>
-3. Other approach
-
-What would you like to do?
-\`\`\`
-
-**Output（批任务失败暂停时）**
-
-\`\`\`
-## Implementation Paused — Task Failure
-
-**Change:** <change-name>
-**Schema:** <schema-name>
-**Progress:** 4/7 tasks complete
-
-### Failed Task
-<task description> (batch N — sub-agent failed, serial retry failed)
-
-### Failure Reason
-<description of the failure>
-
-The failed task remains unchecked (\`- [ ]\`) in tasks.md; confirmed tasks in the same batch have been marked complete.
-
-**Options:**
-1. Fix the task manually, then continue with the remaining batches
-2. Provide guidance and retry the task
-3. Stop the apply workflow
-
-What would you like to do?
-\`\`\`
-<!-- /CMD:SKIP -->
 
 **Guardrails**
 - 持续推进任务直至完成或被阻塞
@@ -722,6 +549,10 @@ What would you like to do?
 - ⚠️ **强制**：编译检查为硬门 —— \`fail\` 时 MUST 暂停并报告剩余错误（含 \`file:line\`），MUST NOT 提供「跳过检查」选项、MUST NOT 进入测试执行门、MUST NOT 给出归档建议；用户要求跳过时保持 \`fail\`
 - ⚠️ **强制**：MUST NOT 伪造 \`not-applicable\` / \`disabled\` —— \`disabled\` 仅来自 \`.iagent/config.yaml\` 的 \`compileCheck.enabled: false\`，\`not-applicable\` 仅当运行时未探测到任何可编译产物；\`autoFix=false\` 时首次失败即 \`fail\`
 - ⚠️ **强制**：编译证据 \`compile-report.md\` 与 handoff 包 MUST 保留至归档收尾 —— Step 10 只清理临时脚本与草稿，MUST NOT 删除证据文件
+
+<!-- CMD:SKIP -->
+**实现过程输出**：进度展示以 tasks.md 勾选与批次状态为准；此处不重复示例。
+<!-- /CMD:SKIP -->
 
 **流畅工作流集成**
 

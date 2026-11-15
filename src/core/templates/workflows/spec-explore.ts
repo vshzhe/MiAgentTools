@@ -36,7 +36,7 @@ const FLOWCHART_FULL = buildFlowchartBlock(REQUIREMENT_FLOW_COLUMNS);
 /** 探索强制检查点体系全文（写入 references/exploration-protocol.md，delegated 模式按需读取） */
 const EXPLORATION_PROTOCOL_FULL = `## 强制检查点体系（delegated 模式）
 
-用 **TodoWrite 工具** 初始化跟踪：\`[{"content": "Phase 1: Exploration", "status": "in_progress"}, {"content": "Phase 2: Proposal", "status": "pending"}, {"content": "Phase 3: Verification", "status": "pending"}, {"content": "Phase 4: Implementation", "status": "pending"}, {"content": "Phase 5: Archive", "status": "pending"}]\`
+用**宿主待办工具（可用时）**初始化跟踪；宿主不提供待办工具时以文字清单跟踪：\`[{"content": "Phase 1: Exploration", "status": "in_progress"}, {"content": "Phase 2: Proposal", "status": "pending"}, {"content": "Phase 3: Verification", "status": "pending"}, {"content": "Phase 4: Implementation", "status": "pending"}, {"content": "Phase 5: Archive", "status": "pending"}]\`
 
 ### 1.1 创建探索文件（强制检查点）
 
@@ -79,7 +79,7 @@ const EXPLORATION_PROTOCOL_FULL = `## 强制检查点体系（delegated 模式�
 
 使用 \`path.join()\` 保证跨平台兼容。
 
-**TodoWrite 跟踪**：用 Phase 1 的条目初始化 TodoWrite：
+**任务跟踪**：用 Phase 1 的条目初始化宿主待办工具（可用时）；无待办工具时以文字清单跟踪：
 \`\`\`
 - [ ] Phase 1: 创建探索文件
 - [ ] Phase 1: 项目规则基线
@@ -159,7 +159,7 @@ const EXPLORATION_PROTOCOL_FULL = `## 强制检查点体系（delegated 模式�
 2. **若存在**：读取全部既有术语并注入 exploration.md 术语表 段
    - 所有提问沿用既有术语（不重新定义）
 3. **若不存在**：在 exploration.md 术语表 段记录"无既有术语表 — 将在探索中创建"
-   - 标记 TodoWrite：\`- [ ] Phase 1: 创建 CONTEXT.md\`
+   - 标记任务跟踪项：\`- [ ] Phase 1: 创建 CONTEXT.md\`
 
 **强制检查点**：
 - 进入 1.3 追问之前，系统 MUST 检查 CONTEXT.md 是否存在
@@ -846,32 +846,32 @@ const DEEP_ANALYSIS_FULL = `### 1.4 关键词检测与分析
 Semgrep MCP 为可选增强：不可用时该分析跳过并记录，不阻塞工作流。
 
 \`\`\`bash
-# Use MCP tool for security scanning
-mcp__plugin_semgrep_semgrep__semgrep_scan --code-files <paths>
+# 宿主暴露 Semgrep MCP 时使用；不可用时跳过并记录，不阻断
+semgrep_scan --code-files <paths>
 
-# Or for findings from platform:
-mcp__plugin_semgrep_semgrep__semgrep_findings --repos <repo> --issue-type ISSUE_TYPE_SAST
+# 或从平台获取 findings（宿主暴露时）：
+semgrep_findings --repos <repo> --issue-type ISSUE_TYPE_SAST
 \`\`\`
 
 **架构分析（CodeGraph）**:
 \`\`\`bash
 # Use symbols from 1.2.1 base scan results (already searched)
-# Find callers/callees for deeper understanding
-mcp__codegraph__codegraph_callers --symbol <symbol>
-mcp__codegraph__codegraph_callees --symbol <symbol>
+# Find callers/callees for deeper understanding（宿主暴露时可选）
+codegraph_callers --symbol <symbol>
+codegraph_callees --symbol <symbol>
 
 # Build context after questioning (task description now clearer)
-mcp__codegraph__codegraph_context --task <description>
+codegraph_context --task <description>
 \`\`\`
 
 **业务分析（CodeGraph）**:
 \`\`\`bash
 # Use symbols from 1.2.1 base scan results (already searched)
 # Build context from task description (after questioning, now clearer)
-mcp__codegraph__codegraph_context --task <business-flow>
+codegraph_context --task <business-flow>
 
 # Deep exploration of business logic
-mcp__codegraph__codegraph_explore --query <topic>
+codegraph_explore --query <topic>
 \`\`\`
 
 #### 分析结果写入探索文件
@@ -1325,8 +1325,6 @@ ${renderGateWhitelistSection()}
 ## 项目技能基线（强制检查点）
 
 **规则基线之后、提示词校验门与任何追问之前执行**：运行 \`iagent skills --json\`，按 \`phases\` 含 \`design\` 或 \`both\` 筛选并读取 \`exists=true\` 的技能，把结果写入探索产物 \`## 项目技能基线\`（与 \`## 项目规则基线\` 并列、互不替代）；配置为空记「无技能配置」并继续；读取失败 WARN 且标未读；\`validation.status=incomplete\` → WARN 并列出缺失章节 / 占位符 / 无证据规则数，MUST NOT 当作完整规范使用。设计与排查方案以其为约束，技能与代码冲突时显式呈现（代码事实优先）。
-
----
 
 ---
 

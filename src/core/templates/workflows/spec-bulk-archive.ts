@@ -400,45 +400,7 @@ Resolution: Both implemented. Will apply add-rest-api specs first,
 then add-graphql specs (chronological order, newer takes precedence).
 \`\`\`
 
-**Output（成功）**
-
-\`\`\`
-## Bulk Archive Complete
-
-Archived N changes:
-- <change-1> -> archive/YYYY-MM-DD-<change-1>/
-- <change-2> -> archive/YYYY-MM-DD-<change-2>/
-
-Spec sync summary:
-- N delta specs synced to main specs
-- No conflicts (or: M conflicts resolved)
-Exploration memory: X synced / Y skipped (no exploration file or no delta specs) / Z failed (warning logged)
-CodeGraph: ✓ Synced (or "Not initialized — skipped" or "Sync skipped due to error")
-\`\`\`
-
-**Output（部分成功）**
-
-\`\`\`
-## Bulk Archive Complete (partial)
-
-Archived N changes:
-- <change-1> -> archive/YYYY-MM-DD-<change-1>/
-- <change-2> -> archive/YYYY-MM-DD-<change-2>-2/   ← 同名冲突已唯一化
-
-Skipped M changes:
-- <change-3> (user chose not to archive incomplete)
-
-Failed K changes:
-- <change-4>: subagent timeout after retries
-\`\`\`
-
-**Output（无变更时）**
-
-\`\`\`
-## No Changes to Archive
-
-No active changes found. Create a new change to get started.
-\`\`\`
+**Output**：完成时展示批量归档摘要（成功 / 跳过 / 失败分别列出）。
 
 **Guardrails**
 - 允许任意数量的变更（1 个即可，2 个以上是典型用法）

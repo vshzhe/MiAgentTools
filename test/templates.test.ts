@@ -486,7 +486,7 @@ describe('debug 决策与回归测试职责（4.3）', () => {
         // 4.0 阻塞仅限回退路径 + 多方案
         expect(debugMain).not.toContain('4.0 的修复方案确认门 MUST 阻塞并等待用户确认');
         expect(debugMain).toContain('**方案在 2.4 合并包内一次确认**');
-        expect(debugMain).toContain('4.0 的修复方案确认门才 MUST 阻塞并等待用户确认');
+        expect(debugMain).toContain('修复方案确认门（强制停止）');
         // 唯一方案证据的生效位置为 2.4 合并包
         expect(debugMain).toContain('**唯一方案需证据（生效位置为 2.4 合并包）**');
         expect(debugMain).toContain('唯一性证据 MUST 随 2.4 合并包一并呈现');

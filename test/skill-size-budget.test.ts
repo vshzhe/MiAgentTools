@@ -3,7 +3,7 @@
  *
  * 对应变更 improve-skill-progressive-disclosure 的
  * `template-generation / SKILL.md 渐进披露与尺寸预算`：
- *   1. 主 SKILL.md 行数 ≤ 500（软预算）
+ *   1. 主 SKILL.md 行数 ≤ 500（软预算）且全文字符数 ≤ 20,000（双预算取更严格者）
  *   2. 主文件引用的 references/*.md 均存在于 SkillTemplate.references
  *   3. references 内容非空
  */
@@ -13,6 +13,7 @@ import { getSkillTemplates } from '../src/core/templates/index.js';
 import { generateSkillContent } from '../src/core/command-generation/index.js';
 
 const BUDGET = 500;
+const BUDGET_CHARS = 20000;
 
 describe('SKILL.md 渐进披露与尺寸预算', () => {
     const skills = getSkillTemplates();
@@ -23,6 +24,17 @@ describe('SKILL.md 渐进披露与尺寸预算', () => {
             const lines = generateSkillContent(template, 'snapshot').fileContent.split('\n').length;
             if (lines > BUDGET) {
                 offenders.push(`${template.name}: ${lines}`);
+            }
+        }
+        expect(offenders).toEqual([]);
+    });
+
+    it(`主 SKILL.md 字符数 ≤ ${BUDGET_CHARS}（含 frontmatter）`, () => {
+        const offenders: string[] = [];
+        for (const { template } of skills) {
+            const length = generateSkillContent(template, 'snapshot').fileContent.length;
+            if (length > BUDGET_CHARS) {
+                offenders.push(`${template.name}: ${length}`);
             }
         }
         expect(offenders).toEqual([]);
@@ -47,6 +59,22 @@ describe('SKILL.md 渐进披露与尺寸预算', () => {
                 expect(ref.content.trim().length, `${template.name}/${ref.path}`).toBeGreaterThan(0);
             }
         }
+    });
+
+    it('模板正文与 references 无宿主专属工具词', () => {
+        const forbidden = ['TodoWrite', 'mcp__codegraph__', 'mcp__plugin_semgrep__', 'AskUserQuestion', 'Task 工具', 'Skill 工具'];
+        const offenders: string[] = [];
+        for (const { template } of skills) {
+            const texts = [template.instructions, ...(template.references ?? []).map((ref) => ref.content)];
+            for (const text of texts) {
+                for (const word of forbidden) {
+                    if (text.includes(word)) {
+                        offenders.push(`${template.name}: ${word}`);
+                    }
+                }
+            }
+        }
+        expect(offenders).toEqual([]);
     });
 
     it('iagent_spec_explore 主文件 ≤ 250 行（收紧预算）', () => {

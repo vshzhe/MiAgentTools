@@ -24,7 +24,7 @@
 
 **证据契约（强制）**：每条结论 MUST 带 `文件:行` 或制品章节锚点；**无证据的结论 MUST NOT 计入通过**（标为「缺证据」）。报告 MUST 落盘 `.openspec-tmp/pipeline-<change-name>/verify-report.md`；回执记 `executionMode=inline` / `independence=self` / `readScope`。
 
-**TodoWrite 跟踪清单**（主文件引用本文件时逐项加入 TodoWrite）：
+**任务跟踪清单**（主文件引用本文件时逐项加入宿主待办工具；无待办工具时以文字清单跟踪）：
 
 ```
 - [ ] Phase 3: D1-D10 + B1-B7 清单（内联）

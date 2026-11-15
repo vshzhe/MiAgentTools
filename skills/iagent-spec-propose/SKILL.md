@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:d754bc74fbbbc7233ed5f594812e78e2c5b9a439d99a8cf53fef9bfcdf5a435f"
+  generatedFingerprint: "sha256:4c3798763cf8eb706669c0f361062b4861c0250c153dba640b208f5c740e4182"
 ---
 
 提出新变更 —— 一步创建变更并生成全部制品。
@@ -184,7 +184,7 @@ metadata:
 
 4. **按依赖关系起草制品直至 apply-ready**
 
-   使用 **TodoWrite tool** 跟踪制品创建进度。制品顺序由 `artifacts[].requires` 决定（无待办必需依赖的制品优先）：
+   使用**宿主待办工具（可用时）**跟踪制品创建进度；无待办工具时以文字清单跟踪。制品顺序由 `artifacts[].requires` 决定（无待办必需依赖的制品优先）：
 
    a. **先生成 proposal**（`status: ready` 时）：
       - `iagent spec instructions proposal --change "<name>" --json` 取 `template` 与 `resolvedOutputPath`
@@ -207,7 +207,7 @@ metadata:
    e. **skipped 制品处理（skipped 联动）**：
       - 状态报告为 `skipped` 的制品（如变更声明 `skip_specs` 后的 specs）不创建文件
       - 其依赖视为满足，继续推进后续制品
-      - 在 TodoWrite 中标记该制品为 skipped 而非 done
+      - 在任务跟踪中标记该制品为 skipped 而非 done
 
 5. **展示最终状态（文本展示；非状态来源）**
    ```bash

@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:40aeaa502a4803be68dc754d893e1364ff68b5072bc9e75b2f60a3f53ba34196"
+  generatedFingerprint: "sha256:599f1a4aee20e1ae8999d28c6c2ef29b05eb83b1f28cbc241276da951934c2fa"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
@@ -69,8 +69,6 @@ metadata:
 ## 项目技能基线（强制检查点）
 
 **规则基线之后、提示词校验门与任何追问之前执行**：运行 `iagent skills --json`，按 `phases` 含 `design` 或 `both` 筛选并读取 `exists=true` 的技能，把结果写入探索产物 `## 项目技能基线`（与 `## 项目规则基线` 并列、互不替代）；配置为空记「无技能配置」并继续；读取失败 WARN 且标未读；`validation.status=incomplete` → WARN 并列出缺失章节 / 占位符 / 无证据规则数，MUST NOT 当作完整规范使用。设计与排查方案以其为约束，技能与代码冲突时显式呈现（代码事实优先）。
-
----
 
 ---
 

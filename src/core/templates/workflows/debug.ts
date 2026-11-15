@@ -260,12 +260,12 @@ ${renderGateWhitelistSection()}
 
 **本技能内的执行要求**：
 
-- 门的位置固定在此处：记录 bug 描述之后、TodoWrite 初始化与 Phase 1 复现之前
+- 门的位置固定在此处：记录 bug 描述之后、任务跟踪初始化与 Phase 1 复现之前
 - 缺陷版的「复现步骤」维与 Phase 1 的复现要求直接衔接：维度判定出的期望与实际在 Phase 1 成为复现的验收判据；该维的判定结果同时是 Phase 1 默认轨道判定的输入之一（见 1.0：与 \`reproductionStatus\` 联合判定，无法判定时默认复现优先）
 - 不明确分支的确认门是**澄清门（确认 WHAT）**：用户确认或修改前 MUST NOT 进入 Phase 1，**MUST NOT 凭猜测编写失败测试**
 - 校验结论（原始提示词 + 确认后的提示词基线）写入诊断记录的 \`## 提示词基线\` 段（Phase 6 随根因分析一并持久化到变更 exploration.md）
 
-使用 **TodoWrite 工具**初始化跟踪：
+使用**宿主待办工具（可用时）**初始化跟踪；无待办工具时以文字清单跟踪：
 \`\`\`
 [{"content": "Bug #1: Phase 1 复现", "status": "in_progress"},
  {"content": "Bug #1: Phase 2 排查定位", "status": "pending"},
@@ -276,7 +276,7 @@ ${renderGateWhitelistSection()}
  {"content": "Phase 7: 验证 (覆盖所有修复)", "status": "pending"}]
 \`\`\`
 
-**动态 bug 跟踪**：调试循环继续到新 bug 时，向 TodoWrite 列表追加该 bug 的 P1-P4 阶段条目。每个 bug 的各阶段完成时标记为完成。例如：
+**动态 bug 跟踪**：调试循环继续到新 bug 时，向任务跟踪列表追加该 bug 的 P1-P4 阶段条目。每个 bug 的各阶段完成时标记为完成。例如：
 \`\`\`
 [{"content": "Bug #1: Phase 1 复现", "status": "completed"},
  {"content": "Bug #1: Phase 2 排查定位", "status": "completed"},
@@ -377,78 +377,19 @@ bug 无法用自动化测试捕获时（环境相关行为 / 时序 / 仅 UI）�
 
 ### 2.3.5 变更归属判定（Phase 3 前移，MUST 在 2.4 之前完成）
 
-**⚠️ 强制顺序**：本步在 2.4「诊断 + 方案」合并包**之前**完成 —— 合并包要同时携带方案与归属结论，故 MUST 先产出 \`changeName\` 与 \`affectedSymbols\`，再进入 2.4（原 Phase 3 的位置已前移；子步骤编号沿用 3.x 以保持可追溯）。
-
-在修复之前先判定 bug 归属哪个变更。
-
-#### 3.1 bug 来自进行中的变更
-
-受影响代码属于 \`openspec/changes/\` 下某个未归档变更 → 修复更新**该**变更，Phase 4–7 针对它运作。
-
-#### 3.2 独立 bug（无归属变更）
-
-不属于任何进行中变更 → **自动创建，不询问用户**：立即执行 \`iagent spec new "fix-<module>-<topic>"\`（module 从受影响代码路径推导，kebab-case）—— MUST NOT 提示「是否新建变更？」或等待确认；修复在新变更下进行。
-
-#### 3.3 bug 来自已归档变更
-
-受影响代码属于 \`openspec/changes/archive/\` 下某个变更 → **绝不可修改已归档目录**（归档是历史事实）；新建变更并在其 proposal 中引用原归档变更名以保持可追溯。
-
-#### 3.5 非缺陷退出（诊断报告收尾）
-
-当 Phase 2 结论为行为符合预期时：
-
-- 输出诊断报告：症状、排查路径、证明行为符合预期的代码/测试证据
-- MUST NOT 新建变更，MUST NOT 修改代码
-- 持久化诊断记录并告知用户结论 —— 工作流到此结束
-- **与 1.3 证据不足出口的区别**：本出口是「行为符合预期」，1.3 是「证据不足以判定与修复」—— 结论不同，MUST NOT 互相替代
-
-#### 3.6 变更归属收束（investigate handoff）
-
-- 归属判定完成后 MUST 明确 \`changeName\`（进行中变更名 / 自动新建的 \`fix-<module>-<topic>\` / 新修复变更名）；缺失时 \`fix\` 阶段 MUST NOT 启动并按回执校验规则报告不完整
-- 同步确定 \`affectedSymbols\`（受影响符号清单）；与 \`rootCause\` / \`defectChain\` / \`fixDecision\` 一并构成 \`investigate\` 阶段的 handoff
-- **方案决策同属 investigate**：2.4 合并包内确认的修复方案 SHALL 作为 \`fixDecision\` 随 \`investigate\` 交付 —— 归属与方案同批交付，\`fix\` 阶段 MUST NOT 再制造第二次方案确认停点
-- **摘要作为 handoff 包来源（不重复探查）**：\`changeName\` 确定后，\`investigation-digest\` 的既有结论 SHALL 作为 \`.openspec-tmp/pipeline-<changeName>/handoff-pack.md\` 的 \`## Codebase 摘要\` 节来源之一；MUST NOT 因写入包而重新执行已覆盖的探查，也 MUST NOT 把摘要内容改写为交付物（摘要仍只是流程内缓存）
-
-**回退路径判定（何时不得前移）**：归属判定依赖根因之外的上下文 —— **多变更候选**、**归档来源追溯**、**范围待定** —— 时 MUST NOT 强行给出 \`changeName\`，2.4 退回纯诊断确认，方案改由 4.0 条件门确认（仅多方案触发，见 2.4 末段）。
+按 \`进行中变更 / 新建修复变更 / 已归档来源 / 非缺陷\` 四类判定；**多变更候选**时**先 STOP，呈现候选清单**，产出 \`changeName\` + \`affectedSymbols\`，判定依据写入诊断记录。无法判定时 STOP 询问用户，MUST NOT 猜测；结果随 2.4 诊断包装载；判定结果可为「范围待定」（转人工确认）。
 
 ### 2.4 根因与修复方案诊断确认包（强制检查点，零猜测原则）
 
-**前置**：2.3.5 的变更归属判定已完成（\`changeName\` / \`affectedSymbols\` 已确定）；属回退路径时见本节末尾。
+把根因证据、缺陷链路（\`## 功能流程（缺陷链路）\` Mermaid + 节点清单）与修复方案合并为**一次确认包**：**修复方案**（唯一方案须给出唯一性证据）；多方案逐项列做法/影响/建议，先选根因再确认对应方案。三出口：确认 / 修改后重呈 / | 拒绝 | **终止修复**并输出诊断报告（不改代码、**MUST NOT 自动按推断继续、MUST NOT 标记可归档**）。数据库/schema 变更的既有独立确认仍须执行。缺陷链路图规则见 \`references/flowchart-gate.md\`（执行 2.4 前 MUST 先 Read）。**「诊断 + 方案」单一确认包** 的缺陷链路段名为 \`## 功能流程图\`（缺陷链路变体），异常节点标 🔴异常、根因节点标 🟠根因。拒绝后 MUST NOT 再停一次方案确认门，未完成前 MUST NOT 修改任何代码。
 
-**本步是「诊断 + 方案」单一确认包** —— 同一确认包内**一次确认**同时确认根因与方案；Phase 4 MUST NOT 再停一次方案确认门。
-
-确认包 MUST 同时呈现四部分：**根因证据**（调用链 / 受影响符号 / 复现或证据关联，含 Phase 1 的 \`reproductionStatus\` 与 \`evidenceType\`）；**缺陷链路图**（诊断记录的 \`## 功能流程（缺陷链路）\` 段，细则见下）；**修复方案**（唯一方案须给出唯一性证据 —— 项目约束与 \`文件:行\` 代码证据；多方案逐项给出做法 / 影响（模块 / 兼容性 / 风险）/ 建议）；**变更归属结论**（\`changeName\` + \`affectedSymbols\`）。
-
-诊断结论按根因置信度分两条入口，但**确认包只有一个**：
-
-- **单一高置信根因**：把**根因证据**与**据此推导的缺陷链路**、**修复方案**放在**同一个**确认包中一次呈现，等待**一次**确认
-- **多个候选或置信不足**：先 STOP，呈现候选清单及每个候选的证据与建议，等待用户**选定根因**；选定后在**同一**确认包内呈现据此生成的缺陷链路与修复方案（同一逻辑诊断门内的第二段）。未完成前 MUST NOT 修改任何代码
-- **排查结论为非缺陷**：所报行为为预期 —— 转入非缺陷分支（3.5）
-
-**⛔ GATE: 流程最终确认门（强制停止）—— 「诊断 + 方案」合并确认包** — 呈现后立即结束本次响应并等待确认；出口：确认 / 修改 / 拒绝（三条，见下表）：
-
-| 出口 | 行为 |
-|------|------|
-| 确认 | 同时确认根因与方案 → 进入 Phase 4（修复）；方案涉及数据库 / schema 时仍须执行 4.0 的独立 DDL 确认 |
-| 修改 | 更新根因 / 缺陷链路 / 方案后重新呈现**同一**确认包 |
-| 拒绝 | **终止修复**并输出诊断报告（含排查路径与证据）；MUST NOT 修改代码、MUST NOT 自动按推断继续、MUST NOT 标记可归档 |
-
-**回退路径（两次停点）**：变更归属依赖根因外上下文（多变更候选 / 归档来源追溯 / 范围待定）时，本包退回**纯诊断确认**（根因证据 + 缺陷链路，不含方案），方案改由 4.0 条件门确认；此时 4.0 仅在存在多个可行方案时触发。
-
-**合并只合并确认面，不删除门**：诊断确认门与修复方案条件门仍是门白名单内的两个既有门（每阶段至多 1 个阻塞门），MUST NOT 因合并新增或删除任何门。
-
-**功能流程图（缺陷链路变体，确认包内必需内容）**：固化为诊断记录的 \`## 功能流程（缺陷链路）\` 段（\`## 功能流程图\` 的缺陷链路变体，Mermaid \`flowchart TD\` + 节点清单表）；节点只覆盖「前置条件 → 触发 → 异常 → 根因」，异常节点标 \`🔴异常\`、根因节点标 \`🟠根因\`，每节点 MUST 有 \`文件:行\` 证据；修复与回归测试 MUST 覆盖异常节点 + 根因节点。完整节点 / 边界 / 回改规则见 \`references/flowchart-gate.md\`。
-
-> **完整流程图细则**见 references/flowchart-gate.md。**仅在流程浮现时**读取全文细则。
-
----
 ## Phase 4: 修复（方案判定 → 实施 → 回归测试）
 
 按 iagent_spec_apply 技能的任务执行规范实现修复（变更归属与方案已在 2.3.5 / 2.4 收束）；修复前读取 \`phases\` 含 \`implement\` 或 \`both\` 的项目技能并在修复回执记录 \`skillsRead\` / \`skillsIncomplete\`（design-only 不要求）；一致性门按 implement|both 过滤（\`skills-not-read\` fail / \`skills-incomplete\` WARN）。
 
 ### 4.0 可行修复方案数量判定（回退路径条件门）
 
-**触发条件**：方案在 2.4「诊断 + 方案」合并包内已随根因一次确认时，本步**不停点**，直接进入 4.1；本门仅在**回退路径**下生效，且仅存在多个可行方案时触发。
+**触发条件**：方案在 2.4「诊断 + 方案」合并包内已随根因一次确认时，本步**不停点**，直接进入 4.1；本门仅在**回退路径**下生效，且仅存在多个可行方案时触发（即仅在存在多个可行方案时）。
 
 - **多个可行方案（回退路径）**：**⛔ GATE: 修复方案确认门（强制停止）** — 展示每个方案的做法、影响（模块 / 兼容性 / 风险）与建议，等待用户确认其中一项；用户拒绝或要求修改时 MUST NOT 实现
 - **只有一个明确可行方案**：仅当项目约束与代码证据（引用具体约束与 \`文件:行\`）支持其唯一性时，说明唯一性依据后**直通实现**，不新增方案确认停顿
@@ -474,28 +415,11 @@ bug 无法用自动化测试捕获时（环境相关行为 / 时序 / 仅 UI）�
 
 ### 4.2 强制回归测试（内联调用 \`iagent_test\`）
 
-- 每个修复 MUST 有回归测试，其：修复前 FAIL、修复后 PASS
-- 运行 Phase 1 的复现并确认其现已通过
-- **证据优先轨道的口径（characterization test）**：证据优先轨道下无法用原始复现建立「修复前 FAIL」时，回归测试 SHALL 为 \`characterization test\` —— 先以断言固化当前可观察行为（含缺陷表现），再断言修正后的行为；仍 MUST 满足「修复前 FAIL、修复后 PASS」并覆盖缺陷链路的「异常节点 + 根因节点」
-- **无法建立可执行断言时**：只报告候选根因 / 候选缺陷并停止，MUST NOT 修改代码（回到 1.3 的无证据出口，MUST NOT 以手工步骤验收替代回归测试）
-- 若变更的 \`tasks.md\` 尚未列出对应任务则补上（回归测试任务用 \`[测试]\` 标签并带级别/优先级，如 \`[测试][单元][P0]\`）；保留 \`Spec Ref\`/\`Scenario Ref\`
-
-**编写动作（内联 Skill 调用，强制）**
-
-- 回归测试的编写 SHALL 由主 agent 内联调用 \`iagent_test\`，向其提供：已确认的缺陷链路（2.4）、Phase 1 的复现证据、测试级别/优先级与变更名；Stage Envelope 只传路径与结构化字段，MUST NOT 内联制品正文或完整 SKILL.md；MUST NOT 为回归测试编写派生 Agent 子代理
-- \`iagent_test\` 是测试生成规则（框架探测、项目既有风格对齐、用例设计、反模式防护）的**唯一来源**；debug MUST NOT 再维护与之冲突的内联框架检测或测试生成规则
-- **Phase 1 内联临时测试的边界**：Phase 1 MAY 以内联临时测试建立失败证据，但该测试**不构成**回归测试；MUST NOT 仅以 Phase 1 临时测试充当唯一回归测试 —— 正式回归测试 SHALL 由 \`iagent_test\` 生成或改造落库
-- **能力缺失**：strict 模式无法调用 \`iagent_test\`（技能调用机制不可用）时 SHALL 按能力协商**阻断并报告**；MUST NOT 以"自写 + WARN"绕过。仅在宿主显式协商 degraded 时才允许本地编写，并须透明记录"本阶段未发生内联技能调用"—— MUST NOT 伪装为 strict 内联调用完成
-
-**验收（debug 自身职责，内联不放松）**
-
-- 内联调用返回后 MUST 自行核对：① 修复前 FAIL、修复后 PASS；② 覆盖缺陷链路的「异常节点 + 根因节点」
-- **回执续跑**：内联结果 SHALL 含 \`regressionTests\` / 失败原因（如有）；校验通过后 MUST 在同一用户回合内继续 Phase 5（编译检查），MUST NOT 以回执结束回合；回执 MUST NOT 作为面向用户的最终消息（用户可见至多一行进度）
-- 缺少前置失败证据、修复后仍失败或覆盖不足时，MUST NOT 报告测试验收通过
+每个修复 MUST 附一个修复前失败、修复后通过的测试；回归测试编写 SHALL 内联调用 \`iagent-test\`（传缺陷链路、Phase 1 复现证据、测试级别/优先级与变更名），MUST NOT 在 debug 内复制其框架/用例规则。\`iagent-test\` 不可用（未经显式 degraded 协商）→ strict 阻断，记录「strict 模式无法调用 \`iagent_test\`（技能调用机制不可用）时 SHALL 按能力协商**阻断并报告**」；显式协商 degraded 时才允许本地编写并透明记录。回归测试 MUST 覆盖缺陷链路的异常节点 + 根因节点。\`iagent_test\` 是框架/风格/用例规则的**唯一来源**；debug MUST NOT 再维护与之冲突的内联框架检测或测试生成规则；不可用时记录「未发生内联技能调用」，MUST NOT 以"自写 + WARN"绕过；证据优先轨道的回归测试为 characterization test。MUST NOT 报告测试验收通过：缺少前置失败证据、修复后仍失败或覆盖不足时，验收不通过。
 
 ### 4.3 修复后收束（调试循环的非阻塞出口）
 
-每个 bug 修复并验收后 MAY 提示「如还有其他相关 bug，可直接继续报告」—— 这是**非阻塞提示**，**不构成确认门**、MUST NOT 作为停点、MUST NOT 等待用户回答才继续；用户主动提出新 bug 时向 TodoWrite 追加该 bug 的 P1-P4 并重复循环，未提出时直接进入 Phase 5（编译检查）。MUST NOT 声明门白名单之外的确认门，MUST NOT 因「是否还有 bug」制造自造门。
+每个 bug 修复并验收后 MAY 提示「如还有其他相关 bug，可直接继续报告」—— 这是**非阻塞提示**，**不构成确认门**、MUST NOT 作为停点、MUST NOT 等待用户回答才继续；用户主动提出新 bug 时向任务跟踪列表追加该 bug 的 P1-P4 并重复循环，未提出时直接进入 Phase 5（编译检查）。MUST NOT 声明门白名单之外的确认门，MUST NOT 因「是否还有 bug」制造自造门。
 
 ---
 ## Phase 5: 编译检查 — 汇总所有修复
@@ -579,17 +503,7 @@ Markdown 是唯一真源 —— 直接更新 OpenSpec Markdown 制品；不得�
 
 ### 7.3 验证 PASS → 内联深度复查 → 实现 review → 收束（verify-close）
 
-验证通过后：
-
-1. **由主 agent 内联复查**：由主 agent 内联 调用 \`iagent_proposal_review\` 技能，对提案做只读深度复查（超出 D1-D5 核心 + D6-D10 条件评分的深度一致性与覆盖率审计）。复查内联运行（不弹 [Yes/No] 提示），MUST NOT 派生嵌套子代理（\`executionMode=inline\`）。用户 MAY 中断以跳过；否则照常运行。
-   - **降级（回退）（技能不可用）**：技能未安装或调用失败时，降级为主 agent 内联只读深度复查并 WARN："iagent_proposal_review 技能不可用，降级为内联复查"。MUST NOT 静默跳过深度复查。
-   - 回执 SHALL 含 \`reviewSummary\` / 可选 \`reportPath\`；完整报告 MUST NOT 内联进回执。
-   - **同上下文修复重跑**：复查 FAIL 时在同一主上下文按 \`fixDiff\` 增量重跑，MUST NOT 新开验证代理或全量重读；循环上限 3 次。
-2. **实现后 review（内联调用 \`iagent_review\`，强制）**：深度复查收束后、收束提示之前，由主 agent 内联调用 \`iagent_review\` skill 执行代码审查（\`executionMode=inline\`），检查修复实现完整度；结论写入 \`.openspec-tmp/pipeline-<change-name>/review-report.md\`（文末 \`**summary**: pass|not-applicable|fail\`）——未收束（\`fail\`，P0/P1 未修复）MUST NOT 输出「已可归档」收束提示，回 Phase 4 修复循环（与编译 / 测试共用既有 ≤3 预算，3 次耗尽 → 暂停并报告）；**P2 问题** 记录不阻断；**无代码改动** → \`not-applicable\` 留痕直通；**\`iagent_review\` 不可用**（未经显式 degraded 协商）→ **strict 阻断并报告**，记录「本阶段未发生内联技能调用」，MUST NOT 静默跳过、MUST NOT 伪装为「已审查」，仅显式协商 degraded 时降级为本地深度复查 + WARN（细则见 \`references/gates-and-rules.md\`）
-3. **收束（verify-close）**：深度复查与实现后 review 收束后直接报告该变更已可归档；debug 不自动归档。MUST NOT 展示需求文档桥、MUST NOT 生成需求文档、MUST NOT 携带已移除的需求文档状态字段。
-4. **报告**：显示验证结果、深度复查结论、review 结论与可归档提示：
-   > 「调试完成。验证、深度复查与 review 已通过；需求文档请按需单独调用 iagent-requirement-doc。」
-   > 「已可归档 —— 运行 /iagent:spec-archive。」
+验证 PASS 后：① 主 agent 内联深度复查（D1-D10 + B1-B7，每条结论带 \`文件:行\`）；② 内联调用 \`iagent_review\`，报告落盘 \`review-report.md\`，P0/P1 未修复 → strict 阻断并报告；P2 问题记录不阻断；③ 输出可归档结论（无需求文档桥）。验证/复查失败 → 按 7.2 自动修复循环；内联技能不可用 → strict 阻断或显式 degraded + WARN。
 
 ### 7.4 清理流程级调试工作区（强制）
 
@@ -605,74 +519,40 @@ Markdown 是唯一真源 —— 直接更新 OpenSpec Markdown 制品；不得�
 ---
 ## Output
 
-\`\`\`
-## Debug Workflow: <change-name or diagnosis-only>
+完成时展示：变更名 / 任务进度 / 编译终态与证据 / 测试门汇总 / 一致性门结论 / 修复摘要；循环中额外展示 Per-Bug 摘要。
 
-### Loop Summary
-- Total bugs fixed: N
-- Non-defect findings: M (diagnosis only)
-
-### Per-Bug Summaries
-
-#### Bug #1: <one-line summary>
-- Phase 1: Reproduction: <failing test / procedure / static evidence> — 轨道: 复现优先 / 证据优先；reproductionStatus: <reproduced / not-reproduced / intermittent / static-only>；evidenceType: <failing-test / manual-steps / log-trace / static-proof / review-finding>；confirmed ✗/✓
-- Phase 2: 分级: <轻量路径 A / 深度路径 B —— 信号 (a)(b)(c) 取值、是否降级 yes/no>；根因: <一行摘要>；证据: <调用链 / 符号>
-- Phase 3: Association: <in-progress change / new fix-{module}-<topic> / archived origin (traced)>（归属在 2.4 之前判定）
-- 2.4 诊断 + 方案合并包: 一次确认（fixDecision: <唯一方案 + 唯一性证据 / 多方案选定项>）
-- Phase 4: Fix: <summary>, Regression test: <test reference> — passes ✓
-
-#### Bug #2: <one-line summary>
-- ...
-
-### Phase 5: Compile Check (汇总所有修复)
-- Compile check: PASS / FAIL(n issues) / SKIPPED(disabled)
-
-### Phase 6: Synchronization (汇总所有修复)
-- Markdown updated: proposal.md / design.md / specs/**/*.md / tasks.md — validated with \`iagent spec validate\`
-- All root causes persisted to exploration.md ✓
-- JSON validation: PASS
-
-### Phase 7: Verification (覆盖所有修复)
-- Score: XX% — PASS/FAIL
-- Deep review: completed ✓ / WARN (reason)
-- Review: <pass / not-applicable / fail> — review-report.md
-- Verification close: ready for archive (no requirement-doc bridge)
-
-Ready for \`/iagent:spec-apply\` (fixes already applied) or archive.
-\`\`\`
-
----
 ## Guardrails
 
-- **复现前先校验 bug 报告**：Startup 段的提示词校验门（缺陷五维）是强制前置——清晰描述一句话复述理解后直通；含糊描述须先做提示词优化并等待用户确认或修改，未确认前 MUST NOT 进入 Phase 1，不得凭猜测编写失败测试
-- **确认门不得死锁**：确认门有四条出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续），不得反复要求确认
-- **必须持久化提示词基线**：原始提示词与确认后的基线写入诊断记录 \`## 提示词基线\` 段，Phase 6 随根因分析一并持久化
-- **缺陷链路并入诊断确认包**：2.4 的确认包 MUST 内含根因证据与诊断记录的 \`## 功能流程（缺陷链路）\` 段（Mermaid + 节点清单表），节点**只覆盖缺陷链路**（前置条件 → 触发 → 异常 → 根因），异常节点标 \`🔴异常\`、根因节点标 \`🟠根因\`；同一确认包 MUST 同时内含修复方案（唯一方案给唯一性证据；多方案逐项给出做法 / 影响 / 建议），**一次确认**即同时确认根因与方案；多候选先选根因再确认对应链路与方案；MUST NOT 展开被测功能的完整业务流程
-- **诊断确认包三出口**：确认 / 修改后重呈 / **拒绝 = 终止修复并输出诊断报告**（含排查路径与证据）—— 拒绝时 MUST NOT 修改代码、MUST NOT 自动按推断继续、MUST NOT 标记可归档；不得反复要求确认
-- **修复与回归测试须覆盖异常节点与根因节点**：修复方案与回归测试 MUST 覆盖缺陷链路的「异常节点 + 根因节点」（4.1 / 4.2）；仅覆盖触发节点而未覆盖根因节点时，验证不通过
-- **默认复现优先、证据优先须硬证据（双轨）**：复现优先轨道（默认轨道）以失败测试或用户确认的显式步骤作为修复判据；证据优先轨道 MUST 先满足 1.3 的证据门槛（\`文件:行\` 静态证据 / 日志 / 测试；\`intermittent\` 须至少一条**可重复**证据）；两轨均无硬证据时只报告候选根因 / 候选缺陷清单并停止，MUST NOT 修改代码、MUST NOT 凭假设修复 —— 适用于循环中的**每个** bug
-- **按影响半径分级，而非按便利**：2.2.3.5 的分级信号取值 MUST 可追溯至实测查询结果（主通道 \`codegraph_explore\`；可选通道 \`codegraph_impact\` / \`codegraph_files\`；降级时为 Grep）；MUST NOT 编造"半径小"以走轻量路径；信号缺失或阈值边界 MUST 取深度路径
-- **分级与缺陷链路图解耦**：分级只决定 2.2.4 是否执行，2.4 诊断确认包内的缺陷链路对轻量路径同样**强制产出**，MUST NOT 豁免
-- **升级兜底是触发条件，不是独立步骤**：升级兜底即 2.2.4 扩展后的触发条件之一，MUST NOT 为其新建独立章节或编号（2.2.4 的内容与编号不变）
-- **分级在 CodeGraph 降级时仍生效**：CodeGraph 不可用时分级仍生效（信号 (a) 降级为文件数代理指标，(b)(c) 照常）；MUST NOT 因降级跳过分级，诊断记录 MUST 标注「信号降级」
-- **无需求文档桥**：7.3 在验证 PASS + 深度复查收束后直接收束；MUST NOT 展示生成/跳过桥、MUST NOT 委派需求文档技能
-- **实现后 review 环节不得跳过**：深度复查收束后、verify-close 收束提示之前 MUST 由主 agent 内联调用 \`iagent_review\` 执行代码审查；报告落盘 \`.openspec-tmp/pipeline-<change-name>/review-report.md\`，未收束（P0/P1 未修复）MUST NOT 输出「已可归档」收束提示；P2 记录不阻断；无代码改动 → \`not-applicable\` 留痕直通；\`iagent_review\` 不可用（未经显式 degraded 协商）→ strict 阻断，MUST NOT 静默跳过
-- **回执续跑**：内联调用 \`iagent_test\` / \`iagent_spec_verify_proposal\` / \`iagent_proposal_review\` 返回有效结果后 MUST 在同一用户回合内继续下一阶段；MUST NOT 以回执结束回合；回执 MUST NOT 作为面向用户的最终消息（用户可见至多一行进度）
-- **读取范围**：只读 handoff 包「## 制品清单」命中范围与 Stage Envelope（路径 + 结构化字段），MUST NOT 内联制品正文或完整 SKILL.md，MUST NOT 全量重读；blocked 时用 \`blockedGate\` / \`blockedReason\` + \`resume=true\`
-- **零猜测**：多个候选根因 → STOP 并让用户选择；绝不猜测
-- **方案在 2.4 合并包内一次确认**：可行修复方案（含两个及以上方案，或唯一性证据不足按多方案处理的情形）随「诊断 + 方案」合并包与根因一并确认，MUST NOT 在 Phase 4 再停一次；拒绝或要求修改时 MUST NOT 实现 —— 仅**回退路径**（变更归属依赖根因外上下文）且存在多个可行方案时，4.0 的修复方案确认门才 MUST 阻塞并等待用户确认
-- **唯一方案需证据（生效位置为 2.4 合并包）**：仅当项目约束与代码证据（引用具体约束与 \`文件:行\`）支持唯一性时，唯一性证据 MUST 随 2.4 合并包一并呈现，确认后随包直通；MUST NOT 凭"看起来只有一种"跳过证据；数据库/schema 的既有独立确认仍须执行
-- **修复后循环询问不构成确认门**：概览第 5 条与 4.3 的「可继续报告相关 bug」是**非阻塞提示**，MUST NOT 作为停点、MUST NOT 等待用户回答才继续，MUST NOT 声明门白名单之外的确认门
-- **归档只读**：MUST NOT 修改 \`openspec/changes/archive/\`
-- **回归测试强制**：每个修复都附带一个修复前失败、修复后通过的测试 —— 适用于循环中的**每个** bug；证据优先轨道下该测试为 \`characterization test\`（先固化当前行为断言，再断言缺陷行为被修正），无法建立可执行断言时回到「只报告候选、不修复」
-- **规则基线 / 测试证据 / 一致性门强制**：Phase 2 起点 MUST 枚举并读取全部存在规则源（缺失记「不存在」，未读不得伪装）；Phase 5.5 MUST 写 \`test-report.md\`（范围内失败共享 ≤3 预算）；Phase 6.4 MUST 产出 \`conformance-report.md\`，Phase 7 只读汇总行，任一 \`fail\` / 缺失 MUST NOT 归档（细则见 \`references/gates-and-rules.md\`）
-- **回归测试编写内联调用 \`iagent_test\`**：传入已确认的缺陷链路、Phase 1 复现证据、测试级别/优先级与变更名；\`iagent_test\` 是框架/风格/用例规则的唯一来源，debug MUST NOT 复制其内联框架检测或测试生成规则；strict 无法调用时 MUST 阻断并报告，MUST NOT 以"自写 + WARN"绕过（仅显式协商 degraded 时允许本地编写并透明记录未发生的内联调用）
-- **Phase 1 临时测试不替代回归测试**：Phase 1 MAY 以内联临时测试建立失败证据，但该测试不构成回归测试；正式回归测试 SHALL 由 \`iagent_test\` 生成或改造落库
-- **内联调用绝不放松两条硬要求**：回归测试 MUST 仍覆盖缺陷链路的「异常节点 + 根因节点」，且 MUST 仍修复前 FAIL / 修复后 PASS —— 内联调用返回后自行核对两者
-- **提案同步强制 / 验证绝不跳过**：验证前制品必须反映**所有**已实现的修复；验证无跳过路径 —— 技能 → 内联降级（回退）+ WARN；FAIL → 自动修复循环；PASS → 深度复查（技能 → 内联降级（回退）+ WARN）→ verify-close 收束
-- **循环退出保留已完成工作**：中途退出保留已完成修复，丢弃未完成的当前 bug；循环中的非缺陷发现 MUST NOT 阻塞其他 bug（记录诊断并继续）；用户声明某 bug 需要独立变更时，收尾当前变更并提示单独调试
-- **使用 \`path.join()\`** 处理所有文件路径（跨平台：macOS/Linux/Windows）
-- **术语实时收敛**：排查中确定的术语立即写入 CONTEXT.md
+- **深度复查**：可内联调用 iagent_proposal_review。
+- **流程最终确认门（强制停止）**：探索产物 \`## 功能流程图\` 的流程最终确认门是强制检查点；缺陷链路在 2.4 的 \`## 功能流程图\`（缺陷链路变体）中呈现。
+- **需求文档边界**：MUST NOT 展示需求文档桥、MUST NOT 生成需求文档、MUST NOT 委派需求文档技能；需要时请按需单独调用 iagent-requirement-doc。
+- **非缺陷退出**：MUST NOT 新建变更，MUST NOT 修改代码；输出诊断报告并保留归档来源追溯（进行中 / 新建 / 已归档 / 非缺陷四类）。
+- **合并包口径**：**同一个**确认包中一次呈现，等待**一次**确认；同一**确认包内呈现据此生成的缺陷链路与修复方案；**方案在 2.4 合并包内一次确认**。
+- **回归测试口径**：修复前 FAIL、修复后 PASS；无法建立可执行断言时只报告候选，MUST NOT 凭假设修复。
+- **review 汇总**：报告文末 \`**summary**: pass|not-applicable|fail\`；无代码改动记 \`not-applicable\`；未收束 MUST NOT 输出「已可归档」收束提示。
+- **唯一方案需证据（生效位置为 2.4 合并包）**：唯一性证据 MUST 随 2.4 合并包一并呈现。
+- **无需求文档桥**：MUST NOT 展示需求文档桥；归档走 /iagent:spec-archive，debug 不自动归档。
+- **3.5 非缺陷退出（诊断报告收尾）**：输出诊断报告且不新建变更、不修改代码；与 1.3 证据不足出口的区别：无硬证据时只报告候选、不修复。
+- **默认复现优先、证据优先须硬证据（双轨）**：两轨无硬证据时只报告候选、不修改代码。
+- **探查摘要**：\`.openspec-tmp/debug-<keyword>/investigation-digest.md\` 为流程内缓存（非交付物）；Phase 2 起始**先读摘要**、仅增量查询；MUST NOT 因写入包而重新执行已覆盖的探查；MUST NOT 把摘要内容改写为交付物；修复后受影响范围标 \`已失效（由 <bug> 修复改动代码）\`；摘要可作为 handoff 包 \`## Codebase 摘要\` 节来源之一。
+- **不追加调用确认**：验证通过后直接续跑，不追加"是否调用该技能"的调用确认。
+- **复现前先校验 bug 报告**：缺陷五维提示词门是强制前置；含糊描述先优化并等待确认，未确认前 MUST NOT 进入 Phase 1，不得凭猜测编写失败测试。
+- **确认门不得死锁**：确认门四出口（确认 / 修改 / 拒绝后按原理解继续 / 显式授权按推断继续），不得反复要求确认。
+- **持久化提示词基线**：原始提示词与确认后基线写入诊断记录 \`## 提示词基线\` 段，Phase 6 随根因分析持久化。
+- **缺陷链路并入诊断确认包**：2.4 包 MUST 含根因证据与 \`## 功能流程（缺陷链路）\`（Mermaid + 节点清单，仅覆盖前置条件 → 触发 → 异常 → 根因），并在同一包内确认修复方案；MUST NOT 展开完整业务流程。
+- **诊断确认包三出口**：确认 / 修改后重呈 / 拒绝 = 终止修复并输出诊断报告（不改代码、不按推断继续、不标记可归档）。
+- **默认复现优先、证据优先须硬证据**：复现轨道以失败测试或用户确认步骤为判据；证据轨道须 \`文件:行\` / 日志 / 测试硬证据；两轨均无证据时只报告候选、不修改代码。
+- **按影响半径分级，而非按便利**：2.2.3.5 信号须可追溯（\`codegraph_explore\` / 可选 \`codegraph_impact\` / Grep 降级）；信号缺失或边界取深度路径；分级与缺陷链路图解耦。
+- **无需求文档桥 / review 不得跳过**：验证 PASS + 深度复查收束后直接收束；verify-close 前必须内联 \`iagent_review\`，P0/P1 未收束 MUST NOT 输出可归档结论。
+- **回执续跑 / 读取范围**：内联调用返回后同一用户回合继续；只读 handoff 制品清单与 Stage Envelope，MUST NOT 全量重读。
+- **零猜测**：多个候选根因 → STOP 并让用户选择；绝不猜测；方案在 2.4 合并包内一次确认；唯一方案须附唯一性证据。
+- **修复后循环提示非门**：4.3 的「可继续报告相关 bug」是非阻塞提示，MUST NOT 等待用户回答才继续。
+- **归档只读**：MUST NOT 修改 \`openspec/changes/archive/\`；回归测试强制：每个修复附修复前失败、修复后通过的测试并覆盖异常节点 + 根因节点。
+- **规则基线 / 证据 / 一致性门强制**：Phase 2 起点读全部存在规则源；Phase 5.5 写 \`test-report.md\`；Phase 6.4 写 \`conformance-report.md\`；任一 fail / 缺失 MUST NOT 归档。
+- **Phase 1 内联临时测试的边界**：Phase 1 临时测试仅用于建立失败证据，MUST NOT 仅以 Phase 1 临时测试充当唯一回归测试。
+- **回归测试内联调用 \`iagent-test\`**：传缺陷链路、复现证据、测试级别/优先级与变更名；不可用时 strict 阻断或显式 degraded + 透明记录；Phase 1 临时测试不替代回归测试。
+- **循环退出保留已完成工作**：中途退出保留已完成修复；非缺陷发现不阻塞其他 bug；用户要求独立变更时收尾当前变更。
+- **路径与术语**：\`path.join()\` 处理跨平台路径；排查中确定的术语立即写入 CONTEXT.md。
 `,
         allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), ${CODEGRAPH_CLI}, ${CODEGRAPH_MCP}, ${skillDelegation(['spec_verify_proposal', 'proposal_review', 'review', 'test'])}`,
         type: 'impl',
