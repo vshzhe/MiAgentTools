@@ -187,7 +187,8 @@ iagent update --tools claude
 | 斜杠指令 | 功能 |
 | :--- | :--- |
 | `/iagent:workflow` | 一站式引导工作流（探索→提案→验证→实现→归档） |
-| `/iagent:auto-workflow` | 全自动管线（无人确认门，L1-L5 后自动到底） |
+| `/iagent:auto-workflow` | 全自动管线（探索→提案→验证→自动实现→review→归档；仅 L1-L5 与流程确认门需拍板，归档前经归档确认门） |
+| `/iagent:spec-update` | 修订已实现的变更（测试后发现问题：探索分析→更新提案→再实现→能力测试对比） |
 | `/iagent:debug` | 一站式调试（复现→根因→修复→回归测试） |
 | `/iagent:project-init` | 初始化项目（目录结构、配置、脚手架） |
 | `/iagent:test` | 生成测试（目标驱动：先写用例再通过） |
@@ -196,6 +197,28 @@ iagent update --tools claude
 
 > 查看当前目录用 AI 直接执行 `pwd`；查看已装技能用 `iagent list`；查看工具版本用 `iagent --version`。
 > 完整的技能清单见 [技能使用说明书](docs/skills-manual.md) 或运行 `iagent list`。
+
+### 修订已实现变更：spec-update
+
+变更已实现、用户测试后发现问题时，用 `/iagent:spec-update <变更名> <测试问题描述>` 走**同一变更身份**内的修复闭环（四环节顺序固定，不可重排）：
+
+| 环节 | 做什么 | 出口 / 护栏 |
+| :--- | :--- | :--- |
+| 1 探索分析 | 轻量三方差异定位（变更制品 ↔ 实际实现 ↔ 测试现象） | 无结论降级委派 `iagent-debug`；两者皆无结论 → 「根因未定位」且**不改任何制品** |
+| 2 更新提案 | 原地改写 `proposal.md` / `specs/**` / `design.md` / `tasks.md` + 追加 `revision.md` | 改写前 **⛔ 破坏性改动确认门**（不可豁免）；部分失败整体回滚 |
+| 3 再实现优化 | 委派 `iagent-spec-apply`（任务调度 + 编译检查 + 测试执行关卡） | 不自建实现调度 |
+| 4 能力测试对比 | 产出 `capability-comparison.md`（修复前 / 修复后 / 证据 / 结论）+ 委派 `iagent-spec-verify` | 结论 FAIL 时不进入归档出口 |
+
+前置条件：目标变更存在且 `tasks.md` 已全部勾选（实现已完成）。已归档变更会先复制为
+`update-<原名>-<YYYYMMDD>` 再修订，**原归档目录保持不动**。
+
+```bash
+# 在目标项目的 AI 会话中（Claude Code 示例）
+/iagent:spec-update checkout-flow "下单后库存未扣减，重复提交会产生两次扣减"
+```
+
+> 与 `/iagent:debug` 的边界：孤立缺陷的根因排查用 `debug`；**已实现变更的提案修订**用 `spec-update`
+> （`debug` 的「同步提案」只是修复后的附属动作）。边界决策见 [ADR-0003](openspec/docs/adr/0003-spec-update-boundary-with-debug.md)。
 
 ## 技能分类体系
 
@@ -209,7 +232,7 @@ iagent update --tools claude
 | `commit` | 提交 | `iagent_commit`、`iagent_svn_commit` | `/iagent:commit`、`/iagent:svn-commit` |
 | `review` | 审查 | `iagent_review` | `/iagent:review` |
 | `docs` | 文档 | `iagent_feature_doc`、`iagent_requirement_doc` | `/iagent:feature-doc` 等 |
-| `spec` | 规格 | `iagent_spec_explore` 等 7 个 | `/iagent:spec-explore` 等 |
+| `spec` | 规格 | `iagent_spec_explore` 等 8 个 | `/iagent:spec-explore` 等 |
 
 > `release` 与 `tools` 类型保留在类型体系中（供 `iagent generate --type` 扩展），当前无内置技能。
 
@@ -464,7 +487,7 @@ node bin/iagent.js list      # 直接验证新逻辑
 
 ```bash
 pnpm build          # 构建（tsc → dist/）
-pnpm test           # 运行 vitest 测试（1559 个用例 / 71 个测试文件）
+pnpm test           # 运行 vitest 测试（1669 个用例 / 75 个测试文件）
 pnpm lint           # eslint 检查（src/ + test/）
 pnpm generate:skills  # 重新生成 skills/ 静态快照（改模板后必须运行）
 pnpm dev            # 监听模式编译
@@ -475,8 +498,8 @@ pnpm dev            # 监听模式编译
 - **本地校验链**：提交前依次执行 `pnpm build` → `pnpm lint` → `pnpm test`（Windows / Linux 双平台已验证）
 - **快照防漂移**：`test/skills-parity.test.ts` 保证 `skills/` 提交内容与模板一致
 - 项目自身已 dogfood：`.claude/` 目录下的技能即由 `iagent init` 生成（**本机产物，不入库** ——
-  `.iagent/` / `.claude/` / `openspec/` / `.codegraph/` 均由 `.gitignore` 整体排除；
-  可提交的模板真源是 `skills/` 静态快照）
+  `.iagent/` / `.claude/` / `.codegraph/` / `.openspec-tmp/` 由 `.gitignore` 排除；`openspec/`
+  仅放行 `changes/**` 提案制品与 `docs/adr/**` 决策记录；可提交的模板真源是 `skills/` 静态快照）
 
 ## 约束与规范
 

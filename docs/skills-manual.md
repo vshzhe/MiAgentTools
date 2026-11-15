@@ -1,6 +1,6 @@
 # iAgent 技能使用说明书
 
-> 适用版本：4.10.2 ｜ 技能总数：**20** ｜ 类型：**9 类**
+> 适用版本：4.14.0 ｜ 技能总数：**23** ｜ 类型：**9 类**
 > 技能快照来源：`skills/` 目录（由 `pnpm build && pnpm generate:skills` 生成，**禁止手工编辑**）
 > 本文是导读索引；每个技能的完整正文以对应 `skills/<name>/SKILL.md` 为准。
 
@@ -9,7 +9,7 @@
 ## 目录
 
 - [第一部分：总览](#第一部分总览)
-- [第二部分：spec 核心工作流（7 个）](#第二部分spec-核心工作流7-个)
+- [第二部分：spec 核心工作流（8 个）](#第二部分spec-核心工作流8-个)
 - [第三部分：一站式工作流与质量门（4 个）](#第三部分一站式工作流与质量门4-个)
 - [第四部分：迁移套件（3 个）](#第四部分迁移套件3-个)
 - [第五部分：文档交付（1 个）](#第五部分文档交付1-个)
@@ -22,17 +22,17 @@
 ## 第一部分：总览
 
 MiAgentTools 是 AI Agent 技能生成与管理 CLI，按技能类型生成 `iagent_` 前缀的 SKILL 与斜杠指令，
-安装到目标项目的 AI 工具目录（`.claude/`、`.pi/`、`.codex/`）。当前共 **20 个技能**，分为 **9 个类型**：
+安装到目标项目的 AI 工具目录（`.claude/`、`.pi/`、`.codex/`）。当前共 **23 个技能**，分为 **9 个类型**：
 
 | 类型 | 中文名 | 技能数 | 技能清单 |
 | :--- | :--- | :--- | :--- |
-| `init` | 初始化 | 1 | `project-init` |
+| `init` | 初始化 | 3 | `project-init` / `frontend-skill-gen` / `backend-skill-gen` |
 | `impl` | 实现 | 4 | `workflow` / `auto-workflow` / `debug` / `migration` |
 | `test` | 测试 | 1 | `test`（多 schema：Java/Node 自动适配） |
 | `commit` | 提交 | 2 | `commit` / `svn-commit` |
 | `review` | 审查 | 3 | `review` / `proposal-review` / `migration-check` |
 | `docs` | 文档 | 2 | `feature-doc` / `requirement-doc` |
-| `spec` | 规格 | 7 | `spec-explore` / `spec-propose` / `spec-apply` / `spec-archive` / `spec-bulk-archive` / `spec-verify` / `spec-verify-proposal` |
+| `spec` | 规格 | 8 | `spec-explore` / `spec-propose` / `spec-apply` / `spec-archive` / `spec-bulk-archive` / `spec-verify` / `spec-verify-proposal` / `spec-update` |
 | `release` | 版本 | 0 | 保留类型，供 `iagent generate --type release` 扩展 |
 | `tools` | 工具 | 0 | 保留类型，供 `iagent generate --type tools` 扩展 |
 
@@ -99,7 +99,7 @@ MiAgentTools 是 AI Agent 技能生成与管理 CLI，按技能类型生成 `iag
 
 ---
 
-## 第二部分：spec 核心工作流（7 个）
+## 第二部分：spec 核心工作流（8 个）
 
 面向「变更制品驱动」的规格工作流，依赖 `iagent spec` 命令组与 `openspec/` 目录。
 
@@ -112,6 +112,7 @@ MiAgentTools 是 AI Agent 技能生成与管理 CLI，按技能类型生成 `iag
 | `iagent_spec_archive` | `/iagent:spec-archive` | 归档变更：delta 合并主规格、记忆同步、需求文档只读报告 | change-name → `archive/` + 主规格 |
 | `iagent_spec_bulk_archive` | `/iagent:spec-bulk-archive` | 批量归档多个已完成变更 + 冲突解决 | 变更列表 → 归档批次 |
 | `iagent_spec_verify_proposal` | `/iagent:spec-verify-proposal` | 提案验证门：D1-D10 量化评分（阈值 90%） | change-name → 评分报告 |
+| `iagent_spec_update` | `/iagent:spec-update` | **修订已实现的变更**：测试后发现问题 → 探索分析（双轨根因，可降级 `debug`）→ 原地更新提案 + `revision.md` → 再实现（委派 `spec-apply`）→ 能力测试对比 | change-name + 测试问题描述 → 改写制品 + `revision.md` + `capability-comparison.md` |
 
 > 自定义 iagent 流程为 **Markdown-first**：新变更以 `proposal.md`、`design.md`、`specs/**/*.md`、`tasks.md`
 > 为唯一可编辑真源；CLI `--json` 仅为机器响应。历史 `change.json` / `tasks.json` 只读兼容，
@@ -122,7 +123,7 @@ MiAgentTools 是 AI Agent 技能生成与管理 CLI，按技能类型生成 `iag
 | 技能 | 斜杠指令 | 作用 |
 | :--- | :--- | :--- |
 | `iagent_workflow` | `/iagent:workflow` | **一站式引导工作流**：委派 `spec_explore`（探索，grill 追问）→ 委派 `spec_propose`（提案生成）→ 自动验证门（D1-D10）→ 深度复查收束 + 需求文档 → 实现桥委派 `spec_apply` → 实现验证 `spec_verify` → 归档桥委派 `spec_archive`。全流程有确认桥。 |
-| `iagent_auto_workflow` | `/iagent:auto-workflow` | **全自动管线**：探索→提案→验证→自动实现→自动归档，仅在 L1-L5 用户确认后全自动，无中途确认门。 |
+| `iagent_auto_workflow` | `/iagent:auto-workflow` | **全自动管线**：探索→提案→内联验证→自动实现→测试门→实现验证桥→review→归档确认门→自动归档；仅 L1-L5 与功能流程图门需用户确认，归档前经归档确认门拍板功能完成。 |
 | `iagent_debug` | `/iagent:debug` | **一站式调试**：复现 → CodeGraph + 能力记忆定位根因 → 关联变更 → 修复（强制回归测试）→ 编译检查 → 同步提案 → 验证。 |
 | `iagent_proposal_review` | `/iagent:proposal-review` | **提案深度复查**：深度代码库探索 + 8 维度完整性检查 + 合规性验证 + 量化评分与遗漏场景补充。 |
 

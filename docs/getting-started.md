@@ -109,7 +109,7 @@ iagent generate --type tools --name env-check --desc "检查 Node/JDK 版本"
 | `commit` | 提交代码 | `iagent_commit` / `/iagent:commit`、`iagent_svn_commit` / `/iagent:svn-commit` |
 | `review` | 审查变更 | `iagent_review` / `/iagent:review` |
 | `docs` | 扫描 / 需求文档 | `iagent_feature_doc`、`iagent_requirement_doc` |
-| `spec` | 规格驱动闭环 | `iagent_spec_explore` / `/iagent:spec-explore` 等 7 个 |
+| `spec` | 规格驱动闭环 | `iagent_spec_explore` / `/iagent:spec-explore` 等 8 个（含 `/iagent:spec-update` 修订闭环） |
 | `release` / `tools` | 扩展位 | 当前无内置技能，供 `iagent generate --type` 扩展 |
 
 ## 日常维护
