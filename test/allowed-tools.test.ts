@@ -121,7 +121,26 @@ describe('allowed-tools 白名单覆盖', () => {
             /^[a-z][a-z0-9_-]*$/.test(token) &&
             !SHELL_KEYWORDS.has(token) &&
             !token.includes('__') &&
-            !token.startsWith('mcp')
+            !token.startsWith('mcp') &&
+            // 下划线形式是 MCP 具名工具（codegraph_impact / semgrep_scan），不是 Bash 命令
+            !token.includes('_')
+        );
+    }
+
+    /** 否定语境（禁用示例）：该行声明「不得 / 禁止 / MUST NOT」某命令，不是执行 */
+    function isNegatedContext(line: string): boolean {
+        return /MUST NOT|禁止|不得|不要|勿用|MUST NOT 依赖/.test(line);
+    }
+
+    /**
+     * 描述性语境：命令名被当作名词引用（「由 `iagent init` 产出」「`iagent init` / `iagent update`
+     * 确定性维护」「…的产物」），而非本技能要执行的命令。
+     *
+     * 只排除明确的被动 / 所属表述，避免把「先运行 `iagent init`」这类真执行误判为描述。
+     */
+    function isDescriptiveContext(line: string): boolean {
+        return /由\s*`?iagent|`iagent [a-z-]+`?\s*[/、和与]\s*`?iagent|iagent [a-z-]+`?[^，。]*的(产物|输出|结果|确定性|机制|维护)/.test(
+            line
         );
     }
 
@@ -144,6 +163,13 @@ describe('allowed-tools 白名单覆盖', () => {
             }
         }
         for (const inline of text.matchAll(/`([^`\n]+)`/g)) {
+            // 取所在行：否定语境（禁用示例）整行跳过
+            const lineStart = text.lastIndexOf('\n', inline.index ?? 0) + 1;
+            const lineEnd = text.indexOf('\n', inline.index ?? 0);
+            const line = text.slice(lineStart, lineEnd === -1 ? undefined : lineEnd);
+            if (isNegatedContext(line) || isDescriptiveContext(line)) {
+                continue;
+            }
             const parts = inline[1].trim().split(/\s+/);
             if (parts.length < 2 || !SCAN_VOCAB.has(parts[0])) {
                 continue;

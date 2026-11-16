@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:323baca45b41c04ff89ab3a533cae5cd3efc356c56bb3f97d186ade3e66b2162"
+  generatedFingerprint: "sha256:45a7728924d50832e482c3f35e0fc3c092488e67423e04b074cdfc24bcd608d8"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
@@ -64,46 +64,15 @@ metadata:
 
 2.5 **批量归档前的 CodeGraph 能力探测**
 
-   批量校验前按能力探测顺序判定 CodeGraph 是否可用（任一通道成功即视为可用）：
+   批量校验前判定 CodeGraph 是否可用（任一通道成功即可用）。**完整协议（能力探测三通道 / 锁阶梯 / 调用纪律 / busy 阶梯 / CLI 边界 / 跳过出口）见 `Read references/codegraph-protocol.md`，执行本步骤前 MUST 先读该文件并逐步执行。**
 
-   **CodeGraph 能力探测（按顺序尝试，三条通道任一成功即视为可用）**：
-1. 先调用 MCP 具名工具（`codegraph_explore` / `codegraph_status` 等）——能返回结果即视为可用；
-2. 若 MCP 具名工具未暴露，改看 `codegraph_explore` 返回的**时效横幅**（含索引构建/滞后提示）——横幅存在即视为可用；
-3. 若前两条通道均不可得，再经 Bash 运行 `codegraph status --json`——命令成功并返回 JSON 即视为可用。
-- **工具名缺失 ≠ 索引不可用**：某一通道在当前宿主不存在，只说明该通道不可用，MUST NOT 据此断言索引未初始化。
-- MUST NOT 用「`.codegraph/` 目录是否存在」判定索引可用性（点号目录的 Glob 存在假阴性）；目录存在性不构成可用性判据。
-
-   **CodeGraph 锁阶梯（读锁优先；误删活跃锁会损坏索引）**：
-1. **读取** `.codegraph/writer.pid`（用 `path.join()` 构造显式路径）：文件缺失或为空 → 视为**无 daemon**，可进入 unlock 分支；
-2. **解析**：该文件为 **JSON**（形如 `{"pid":19488,"mode":"daemon","startedAt":<ms>,"ready":true}`），MUST NOT 假定为裸数字；JSON 解析失败 / `pid` 非正整数 / `ready:false` → 视为**不可判定 = 存活**：MUST NOT `codegraph unlock`、MUST NOT 显式 `codegraph sync`，只读复用索引，查询失败则降级 Glob / Grep 并记 WARN，且 MUST NOT 删除该文件；
-3. **存活判定**：`pid` 可用时以只读、无副作用的方式探测进程是否存在（`process.kill(pid, 0)` 语义或平台等价的只读探测）——MUST NOT 执行任何终止动作；
-4. **存活 → 只读复用既有索引**：daemon 是合法写者，MUST NOT 执行 `codegraph unlock`、MUST NOT 显式 `codegraph sync`；
-5. **不存活 → 执行一次 `codegraph unlock`**，随后重试读取一次；仍失败 → 降级 Glob / Grep 并记 WARN；
-6. **仅确认无 daemon（纯 CLI 用户）时**才按需执行一次 `codegraph sync`；同步失败只记 WARN，不阻断流程；
-7. 判 daemon 存活是显式路径读取（失败即视为无 daemon），与「MUST NOT 用目录存在性判索引可用性」是两条独立判据，MUST NOT 混用。
-
-   **CodeGraph 调用纪律（主通道优先，串行执行）**：
-1. **主通道**是 `codegraph_explore`（文件结构发现 / 符号定位 / 任务级上下文均可用一次自然语言查询完成）；`codegraph_impact` 为**可选增强**；
-2. `codegraph_files` / `codegraph_search` / `codegraph_context` / `codegraph_node` / `codegraph_callers` / `codegraph_callees` 为「**宿主暴露时可选**」通道：缺失时改用主通道，MUST NOT 记为「索引不可用」，MUST NOT 反复调用缺失工具；
-3. **一次广查询优先**：多符号或多主题合并为一次 `codegraph_explore`；单次查询 `maxFiles` 默认不超过 12；
-4. **串行**：同一时刻只发一个 CodeGraph 调用；需要多次查询时串行执行，MUST NOT 并行发起多个调用（并发正是 busy 排队的来源）。
-
-   **CodeGraph busy 阶梯（排队不是错误，也不是索引不可用）**：
-1. 识别 `busy serving other concurrent requests` 一类排队文案时，**等待 5–10 秒**；
-2. 重试**同一调用**（同一查询参数），至多 **2 次**；
-3. 仍 busy → 在**本步骤**降级为内置工具（Glob / Grep）并记 WARN，随后继续流程；
-4. MUST NOT 因 busy 判「索引不可用」，MUST NOT 执行 `codegraph unlock` 或显式 `codegraph sync`。
-
-   **CodeGraph CLI 边界（子命令白名单）**：
-1. CLI 仅允许 `codegraph status --json` / `codegraph unlock` / `codegraph sync`（后两者受锁阶梯约束）；
-2. MUST NOT 把 MCP 工具名当 CLI 子命令：`codegraph search` / `codegraph files` / `codegraph context` / `codegraph impact` 均**不存在**；
-3. 遇 `unknown command` → 立即改用 MCP 主通道完成该次检索，MUST NOT 重试同类 CLI 子命令。
+   摘要（细则以参考文件为准）：探测按 MCP 具名工具 → 时效横幅 → CLI `status --json` 三通道；同一时刻只发一个调用（串行）；busy 等待 5–10 秒重试 ≤2 次后记 `skipped-busy` 继续；daemon 存活只读复用、不 unlock 不 sync；跳过一律记 `skipped-*` 并留痕，不阻断批量归档。
 
    **注意**：CodeGraph 同步是项目粒度的，不是按变更的。整批在所有变更归档后只运行一次同步（Step 11）；daemon 活跃时只读复用、不显式同步。
 
    **探测结论分支**：
    - 任一通道成功 → 记录该调用报告的当前索引统计（文件/节点数）以备后续对比，继续批量校验
-   - 三条通道全部失败 → 为整批自动跳过**全部** CodeGraph 步骤（本 2.5 检查与 Step 11 同步），记录 WARN 说明当前不可用且已跳过，继续批量归档 —— 不得询问用户是否重试或继续
+   - 三条通道全部失败 → 为整批自动跳过**全部** CodeGraph 步骤（本 2.5 检查与 Step 11 同步）并记 WARN，继续批量归档，不得询问用户
    - 锁冲突 / 状态读取失败：按上面的锁阶梯处置（存活只读复用；不存活 unlock 一次 + 重试一次；仍失败降级 Glob/Grep + WARN），MUST NOT 因单次探测失败而放弃整批能力
 
 3. **批量校验 —— 收集所有已选变更的状态**
@@ -392,9 +361,7 @@ metadata:
       - 无匹配时告警（非代码变更可能属预期）
       - 验证查询只针对成功归档的变更（不含失败/跳过）
 
-   3. **失败处理**（非阻塞）：
-      - 若批量 `codegraph sync` 失败（CLI 错误、超时或 CLI 不在 PATH）：记录告警，不阻塞批量归档
-      - 锁冲突按 Step 2.5 的锁阶梯处置：存活只读复用；不存活 `unlock` 一次 + 重试读取一次；仍失败降级 Glob / Grep 并记 WARN
+   3. **失败处理**（非阻塞，按 Step 2.5 统一出口）：sync 失败（CLI 错误 / 超时 / 不在 PATH）或 busy / 锁冲突耗尽 → 记 `skipped-*` 与告警，不阻塞批量归档
       - 仍继续展示批量归档摘要（Step 9）与批量索引更新（Step 10）—— 同步在这些之后运行
       - 部分成功（部分变更失败/跳过）时，只要有 ≥1 个变更归档成功仍触发同步
 

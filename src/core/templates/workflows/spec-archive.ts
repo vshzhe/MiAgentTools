@@ -9,6 +9,7 @@ import {
     CODEGRAPH_CALL_DISCIPLINE,
     CODEGRAPH_CLI_BOUNDARY,
     CODEGRAPH_LOCK_LADDER,
+    CODEGRAPH_SKIP_POLICY,
     renderCodegraphProbeOrder,
 } from '../codegraph-protocol.js';
 import { renderGateWhitelistSection } from '../prompt-gate.js';
@@ -140,6 +141,8 @@ ${renderGateWhitelistSection({ variant: 'standalone-archive' })}
 
    ${CODEGRAPH_CLI_BOUNDARY}
 
+   ${CODEGRAPH_SKIP_POLICY}
+
    **强制检查点**：
    - 系统 MUST 在执行归档前完成能力探测（三条通道任一成功即视为可用）
    - 三条通道全部失败 → 自动跳过**全部** CodeGraph 步骤（本 4.6 检查 + 6.5 同步），记录 WARN 说明当前不可用且已跳过，继续归档 —— 不得询问用户是否重试或继续
@@ -203,12 +206,12 @@ ${renderGateWhitelistSection({ variant: 'standalone-archive' })}
       - **确认无 daemon（纯 CLI 用户）** → 经 Bash 执行 \`codegraph sync\` **恰一次**，增量索引刚归档变更已实现的代码；运行前展示 "CodeGraph：正在同步已实现的代码..."
 
    2. 同步（或只读复用）后**验证一致性**：
-      - 用主通道 \`codegraph_explore\` 查询变更名，以及变更 \`tasks.md\` 与 \`design.md\` 中提到的关键符号（宿主暴露 \`codegraph_search\` 时 MAY 追加使用）
+      - **仅发起一次** 主通道 \`codegraph_explore\` 广查询：把变更名与 \`tasks.md\` / \`design.md\` 中提到的关键符号合并为一个查询（MUST NOT 拆成多次串行查询；宿主暴露 \`codegraph_search\` 时 MAY 另用一次，但同样串行）；busy 阶梯耗尽即该步骤记 \`skipped-busy\` 并跳过本步骤剩余校验
       - 确认已实现的符号现已被索引
       - 展示 "CodeGraph：✓ 索引中已校验 N 个符号"，无匹配时告警
       - 若未找到符号（如仅配置或仅文档变更），记录告警 —— 不要视为失败
 
-   3. **失败处理**（非阻塞）：
+   3. **失败处理**（非阻塞；busy / 锁 / 不可用一律按统一出口记 \`skipped-*\` 并继续归档，MUST NOT 因此停止或重试）：
       - \`codegraph sync\` 失败（CLI 错误、超时或 CLI 不在 PATH）：记录告警，不阻塞归档
       - 锁冲突按 Step 4.6 的锁阶梯处置：存活只读复用；不存活 \`unlock\` 一次 + 重试读取一次；仍失败降级 Glob / Grep 并记 WARN
       - 验证查询失败或返回空：记录告警，不阻塞归档

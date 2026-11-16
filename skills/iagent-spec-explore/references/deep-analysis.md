@@ -58,15 +58,7 @@
 #### 分析执行
 
 **安全分析（Semgrep）**：
-Semgrep MCP 为可选增强：不可用时该分析跳过并记录，不阻塞工作流。
-
-```bash
-# 宿主暴露 Semgrep MCP 时使用；不可用时跳过并记录，不阻断
-semgrep_scan --code-files <paths>
-
-# 或从平台获取 findings（宿主暴露时）：
-semgrep_findings --repos <repo> --issue-type ISSUE_TYPE_SAST
-```
+Semgrep MCP 为可选增强：仅当宿主**暴露 Semgrep MCP 工具**时使用（工具名 `semgrep_scan`，参数 `code-files`；或 `semgrep_findings`，参数 `repos` / `issue-type=ISSUE_TYPE_SAST`）。这些是 MCP 工具调用，**不是 Bash 命令**，MUST NOT 经 Bash 执行。宿主未暴露时该分析跳过并记录，不阻塞工作流。
 
 **架构分析（CodeGraph）**:
 ```bash

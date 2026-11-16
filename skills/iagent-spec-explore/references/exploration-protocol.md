@@ -353,18 +353,24 @@
 3. **一次广查询优先**：多符号或多主题合并为一次 `codegraph_explore`；单次查询 `maxFiles` 默认不超过 12；
 4. **串行**：同一时刻只发一个 CodeGraph 调用；需要多次查询时串行执行，MUST NOT 并行发起多个调用（并发正是 busy 排队的来源）。
 
-   **CodeGraph busy 阶梯（排队不是错误，也不是索引不可用）**：
+   **CodeGraph busy 阶梯（排队不是错误，也不是索引不可用；耗尽即跳过，不阻塞流程）**：
 1. 识别 `busy serving other concurrent requests` 一类排队文案时，**等待 5–10 秒**；
-2. 重试**同一调用**（同一查询参数），至多 **2 次**；
-3. 仍 busy → 在**本步骤**降级为内置工具（Glob / Grep）并记 WARN，随后继续流程；
-4. MUST NOT 因 busy 判「索引不可用」，MUST NOT 执行 `codegraph unlock` 或显式 `codegraph sync`。
+2. 重试**同一调用**（同一查询参数），至多 **2 次**（合计至多 3 次调用，MUST NOT 超出）；
+3. 仍 busy → 该 CodeGraph **步骤**记为 `skipped-busy`，改用内置工具（Glob / Grep）补足该步骤所需信息并记 WARN，**随后继续流程**；Glob / Grep 也无法覆盖时，该步骤结论记「未覆盖（CodeGraph busy 跳过）」，MUST NOT 据此停止或反复重试；
+4. MUST NOT 因 busy 判「索引不可用」，MUST NOT 执行 `codegraph unlock` 或显式 `codegraph sync`；同一会话内已记 `skipped-busy` 的同类调用 MUST NOT 再次发起（避免重复排队）。
 
    **CodeGraph CLI 边界（子命令白名单）**：
 1. CLI 仅允许 `codegraph status --json` / `codegraph unlock` / `codegraph sync`（后两者受锁阶梯约束）；
 2. MUST NOT 把 MCP 工具名当 CLI 子命令：`codegraph search` / `codegraph files` / `codegraph context` / `codegraph impact` 均**不存在**；
 3. 遇 `unknown command` → 立即改用 MCP 主通道完成该次检索，MUST NOT 重试同类 CLI 子命令。
 
-1. 用 **主通道 `codegraph_explore`** 扫描项目文件结构并检索相关符号
+   **CodeGraph 步骤可跳过（统一出口）**：
+- 以下任一情形，该 CodeGraph 步骤 MUST 记为 `skipped-*` 并**继续主流程**，不得停止、不得反复重试：`skipped-busy`（busy 阶梯耗尽）/ `skipped-lock`（锁阶梯不可解）/ `skipped-unavailable`（能力探测三通道全失败）；
+- 跳过 MUST 在产物中留痕（一行：步骤名 + 跳过原因 + 降级所用工具），使「没查到」与「项目中确实没有」可区分；
+- 跳过 MUST NOT 被表述为「已完成 CodeGraph 检查」；
+- 同一会话内对同一 CodeGraph 步骤至多发起一轮完整阶梯，后续同类步骤直接复用该次跳过结论，MUST NOT 重复排队。
+
+1. 用 **主通道 `codegraph_explore`** 扫描项目文件结构并检索相关符号（**单次广查询**：多主题合并为一个查询，MUST NOT 并行或拆分）；busy 阶梯耗尽即记 `skipped-busy`，改用 Glob / Grep 完成该步骤，探索 MUST NOT 因此停止
    - 一次自然语言查询同时获取：相关文件树、符号及其 `file:line`、关键代码
    - 识别与探索主题相关的目录与文件 → 写入 `## Codebase Findings > Discovered Files`
    - 记录发现的符号及其 file:line 位置 → 写入 `## Codebase Findings > Identified Symbols`
@@ -434,10 +440,10 @@
 
 **触发**：1.2.2 检测到修改意图，或检测到 Scope.Modify 关键词时。
 
-触发后执行深度分析：
-1. `codegraph_explore` — 对具体符号做深度探索
-2. `codegraph_impact` — 分析受影响符号的影响半径
-3. 把结果写入 exploration.md 的 `## Implementation Deep-Dive` 段
+触发后执行深度分析（**可选增强，按 CodeGraph 统一出口处理**）：
+1. `codegraph_explore` — 对具体符号做深度探索（**与第 2 步合并为一次广查询**：核心符号合并进同一查询，MUST NOT 拆成多次串行调用）
+2. `codegraph_impact` — 分析受影响符号的影响半径（**仅宿主暴露时**；缺失或 busy 耗尽即记 `skipped-busy` / `skipped-unavailable`，影响半径改由 Grep 引用计数估算并标注「估算」，MUST NOT 据此阻塞探索）
+3. 把结果写入 exploration.md 的 `## Implementation Deep-Dive` 段；被跳过的步骤 MUST 在该段留痕
 
 **范围控制**（按触发级别）：
 - 🔴 自动（Scope.Modify）：全部 6 个分析维度，最多 10 个核心符号

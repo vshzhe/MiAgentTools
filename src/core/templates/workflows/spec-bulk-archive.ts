@@ -9,6 +9,7 @@ import {
     CODEGRAPH_CALL_DISCIPLINE,
     CODEGRAPH_CLI_BOUNDARY,
     CODEGRAPH_LOCK_LADDER,
+    CODEGRAPH_SKIP_POLICY,
     renderCodegraphProbeOrder,
 } from '../codegraph-protocol.js';
 import { renderGateWhitelistSection } from '../prompt-gate.js';
@@ -54,23 +55,15 @@ ${renderGateWhitelistSection({ variant: 'standalone-archive' })}
 
 2.5 **批量归档前的 CodeGraph 能力探测**
 
-   批量校验前按能力探测顺序判定 CodeGraph 是否可用（任一通道成功即视为可用）：
+   批量校验前判定 CodeGraph 是否可用（任一通道成功即可用）。**完整协议（能力探测三通道 / 锁阶梯 / 调用纪律 / busy 阶梯 / CLI 边界 / 跳过出口）见 \`Read references/codegraph-protocol.md\`，执行本步骤前 MUST 先读该文件并逐步执行。**
 
-   ${renderCodegraphProbeOrder({ withCli: true })}
-
-   ${CODEGRAPH_LOCK_LADDER}
-
-   ${CODEGRAPH_CALL_DISCIPLINE}
-
-   ${CODEGRAPH_BUSY_LADDER}
-
-   ${CODEGRAPH_CLI_BOUNDARY}
+   摘要（细则以参考文件为准）：探测按 MCP 具名工具 → 时效横幅 → CLI \`status --json\` 三通道；同一时刻只发一个调用（串行）；busy 等待 5–10 秒重试 ≤2 次后记 \`skipped-busy\` 继续；daemon 存活只读复用、不 unlock 不 sync；跳过一律记 \`skipped-*\` 并留痕，不阻断批量归档。
 
    **注意**：CodeGraph 同步是项目粒度的，不是按变更的。整批在所有变更归档后只运行一次同步（Step 11）；daemon 活跃时只读复用、不显式同步。
 
    **探测结论分支**：
    - 任一通道成功 → 记录该调用报告的当前索引统计（文件/节点数）以备后续对比，继续批量校验
-   - 三条通道全部失败 → 为整批自动跳过**全部** CodeGraph 步骤（本 2.5 检查与 Step 11 同步），记录 WARN 说明当前不可用且已跳过，继续批量归档 —— 不得询问用户是否重试或继续
+   - 三条通道全部失败 → 为整批自动跳过**全部** CodeGraph 步骤（本 2.5 检查与 Step 11 同步）并记 WARN，继续批量归档，不得询问用户
    - 锁冲突 / 状态读取失败：按上面的锁阶梯处置（存活只读复用；不存活 unlock 一次 + 重试一次；仍失败降级 Glob/Grep + WARN），MUST NOT 因单次探测失败而放弃整批能力
 
 3. **批量校验 —— 收集所有已选变更的状态**
@@ -359,9 +352,7 @@ ${renderGateWhitelistSection({ variant: 'standalone-archive' })}
       - 无匹配时告警（非代码变更可能属预期）
       - 验证查询只针对成功归档的变更（不含失败/跳过）
 
-   3. **失败处理**（非阻塞）：
-      - 若批量 \`codegraph sync\` 失败（CLI 错误、超时或 CLI 不在 PATH）：记录告警，不阻塞批量归档
-      - 锁冲突按 Step 2.5 的锁阶梯处置：存活只读复用；不存活 \`unlock\` 一次 + 重试读取一次；仍失败降级 Glob / Grep 并记 WARN
+   3. **失败处理**（非阻塞，按 Step 2.5 统一出口）：sync 失败（CLI 错误 / 超时 / 不在 PATH）或 busy / 锁冲突耗尽 → 记 \`skipped-*\` 与告警，不阻塞批量归档
       - 仍继续展示批量归档摘要（Step 9）与批量索引更新（Step 10）—— 同步在这些之后运行
       - 部分成功（部分变更失败/跳过）时，只要有 ≥1 个变更归档成功仍触发同步
 
@@ -426,8 +417,43 @@ then add-graphql specs (chronological order, newer takes precedence).
         license: 'MIT',
         compatibility: '依赖 iagent CLI（spec 命令组）与 CodeGraph CLI（可选）。',
         metadata: { author: 'mi-agent-tools' },
+        references: [
+            { path: 'references/codegraph-protocol.md', content: BULK_CODEGRAPH_PROTOCOL_REF },
+        ],
     };
 }
+
+/**
+ * `references/codegraph-protocol.md`：批量归档的 CodeGraph 完整协议。
+ *
+ * 由 `codegraph-protocol.js` 的共享常量渲染，不另立第二份手写正文 ——
+ * 主 SKILL 只保留摘要与 `Read` 引导，避免主文件因内联协议超字符预算。
+ */
+const BULK_CODEGRAPH_PROTOCOL_REF: string = [
+    '# 批量归档 CodeGraph 协议',
+    '',
+    '执行「批量归档前的 CodeGraph 能力探测」与「批量 CodeGraph 同步 + 验证」时按本文件逐步执行。',
+    '',
+    '## 能力探测顺序',
+    '',
+    renderCodegraphProbeOrder({ withCli: true }),
+    '',
+    CODEGRAPH_LOCK_LADDER,
+    '',
+    CODEGRAPH_CALL_DISCIPLINE,
+    '',
+    CODEGRAPH_BUSY_LADDER,
+    '',
+    CODEGRAPH_CLI_BOUNDARY,
+    '',
+    CODEGRAPH_SKIP_POLICY,
+    '',
+    '## 批量特有约束',
+    '',
+    '- CodeGraph 同步是**项目粒度**的，不是按变更的：整批在所有变更归档后只运行一次同步（Step 11）；daemon 活跃时只读复用、不显式同步。',
+    '- 同步与验证只由主代理执行，MUST NOT 在归档子代理内执行（项目级单次同步可避免知识图谱 DB 并发写入）。',
+    '- 验证查询只针对成功归档的变更（不含失败 / 跳过），且**仅一次**。',
+].join('\n');
 
 export function getSpecBulkArchiveCommandTemplate(): CommandTemplate {
     return {

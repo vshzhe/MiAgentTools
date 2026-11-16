@@ -10,6 +10,7 @@ import {
     CODEGRAPH_BUSY_LADDER,
     CODEGRAPH_CALL_DISCIPLINE,
     CODEGRAPH_CLI_BOUNDARY,
+    CODEGRAPH_SKIP_POLICY,
     renderCodegraphProbeOrder,
 } from '../codegraph-protocol.js';
 import {
@@ -384,7 +385,9 @@ const EXPLORATION_PROTOCOL_FULL = `## 强制检查点体系（delegated 模式�
 
    ${CODEGRAPH_CLI_BOUNDARY}
 
-1. 用 **主通道 \`codegraph_explore\`** 扫描项目文件结构并检索相关符号
+   ${CODEGRAPH_SKIP_POLICY}
+
+1. 用 **主通道 \`codegraph_explore\`** 扫描项目文件结构并检索相关符号（**单次广查询**：多主题合并为一个查询，MUST NOT 并行或拆分）；busy 阶梯耗尽即记 \`skipped-busy\`，改用 Glob / Grep 完成该步骤，探索 MUST NOT 因此停止
    - 一次自然语言查询同时获取：相关文件树、符号及其 \`file:line\`、关键代码
    - 识别与探索主题相关的目录与文件 → 写入 \`## Codebase Findings > Discovered Files\`
    - 记录发现的符号及其 file:line 位置 → 写入 \`## Codebase Findings > Identified Symbols\`
@@ -454,10 +457,10 @@ const EXPLORATION_PROTOCOL_FULL = `## 强制检查点体系（delegated 模式�
 
 **触发**：1.2.2 检测到修改意图，或检测到 Scope.Modify 关键词时。
 
-触发后执行深度分析：
-1. \`codegraph_explore\` — 对具体符号做深度探索
-2. \`codegraph_impact\` — 分析受影响符号的影响半径
-3. 把结果写入 exploration.md 的 \`## Implementation Deep-Dive\` 段
+触发后执行深度分析（**可选增强，按 CodeGraph 统一出口处理**）：
+1. \`codegraph_explore\` — 对具体符号做深度探索（**与第 2 步合并为一次广查询**：核心符号合并进同一查询，MUST NOT 拆成多次串行调用）
+2. \`codegraph_impact\` — 分析受影响符号的影响半径（**仅宿主暴露时**；缺失或 busy 耗尽即记 \`skipped-busy\` / \`skipped-unavailable\`，影响半径改由 Grep 引用计数估算并标注「估算」，MUST NOT 据此阻塞探索）
+3. 把结果写入 exploration.md 的 \`## Implementation Deep-Dive\` 段；被跳过的步骤 MUST 在该段留痕
 
 **范围控制**（按触发级别）：
 - 🔴 自动（Scope.Modify）：全部 6 个分析维度，最多 10 个核心符号
@@ -843,15 +846,7 @@ const DEEP_ANALYSIS_FULL = `### 1.4 关键词检测与分析
 #### 分析执行
 
 **安全分析（Semgrep）**：
-Semgrep MCP 为可选增强：不可用时该分析跳过并记录，不阻塞工作流。
-
-\`\`\`bash
-# 宿主暴露 Semgrep MCP 时使用；不可用时跳过并记录，不阻断
-semgrep_scan --code-files <paths>
-
-# 或从平台获取 findings（宿主暴露时）：
-semgrep_findings --repos <repo> --issue-type ISSUE_TYPE_SAST
-\`\`\`
+Semgrep MCP 为可选增强：仅当宿主**暴露 Semgrep MCP 工具**时使用（工具名 \`semgrep_scan\`，参数 \`code-files\`；或 \`semgrep_findings\`，参数 \`repos\` / \`issue-type=ISSUE_TYPE_SAST\`）。这些是 MCP 工具调用，**不是 Bash 命令**，MUST NOT 经 Bash 执行。宿主未暴露时该分析跳过并记录，不阻塞工作流。
 
 **架构分析（CodeGraph）**:
 \`\`\`bash

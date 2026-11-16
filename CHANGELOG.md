@@ -7,6 +7,26 @@
 
 ## [Unreleased]
 
+## [4.14.1] - 2026-11-16
+
+### Added
+
+- `src/core/templates/codegraph-protocol.ts` 新增 `CODEGRAPH_SKIP_POLICY`（唯一源）：明确 CodeGraph 步骤可跳过——`skipped-busy`（busy 阶梯耗尽）/ `skipped-lock`（锁阶梯不可解）/ `skipped-unavailable`（三通道全失败）三类跳过 MUST 留痕、不阻断主流程，且同一会话内同类步骤不重复排队
+- CodeGraph busy 阶梯新增跳过出口：重试 ≤2 次后该步骤记 `skipped-busy`，改用 Glob / Grep 补足并继续流程，MUST NOT 据此停止或反复重试
+
+### Changed
+
+- `spec-archive` 6.5 的 CodeGraph 验证由多次串行查询合并为**一次**广查询（busy 最大放大源）；归档 CodeGraph 步骤接入统一跳过出口
+- `spec-explore` 1.2 扫描改为单次广查询；1.2.3 深度分析的 `codegraph_impact` 标为可选增强，缺失 / busy 时跳过并以 Grep 引用计数估算影响半径（标注「估算」），不阻塞探索
+- `spec-bulk-archive` 的 CodeGraph 协议块下沉为 `references/codegraph-protocol.md`（内容仍由 `codegraph-protocol.js` 共享常量渲染，非第二份手写源）：主 SKILL 20,312 → 17,742 字符，回到 20,000 字符预算内
+- `spec-explore` 的 Semgrep 段由 ```bash 代码块改为 MCP 工具调用说明——`semgrep_scan` / `semgrep_findings` 是 MCP 工具而非 Bash 命令
+- `auto-workflow` 正文明确「全自动」语义：提案 / 验证 / 实现 / 自动归档之间无额外停点，但流程仍有两道用户停点（探索需求澄清、Phase 5 归档确认门）
+
+### Fixed
+
+- `test/allowed-tools.test.ts` 扫描器精度：修复三类误报（下划线 MCP 具名工具被当作 bash 命令、否定语境中的禁用示例、散文名词引用），告警由 6 条清零；已用正负例验证真实执行命令仍可检出，未放宽授权面
+- `openspec/CONTEXT.md` 按当前代码事实重写：删除 10 条已移除能力的术语条目（蒸馏确认门 / 升级文档 / 打包运行时路径 / SQLite 索引族等），`venus` 品牌统一为 `iagent`，旧 `iagent_tr_*` 技能名映射为现行 23 个技能名，`gate-policy` 更正为「概念轴名、非参数键」
+
 ## [4.14.0] - 2026-11-15
 
 ### Added
@@ -1856,7 +1876,8 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.14.0...HEAD
+[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.14.1...HEAD
+[4.14.1]: https://github.com/vshzhe/MiAgentTools/compare/v4.14.0...v4.14.1
 [4.14.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.13.0...v4.14.0
 [4.13.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.12.0...v4.13.0
 [4.12.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.11.0...v4.12.0

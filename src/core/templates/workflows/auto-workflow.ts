@@ -20,7 +20,7 @@ export function getAutoWorkflowSkillTemplate(): SkillTemplate {
         instructions: `
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
 
-一站式全自动工作流：从探索到归档。
+一站式全自动工作流：从探索到归档。**「全自动」指提案、验证、实现、自动归档之间无额外停点；流程仍有两道用户停点**：① 探索阶段的需求澄清（L1-L5 追问与流程最终确认门）；② Phase 5 的归档确认门（用户确认功能完成后才归档）。
 
 **输入**：\`/iagent:auto-workflow\` 后可跟用户想构建的主题描述。缺失的参数交互式收集；已提供的参数跳过。
 

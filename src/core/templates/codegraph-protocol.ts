@@ -77,11 +77,26 @@ export const CODEGRAPH_CALL_DISCIPLINE: string = [
  * 与锁阶梯分工：busy 是**排队**，不是写锁争用 —— MUST NOT 触发 unlock / sync。
  */
 export const CODEGRAPH_BUSY_LADDER: string = [
-    '**CodeGraph busy 阶梯（排队不是错误，也不是索引不可用）**：',
+    '**CodeGraph busy 阶梯（排队不是错误，也不是索引不可用；耗尽即跳过，不阻塞流程）**：',
     '1. 识别 `busy serving other concurrent requests` 一类排队文案时，**等待 5–10 秒**；',
-    '2. 重试**同一调用**（同一查询参数），至多 **2 次**；',
-    '3. 仍 busy → 在**本步骤**降级为内置工具（Glob / Grep）并记 WARN，随后继续流程；',
-    '4. MUST NOT 因 busy 判「索引不可用」，MUST NOT 执行 `codegraph unlock` 或显式 `codegraph sync`。',
+    '2. 重试**同一调用**（同一查询参数），至多 **2 次**（合计至多 3 次调用，MUST NOT 超出）；',
+    '3. 仍 busy → 该 CodeGraph **步骤**记为 `skipped-busy`，改用内置工具（Glob / Grep）补足该步骤所需信息并记 WARN，**随后继续流程**；Glob / Grep 也无法覆盖时，该步骤结论记「未覆盖（CodeGraph busy 跳过）」，MUST NOT 据此停止或反复重试；',
+    '4. MUST NOT 因 busy 判「索引不可用」，MUST NOT 执行 `codegraph unlock` 或显式 `codegraph sync`；同一会话内已记 `skipped-busy` 的同类调用 MUST NOT 再次发起（避免重复排队）。',
+].join('\n');
+
+/**
+ * CodeGraph 可跳过步骤的统一出口（唯一源）。
+ *
+ * 为何需要：busy / 锁冲突 / 具名工具缺失三类「无法得到结果」在模板中若只写「降级」，
+ * 模型会把降级理解为重试或停顿。本段明确：CodeGraph 步骤是**可跳过的增强**，
+ * 跳过不阻断归档 / 探索 / 调试主流程，且每次跳过 MUST 留痕。
+ */
+export const CODEGRAPH_SKIP_POLICY: string = [
+    '**CodeGraph 步骤可跳过（统一出口）**：',
+    '- 以下任一情形，该 CodeGraph 步骤 MUST 记为 `skipped-*` 并**继续主流程**，不得停止、不得反复重试：`skipped-busy`（busy 阶梯耗尽）/ `skipped-lock`（锁阶梯不可解）/ `skipped-unavailable`（能力探测三通道全失败）；',
+    '- 跳过 MUST 在产物中留痕（一行：步骤名 + 跳过原因 + 降级所用工具），使「没查到」与「项目中确实没有」可区分；',
+    '- 跳过 MUST NOT 被表述为「已完成 CodeGraph 检查」；',
+    '- 同一会话内对同一 CodeGraph 步骤至多发起一轮完整阶梯，后续同类步骤直接复用该次跳过结论，MUST NOT 重复排队。',
 ].join('\n');
 
 /**

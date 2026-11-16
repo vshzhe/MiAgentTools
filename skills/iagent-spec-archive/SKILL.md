@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:aec71c32373b6f2bdde23525a0c714a4dee4b4c9c94dc26c9f8e4c650f60fa34"
+  generatedFingerprint: "sha256:9f9eb57fb88ed1b186d448252f0a1aa6a627a9513aaf0dceb76dae36e9c9987c"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
@@ -162,16 +162,22 @@ metadata:
 3. **一次广查询优先**：多符号或多主题合并为一次 `codegraph_explore`；单次查询 `maxFiles` 默认不超过 12；
 4. **串行**：同一时刻只发一个 CodeGraph 调用；需要多次查询时串行执行，MUST NOT 并行发起多个调用（并发正是 busy 排队的来源）。
 
-   **CodeGraph busy 阶梯（排队不是错误，也不是索引不可用）**：
+   **CodeGraph busy 阶梯（排队不是错误，也不是索引不可用；耗尽即跳过，不阻塞流程）**：
 1. 识别 `busy serving other concurrent requests` 一类排队文案时，**等待 5–10 秒**；
-2. 重试**同一调用**（同一查询参数），至多 **2 次**；
-3. 仍 busy → 在**本步骤**降级为内置工具（Glob / Grep）并记 WARN，随后继续流程；
-4. MUST NOT 因 busy 判「索引不可用」，MUST NOT 执行 `codegraph unlock` 或显式 `codegraph sync`。
+2. 重试**同一调用**（同一查询参数），至多 **2 次**（合计至多 3 次调用，MUST NOT 超出）；
+3. 仍 busy → 该 CodeGraph **步骤**记为 `skipped-busy`，改用内置工具（Glob / Grep）补足该步骤所需信息并记 WARN，**随后继续流程**；Glob / Grep 也无法覆盖时，该步骤结论记「未覆盖（CodeGraph busy 跳过）」，MUST NOT 据此停止或反复重试；
+4. MUST NOT 因 busy 判「索引不可用」，MUST NOT 执行 `codegraph unlock` 或显式 `codegraph sync`；同一会话内已记 `skipped-busy` 的同类调用 MUST NOT 再次发起（避免重复排队）。
 
    **CodeGraph CLI 边界（子命令白名单）**：
 1. CLI 仅允许 `codegraph status --json` / `codegraph unlock` / `codegraph sync`（后两者受锁阶梯约束）；
 2. MUST NOT 把 MCP 工具名当 CLI 子命令：`codegraph search` / `codegraph files` / `codegraph context` / `codegraph impact` 均**不存在**；
 3. 遇 `unknown command` → 立即改用 MCP 主通道完成该次检索，MUST NOT 重试同类 CLI 子命令。
+
+   **CodeGraph 步骤可跳过（统一出口）**：
+- 以下任一情形，该 CodeGraph 步骤 MUST 记为 `skipped-*` 并**继续主流程**，不得停止、不得反复重试：`skipped-busy`（busy 阶梯耗尽）/ `skipped-lock`（锁阶梯不可解）/ `skipped-unavailable`（能力探测三通道全失败）；
+- 跳过 MUST 在产物中留痕（一行：步骤名 + 跳过原因 + 降级所用工具），使「没查到」与「项目中确实没有」可区分；
+- 跳过 MUST NOT 被表述为「已完成 CodeGraph 检查」；
+- 同一会话内对同一 CodeGraph 步骤至多发起一轮完整阶梯，后续同类步骤直接复用该次跳过结论，MUST NOT 重复排队。
 
    **强制检查点**：
    - 系统 MUST 在执行归档前完成能力探测（三条通道任一成功即视为可用）
@@ -236,12 +242,12 @@ metadata:
       - **确认无 daemon（纯 CLI 用户）** → 经 Bash 执行 `codegraph sync` **恰一次**，增量索引刚归档变更已实现的代码；运行前展示 "CodeGraph：正在同步已实现的代码..."
 
    2. 同步（或只读复用）后**验证一致性**：
-      - 用主通道 `codegraph_explore` 查询变更名，以及变更 `tasks.md` 与 `design.md` 中提到的关键符号（宿主暴露 `codegraph_search` 时 MAY 追加使用）
+      - **仅发起一次** 主通道 `codegraph_explore` 广查询：把变更名与 `tasks.md` / `design.md` 中提到的关键符号合并为一个查询（MUST NOT 拆成多次串行查询；宿主暴露 `codegraph_search` 时 MAY 另用一次，但同样串行）；busy 阶梯耗尽即该步骤记 `skipped-busy` 并跳过本步骤剩余校验
       - 确认已实现的符号现已被索引
       - 展示 "CodeGraph：✓ 索引中已校验 N 个符号"，无匹配时告警
       - 若未找到符号（如仅配置或仅文档变更），记录告警 —— 不要视为失败
 
-   3. **失败处理**（非阻塞）：
+   3. **失败处理**（非阻塞；busy / 锁 / 不可用一律按统一出口记 `skipped-*` 并继续归档，MUST NOT 因此停止或重试）：
       - `codegraph sync` 失败（CLI 错误、超时或 CLI 不在 PATH）：记录告警，不阻塞归档
       - 锁冲突按 Step 4.6 的锁阶梯处置：存活只读复用；不存活 `unlock` 一次 + 重试读取一次；仍失败降级 Glob / Grep 并记 WARN
       - 验证查询失败或返回空：记录告警，不阻塞归档

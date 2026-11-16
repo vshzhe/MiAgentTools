@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: init
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:e4a2f9ead768a333d5f78c604181709a84775e16c87fb1f949403b2fb69bff61"
+  generatedFingerprint: "sha256:99d6abe0f374be6d9d8fc270a64b811e47f701796750be28933126ef8557b6f8"
 ---
 
 初始化项目 —— 读扫描基线 → 五类语义扫描 → 逐份确认 → 落盘 → 回写 context → 蒸馏规则。
@@ -64,11 +64,11 @@ metadata:
 3. **一次广查询优先**：多符号或多主题合并为一次 `codegraph_explore`；单次查询 `maxFiles` 默认不超过 12；
 4. **串行**：同一时刻只发一个 CodeGraph 调用；需要多次查询时串行执行，MUST NOT 并行发起多个调用（并发正是 busy 排队的来源）。
 
-**CodeGraph busy 阶梯（排队不是错误，也不是索引不可用）**：
+**CodeGraph busy 阶梯（排队不是错误，也不是索引不可用；耗尽即跳过，不阻塞流程）**：
 1. 识别 `busy serving other concurrent requests` 一类排队文案时，**等待 5–10 秒**；
-2. 重试**同一调用**（同一查询参数），至多 **2 次**；
-3. 仍 busy → 在**本步骤**降级为内置工具（Glob / Grep）并记 WARN，随后继续流程；
-4. MUST NOT 因 busy 判「索引不可用」，MUST NOT 执行 `codegraph unlock` 或显式 `codegraph sync`。
+2. 重试**同一调用**（同一查询参数），至多 **2 次**（合计至多 3 次调用，MUST NOT 超出）；
+3. 仍 busy → 该 CodeGraph **步骤**记为 `skipped-busy`，改用内置工具（Glob / Grep）补足该步骤所需信息并记 WARN，**随后继续流程**；Glob / Grep 也无法覆盖时，该步骤结论记「未覆盖（CodeGraph busy 跳过）」，MUST NOT 据此停止或反复重试；
+4. MUST NOT 因 busy 判「索引不可用」，MUST NOT 执行 `codegraph unlock` 或显式 `codegraph sync`；同一会话内已记 `skipped-busy` 的同类调用 MUST NOT 再次发起（避免重复排队）。
 
 **CodeGraph CLI 边界（子命令白名单）**：
 1. CLI 仅允许 `codegraph status --json` / `codegraph unlock` / `codegraph sync`（后两者受锁阶梯约束）；
