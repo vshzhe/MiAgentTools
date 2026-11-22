@@ -5,6 +5,7 @@ import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
 import { buildPromptGateBlock, buildPromptGateCompact, GATE_PROTOCOL_PREAMBLE, renderGateWhitelistSection, REQUIREMENT_DIMENSIONS } from '../prompt-gate.js';
 import { buildFlowchartBlock, buildFlowchartCompact, REQUIREMENT_FLOW_COLUMNS } from '../flowchart-gate.js';
+import { DYNAMIC_RULE_LOADING_FULL } from '../rule-loading-protocol.js';
 import { CODEGRAPH_CLI, CODEGRAPH_MCP } from '../tool-whitelist.js';
 import {
     CODEGRAPH_BUSY_LADDER,
@@ -96,19 +97,30 @@ const EXPLORATION_PROTOCOL_FULL = `## 强制检查点体系（delegated 模式�
 
 **⚠️ 强制：探索文件创建后、提示词校验门与任何追问之前执行。**
 
-1. 运行 \`iagent rules --json\` 枚举规则源（\`.iagent/config.yaml\`、\`.iagent/rules/*.md\`、\`CLAUDE.md\`、\`AGENTS.md\`；**不**包含 \`openspec/rules/**\`）
-2. 读取全部 \`exists=true\` 的源，并把结果写入探索文件的 \`## 项目规则基线\` 段：
+1. 运行 \`iagent rules --json --type spec\` 枚举并按**三层**分层（\`always\` / \`phase\` / \`onDemand\`；**不**包含 \`openspec/rules/**\`）
+2. **按层读取**（MUST NOT 读取全部存在源）：
+
+| 层 | 内容 | 读取要求 |
+| :--- | :--- | :--- |
+| \`always\`（常驻基线） | \`.iagent/config.yaml\` 的 context、\`CLAUDE.md\`、\`AGENTS.md\` | MUST 读 |
+| \`phase\`（阶段相关） | \`--type spec\` 命中的 \`.iagent/rules/spec.md\` | MUST 读 |
+| \`onDemand\`（按需点读） | 其余规则文件（如 \`coding-rules.md\` / \`testing-rules.md\`） | 与本次探索相关时读；否则显式声明不需要读 |
+
+3. 把结果写入探索文件的 \`## 项目规则基线\` 段（逐源标注相关性层级与理由）：
 
 \`\`\`markdown
 ## 项目规则基线
 
-| 源 | 存在 | 读取 | 关键约束摘要 |
-| :--- | :--- | :--- | :--- |
-| \`.iagent/rules/coding-rules.md\` | 是 | 已读 | <1-3 条与本次探索相关的约束> |
+| 源 | 相关性 | 存在 | 读取 | 关键约束摘要 / 不需要读的理由 |
+| :--- | :--- | :--- | :--- | :--- |
+| \`.iagent/config.yaml\` | always | 是 | 已读 | <context 中的技术栈与分层约定> |
+| \`.iagent/rules/spec.md\` | phase | 是 | 已读 | <1-3 条与本次探索相关的约束> |
+| \`.iagent/rules/testing-rules.md\` | on-demand | 是 | 未读 | 本次为设计阶段，测试框架约定在实现阶段读取 |
 \`\`\`
 
-3. **失败处置**：源缺失 → 显式记「不存在」（合法终态，不阻断）；读取失败 → 记 WARN 并标「未读」，MUST NOT 伪装为已读；全部源缺失 → 记「无规则源」并继续
-4. 规则基线 MUST 在 grill 与功能流程图之前建立，供后续制品生成与实现按同一规则集合约束
+4. **失败处置**：源缺失 → 显式记「不存在」（合法终态，不阻断）；读取失败 → 记 WARN 并标「未读」，MUST NOT 伪装为已读；全部源缺失 → 记「无规则源」并继续；\`--type\` 返回 \`fallback=true\`（无匹配规则文件）→ 按常驻基线继续并记 WARN，MUST NOT 回退为全量读取
+5. 规则基线 MUST 在 grill 与功能流程图之前建立，供后续制品生成与实现按同一规则集合约束
+6. **三层读取细则**见 \`references/dynamic-rule-loading.md\` —— 需要判断某个 \`on-demand\` 源是否相关时 MUST 先 \`Read\` 该文件
 
 **强制检查点**：没有规则基线段时 MUST NOT 进入 1.3 追问；规则源缺失不阻断探索。
 
@@ -116,8 +128,8 @@ const EXPLORATION_PROTOCOL_FULL = `## 强制检查点体系（delegated 模式�
 
 **⚠️ 强制：规则基线之后、提示词校验门与任何追问之前执行。**
 
-1. 运行 \`iagent skills --json\` 枚举配置技能；**按阶段筛选** \`phases\` 含 \`design\` 或 \`both\`（\`implement\`-only 技能不进入设计约束）
-2. 读取全部 \`exists=true\` 的技能，把结果写入探索文件 \`## 项目技能基线\`（与 \`## 项目规则基线\` 并列、互不替代）：
+1. 运行 \`iagent skills --json --phase design\` 枚举**按阶段筛选**后的技能（\`design\` 匹配 \`phases\` 含 \`design\` 或 \`both\`；\`implement\`-only 技能不进入设计约束）
+2. 读取筛选结果中 \`exists=true\` 的技能，把结果写入探索文件 \`## 项目技能基线\`（与 \`## 项目规则基线\` 并列、互不替代）：
 
 \`\`\`markdown
 | 源 | 存在 | 读取 | 完整性 | 关键约束摘要 |
@@ -125,8 +137,9 @@ const EXPLORATION_PROTOCOL_FULL = `## 强制检查点体系（delegated 模式�
 | \`.iagent/skills/frontend-design.md\` | 是 | 已读 | ok | <1-3 条与本次设计相关的约定> |
 \`\`\`
 
-3. **失败处置**：配置为空 / 全部缺失 → 记「无技能配置」并继续；读取失败 → WARN 且标「未读」；\`validation.status=incomplete\` → WARN 并列出缺失章节 / 占位符 / 无证据规则数，MUST NOT 当作完整规范使用
-4. 技能基线 MUST 在 grill 与功能流程图之前建立；设计与排查方案以其为约束，技能与代码冲突时显式呈现（代码事实优先）
+3. **范围收窄（条件）**：探索中一旦明确本次变更仅涉前端或仅涉后端，MAY 以 \`--scope backend\` / \`--scope frontend\` 收窄后续读取；未明确时 MUST NOT 传 \`--scope\`（MUST NOT 猜范围）。\`scope\` 为空的存量技能 MUST NOT 因范围筛选被排除
+4. **失败处置**：配置为空 / 全部缺失 → 记「无技能配置」并继续；读取失败 → WARN 且标「未读」；\`validation.status=incomplete\` → WARN 并列出缺失章节 / 占位符 / 无证据规则数，MUST NOT 当作完整规范使用
+5. 技能基线 MUST 在 grill 与功能流程图之前建立；设计与排查方案以其为约束，技能与代码冲突时显式呈现（代码事实优先）
 
 **强制检查点**：没有技能基线段时 MUST NOT 进入 1.3 追问；配置为空不阻断探索。
 
@@ -1411,6 +1424,7 @@ ${FLOWCHART}
         metadata: { author: 'mi-agent-tools' },
         references: [
             { path: 'references/prompt-gate.md', content: PROMPT_GATE_FULL },
+            { path: 'references/dynamic-rule-loading.md', content: DYNAMIC_RULE_LOADING_FULL },
             { path: 'references/flowchart-gate.md', content: FLOWCHART_FULL },
             {
                 path: 'references/exploration-protocol.md',

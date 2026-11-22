@@ -21,9 +21,11 @@
 
 **⚠️ 强制: 本步在 2.1.5 之后、2.2 CodeGraph 排查之前执行。**
 
-1. 运行 `iagent rules --json` 枚举规则源（`.iagent/config.yaml`、`.iagent/rules/*.md`、`CLAUDE.md`、`AGENTS.md`；**不**包含 `openspec/rules/**`）
-2. 读取全部 `exists=true` 的源，并把「源 / 存在性 / 读取状态 / 关键约束摘要」写入诊断记录（Phase 6 随根因分析持久化到变更 `exploration.md`）
-3. 源缺失 → 记「不存在」（合法终态，不阻断）；读取失败 → WARN 并标「未读」，MUST NOT 伪装为已读；全部源缺失 → 记「无规则源」并继续
+1. 运行 `iagent rules --json --type impl` 枚举并**按三层分层**（`always` / `phase` / `onDemand`；**不**包含 `openspec/rules/**`）
+2. **按层读取**：`always`（config context、`CLAUDE.md`、`AGENTS.md`）恒读；`phase`（`--type impl` 命中的 `coding-rules.md`）MUST 读；`onDemand`（其余规则）与本缺陷相关时读，否则显式声明不需要读
+3. 把「源 / 相关性层级 / 存在性 / 读取状态 / 关键约束摘要或不需要读的理由」写入诊断记录（Phase 6 随根因分析持久化到变更 `exploration.md`）
+4. 失败处置：源缺失 → 记「不存在」（合法终态，不阻断）；读取失败 → WARN 并标「未读」；全部源缺失 → 记「无规则源」并继续；`fallback=true` → 按常驻基线继续 + WARN，MUST NOT 回退全量
+5. 三层细则与未读声明格式见 `references/gates-and-rules.md`
 
 **强制检查点**：规则基线未建立时 MUST NOT 进入 2.2；规则源缺失不阻断排查。
 
@@ -31,8 +33,8 @@
 
 **⚠️ 强制: 本步在 2.1.6 之后、2.2 CodeGraph 排查之前执行。**
 
-1. 运行 `iagent skills --json` 枚举配置技能，**按阶段筛选** `phases` 含 `design` 或 `both`（implement-only 不进入设计约束）
-2. 读取全部 `exists=true` 的技能，把「源 / 存在性 / 读取状态 / 完整性 / 关键约束摘要」写入诊断记录（与规则基线并列、互不替代）
+1. 运行 `iagent skills --json --phase design` 枚举**按阶段筛选**后的技能（`design` 匹配 `phases` 含 `design` 或 `both`）
+2. 读取筛选结果中 `exists=true` 的技能，把「源 / 存在性 / 读取状态 / 完整性 / 关键约束摘要」写入诊断记录（与规则基线并列、互不替代）；缺陷已明确只涉前端或只涉后端时 MAY 追加 `--scope`，未明确时 MUST NOT 传
 3. 配置为空 / 全部缺失 → 记「无技能配置」并继续；读取失败 → WARN 并标「未读」；`validation.status=incomplete` → WARN 并列出缺失章节 / 占位符 / 无证据规则数，MUST NOT 当作完整规范使用
 4. 根因分析与修复方案以技能为约束；技能与代码冲突时显式呈现（代码事实优先）
 

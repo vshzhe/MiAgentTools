@@ -243,12 +243,16 @@ export function buildSpecCommand(): Command {
         .requiredOption('--change <name>', '目标变更名')
         .option('--strict', '存在缺失项时以非零退出码结束')
         .option('--rules-read <paths>', '回执实际读取的规则源（逗号分隔）；提供时校验读取完整性')
+        .option('--rules-skip <paths>', '声明为不需要读的规则源（逗号分隔）；命中者不报 rules-not-read')
         .option('--json', '以 JSON 输出（供程序处理）')
-        .action((options: { change: string; strict?: boolean; rulesRead?: string; json?: boolean }) => {
-            const rulesRead = options.rulesRead === undefined
-                ? undefined
-                : options.rulesRead.split(',').map((item) => item.trim()).filter((item) => item.length > 0);
-            const result = runSpecConformance(process.cwd(), options.change, { strict: options.strict, rulesRead });
+        .action((options: { change: string; strict?: boolean; rulesRead?: string; rulesSkip?: string; json?: boolean }) => {
+            const rulesRead = splitCsv(options.rulesRead);
+            const rulesSkip = splitCsv(options.rulesSkip);
+            const result = runSpecConformance(process.cwd(), options.change, {
+                strict: options.strict,
+                rulesRead,
+                rulesSkip,
+            });
             if (options.json) {
                 console.log(JSON.stringify(result.output, null, 2));
             } else {
@@ -642,6 +646,15 @@ export interface SpecConformanceOptions {
     strict?: boolean;
     /** 回执实际读取的规则源路径（逗号分隔输入由 CLI 拆分；缺省不校验规则读取完整性） */
     rulesRead?: string[];
+    /** 声明为不需要读的规则源路径（命中者不报 rules-not-read） */
+    rulesSkip?: string[];
+}
+
+/** 拆分逗号分隔参数（空值返回 undefined） */
+function splitCsv(raw: string | undefined): string[] | undefined {
+    if (raw === undefined) return undefined;
+    const items = raw.split(',').map((item) => item.trim()).filter((item) => item.length > 0);
+    return items.length > 0 ? items : undefined;
 }
 
 /** conformance 命令结果 */
@@ -697,7 +710,7 @@ export function runSpecConformance(
         skipSpecs: readSkipSpecs(changeRoot),
         legacyJson,
         ...(requiredRules !== undefined && options.rulesRead !== undefined
-            ? { rules: { required: requiredRules, read: options.rulesRead } }
+            ? { rules: { required: requiredRules, read: options.rulesRead, skip: options.rulesSkip ?? [] } }
             : {}),
     });
     return {

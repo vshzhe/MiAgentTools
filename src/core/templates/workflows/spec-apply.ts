@@ -5,6 +5,7 @@ import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
 import { skillDelegation } from '../tool-whitelist.js';
 import { renderGateWhitelistSection } from '../prompt-gate.js';
+import { DYNAMIC_RULE_LOADING_FULL } from '../rule-loading-protocol.js';
 import {
     GATE_SKIP_IDS,
     LEGACY_AUTO_MODE_PARAM,
@@ -272,7 +273,7 @@ export function getSpecApplyChangeSkillTemplate(): SkillTemplate {
         description: '实现变更。当 openspec/changes/ 下已有变更制品（proposal/specs/design/tasks），需要基于规格驱动实现任务清单时使用；触发词"实现变更 / apply / 执行任务 / 按规格实现"；NOT for 无变更制品时直接描述需求（改用 iagent_workflow 引导生成制品后再实现）。',
         allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(npm:*), Bash(pnpm:*), Bash(yarn:*), Bash(node:*), Bash(git:*), Bash(tsc:*), Bash(mvn:*), Bash(ant:*), Bash(gradle:*), Bash(go:*), Bash(cargo:*), ${skillDelegation(['test'])}`,
         type: 'spec',
-        instructions: `**实现前先读取项目规则基线：\`.iagent/config.yaml\` 的 context / rules、\`.iagent/rules/*.md\`、\`CLAUDE.md\`、\`AGENTS.md\`（用 \`iagent rules --json\` 枚举；源缺失显式记「不存在」，读取失败记 WARN 并计入未读）；并读取项目技能基线中 \`phases\` 含 \`implement\` 或 \`both\` 的技能（用 \`iagent skills --json\` 枚举；design-only 不要求读取；\`validation.status=incomplete\` 记 WARN 并列入回执 \`skillsIncomplete\`）。** 禁止猜测数据库字段、API 参数或业务规则 —— 标 **[待确认]** 并询问用户。
+        instructions: `**实现前按三层读取规则与技能（MUST NOT 全量读取）：① \`iagent rules --json --type impl\` → \`always\` 层（config context / \`CLAUDE.md\` / \`AGENTS.md\`）恒读、\`phase\` 层（\`coding-rules.md\`）MUST 读、\`onDemand\` 层与本次实现相关时读；② \`iagent skills --json --phase implement\` → 读取筛选结果（design-only 不要求；范围明确时 MAY 追加 \`--scope\`）。逐源记录未读声明（相关性 / 读取 / 理由）；源缺失显式记「不存在」，读取失败记 WARN 并计入未读；\`validation.status=incomplete\` 记 WARN 并列入回执 \`skillsIncomplete\`；回执 SHALL 携带 \`rulesRead\` / \`rulesSkipped\` / \`skillsRead\` / \`skillsSkipped\`。三层细则见 \`references/rule-loading.md\`。** 禁止猜测数据库字段、API 参数或业务规则 —— 标 **[待确认]** 并询问用户。
 
 按 openspec/changes/ 下的变更制品（proposal/specs/design/tasks）实现任务。
 
@@ -564,6 +565,7 @@ ${renderDelegationModeContract()}
         compatibility: '依赖 iagent CLI（spec 命令组）。',
         metadata: { author: 'mi-agent-tools' },
         references: [
+            { path: 'references/rule-loading.md', content: DYNAMIC_RULE_LOADING_FULL },
             { path: 'references/batch-scheduling.md', content: BATCH_SCHEDULING_FULL },
             { path: 'references/compile-check.md', content: COMPILE_CHECK_DETAIL },
         ],

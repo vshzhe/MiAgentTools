@@ -8,10 +8,10 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:36f6a431c9216f093db3f08aee4959e234cc8945529dc7b7d649459d378e9a8a"
+  generatedFingerprint: "sha256:e259705da729172b28848ab6b042598df76f42351f017a3b25bd592ae514bf56"
 ---
 
-**实现前先读取项目规则基线：`.iagent/config.yaml` 的 context / rules、`.iagent/rules/*.md`、`CLAUDE.md`、`AGENTS.md`（用 `iagent rules --json` 枚举；源缺失显式记「不存在」，读取失败记 WARN 并计入未读）；并读取项目技能基线中 `phases` 含 `implement` 或 `both` 的技能（用 `iagent skills --json` 枚举；design-only 不要求读取；`validation.status=incomplete` 记 WARN 并列入回执 `skillsIncomplete`）。** 禁止猜测数据库字段、API 参数或业务规则 —— 标 **[待确认]** 并询问用户。
+**实现前按三层读取规则与技能（MUST NOT 全量读取）：① `iagent rules --json --type impl` → `always` 层（config context / `CLAUDE.md` / `AGENTS.md`）恒读、`phase` 层（`coding-rules.md`）MUST 读、`onDemand` 层与本次实现相关时读；② `iagent skills --json --phase implement` → 读取筛选结果（design-only 不要求；范围明确时 MAY 追加 `--scope`）。逐源记录未读声明（相关性 / 读取 / 理由）；源缺失显式记「不存在」，读取失败记 WARN 并计入未读；`validation.status=incomplete` 记 WARN 并列入回执 `skillsIncomplete`；回执 SHALL 携带 `rulesRead` / `rulesSkipped` / `skillsRead` / `skillsSkipped`。三层细则见 `references/rule-loading.md`。** 禁止猜测数据库字段、API 参数或业务规则 —— 标 **[待确认]** 并询问用户。
 
 按 openspec/changes/ 下的变更制品（proposal/specs/design/tasks）实现任务。
 

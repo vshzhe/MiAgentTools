@@ -7,6 +7,24 @@
 
 ## [Unreleased]
 
+## [4.16.0] - 2026-11-22
+
+### Added
+
+- `src/core/rule-selection.ts`（动态加载内核，纯函数）：`classifyRuleSources` 把规则源分为三层——`always`（`config.yaml` context / `CLAUDE.md` / `AGENTS.md`，恒读）/ `phase`（按技能类型命中的 `.iagent/rules/<type>.md`，走 `RULE_FILE_NAMES` 单一源）/ `on-demand`（其余，按需点读）；`selectSkillEntries` 按 `phases` 与 `scope` 筛选技能。`phase` 层为空时回退常驻基线并标记 `fallback`，MUST NOT 回退全量
+- `iagent rules --json --type <id[,id...]>`：按技能类型筛选并输出分层结果（`classification` / `classifications`）；无参输出逐字段不变
+- `iagent skills --json --phase <design|implement> --scope <backend|frontend>`：按阶段与范围筛选；无参输出逐字段不变；`scope` 为空的存量技能不排除
+- `iagent spec conformance --rules-skip <paths>`：声明为「不需要读」的规则源不参与漏读判定
+- `src/core/templates/rule-loading-protocol.ts`（细则单一源）：三层加载细则、相关性判据、未读声明格式、fallback 处置、与 handoff 规范要点的关系
+
+### Changed
+
+- `spec-explore` / `debug` / `spec-apply` / `spec-verify` / `review` / `proposal-review` 的规则与技能基线由「读取全部 `exists=true`」改为**三层读取**，并新增未读声明（`| 源 | 相关性 | 存在 | 读取 | 理由 |`）；来源 12 个全量读取点清零
+- `spec-propose` 的 handoff `## 规范要点` 由「全部存在源蒸馏」改为「按相关性分层蒸馏 + 指针保留」——`always` / `phase` 层蒸馏要点，`on-demand` 层留「指针 + 一行摘要」；原「MUST NOT 只蒸馏 coding-rules.md」改写为「MUST NOT 静默丢弃任一存在源」
+- `spec-apply` 回执新增 `rulesSkipped` / `skillsSkipped`；`project-skill-consumption` 新增 `scope` 维度消费
+- `test.ts` 标注为三层契约的最小范例（读取范围不变，避免退化为全量）
+- `.iagent/rules/spec.md` 增「规则三层加载」要点；`AGENTS.md` 与 `openspec/CONTEXT.md` 同步单一源说明与新术语
+
 ## [4.15.0] - 2026-11-22
 
 ### Added
@@ -1894,7 +1912,8 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.15.0...HEAD
+[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.16.0...HEAD
+[4.16.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.15.0...v4.16.0
 [4.15.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.14.1...v4.15.0
 [4.14.1]: https://github.com/vshzhe/MiAgentTools/compare/v4.14.0...v4.14.1
 [4.14.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.13.0...v4.14.0

@@ -440,3 +440,19 @@ describe('spec 补全表与 Commander 程序一致性（4.6）', () => {
         expect(fingerprint!.options.map((option) => option.long)).toContain('--json');
     });
 });
+
+describe('补全表覆盖动态加载新参数', () => {
+    it('rules 含 --type，skills 含 --phase / --scope', () => {
+        const bash = generateBashCompletion();
+        // rules --type
+        expect(bash).toContain('--type');
+        expect(bash).toContain('--phase');
+        expect(bash).toContain('--scope');
+    });
+
+    it('spec validate 含 --ready，conformance 含 --rules-skip', () => {
+        const bash = generateBashCompletion();
+        expect(bash).toContain('--ready');
+        expect(bash).toContain('--rules-skip');
+    });
+});

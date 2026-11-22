@@ -132,6 +132,39 @@ describe('buildConformance 三层判定', () => {
         expect(result.notices.join('\n')).toContain('历史 JSON-only');
     });
 
+    it('Scenario: 声明跳过不判失败（rules.skip 豁免）', () => {
+        const result = buildConformance([], [], {
+            rules: {
+                required: ['CLAUDE.md', '.iagent/rules/testing-rules.md'],
+                read: ['CLAUDE.md'],
+                skip: ['.iagent/rules/testing-rules.md'],
+            },
+        });
+        expect(result.valid).toBe(true);
+        expect(result.findings.map((item) => item.code)).not.toContain('rules-not-read');
+    });
+
+    it('Scenario: 未声明且未读仍判失败', () => {
+        const result = buildConformance([], [], {
+            rules: {
+                required: ['CLAUDE.md', '.iagent/rules/testing-rules.md'],
+                read: ['CLAUDE.md'],
+                skip: ['.iagent/rules/other.md'],
+            },
+        });
+        expect(result.valid).toBe(false);
+        const finding = result.findings.find((item) => item.code === 'rules-not-read');
+        expect(finding?.message).toContain('testing-rules.md');
+    });
+
+    it('Scenario: 不传 skip 时行为与改造前一致', () => {
+        const result = buildConformance([], [], {
+            rules: { required: ['CLAUDE.md'], read: [] },
+        });
+        expect(result.valid).toBe(false);
+        expect(result.findings.map((item) => item.code)).toContain('rules-not-read');
+    });
+
     it('规则源未读：rules-not-read', () => {
         const result = buildConformance([], [], {
             rules: { required: ['CLAUDE.md', '.iagent/rules/coding-rules.md'], read: ['CLAUDE.md'] },

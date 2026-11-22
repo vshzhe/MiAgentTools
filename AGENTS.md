@@ -31,6 +31,7 @@ src/
 ├── core/
 │   ├── config.ts                     常量中心：SKILL_PREFIX、9 类 SKILL_TYPES、AI_TOOLS
 │   ├── project-config.ts             .iagent/ 配置读写（config.yaml + rules/）
+│   ├── rule-selection.ts             规则三层归类内核（always/phase/on-demand + 技能阶段/范围筛选，纯函数）
 │   ├── templates/
 │   │   ├── types.ts                 SkillTemplate / CommandTemplate 接口
 │   │   ├── registry.ts              模板注册表 + deriveCommandId 派生规则 + 指令白名单回填
@@ -42,6 +43,7 @@ src/
 │   │   ├── flowchart-gate.ts       流程图门控
 │   │   ├── skill-distill.ts        项目技能蒸馏共享协议（C1-C6 / 证据判定 / 产物形态，三模板同一真源）
 │   │   ├── verify-checklist.ts     验证清单单一源（D1-D10 + B1-B7 + 压缩自检变体，五技能共同引用）
+│   │   ├── rule-loading-protocol.ts 规则三层加载细则单一源（always/phase/on-demand 共用正文）
 │   │   └── workflows/              技能模板（中文正文）：功能名命名的 *.ts + spec-*.ts 共 23 个模板
 │   │                               （project-init 第 11 步为编排：委派 frontend/backend-skill-gen 两侧生成）
 │   ├── permissions.ts               会话级权限载体（settings.json 的 permissions.allow 非破坏合并）
@@ -182,14 +184,21 @@ node bin/iagent.js version bump  # 递增版本并写回 package.json / CHANGELO
    五个编排/验证技能 MUST 插值引用，MUST NOT 各自手写清单或锚点副本 —— 清单/锚点改动只改一处。
    就绪门 `src/core/spec/validation/readiness.ts` 是唯一判定实现（`iagent spec validate --ready`），
    propose 终检顺序固定为 partial → ready → strict → handoff 包（MUST NOT 重排）。
-8. **spec 模板单一源（已落地）**：`workflows/spec-*.ts` 的正文仅维护 skill 版
+8. **规则三层加载（已落地）**：技能读取 `.iagent/rules` / `.iagent/skills` 时 MUST 按三层（`always` 常驻基线 /
+   `phase` 阶段相关 / `on-demand` 按需点读），MUST NOT 启动期全量读取。筛选由 CLI 确定性计算：
+   `iagent rules --json --type <id>`（走 `project-config.ts` 的 `RULE_FILE_NAMES` 单一源）、
+   `iagent skills --json --phase/--scope`（走 `project-skills.ts` 的 `phases` / `scope`）。
+   判定内核为 `src/core/rule-selection.ts`；未读须逐源声明理由（`| 源 | 相关性 | 读取 | 理由 |`），
+   漏读计 `rules-not-read`，声明不需要读不 fail（`conformance --rules-skip`）。细则正文只在
+   `src/core/templates/rule-loading-protocol.ts` 维护，MUST NOT 在多模板手写副本。
+9. **spec 模板单一源（已落地）**：`workflows/spec-*.ts` 的正文仅维护 skill 版
    `getSpecXxxSkillTemplate().instructions`（唯一源），command 版 content 由
    `derive-command.ts` 的 `deriveCommandContent()` 从唯一源派生 —— 禁止直接编辑
    派生产物或另立手工字符串。裁剪段落用 `<!-- CMD:SKIP -->` / `<!-- /CMD:SKIP -->`
    成对标记（仅 skill 版可见）；未标记段落默认进入 command 版（fail-safe：漏标
    只会让 command 更长，不会缺失防护语句）；Guardrails 段永不标记。改动模板后
    仍须依次 `pnpm build && pnpm generate:skills`（见第 1 条）
-9. **版本号更新**：完成功能变更时同步更新版本号与变更日志，二者**随本次功能提交一并提交**
+10. **版本号更新**：完成功能变更时同步更新版本号与变更日志，二者**随本次功能提交一并提交**
    （不再单独提交 `chore: 版本号`）。以 `package.json` 当前 `version` 为基线，用
    `node bin/iagent.js version` 只读判定、`node bin/iagent.js version bump` 写回；
    判定输入是**实际实现影响面**（基线之后的提交 + Git diff + CHANGELOG `[Unreleased]`），

@@ -15,6 +15,8 @@ import {
     CONFIG_FILE_NAME,
     RULES_DIR_NAME,
 } from '../core/project-config.js';
+import { SKILL_TYPE_IDS, isSkillType, type SkillType } from '../core/config.js';
+import { classifyRuleSources } from '../core/rule-selection.js';
 
 export type RuleSourceKind = 'config' | 'rule-file' | 'claude-md' | 'agents-md';
 
@@ -33,10 +35,24 @@ export interface RuleSource {
 
 export interface RulesOutput {
     sources: RuleSource[];
+    /** 按 `--type` 筛选时的分层结果（单类型；无 `--type` 时不出现） */
+    classification?: {
+        type: SkillType;
+        always: string[];
+        phase: string[];
+        onDemand: string[];
+        fallback: boolean;
+        fallbackReason?: string;
+    };
+    /** 多类型时的分层结果数组 */
+    classifications?: NonNullable<RulesOutput['classification']>[];
 }
 
 /** 枚举项目规则源（纯只读）。 */
-export function collectRuleSources(projectRoot: string): RulesOutput {
+export function collectRuleSources(
+    projectRoot: string,
+    types: readonly SkillType[] = [],
+): RulesOutput {
     const sources: RuleSource[] = [];
     const configRel = toPosix(CONFIG_FILE_NAME);
     const configAbs = path.join(projectRoot, CONFIG_FILE_NAME);
@@ -65,7 +81,27 @@ export function collectRuleSources(projectRoot: string): RulesOutput {
 
     sources.push(describeSource(path.join(projectRoot, 'CLAUDE.md'), 'CLAUDE.md', 'claude-md'));
     sources.push(describeSource(path.join(projectRoot, 'AGENTS.md'), 'AGENTS.md', 'agents-md'));
-    return { sources };
+
+    // 无 --type：输出与改造前逐字段一致（不含 classification）
+    if (types.length === 0) {
+        return { sources };
+    }
+
+    // 单类型：输出单个 classification；多类型：输出 classifications 数组
+    const classifications = types.map((type) => {
+        const result = classifyRuleSources(sources, { type });
+        return {
+            type,
+            always: result.always.map((item) => item.path),
+            phase: result.phase.map((item) => item.path),
+            onDemand: result.onDemand.map((item) => item.path),
+            fallback: result.fallback,
+            ...(result.fallbackReason === undefined ? {} : { fallbackReason: result.fallbackReason }),
+        };
+    });
+    return types.length === 1
+        ? { sources, classification: classifications[0] }
+        : { sources, classifications };
 }
 
 function describeSource(
@@ -146,8 +182,26 @@ export function buildRulesCommand(): Command {
     return new Command('rules')
         .description('枚举项目规则源（.iagent/config.yaml、.iagent/rules/*.md、CLAUDE.md、AGENTS.md）')
         .option('--json', '以 JSON 输出（供程序处理）')
-        .action((options: { json?: boolean }) => {
-            const output = collectRuleSources(process.cwd());
+        .option('--type <ids>', `按技能类型筛选并分层（逗号分隔；合法值：${SKILL_TYPE_IDS.join(' / ')}）`)
+        .action((options: { json?: boolean; type?: string }) => {
+            const types = parseTypes(options.type);
+            if (types === null) {
+                console.error(`未知的技能类型：${options.type}（合法值：${SKILL_TYPE_IDS.join(' / ')}）`);
+                process.exitCode = 1;
+                return;
+            }
+            const output = collectRuleSources(process.cwd(), types);
             console.log(options.json === true ? JSON.stringify(output, null, 2) : renderRulesText(output));
         });
+}
+
+/** 解析 `--type` 参数（逗号分隔）；空值返回空数组，非法值返回 null */
+function parseTypes(raw: string | undefined): SkillType[] | null {
+    if (raw === undefined || raw.trim() === '') return [];
+    const types: SkillType[] = [];
+    for (const item of raw.split(',').map((part) => part.trim()).filter((part) => part.length > 0)) {
+        if (!isSkillType(item)) return null;
+        types.push(item);
+    }
+    return types;
 }

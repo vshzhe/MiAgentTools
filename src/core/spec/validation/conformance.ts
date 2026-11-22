@@ -62,6 +62,11 @@ export interface ConformanceEvidence {
     rules?: {
         required: readonly string[];
         read: readonly string[];
+        /**
+         * 声明为「不需要读」的源（动态加载的三层策略：on-demand 层未读取时显式声明）。
+         * 命中本集合的源 MUST NOT 报 `rules-not-read`（含理由由调用方记录）。
+         */
+        skip?: readonly string[];
     };
 }
 
@@ -170,7 +175,10 @@ export function buildConformance(
 
     if (options.rules !== undefined) {
         const read = new Set(options.rules.read.map((item) => normalizeRef(item)));
+        // 声明为不需要读的源（三层策略的 on-demand 未读取）不参与「漏读」判定
+        const skipped = new Set((options.rules.skip ?? []).map((item) => normalizeRef(item)));
         for (const required of options.rules.required) {
+            if (skipped.has(normalizeRef(required))) continue;
             if (!read.has(normalizeRef(required))) {
                 findings.push({
                     code: 'rules-not-read',

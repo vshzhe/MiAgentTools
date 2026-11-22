@@ -724,7 +724,7 @@ export function getTestSkillTemplate(): SkillTemplate {
 
 **输入**：\`/iagent:test\` 后跟被测目标（类名、方法名、文件路径或功能描述）。
 
-**规则基线（强制）**：开始生成前运行 \`iagent rules --json\`，读取 \`.iagent/config.yaml\` 的 context 与 \`.iagent/rules/testing-rules.md\`（存在时）；生成的测试 MUST 遵循其中的框架、目录与命名约定。
+**规则基线（强制，三层范式的既有最佳实践）**：开始生成前运行 \`iagent rules --json --type test\`，读取 \`always\` 层（config context / \`CLAUDE.md\` / \`AGENTS.md\`）与 \`phase\` 层命中的 \`.iagent/rules/testing-rules.md\`（存在时）；\`onDemand\` 层规则仅在与本次生成相关时读取。**本技能即为三层契约的最小范例**：只读与本技能类型相关的规则文件，MUST NOT 全量读取全部规则源。生成的测试 MUST 遵循其中的框架、目录与命名约定。
 
 **自动管线调用（delegated / 门承载参数生效，强制）**：调用方可传入改动文件清单、已覆盖 Scenario 清单与变更名。此时本技能 MUST 只为未覆盖的有行为目标设计用例（沿用 2.1 不测清单），测试计划确认门自动采用推荐计划并记 WARN「计划未经用户逐项确认」，MUST NOT 阻塞自动管线；返回用例清单、覆盖映射与执行结果供调用方写入测试证据。交互式独立调用保持既有测试计划确认门与 P2 显式确认行为不变。
 

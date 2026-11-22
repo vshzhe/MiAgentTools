@@ -22,7 +22,7 @@ export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
 - 测试汇总 \`status=fail\` 或文件缺失 → 判 **CRITICAL**「测试证据缺失 / 失败」；
 - 证据 \`pass\` 的已覆盖项 MUST NOT 再做语义猜测（避免重复推断）；\`not-applicable\` / \`disabled\` 记 WARN 并说明未执行原因。
 
-**规则基线（强制）**：读取 \`.iagent/config.yaml\`、\`.iagent/rules/*.md\`、\`CLAUDE.md\`、\`AGENTS.md\`（\`iagent rules --json\` 可枚举）；源缺失记「不存在」，存在但未读记 WARN。
+**规则基线（强制，三层）**：运行 \`iagent rules --json --type spec\` → \`always\` 层（config context / \`CLAUDE.md\` / \`AGENTS.md\`）恒读、\`phase\` 层（\`spec.md\`）MUST 读、\`onDemand\` 层与本次验证相关时读；MUST NOT 全量读取。源缺失记「不存在」，存在但未读须声明不需要读理由，否则记 WARN。
 
 **handoff 包（只读消费，不追加）**：若 \`.openspec-tmp/pipeline-<change-name>/handoff-pack.md\` 存在，本技能**只读**该包（含并列节 \`## 硬约束\`，只读复用、MUST NOT 写入或改写），MUST NOT 重产整包。包内 \`## 已确认门\`（门账本）同样**只读** —— MUST NOT 改写、删除或回填父级已写入的条目（账本条目表达门承载语义，取值域 = \`GATE_SKIP_IDS\`，与六节并列且不计入六节）。**本技能无 \`Write\` 权限**：\`## 阶段结论\` MUST NOT 由本技能追加，也 MUST NOT 声称已追加；结论由父编排转交具备 \`Write\` 权限的 apply / archive 落盘。包缺失时按需直接读取制品（不强制产包）；\`sourceFingerprint\` 与当前制品不一致时记 WARN，并以磁盘制品为准完成验证。
 

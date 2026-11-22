@@ -80,19 +80,19 @@ const IAGENT_COMMANDS: {
         subcommands: ['new', 'status', 'migrate', 'validate', 'conformance', 'instructions', 'archive', 'render', 'sidecar', 'fingerprint'],
         subcommandFlags: {
             fingerprint: ['--change', '--json'],
-            conformance: ['--change', '--strict', '--rules-read', '--json'],
-            validate: ['--change', '--partial', '--artifact', '--conformance', '--json'],
+            conformance: ['--change', '--strict', '--rules-read', '--rules-skip', '--json'],
+            validate: ['--change', '--partial', '--artifact', '--conformance', '--ready', '--json'],
         },
     },
     {
         name: 'rules',
-        description: '枚举项目规则源',
-        flags: ['--json'],
+        description: '枚举项目规则源（可按技能类型筛选）',
+        flags: ['--json', '--type'],
     },
     {
         name: 'skills',
-        description: '枚举项目技能并校验完整性',
-        flags: ['--json'],
+        description: '枚举项目技能并校验完整性（可按阶段/范围筛选）',
+        flags: ['--json', '--phase', '--scope'],
     },
 ];
 

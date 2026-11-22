@@ -8,14 +8,14 @@ metadata:
   author: mi-agent-tools
   type: review
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:b2f709966551dee49d98b820abaf1c7ef14491f0832dc248a6cfe9c9c57f6a14"
+  generatedFingerprint: "sha256:112686f63fbc7754617012621fc44724e351180010bd2e7b6cc416556fd0889a"
 ---
 
 审查代码 —— 按维度检查，只报告经过验证的问题，严重程度分级呈现。
 
 **输入**：`/iagent:review` 后跟审查范围（文件路径、分支名或 PR 标识；可省略，默认审查未提交变更）。
 
-**规则基线（强制）**：开始审查前运行 `iagent rules --json`，读取 `.iagent/config.yaml` 的 context 与全部 `exists=true` 的规则源（`.iagent/rules/*.md`、`CLAUDE.md`、`AGENTS.md`）；源缺失记「不存在」，MUST NOT 只对照 `CLAUDE.md`。
+**规则基线（强制，三层）**：开始审查前运行 `iagent rules --json --type review` → `always` 层（config context / `CLAUDE.md` / `AGENTS.md`）恒读、`phase` 层（`review.md`，存在时）MUST 读、`onDemand` 层与本次审查范围相关时读；MUST NOT 全量读取全部规则源。源缺失记「不存在」，MUST NOT 只对照 `CLAUDE.md`。
 
 ## 审查维度
 

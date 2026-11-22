@@ -582,7 +582,7 @@ iagent spec status --change "<change-name>" --json
 
 **取值来源（MUST）**：本节各检查项的**具体判据 MUST 来自项目初始化时固化的实际信息**，禁止假设固定框架、包名或版本：
 
-1. 优先读 \`.iagent/config.yaml\` 的 \`context\` 段（技术栈、分层约定、包名规范、运行时/浏览器/数据库版本）与 \`.iagent/rules/*.md\`（按类型规则）
+1. 优先读 \`always\` 层与 \`phase\` 层 —— 运行 \`iagent rules --json --type review\`：\`always\`（\`.iagent/config.yaml\` 的 \`context\` 段：技术栈、分层约定、包名规范、运行时/浏览器/数据库版本；\`CLAUDE.md\`；\`AGENTS.md\`）恒读，\`phase\`（\`.iagent/rules/review.md\`，存在时）MUST 读；其余 \`.iagent/rules/*.md\` 属 \`onDemand\`，与本次复查范围相关时读，MUST NOT 全量读取
 2. \`context\` 未覆盖时，从项目既有源码与配置探测：构建文件（\`pom.xml\` / \`build.gradle\` / \`package.json\` 的版本与依赖）、包路径、\`web.xml\`、路由/配置文件、既有同类实现
 3. 探测结论标 **[待确认]** 请用户确认；确认后写回 \`.iagent/config.yaml\` 的 \`context\`，供后续技能复用
 4. 仍无法确定时按「与项目既有同类实现保持一致」处理，MUST NOT 套用外部框架默认值

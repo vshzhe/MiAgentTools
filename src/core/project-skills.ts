@@ -9,6 +9,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { createHash } from 'node:crypto';
+import { selectSkillEntries } from './rule-selection.js';
 import { AI_TOOLS } from './config.js';
 import {
     SKILLS_DIR_NAME,
@@ -317,18 +318,62 @@ function describeSkill(
 /** 枚举项目技能（只读）。 */
 export function collectProjectSkills(
     projectRoot: string,
-    activeTools?: readonly { skillsDir: string }[]
+    activeTools?: readonly { skillsDir: string }[],
+    filter: ProjectSkillFilter = {},
 ): ProjectSkillsOutput {
     const config = readProjectConfig(projectRoot);
     const tools = activeTools ?? resolveActiveTools(undefined, config?.tools, AI_TOOLS);
     const groups: ProjectSkillGroupOutput[] = [];
     for (const group of config?.skills ?? []) {
-        groups.push({
-            role: group.role,
-            entries: group.entries.map((name) => describeSkill(projectRoot, group.role, name, tools)),
-        });
+        const entries = group.entries.map((name) => describeSkill(projectRoot, group.role, name, tools));
+        // 无筛选时 MUST 保持改造前的分组形状（含空组），避免破坏既有输出契约
+        if (filter.phase === undefined && filter.scope === undefined) {
+            groups.push({ role: group.role, entries });
+            continue;
+        }
+        const filtered = applySkillFilter(entries, filter);
+        // 筛选态下为空的组不输出（避免空壳组）
+        if (filtered.length > 0) {
+            groups.push({ role: group.role, entries: filtered });
+        }
     }
     return { groups };
+}
+
+/** 技能筛选选项（`iagent skills --phase / --scope`） */
+export interface ProjectSkillFilter {
+    /** 阶段：design 匹配 {design, both}；implement 匹配 {implement, both} */
+    phase?: 'design' | 'implement';
+    /** 范围：backend / frontend；不传时不做范围排除 */
+    scope?: 'backend' | 'frontend';
+}
+
+/**
+ * 对条目应用阶段 / 范围筛选。
+ *
+ * 筛选语义委托 `rule-selection.ts` 的 `selectSkillEntries`（单一实现），
+ * 本函数只负责把 `ProjectSkillEntry` 适配为其所需的最小形状。
+ */
+function applySkillFilter(
+    entries: readonly ProjectSkillEntry[],
+    filter: ProjectSkillFilter,
+): ProjectSkillEntry[] {
+    if (filter.phase === undefined && filter.scope === undefined) {
+        return [...entries];
+    }
+    const selected = new Set(
+        selectSkillEntries(
+            entries.map((entry) => ({
+                name: entry.name,
+                path: entry.path ?? '',
+                exists: entry.exists,
+                phases: entry.phases,
+                scope: entry.scope,
+            })),
+            { phase: filter.phase, scope: filter.scope ?? null },
+        ).map((item) => item.name),
+    );
+    return entries.filter((entry) => selected.has(entry.name));
 }
 
 /** 渲染人类可读文本。 */

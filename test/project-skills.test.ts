@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { selectSkillEntries } from '../src/core/rule-selection.js';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -200,5 +201,17 @@ describe('项目技能载体', () => {
         const before = fs.readFileSync(file, 'utf8');
         collectProjectSkills(projectRoot);
         expect(fs.readFileSync(file, 'utf8')).toBe(before);
+    });
+});
+
+describe('技能范围筛选与跳过声明（动态加载）', () => {
+    it('Scenario: --scope 收窄且 scope 为空的条目不排除', () => {
+        const entries = [
+            { name: 'a', path: 'a.md', exists: true, phases: 'both', scope: 'backend' },
+            { name: 'b', path: 'b.md', exists: true, phases: 'both', scope: 'frontend' },
+            { name: 'c', path: 'c.md', exists: true, phases: 'both', scope: null },
+        ];
+        const result = selectSkillEntries(entries, { scope: 'backend' });
+        expect(result.map((entry: { name: string }) => entry.name)).toEqual(['a', 'c']);
     });
 });

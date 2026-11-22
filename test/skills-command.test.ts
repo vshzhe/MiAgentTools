@@ -124,3 +124,86 @@ describe('iagent skills 命令', () => {
         expect(fs.readFileSync(configPath, 'utf8')).toBe(configBefore);
     });
 });
+
+describe('skills --phase / --scope：按阶段与范围筛选', () => {
+    let projectRoot: string;
+
+    function skill(name: string, phases: string, scope: string): string {
+        return [
+            '---',
+            `name: ${name}`,
+            'description: 测试技能',
+            `phases: ${phases}`,
+            `scope: ${scope}`,
+            'source: distilled',
+            '---',
+            '## 框架与版本',
+            '- Spring（证据：pom.xml:10）',
+            '## 目录与分层',
+            '- 分层（证据：src/main/java/App.java:1）',
+            '## 设计规范',
+            '- 规范（证据：src/main/java/App.java:2）',
+            '## 实现规范',
+            '- 实现（证据：src/main/java/App.java:3）',
+            '## 约定与禁止项',
+            '- 禁止（证据：src/main/java/App.java:4）',
+            '## 证据索引',
+            '- pom.xml',
+            '## 不适用项',
+            '- 无',
+            '',
+        ].join('\n');
+    }
+
+    beforeEach(() => {
+        projectRoot = makeTempProject();
+        fs.mkdirSync(path.join(projectRoot, '.iagent', 'skills'), { recursive: true });
+        fs.writeFileSync(
+            path.join(projectRoot, '.iagent', 'config.yaml'),
+            'skills:\n  backend:\n    - be-design\n    - be-impl\n    - be-both\n',
+            'utf8'
+        );
+        fs.writeFileSync(path.join(projectRoot, '.iagent', 'skills', 'be-design.md'), skill('be-design', 'design', 'backend'), 'utf8');
+        fs.writeFileSync(path.join(projectRoot, '.iagent', 'skills', 'be-impl.md'), skill('be-impl', 'implement', 'backend'), 'utf8');
+        fs.writeFileSync(path.join(projectRoot, '.iagent', 'skills', 'be-both.md'), skill('be-both', 'both', 'frontend'), 'utf8');
+    });
+
+    afterEach(() => {
+        fs.rmSync(projectRoot, { recursive: true, force: true });
+    });
+
+    function names(output: ReturnType<typeof collectProjectSkills>): string[] {
+        return output.groups.flatMap((group) => group.entries).map((entry) => entry.name).sort();
+    }
+
+    it('Scenario: 按阶段筛选（implement）', () => {
+        const output = collectProjectSkills(projectRoot, undefined, { phase: 'implement' });
+        expect(names(output)).toEqual(['be-both', 'be-impl']);
+    });
+
+    it('Scenario: 按阶段筛选（design）', () => {
+        const output = collectProjectSkills(projectRoot, undefined, { phase: 'design' });
+        expect(names(output)).toEqual(['be-both', 'be-design']);
+    });
+
+    it('Scenario: 按范围筛选（backend）', () => {
+        const output = collectProjectSkills(projectRoot, undefined, { scope: 'backend' });
+        expect(names(output)).toEqual(['be-design', 'be-impl']);
+    });
+
+    it('Scenario: 无参输出不变', () => {
+        const output = collectProjectSkills(projectRoot);
+        expect(names(output)).toEqual(['be-both', 'be-design', 'be-impl']);
+        // valiation 子对象仍在
+        const entry = output.groups[0].entries[0];
+        expect(entry).toHaveProperty('validation');
+        expect(entry).toHaveProperty('sha256');
+    });
+
+    it('命令暴露 --phase / --scope', () => {
+        const command = buildSkillsCommand();
+        const flags = command.options.map((option) => option.long);
+        expect(flags).toContain('--phase');
+        expect(flags).toContain('--scope');
+    });
+});
