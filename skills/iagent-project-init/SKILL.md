@@ -1,14 +1,14 @@
 ---
 name: iagent-project-init
 description: "初始化项目。当用户要创建新项目、搭建目录结构、生成配置文件、初始化知识文档或准备开发环境时使用；触发词\"初始化项目 / project init / 搭建项目 / 生成配置\"；NOT for 扫描源项目功能模块（改用 iagent-feature-doc）。"
-allowed-tools: Bash(ls:*), Bash(pwd:*), Read, Write, Glob, Grep, Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(iagent-feature-doc), Skill(iagent-frontend-skill-gen), Skill(iagent-backend-skill-gen), Agent, Task
+allowed-tools: Bash(ls:*), Bash(pwd:*), Read, Write, Glob, Grep, Bash(git:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Skill(iagent-feature-doc), Skill(iagent-frontend-skill-gen), Skill(iagent-backend-skill-gen), Agent, Task
 license: MIT
 compatibility: 无特殊依赖，通用环境可用。CodeGraph 索引与文档能力技能均为可选增强，缺失时自动降级。
 metadata:
   author: mi-agent-tools
   type: init
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:99d6abe0f374be6d9d8fc270a64b811e47f701796750be28933126ef8557b6f8"
+  generatedFingerprint: "sha256:206b0dcfcc37a62b82db171d3ed4ccdeaa4ff4b5a6f481cc712c623d1ea73f0d"
 ---
 
 初始化项目 —— 读扫描基线 → 五类语义扫描 → 逐份确认 → 落盘 → 回写 context → 蒸馏规则。
@@ -20,6 +20,29 @@ metadata:
 > 扫描全程**非阻断**：任一步骤失败 MUST 记 WARN 并继续，MUST NOT 中断流程，MUST NOT 使流程以失败收场。
 
 ## 执行步骤
+
+### 0. 前置环境检查（Git，非阻断）
+
+**⚠️ 强制：本节在全部扫描之前执行；全程非阻断** —— 任一步失败 MUST 记 WARN 并继续初始化，MUST NOT 中断主流程。
+
+1. **检测**：运行 `iagent git status --json`
+2. **未安装**（`installed=false`）：
+   - 若 `installers` 非空 → 呈现 **⛔ 安装确认门**（门白名单第 5 类 `destructive-change`，不可豁免）：
+     逐条列出可用安装器与**将执行的确切命令**（如 `winget install --id Git.Git -e --source winget`），等待用户选择或拒绝
+     - **确认** → 执行该命令 → 复检 `iagent git status --json`
+     - **拒绝** → 跳过 Git 能力，记 WARN（含手动安装建议），继续第 1 步
+   - 若 `installers` 为空 → 只给建议（官方下载地址或手动安装命令），记 WARN，继续第 1 步
+3. **已安装**（`installed=true`）→ 运行 `iagent git init --json`：
+   - `action=created` → 记录「Git 仓库已初始化」
+   - `action=skipped` → 记录原因（已是仓库 / 位于上级仓库内），**零改动**
+   - `action=failed` → 记 WARN 并继续
+4. **报告口径**：在第 12 步摘要中呈现 Git 检查结果（已安装 / 已初始化 / 跳过原因 / 警告）
+
+**边界**：
+- 未获确认时 MUST NOT 执行任何安装命令
+- 已有仓库 MUST NOT 覆盖或重置（幂等）
+- 检测到上级仓库时 MUST NOT 创建嵌套仓库
+- Git 不可用 MUST NOT 影响后续扫描与文档落盘
 
 ### 1. 读取扫描基线
 

@@ -13,7 +13,7 @@
  * 由 test/template-consistency.test.ts『指令正文派生覆盖度可观测』锁定）。
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
-import { CODEGRAPH_CLI, CODEGRAPH_MCP, skillDelegation, SUBAGENT_DISPATCH } from '../tool-whitelist.js';
+import { GIT_CLI, CODEGRAPH_CLI, CODEGRAPH_MCP, skillDelegation, SUBAGENT_DISPATCH } from '../tool-whitelist.js';
 import {
     SKILL_DISTILL_EVIDENCE_RULE,
     SKILL_DISTILL_PRODUCT_SHAPE,
@@ -163,6 +163,8 @@ export function getProjectInitSkillTemplate(): SkillTemplate {
         description: '初始化项目。当用户要创建新项目、搭建目录结构、生成配置文件、初始化知识文档或准备开发环境时使用；触发词"初始化项目 / project init / 搭建项目 / 生成配置"；NOT for 扫描源项目功能模块（改用 iagent_feature_doc）。',
         allowedTools:
             'Bash(ls:*), Bash(pwd:*), Read, Write, Glob, Grep, ' +
+            GIT_CLI +
+            ', ' +
             CODEGRAPH_CLI +
             ', ' +
             CODEGRAPH_MCP +
@@ -180,6 +182,29 @@ export function getProjectInitSkillTemplate(): SkillTemplate {
 > 扫描全程**非阻断**：任一步骤失败 MUST 记 WARN 并继续，MUST NOT 中断流程，MUST NOT 使流程以失败收场。
 
 ## 执行步骤
+
+### 0. 前置环境检查（Git，非阻断）
+
+**⚠️ 强制：本节在全部扫描之前执行；全程非阻断** —— 任一步失败 MUST 记 WARN 并继续初始化，MUST NOT 中断主流程。
+
+1. **检测**：运行 \`iagent git status --json\`
+2. **未安装**（\`installed=false\`）：
+   - 若 \`installers\` 非空 → 呈现 **⛔ 安装确认门**（门白名单第 5 类 \`destructive-change\`，不可豁免）：
+     逐条列出可用安装器与**将执行的确切命令**（如 \`winget install --id Git.Git -e --source winget\`），等待用户选择或拒绝
+     - **确认** → 执行该命令 → 复检 \`iagent git status --json\`
+     - **拒绝** → 跳过 Git 能力，记 WARN（含手动安装建议），继续第 1 步
+   - 若 \`installers\` 为空 → 只给建议（官方下载地址或手动安装命令），记 WARN，继续第 1 步
+3. **已安装**（\`installed=true\`）→ 运行 \`iagent git init --json\`：
+   - \`action=created\` → 记录「Git 仓库已初始化」
+   - \`action=skipped\` → 记录原因（已是仓库 / 位于上级仓库内），**零改动**
+   - \`action=failed\` → 记 WARN 并继续
+4. **报告口径**：在第 12 步摘要中呈现 Git 检查结果（已安装 / 已初始化 / 跳过原因 / 警告）
+
+**边界**：
+- 未获确认时 MUST NOT 执行任何安装命令
+- 已有仓库 MUST NOT 覆盖或重置（幂等）
+- 检测到上级仓库时 MUST NOT 创建嵌套仓库
+- Git 不可用 MUST NOT 影响后续扫描与文档落盘
 
 ### 1. 读取扫描基线
 

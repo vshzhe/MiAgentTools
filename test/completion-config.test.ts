@@ -456,3 +456,12 @@ describe('补全表覆盖动态加载新参数', () => {
         expect(bash).toContain('--rules-skip');
     });
 });
+
+describe('补全表覆盖 git 命令（Git 能力集成）', () => {
+    it('补全脚本含 git 与 status / init 子命令', () => {
+        const bash = generateBashCompletion();
+        expect(bash).toContain('git');
+        expect(bash).toContain('status');
+        expect(bash).toContain('init');
+    });
+});

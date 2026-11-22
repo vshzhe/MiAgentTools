@@ -1,14 +1,14 @@
 ---
 name: iagent-spec-bulk-archive
 description: "批量归档变更。当用户要一次归档多个已完成变更时使用；触发词\"批量归档 / bulk archive / 归档多个\"；NOT for 单个变更归档（改用 iagent-spec-archive）。"
-allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Bash(node:*), Agent, Task
+allowed-tools: Read, Write, Edit, Glob, Grep, Bash(iagent:*), Bash(codegraph:*), mcp__codegraph, mcp__codegraph__codegraph_status, mcp__codegraph__codegraph_files, mcp__codegraph__codegraph_search, mcp__codegraph__codegraph_context, mcp__codegraph__codegraph_node, mcp__codegraph__codegraph_callers, mcp__codegraph__codegraph_callees, mcp__codegraph__codegraph_impact, mcp__codegraph__codegraph_explore, Bash(node:*), Bash(git:*), Agent, Task
 license: MIT
 compatibility: 依赖 iagent CLI（spec 命令组）与 CodeGraph CLI（可选）。
 metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:45a7728924d50832e482c3f35e0fc3c092488e67423e04b074cdfc24bcd608d8"
+  generatedFingerprint: "sha256:6c8426e31f0818a8655bf9354294b277b1faf53c95ea682bb5bcb5ce865e7fac"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
@@ -287,6 +287,17 @@ metadata:
    Failed 1 change:
    - some-change: subagent timeout after retries
    ```
+
+10.5 **批量归档自动提交（整批一次，非阻断）**
+
+   **⚠️ 顺序**：在 Step 10（索引更新）之后、Step 11（CodeGraph 同步）之前执行；由主代理单点执行，MUST NOT 在归档子代理内执行。
+
+   - **整批一次提交**（MUST NOT 逐变更分别提交）：收集**全部成功归档**变更的制品路径与本次批量相关的代码改动，合并为一次 `git add -- <paths>` + `git commit`
+   - **提交信息**：Conventional Commits 中文一行式，主体概括本批归档，尾行 `提案: <name1>, <name2>, ...`（汇总成功归档的变更名）
+   - **部分归档失败**：只提交成功归档者的路径；失败变更 MUST 在报告中单独列出，MUST NOT 纳入提交
+   - **精确暂存**：MUST NOT 使用 `git add -A` / `git add .` / `git add openspec`
+   - **失败不阻断**：钩子拒绝 / 身份未配置 / detached HEAD / 冲突 → WARN + 建议，继续 Step 11
+   - **⛔ 推送确认门**（`destructive-change`，不可豁免、MUST NOT 被 `gate-skip` 跳过）：确认则 `git push`，拒绝则保留本地提交
 
 10. **批量归档索引更新（月度纯追加 + 根入口单点维护）**
 

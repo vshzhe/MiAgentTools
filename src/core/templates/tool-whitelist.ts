@@ -44,6 +44,17 @@ export const CODEGRAPH_MCP: string =
 export const CODEGRAPH_CLI: string = 'Bash(codegraph:*)';
 
 /**
+ * Git CLI 放行条目（单一源）。
+ *
+ * 需要执行 git 子命令的技能（project-init 的 Git 前置检查、spec-archive / spec-bulk-archive
+ * 的归档自动提交）MUST 引用本常量，MUST NOT 逐模板手写 `Bash(git ...)` 字面量。
+ *
+ * 放行范围覆盖检测（`--version` / `status` / `remote`）、初始化（`init`）、
+ * 暂存提交（`add` / `commit`）与推送（`push`）。
+ */
+export const GIT_CLI: string = 'Bash(git:*)';
+
+/**
  * 子代理派发条目：`Agent, Task`。
  *
  * 为何双写：派发工具在旧版 Claude Code 中名为 `Task`，新版更名为 `Agent`；二者是两套

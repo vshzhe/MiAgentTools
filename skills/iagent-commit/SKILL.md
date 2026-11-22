@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: commit
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:257b972f9cb2d5946b62eafa0c6fa2059544f94b17adfe40f2bdf07a32af51e8"
+  generatedFingerprint: "sha256:016762898406d5613becc99ab024ab1da76718cb5bbf4d36df565d8252a43023"
 ---
 
 提交变更 —— 提交前必须核对变更内容，提交信息必须符合规范。
@@ -77,6 +77,7 @@ metadata:
 
 - 提交是外向且不可轻易撤销的操作：首次执行前向用户展示将要提交的文件与提交信息，确认后再执行；本约束不因提案制品纳入而豁免
 - **MUST NOT 使用 `git add -A` / `git add openspec` / `git add openspec/changes`**：暂存范围必须按固定清单逐条精确指定
-- **MUST NOT 自动 commit**：确认前 MUST NOT 执行 `git commit`
+- **MUST NOT 自动 commit（交互式）**：`/iagent:commit` 交互式调用中，确认前 MUST NOT 执行 `git commit`
+- **归档自动提交的窄通道例外（唯一）**：`iagent-spec-archive` / `iagent-spec-bulk-archive` 的归档收尾 MAY 不经交互式确认即执行本地 commit，但 MUST 同时满足三项前提 —— ① 只暂存固定清单（MUST NOT `git add -A` / `git add .` / `git add openspec`）；② 推送前 MUST 经推送确认门（`destructive-change`，不可豁免、MUST NOT 被 `gate-skip` 跳过）；③ 提交失败 MUST NOT 阻断归档。**除上述窄通道外，任何调用方 MUST NOT 自动执行 `git commit`**
 - 一次提交只做一件事：混合了功能与修复时建议拆分
 - 禁止提交：密钥、.env、构建产物、用户明确排除的文件

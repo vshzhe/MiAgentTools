@@ -10,7 +10,7 @@
 |------|---------|-------|
 | 2026-09 | [ARCHIVE-INDEX-2026-09.md](ARCHIVE-INDEX-2026-09.md) | 17 |
 | 2026-10 | [ARCHIVE-INDEX-2026-10.md](ARCHIVE-INDEX-2026-10.md) | 18 |
-| 2026-11 | [ARCHIVE-INDEX-2026-11.md](ARCHIVE-INDEX-2026-11.md) | 27 |
+| 2026-11 | [ARCHIVE-INDEX-2026-11.md](ARCHIVE-INDEX-2026-11.md) | 28 |
 
 ---
 
@@ -30,7 +30,7 @@
 | debug | 1 | feat-debug-dual-track-entry (2026-11-03) |
 | template | 1 | improve-template-dual-layer-optimization (2026-10-10) |
 | archive | 1 | improve-archive-name-collision (2026-11-11) |
-| project-init | 1 | refactor-project-init-skill-split (2026-11-12) |
+| project-init | 2 | refactor-project-init-skill-split (2026-11-12), add-git-integration (2026-11-22) |
 
 ---
 

@@ -7,6 +7,23 @@
 
 ## [Unreleased]
 
+## [4.17.0] - 2026-11-22
+
+### Added
+
+- `src/core/git-capability.ts`（Git 能力内核）：检测函数纯只读（`detectGit` / `isGitRepository` / `findParentRepository` / `probeInstallers`），执行函数接受注入的 `CommandRunner`（`installGit` / `initRepository` / `stagePathsAndCommit` / `push`）；`initRepository` 双幂等（已有 `.git/` 或位于上级仓库内 → `skipped`）
+- `iagent git status|init` 命令：状态快照（`installed` / `version` / `isRepo` / `parentRepo` / `installers`）与幂等初始化，均支持 `--json`；status 未装 Git 仍退出码 0
+- `tool-whitelist.ts` 新增 `GIT_CLI`（`Bash(git:*)`）共享常量
+
+### Changed
+
+- `project-init` 新增 **Step 0 前置环境检查**：检测 Git → 未装时呈现安装确认门（逐条列出安装器与将执行的确切命令，`destructive-change` 不可豁免）→ 已装时幂等 `git init`；全程非阻断
+- `spec-archive` 新增 **Step 7.5 归档自动提交**：只暂存固定清单 + Conventional Commits 尾行 `提案:`；失败不阻断归档；推送须过确认门（`destructive-change`，不可豁免、不可 skip）
+- `spec-bulk-archive` 新增 **Step 10.5 批量归档自动提交**：整批一次提交（不逐变更），部分失败只提交成功者
+- `commit.ts` 的「MUST NOT 自动 commit」**收窄作用域**到交互式调用，并新增归档自动提交的窄通道例外（三项硬性前提），交互式语义不变
+- 三个技能的 `allowedTools` 补齐 `Bash(git:*)`（经 `GIT_CLI` 共享常量）
+- `AGENTS.md` 与 `openspec/CONTEXT.md` 同步 Git 能力单一源说明与四条新术语
+
 ## [4.16.0] - 2026-11-22
 
 ### Added
@@ -1912,7 +1929,8 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.16.0...HEAD
+[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.17.0...HEAD
+[4.17.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.16.0...v4.17.0
 [4.16.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.15.0...v4.16.0
 [4.15.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.14.1...v4.15.0
 [4.14.1]: https://github.com/vshzhe/MiAgentTools/compare/v4.14.0...v4.14.1

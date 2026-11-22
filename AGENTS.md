@@ -23,6 +23,7 @@ src/
 │   ├── show.ts                       iagent show（模糊匹配 + 详情）
 │   ├── completion.ts                 iagent completion（bash/pwsh 补全脚本生成与安装）
 │   ├── skills.ts                     iagent skills（项目技能枚举 + 完整性校验）
+│   ├── git.ts                        iagent git（status / init）
 │   ├── rules.ts                      iagent rules（项目规则源枚举）
 │   ├── onboarding.ts                 init 后的引导提示
 │   ├── spec.ts                       iagent spec 子命令组（new / status / fingerprint / migrate / validate / conformance / instructions / archive / render / sidecar）
@@ -32,6 +33,7 @@ src/
 │   ├── config.ts                     常量中心：SKILL_PREFIX、9 类 SKILL_TYPES、AI_TOOLS
 │   ├── project-config.ts             .iagent/ 配置读写（config.yaml + rules/）
 │   ├── rule-selection.ts             规则三层归类内核（always/phase/on-demand + 技能阶段/范围筛选，纯函数）
+│   ├── git-capability.ts             Git 能力内核（检测只读 / 执行注入 runner：安装、init、精确暂存提交、推送）
 │   ├── templates/
 │   │   ├── types.ts                 SkillTemplate / CommandTemplate 接口
 │   │   ├── registry.ts              模板注册表 + deriveCommandId 派生规则 + 指令白名单回填
@@ -198,7 +200,12 @@ node bin/iagent.js version bump  # 递增版本并写回 package.json / CHANGELO
    成对标记（仅 skill 版可见）；未标记段落默认进入 command 版（fail-safe：漏标
    只会让 command 更长，不会缺失防护语句）；Guardrails 段永不标记。改动模板后
    仍须依次 `pnpm build && pnpm generate:skills`（见第 1 条）
-10. **版本号更新**：完成功能变更时同步更新版本号与变更日志，二者**随本次功能提交一并提交**
+10. **归档自动提交窄通道**：`iagent_spec_archive` / `iagent_spec_bulk_archive` MAY 在归档收尾自动执行本地 commit，
+    但 MUST 同时满足：① 只暂存固定清单（MUST NOT `git add -A` / `git add .` / `git add openspec`）；
+    ② 推送前 MUST 经推送确认门（`destructive-change`，不可豁免、MUST NOT 被 `gate-skip` 跳过）；
+    ③ 提交失败 MUST NOT 阻断归档。除该窄通道外任何调用方 MUST NOT 自动 `git commit`。
+    Git 相关白名单条目统一走 `tool-whitelist.ts` 的 `GIT_CLI`（`Bash(git:*)`），MUST NOT 逐模板手写。
+11. **版本号更新**：完成功能变更时同步更新版本号与变更日志，二者**随本次功能提交一并提交**
    （不再单独提交 `chore: 版本号`）。以 `package.json` 当前 `version` 为基线，用
    `node bin/iagent.js version` 只读判定、`node bin/iagent.js version bump` 写回；
    判定输入是**实际实现影响面**（基线之后的提交 + Git diff + CHANGELOG `[Unreleased]`），

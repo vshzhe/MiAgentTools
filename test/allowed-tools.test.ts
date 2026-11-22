@@ -16,6 +16,10 @@
 
 import { describe, it, expect } from 'vitest';
 import { getSkillTemplates, getCommandTemplates } from '../src/core/templates/index.js';
+import { GIT_CLI } from '../src/core/templates/tool-whitelist.js';
+import { getProjectInitSkillTemplate } from '../src/core/templates/workflows/project-init.js';
+import { getSpecArchiveChangeSkillTemplate } from '../src/core/templates/workflows/spec-archive.js';
+import { getSpecBulkArchiveSkillTemplate } from '../src/core/templates/workflows/spec-bulk-archive.js';
 import {
     CONDITIONAL_DELEGATIONS,
     ORCHESTRATION_DELEGATIONS,
@@ -700,6 +704,23 @@ describe('2.4 白名单 canonical 形态全量断言', () => {
                     internal
                 );
             }
+        }
+    });
+});
+
+describe('GIT_CLI 共享常量与三技能白名单（Git 能力集成）', () => {
+    it('GIT_CLI 常量值为 Bash(git:*)', () => {
+        expect(GIT_CLI).toBe('Bash(git:*)');
+    });
+
+    it('project-init / spec-archive / spec-bulk-archive 均含 Bash(git:*)', () => {
+        const templates = [
+            getProjectInitSkillTemplate(),
+            getSpecArchiveChangeSkillTemplate(),
+            getSpecBulkArchiveSkillTemplate(),
+        ];
+        for (const template of templates) {
+            expect(template.allowedTools, `${template.name} 缺 Bash(git:*)`).toContain('Bash(git:*)');
         }
     });
 });

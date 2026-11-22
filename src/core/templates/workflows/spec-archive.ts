@@ -3,7 +3,7 @@
  */
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
-import { CODEGRAPH_CLI, CODEGRAPH_MCP } from '../tool-whitelist.js';
+import { GIT_CLI, CODEGRAPH_CLI, CODEGRAPH_MCP } from '../tool-whitelist.js';
 import {
     CODEGRAPH_BUSY_LADDER,
     CODEGRAPH_CALL_DISCIPLINE,
@@ -18,7 +18,7 @@ export function getSpecArchiveChangeSkillTemplate(): SkillTemplate {
     return {
         name: 'iagent_spec_archive',
         description: '归档变更。当用户要归档已实现完成的变更、结束变更工作流时使用；触发词"归档 / archive / 结束变更"；NOT for 一次归档多个变更（改用 iagent_spec_bulk_archive）。',
-        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), ${CODEGRAPH_CLI}, ${CODEGRAPH_MCP}, Bash(node:*)`,
+        allowedTools: `Read, Write, Edit, Glob, Grep, Bash(iagent:*), ${CODEGRAPH_CLI}, ${CODEGRAPH_MCP}, Bash(node:*), ${GIT_CLI}`,
         type: 'spec',
         instructions: `**适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
 
@@ -304,6 +304,15 @@ ${renderGateWhitelistSection({ variant: 'standalone-archive' })}
 
    **跨平台说明**：Windows 上用 \`path.join()\` 构建路径。检查文件是否存在时注意大小写敏感性差异。
 
+7.5 **归档自动提交（非阻断，推送需确认）**
+
+   在 Step 7 之后、Step 8 之前执行；**不改变归档结果** —— 失败或跳过 MUST NOT 回滚归档。
+
+   1. 收集待提交路径：该变更的制品固定清单（\`proposal.md\` / \`design.md\` / \`tasks.md\` / \`exploration.md\` / \`.openspec.yaml\` / \`specs\` 下全部 \`.md\`，排除 \`attachments\` 与 \`需求文档.md\`）+ 本次变更相关代码改动。无路径 → 跳过并说明
+   2. 精确 \`git add -- <具体路径>\` + \`git commit\`，提交信息沿用 \`iagent_commit\` §3 规范，尾行 \`提案: <change-name>\`；MUST NOT 使用 \`git add -A\` / \`git add .\` / \`git add openspec\` / 目录通配
+   3. 失败一律 WARN + 建议并继续（钩子拒绝 / 权限 / 身份未配置 / detached HEAD / 冲突）；工作区无关改动 MUST NOT 被纳入
+   4. **⛔ 推送确认门**（\`destructive-change\`，不可豁免、MUST NOT 被 \`gate-skip\` 跳过）：展示分支与 remote 后询问；确认 → \`git push\`，拒绝 → 保留本地提交；未配置 remote → WARN 跳过（非失败）
+
 8. **展示摘要**
 
    展示归档完成摘要，包含：
@@ -313,6 +322,7 @@ ${renderGateWhitelistSection({ variant: 'standalone-archive' })}
    - 规格是否已同步（如适用）
    - 归档索引更新状态（月度索引 \`ARCHIVE-INDEX-YYYY-MM.md\` 追加结果 / 根入口月份链接与全局统计维护结果 / 根入口重建或损坏 WARN）
    - CodeGraph 同步状态（已同步 / 跳过 —— 未初始化或出错）
+   - Git 提交状态（已提交 <hash> / 无改动跳过 / 失败 WARN + 原因）与推送状态（已推送 / 未推送 —— 用户选择或未配置 remote）
    - 探索记忆同步状态（已同步 / 跳过 —— 无探索文件或无 delta spec / 失败 —— 已记录告警）
    - 流程级工作区清理结果（已清理 / 清理失败 WARN + 路径）
    - 关于任何告警的说明（未完成的制品/任务）

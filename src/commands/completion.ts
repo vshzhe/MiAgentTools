@@ -94,6 +94,12 @@ const IAGENT_COMMANDS: {
         description: '枚举项目技能并校验完整性（可按阶段/范围筛选）',
         flags: ['--json', '--phase', '--scope'],
     },
+    {
+        name: 'git',
+        description: 'Git 环境与仓库状态查询、幂等初始化',
+        flags: ['--json'],
+        subcommands: ['status', 'init'],
+    },
 ];
 
 /** 校验 shell 参数 */
