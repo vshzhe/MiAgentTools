@@ -1,4 +1,5 @@
 import { readMarkdownDocument } from './markdown-parser.js';
+import { extractNodeRefs, stripNodeRefs } from '../validation/anchors.js';
 import type {
     ArtifactDiagnostic,
     ParsedTask,
@@ -110,11 +111,11 @@ function parseTaskBlock(
     const kind = labels.find((label) => KNOWN_KINDS.has(label));
     const testLevel = labels.find((label) => label === '单元' || label === '功能');
     const priority = labels.find((label) => /^P[012]$/.test(label));
-    const description = taskLine
-        .replace(idMatch[0], ' ')
-        .replace(LABEL, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
+    const description = stripNodeRefs(
+        taskLine
+            .replace(idMatch[0], ' ')
+            .replace(LABEL, ' '),
+    );
 
     const continuation: string[] = [];
     let endIndex = startIndex;
@@ -127,6 +128,7 @@ function parseTaskBlock(
     }
 
     const fields = parseTaskFields(continuation);
+    const nodeRefs = extractNodeRefs(taskLine);
     return {
         endIndex,
         task: {
@@ -146,6 +148,8 @@ function parseTaskBlock(
             verification: fields.verification,
             outputs: fields.outputs,
             group,
+            nodeRefs: nodeRefs.length > 0 ? nodeRefs : undefined,
+            nodeRef: nodeRefs[0],
         },
     };
 }

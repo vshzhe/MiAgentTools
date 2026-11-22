@@ -44,6 +44,7 @@ import { parseProposal } from '../core/spec/parser/proposal-parser.js';
 import { parseDesign } from '../core/spec/parser/design-parser.js';
 import { parseSpec } from '../core/spec/parser/spec-parser.js';
 import { validateParsedChange } from '../core/spec/validation/artifact-validator.js';
+import { buildReadiness } from '../core/spec/validation/readiness.js';
 import {
     buildConformance,
     renderConformanceText,
@@ -222,12 +223,14 @@ export function buildSpecCommand(): Command {
         .option('--partial', '起草期模式：缺失制品记为 incomplete（不使校验失败）')
         .option('--artifact <id>', '只校验指定制品（proposal / specs / design / tasks）')
         .option('--conformance', '一致性严格模式：未覆盖 Requirement / Scenario 与缺少测试任务升级为 error')
+        .option('--ready', '就绪门模式：确定性组合校验（结构 + 覆盖 + 锚点 + 能力对齐）；与 --partial 互斥')
         .option('--json', '以 JSON 输出（供程序处理）')
-        .action((options: { change: string; partial?: boolean; artifact?: string; conformance?: boolean; json?: boolean }) => {
+        .action((options: { change: string; partial?: boolean; artifact?: string; conformance?: boolean; ready?: boolean; json?: boolean }) => {
             const result = runSpecValidate(process.cwd(), options.change, {
                 partial: options.partial,
                 artifact: options.artifact,
                 conformance: options.conformance,
+                ready: options.ready,
             });
             console.log(options.json ? JSON.stringify(result, null, 2) : formatValidationResult(result));
             if (!result.valid) {
@@ -450,12 +453,29 @@ export function runSpecStatus(
 interface SpecValidationOutput {
     changeName: string;
     changeRoot: string;
-    /** 校验模式：strict（终检）/ partial（起草期） */
-    mode: 'strict' | 'partial';
+    /** 校验模式：strict（终检）/ partial（起草期）/ ready（就绪门） */
+    mode: 'strict' | 'partial' | 'ready';
     /** 单制品校验时的 artifact id，未指定为 null */
     artifactId: string | null;
     valid: boolean;
     diagnostics: Array<{
+        severity: string;
+        code?: string;
+        message: string;
+        filePath: string;
+        line: number;
+    }>;
+    /** 就绪门逐项判定（mode=ready 时） */
+    checks?: Array<{
+        id: string;
+        label: string;
+        status: 'pass' | 'fail' | 'skipped';
+        skipReason?: string;
+    }>;
+    /** 就绪门跳过的判定 id（SKIP 排除分母） */
+    skipped?: string[];
+    /** 存量兼容 WARN（不阻断） */
+    legacyWarnings?: Array<{
         severity: string;
         code?: string;
         message: string;
@@ -472,6 +492,8 @@ export interface SpecValidateOptions {
     artifact?: string;
     /** 一致性严格模式：未覆盖 Requirement / Scenario 与缺测试任务升级为 error */
     conformance?: boolean;
+    /** 就绪门模式：确定性组合校验（结构 + 覆盖 + 锚点 + 能力对齐）；与 partial 互斥 */
+    ready?: boolean;
 }
 
 /** 从 Markdown 构造统一运行时模型并校验。 */
@@ -482,7 +504,8 @@ export function runSpecValidate(
 ): SpecValidationOutput {
     const changeRoot = path.join(projectRoot, 'openspec', 'changes', changeName);
     const partial = options.partial === true;
-    const mode: 'strict' | 'partial' = partial ? 'partial' : 'strict';
+    const ready = options.ready === true;
+    const mode: 'strict' | 'partial' | 'ready' = ready ? 'ready' : partial ? 'partial' : 'strict';
     const artifactId = options.artifact ?? null;
     if (!fs.existsSync(changeRoot)) {
         return {
@@ -492,6 +515,24 @@ export function runSpecValidate(
             artifactId,
             valid: false,
             diagnostics: [{ severity: 'error', code: 'missing-change', message: `变更不存在：${changeName}`, filePath: changeRoot, line: 1 }],
+        };
+    }
+
+    // 就绪门与起草期模式互斥：同时传入时显式报冲突，MUST NOT 静默选择其中一种语义
+    if (ready && partial) {
+        return {
+            changeName,
+            changeRoot,
+            mode,
+            artifactId,
+            valid: false,
+            diagnostics: [{
+                severity: 'error',
+                code: 'conflicting-validate-modes',
+                message: '`--ready`（就绪门）与 `--partial`（起草期）互斥，MUST NOT 同时使用',
+                filePath: changeRoot,
+                line: 1,
+            }],
         };
     }
 
@@ -538,6 +579,28 @@ export function runSpecValidate(
         diagnostics: [],
         warnings: [],
     };
+
+    // 就绪门模式：确定性组合校验（结构 + 覆盖 + 锚点 + 能力对齐）
+    if (ready) {
+        const metadata = readChangeMetadata(changeRoot);
+        const readiness = buildReadiness(model, {
+            created: metadata.created,
+            skipSpecs: readSkipSpecs(changeRoot),
+            legacyJson: specs.length === 0 && tasks === undefined && fs.existsSync(path.join(changeRoot, 'change.json')),
+        });
+        return {
+            changeName,
+            changeRoot,
+            mode,
+            artifactId,
+            valid: readiness.valid,
+            diagnostics: readiness.diagnostics,
+            checks: readiness.checks,
+            skipped: readiness.skipped,
+            legacyWarnings: readiness.legacyWarnings,
+        };
+    }
+
     const result = validateParsedChange(model, {
         degradeUnmatchedRefs: partial && !specsCompleted,
         conformance: options.conformance === true,
@@ -650,7 +713,23 @@ export function runSpecConformance(
     };
 }
 
-function formatValidationResult(result: SpecValidationOutput): string {    if (result.valid && result.diagnostics.length === 0) {
+function formatValidationResult(result: SpecValidationOutput): string {
+    // 就绪门：逐项判定 + 可定位诊断（FAIL 输出 MUST NOT 仅给计数）
+    if (result.mode === 'ready' && result.checks !== undefined) {
+        const lines = [`就绪门${result.valid ? '通过' : '未通过'}：${result.changeName}`];
+        for (const check of result.checks) {
+            const reason = check.status === 'skipped' && check.skipReason !== undefined ? `（${check.skipReason}）` : '';
+            lines.push(`  ${check.status === 'pass' ? '✓' : check.status === 'fail' ? '✗' : '-'} ${check.label}：${check.status}${reason}`);
+        }
+        for (const diagnostic of result.diagnostics) {
+            lines.push(`  [${diagnostic.severity}] ${diagnostic.filePath}:${diagnostic.line} ${diagnostic.message}`);
+        }
+        for (const warning of result.legacyWarnings ?? []) {
+            lines.push(`  [${warning.severity}] ${warning.filePath}:${warning.line} ${warning.message}`);
+        }
+        return lines.join('\n');
+    }
+    if (result.valid && result.diagnostics.length === 0) {
         return `Markdown 制品校验通过：${result.changeName}`;
     }
     const lines = [`Markdown 制品校验${result.valid ? '通过（含警告）' : '失败'}：${result.changeName}`];
@@ -703,6 +782,32 @@ function readSkipSpecs(changeRoot: string): boolean {
     const content = fs.readFileSync(metadataPath, 'utf8');
     const match = /^skip_specs:\s*(true|false)\s*$/m.exec(content);
     return match !== null && match[1] === 'true';
+}
+
+interface ChangeMetadata {
+    /** `.openspec.yaml` 的 created 字段（YYYY-MM-DD）；缺失为 undefined */
+    created?: string;
+    /** `.openspec.yaml` 的 schema 字段 */
+    schema?: string;
+}
+
+/**
+ * 读取 `.openspec.yaml` 的简单标量字段（不引入 yaml 依赖，与 new-change.ts 的写入手写格式对应）。
+ *
+ * 缺失文件或字段时返回 undefined —— 就绪门据 `created` 缺失按新变更处理（fail-safe）。
+ */
+function readChangeMetadata(changeRoot: string): ChangeMetadata {
+    const metadataPath = path.join(changeRoot, '.openspec.yaml');
+    if (!fs.existsSync(metadataPath)) {
+        return {};
+    }
+    const content = fs.readFileSync(metadataPath, 'utf8');
+    const createdMatch = /^created:\s*["']?([0-9]{4}-[0-9]{2}-[0-9]{2})["']?\s*$/m.exec(content);
+    const schemaMatch = /^schema:\s*["']?([A-Za-z0-9._-]+)["']?\s*$/m.exec(content);
+    return {
+        ...(createdMatch === null ? {} : { created: createdMatch[1] }),
+        ...(schemaMatch === null ? {} : { schema: schemaMatch[1] }),
+    };
 }
 
 /**

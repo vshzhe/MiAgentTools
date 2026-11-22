@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:8b05f7bfecfcfe4db30ad4f5c1e9e521fb343ab18cc816be5ca0fab5cd1c5f89"
+  generatedFingerprint: "sha256:ebbb0ed2b15ba5555e27c67831a1b45fa9235e908a674d406250551f6e278578"
 ---
 
 
@@ -265,36 +265,18 @@ bug 无法用自动化测试捕获时（环境相关行为 / 时序 / 仅 UI）�
 
 **⚠️ 强制: 循环中所有修复完成后，变更制品必须反映所有已实现的修复。**
 
-### 6.1 更新制品（Markdown 优先）
+### 6.1 更新制品
 
-Markdown 是唯一真源 —— 直接更新 OpenSpec Markdown 制品；不得创建或更新 JSON 镜像：
+Markdown 是唯一真源，直接更新，不得创建 JSON 镜像：**proposal** What Changes 追加每个 bug 的根因与修复；**specs** 行为变化用 ADDED/MODIFIED/REMOVED/RENAMED 更新 Requirement/Scenario；**design** 决策变化更新 Decisions；**tasks** 更新 checkbox 并必要时追加回归测试任务（保留 `Spec Ref`/`Scenario Ref`）。遗留 JSON 变更只读兼容，写前须显式迁移。
 
-- **proposal**：把循环中**所有** bug 的根因与修复说明追加到 `proposal.md` 的 What Changes 下（每个 bug 追加一条）
-- **specs**：任一修复改变已记录行为时，用 ADDED/MODIFIED/REMOVED/RENAMED 更新对应的 `specs/<capability>/spec.md` Requirement/Scenario
-- **design**：任一修复改变已记录决策时，更新 `design.md` 的 Decisions
-- **tasks**：更新 `tasks.md` 的 checkbox，必要时追加回归测试任务；保留 `Spec Ref`/`Scenario Ref`
-- **Validate**：Markdown 编辑后运行 `iagent spec validate --change "<name>"` 并修正路径/行号诊断
-- **仅遗留 JSON 的变更**：只读兼容；写操作须先显式迁移
+### 6.2 持久化与校验（细则见 `references/gates-and-rules.md`）
 
-### 6.2 持久化根因分析
+- 按 bug 把完整诊断记录（提示词基线、复现、路径、证据、根因、修复理由）写入 `exploration.md`，含 `## 提示词基线` 与 `## 功能流程（缺陷链路）`；分级判定（2.2.3.5）一并持久化
+- `iagent spec validate --change "<name>"` 通过，失败按路径与行号修正
 
-- 把**所有** bug 的完整诊断记录（提示词基线、复现、排查路径、证据、根因、所选修复理由）写入变更目录的 `exploration.md`，按 bug 组织 —— 包含 `## 提示词基线` 段，使变更保留用户确认的语义来源；`## 功能流程（缺陷链路）` 段（2.4）承载确认后的缺陷链路与节点清单
-- **分级判定结果**（2.2.3.5）：每个 bug 的排查深度分级结论 MUST 一并持久化 —— 三条信号取值、所选路径（轻量 A / 深度 B）、是否信号降级；即"为什么这个缺陷走了这条排查路径"须可追溯，避免事后无法复盘排查深度是否合理
+### 6.4 一致性与就绪门
 
-### 6.3 Markdown 校验
-
-同步后校验 Markdown 制品：
-
-- `iagent spec validate --change "<name>"` 通过；失败时报出文件路径与行号
-- `proposal.md` 含 Why / What Changes / Capabilities / Impact；`specs/**/*.md` 含 `### Requirement:` + `#### Scenario:`；`design.md` 含 Context / Decisions / Risks；`tasks.md` 任务带类型标签与 checkbox 状态
-
-继续之前先修复任何违规 —— 同步不得损坏 Markdown 真源。
-
-### 6.4 实现一致性证据（强制）
-
-运行 `iagent spec conformance --strict` 并写 `.openspec-tmp/pipeline-<change-name>/conformance-report.md`（细则见 `references/gates-and-rules.md`）；`fail` / 缺失 → 回 Phase 4。
-
-仅当制品反映所有已实现的修复、且一致性证据已产出后，才进入 Phase 7。
+`iagent spec conformance --strict` 与 `iagent spec validate --ready`（就绪门，与 propose 同一 `readiness.ts`）；任一 `fail` → 回 Phase 4。
 
 ---
 ## Phase 7: 验证 — 覆盖所有修复
@@ -326,7 +308,18 @@ Markdown 是唯一真源 —— 直接更新 OpenSpec Markdown 制品；不得�
 
 ### 7.3 验证 PASS → 内联深度复查 → 实现 review → 收束（verify-close）
 
-验证 PASS 后：① 主 agent 内联深度复查（D1-D10 + B1-B7，每条结论带 `文件:行`）；② 内联调用 `iagent-review`，报告落盘 `review-report.md`，P0/P1 未修复 → strict 阻断并报告；P2 问题记录不阻断；③ 输出可归档结论（无需求文档桥）。验证/复查失败 → 按 7.2 自动修复循环；内联技能不可用 → strict 阻断或显式 degraded + WARN。
+验证 PASS 后：① 主 agent 内联深度复查（合并清单，每条结论带 `文件:行`）：**固定清单（D1-D10 核心维度 + B1-B7 边界）**：
+
+1. **D1: 需求覆盖** — Decisions → 规格需求
+2. **D2: 技术一致性** — 技术选型 → `design.md`（design 缺失时从 specs / proposal 取证据，双无则 SKIP）
+3. **D3: 任务完整性** — 规格需求 → 任务（优先消费结构化解析结论）
+4. **D4: 边界覆盖** — 问题 / 边界场景 → 规格 Scenario
+5. **D5: Pending 解决** — Pending 事项 → 已解决
+6. **D6-D10: 条件维度** — 交互细节 / API 契约 / 数据库映射 / 业务步骤 / 流程图节点覆盖，未触发不计分
+7. **B1-B7 边界清单**：B1 自写制品自证（`independence=self` + WARN，结论必须带 `文件:行`）／B2 FAIL 同上下文修复（禁止新开代理 / 全量重读，≤3）／B3 归档内联失败沿用非阻断语义／B4 debug fix 内联共用预算 ≤3／B5 migration 上下文超限降级子代理 + WARN／B6 spec-bulk-archive 保留并行子代理（≤3）／B7 无 `delegate` 宿主仅阻断 propose/apply
+
+> 阈值：统一 90%；Overall Score = (D1 + D2 + D3 + D4 + D5 + sum(triggered D6-D10)) / (5 + triggered_count)。
+> 本清单由 `src/core/templates/verify-checklist.ts` 单一源渲染，MUST NOT 在各技能正文另写副本。；② 内联调用 `iagent-review`，报告落盘 `review-report.md`，P0/P1 未修复 → strict 阻断并报告；P2 问题记录不阻断；③ 输出可归档结论（无需求文档桥）。验证/复查失败 → 按 7.2 自动修复循环；内联技能不可用 → strict 阻断或显式 degraded + WARN。
 
 ### 7.4 清理流程级调试工作区（强制）
 

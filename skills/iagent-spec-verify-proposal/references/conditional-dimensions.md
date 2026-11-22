@@ -117,6 +117,12 @@ D9 Score = (complex ops with decomposition / total complex ops) * 100%
 **FAIL 示例**：
 - "D9 FAIL: 用户下单流程 (4步骤, 含事务) 未拆解 —— 需要标注执行层和异常路径"
 
+> **D2 `design.md` 缺失分支细则（D8）**
+>
+> - **优先取替代证据**：从 `specs/**/*.md` 的 Requirement 正文与 `proposal.md` 的 Capabilities / Impact 小节提取技术选型证据；有证据时按本维度正常计分，报告标注「D2 证据来源：specs / proposal（design 缺失）」
+> - **双无则 SKIP**：`design.md` 缺失且 `specs` / `proposal` 均无技术选型证据（如纯文档 / 纯配置变更）→ 本维度标 **SKIP** 并从总分分母排除（不计入 `triggered_count`），MUST NOT 按 0 分拉低总分、MUST NOT 由 AI 自行豁免
+> - SKIP 时报告 MUST 注明原因，MUST NOT 静默跳过
+
 ### Dimension 10: 功能流程图节点覆盖度 [由 功能流程图 段自动触发]
 
 **Trigger**：探索产物 `exploration.md` 含 `## 功能流程图` 段时触发（该段由探索阶段产出并经流程最终确认门确认）。

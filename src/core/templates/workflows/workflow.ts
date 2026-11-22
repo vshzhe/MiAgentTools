@@ -7,6 +7,7 @@ import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
 import { GATE_PROTOCOL_PREAMBLE, renderGateWhitelistSection } from '../prompt-gate.js';
 import { CODEGRAPH_MCP, skillDelegation } from '../tool-whitelist.js';
+import { renderVerifyChecklist } from '../verify-checklist.js';
 import {
     GATE_SKIP_IDS,
     LEGACY_AUTO_MODE_PARAM,
@@ -28,15 +29,7 @@ const VERIFICATION_PROTOCOL_FULL = `### 3.1 自动执行验证（无用户询问
 
 **执行方式（强制）**：本阶段由**主 agent 内联**执行，**一次**完成下列合并清单，返回 \`executionMode=inline\` / \`independence=self\`；MUST NOT 派生 \`iagent_spec_verify_proposal\` / \`iagent_proposal_review\` 验证子代理（兼容窗内旧 \`subagent\` 回执记 deprecation WARN）。
 
-**固定清单（D1-D10 核心维度 + B1-B7 边界）**：
-
-1. **D1: 需求覆盖** — Decisions → 规格需求
-2. **D2: 技术一致性** — 技术选型 → \`design.md\`
-3. **D3: 任务完整性** — 规格需求 → 任务
-4. **D4: 边界覆盖** — 问题 / 边界场景 → 规格 Scenario
-5. **D5: Pending 解决** — Pending 事项 → 已解决
-6. **D6-D10: 条件维度** — 交互细节 / API 契约 / 数据库映射 / 业务步骤 / 流程图节点覆盖，未触发不计分
-7. **B1-B7 边界清单**：B1 自写制品自证（\`independence=self\` + WARN，结论必须带 \`文件:行\`）／B2 FAIL 同上下文修复（禁止新开代理 / 全量重读，≤3）／B3 归档内联失败沿用非阻断语义／B4 debug fix 内联共用预算 ≤3／B5 migration 上下文超限降级子代理 + WARN／B6 spec-bulk-archive 保留并行子代理（≤3）／B7 无 \`delegate\` 宿主仅阻断 propose/apply
+${renderVerifyChecklist()}
 
 **证据契约（强制）**：每条结论 MUST 带 \`文件:行\` 或制品章节锚点；**无证据的结论 MUST NOT 计入通过**（标为「缺证据」）。报告 MUST 落盘 \`.openspec-tmp/pipeline-<change-name>/verify-report.md\`；回执记 \`executionMode=inline\` / \`independence=self\` / \`readScope\`。
 
@@ -321,7 +314,7 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 
 **Stage Envelope**：只传 \`changeName\` / \`changeRoot\` / \`explorationFile\` / \`handoffPackPath\` / \`mode\` / \`resume\` / \`configPath\` / \`rulesPath\`；MUST NOT 内联制品正文或完整 SKILL.md。子代理先读 handoff 包（若已存在），再按需增量读取探索文件。
 
-**回执续跑**：子代理回执 SHALL 含 \`changeName\` / \`artifacts\` / \`applyReady\` / \`explorationFile\` / \`handoffPackPath\` / \`sourceFingerprint\`；父级校验通过后**在同一用户回合内**进入 Phase 3。
+**回执续跑**：子代理回执 SHALL 含 \`changeName\` / \`artifacts\` / \`applyReady\` / \`explorationFile\` / \`handoffPackPath\` / \`sourceFingerprint\` / \`readiness\`；父级校验通过后**在同一用户回合内**进入 Phase 3。**就绪门控（强制）**：\`readiness.status\` MUST 为 \`pass\` 才能推进；\`fail\` → 回 Phase 2 就地修复后重跑（不新增用户门）。回执缺 \`readiness\` 字段时 MUST 自行运行 \`iagent spec validate --change "<name>" --ready\` 复核，MUST NOT 默认视为通过。
 
 **退出守卫**：被委派的 \`iagent_spec_propose\` 完成后 MUST NOT 自行进入实现或推进阶段；阶段推进主权归 \`iagent_workflow\`。
 

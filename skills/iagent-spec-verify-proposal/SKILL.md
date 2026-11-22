@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:41bb3264d248869a3755e226d1987efe52bb1ddc36c610adeb5c21f5f49c2e44"
+  generatedFingerprint: "sha256:c34a7b230ec7f54402d22d8ace328b974bd6af3654dd9032f0d44633bca2ee01"
 ---
 
 **验证前先阅读 .iagent/rules/coding-rules.md 中的验证标准。**
@@ -142,10 +142,10 @@ Enabled Dimensions: D6 [✓/✗], D7 [✓/✗], D8 [✓/✗], D9 [✓/✗], D10 
 
 执行 D1-D10 评分前，先对**影响面三制品**做存在性判定（决定「影响范围一致性检查点」是否激活）：
 
-| 制品 | 存在判定锚点 |
+| 制品 | 存在判定锚点（MUST 来自 `anchors.ts`，MUST NOT 手写） |
 | :--- | :--- |
-| `proposal.md` 影响面 | `## Impact` 下的影响面分析小节（标题锚点：影响面分析 / Impact Analysis） |
-| `design.md` 影响面 | `## Context` 下的架构影响小节（标题锚点：架构影响 / Architecture Impact） |
+| `proposal.md` 影响面 | `## Impact` 下的 `### Impact Analysis` 小节 |
+| `design.md` 影响面 | `## Context` 下的 `### 架构影响` 小节 |
 | `tasks.md` 影响面 | `### Caller Updates` 小节 |
 
 **判定结果与处置**：
@@ -173,6 +173,8 @@ Enabled Dimensions: D6 [✓/✗], D7 [✓/✗], D8 [✓/✗], D9 [✓/✗], D10 
 ---
 
 ## 带评分的维度验证（D1-D10）
+
+**清单单一源**：维度编号 D1-D10 与 B1-B7 边界清单由 `verify-checklist.ts` 单一源维护（`VERIFY_DIMENSIONS` / `VERIFY_BOUNDARY_RULES`），本技能 MUST NOT 另写清单副本；以下 Dimension 段落为各维度的评分细则。
 
 ### Dimension 1: 需求覆盖
 
@@ -208,6 +210,8 @@ D2 Score = (matched tech choices / total tech choices) * 100%
 - "冲突：探索决定使用 'SQLite'，design 指定 'Redis caching'"
 - "缺失：探索选择 'email/password auth'，design 未提及认证"
 
+**`design.md` 缺失分支（SKIP 语义）**：design 为可选依赖，缺失时从 `specs` / `proposal` 取替代证据；双无则本维度 SKIP 并排除分母（MUST NOT 按 0 分拉低）。完整判定细则见 `references/conditional-dimensions.md`。
+
 ### Dimension 3: 任务完整性
 
 **Check**：`specs/**/*.md` 中每条需求 → `tasks.md` 中至少有一个**规范形态** `Spec Ref` 与其匹配的任务。
@@ -240,6 +244,8 @@ D3 Score = (requirements with tasks / total requirements) * 100%
 - "缺 Requirement：`- Spec Ref：checkout-flow` 只到 capability，无法计入覆盖"
 
 **待实现功能覆盖检查点（并入本维度，不新增维度编号）**：
+
+**确定性优先（BS6）**：链路核查 SHALL 优先消费 Markdown 结构化解析得到的确定性数据 —— `ParsedProposal.whatChanges`（`## What Changes` 列表项）与 `ParsedProposal.capabilities`（能力声明）；仅在解析缺项时退回语义判定。两部分结论冲突时 SHALL 以确定性结论为准并记 WARN 留痕，MUST NOT 由语义判定覆盖确定性结论。
 
 在既有「需求 → 任务」覆盖核查之上，对 `proposal.md` What Changes 的每个声明项执行**链路核查**（What Changes 变更项 → `specs/**/*.md` 对应 Requirement → `tasks.md` 承接任务）：
 

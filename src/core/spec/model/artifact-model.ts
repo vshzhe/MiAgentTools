@@ -45,8 +45,24 @@ export interface ParsedProposal {
     filePath: string;
     title?: string;
     sections: Map<string, MarkdownSection>;
+    /** `## What Changes` 下的变更项清单（`- ` 列表项文本，按出现顺序） */
+    whatChanges: string[];
+    /** `### New Capabilities` / `### Modified Capabilities` 声明的能力 */
+    capabilities: ParsedCapability[];
     rawContent: string;
     diagnostics: ArtifactDiagnostic[];
+}
+
+/** proposal 声明的能力条目 */
+export interface ParsedCapability {
+    /** 能力名（kebab-case，对应 specs/<name>/spec.md） */
+    name: string;
+    /** 能力简述 */
+    description: string;
+    /** 声明位置：新增能力 / 修改能力 */
+    kind: 'new' | 'modified';
+    /** 声明所在行 */
+    line: number;
 }
 
 export interface ParsedDecision {
@@ -117,6 +133,10 @@ export interface ParsedTask {
     verification?: string;
     outputs: string[];
     group?: string;
+    /** 功能流程图节点标注（`[N<id>]`，按出现顺序；一个任务可承载多个节点） */
+    nodeRefs?: string[];
+    /** 首个节点标注（与遗留 JSON sidecar 的 `nodeRef` 同名字段兼容；等价 `nodeRefs?.[0]`） */
+    nodeRef?: string;
 }
 
 export interface ParsedTasks {

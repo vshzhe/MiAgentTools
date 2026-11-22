@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:a9439386b684204f1e53f0f64f513c403abc1fe6432e0327aed758491e574e7d"
+  generatedFingerprint: "sha256:9608e1a63b4b4018650e2852c1c224b1b2ed1ed1208481f8838c8e58b85c6351"
 ---
 
 
@@ -84,7 +84,7 @@ Phase 2 的探索文件迁移与全部制品生成 SHALL 由主 agent 内联执�
 
 **Stage Envelope**：只传 `changeName` / `changeRoot` / `explorationFile` / `handoffPackPath`（尚无时传预期路径）/ `mode` / `resume` / `configPath` / `rulesPath`；MUST NOT 内联制品正文或完整 SKILL.md。子代理先读 handoff 包（若已存在），再按需增量读取探索文件。
 
-**回执续跑**：子代理回执 SHALL 含 `changeName` / `artifacts` / `applyReady` / `explorationFile` / `handoffPackPath` / `sourceFingerprint`；父级校验通过后**在同一用户回合内**进入 Phase 3，MUST NOT 以回执结束回合。
+**回执续跑**：子代理回执 SHALL 含 `changeName` / `artifacts` / `applyReady` / `explorationFile` / `handoffPackPath` / `sourceFingerprint` / `readiness`；父级校验通过后**在同一用户回合内**进入 Phase 3，MUST NOT 以回执结束回合。**就绪门控（强制）**：`readiness.status` MUST 为 `pass` 才能推进；`fail` → 回 Phase 2 就地修复后重跑（不新增用户门）。回执缺 `readiness` 字段时 MUST 自行运行 `iagent spec validate --change "<name>" --ready` 复核，MUST NOT 默认视为通过。
 
 **退出守卫**：被委派的 `iagent-spec-propose` 完成后 MUST NOT 自行进入实现；阶段推进主权归 `iagent-auto-workflow`。
 
@@ -103,7 +103,18 @@ Phase 2 的探索文件迁移与全部制品生成 SHALL 由主 agent 内联执�
 ### 3.2 运行验证（主 agent 内联）
 
 - **执行方式（强制）**：Phase 3 SHALL 由**主 agent 内联**执行**一次**验证并返回 `executionMode=inline` / `independence=self`；MUST NOT 再分别派生 `iagent-spec-verify-proposal` 与 `iagent-proposal-review` 两个验证子代理（兼容窗内旧 `subagent` 回执记 deprecation WARN，下个 major 收紧为仅 `inline`）
-- **固定清单**：D1-D10 核心维度（D1 需求覆盖 / D2 技术一致性 / D3 任务完整性 / D4 边界覆盖 / D5 Pending 解决 / D6-D10 条件维度）+ B1-B7 边界清单（自证 WARN、同上下文修复、归档非阻断、fix 预算、migration 阈值、bulk 并行、无 delegate 宿主边界）
+- **固定清单（单一源渲染）**：**固定清单（D1-D10 核心维度 + B1-B7 边界）**：
+
+1. **D1: 需求覆盖** — Decisions → 规格需求
+2. **D2: 技术一致性** — 技术选型 → `design.md`（design 缺失时从 specs / proposal 取证据，双无则 SKIP）
+3. **D3: 任务完整性** — 规格需求 → 任务（优先消费结构化解析结论）
+4. **D4: 边界覆盖** — 问题 / 边界场景 → 规格 Scenario
+5. **D5: Pending 解决** — Pending 事项 → 已解决
+6. **D6-D10: 条件维度** — 交互细节 / API 契约 / 数据库映射 / 业务步骤 / 流程图节点覆盖，未触发不计分
+7. **B1-B7 边界清单**：B1 自写制品自证（`independence=self` + WARN，结论必须带 `文件:行`）／B2 FAIL 同上下文修复（禁止新开代理 / 全量重读，≤3）／B3 归档内联失败沿用非阻断语义／B4 debug fix 内联共用预算 ≤3／B5 migration 上下文超限降级子代理 + WARN／B6 spec-bulk-archive 保留并行子代理（≤3）／B7 无 `delegate` 宿主仅阻断 propose/apply
+
+> 阈值：统一 90%；Overall Score = (D1 + D2 + D3 + D4 + D5 + sum(triggered D6-D10)) / (5 + triggered_count)。
+> 本清单由 `src/core/templates/verify-checklist.ts` 单一源渲染，MUST NOT 在各技能正文另写副本。
 - **证据契约（强制）**：每条结论 MUST 带 `文件:行` 或制品章节锚点；**无证据的结论 MUST NOT 计入通过**；报告 MUST 落盘 `.openspec-tmp/pipeline-<change-name>/verify-report.md`，回执记 `executionMode=inline` / `independence=self` / `readScope`
 - **同上下文修复重跑（强制）**：FAIL 后在同一主上下文修复并按 `fixDiff` 只重跑受影响清单项；MUST NOT 新开验证代理、MUST NOT 重读未改动制品或全量重读；循环上限 3 次，超出暂停并报告
 - 计算覆盖率与总分（统一 90% 阈值）

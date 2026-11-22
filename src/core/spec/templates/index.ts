@@ -3,7 +3,17 @@
  *
  * 内容结构对齐 openspec spec-driven 模板（design D5：契约对齐，技能正文仅换命令名）。
  * 模板由 iagent spec instructions 分发给技能正文填充。
+ *
+ * 验证锚点（`### Impact Analysis` / `### 架构影响` / `### Caller Updates` / `[N<id>]`）
+ * 的文本 MUST 来自 `src/core/spec/validation/anchors.ts` 单一源，MUST NOT 在此另写字面量。
  */
+
+import { VERIFY_ANCHORS, renderAnchorHeading } from '../validation/anchors.js';
+
+/** 影响面三锚点的三级标题（由单一源渲染） */
+const IMPACT_ANALYSIS_HEADING = renderAnchorHeading(VERIFY_ANCHORS.impactAnalysis);
+const ARCHITECTURE_IMPACT_HEADING = renderAnchorHeading(VERIFY_ANCHORS.architectureImpact);
+const CALLER_UPDATES_HEADING = renderAnchorHeading(VERIFY_ANCHORS.callerUpdates);
 
 export const PROPOSAL_TEMPLATE = `## Why
 
@@ -24,6 +34,16 @@ export const PROPOSAL_TEMPLATE = `## Why
 - \`<existing-name>\`: <变更的需求>
 
 ## Impact
+
+${IMPACT_ANALYSIS_HEADING}
+
+<!-- 必填（验证门 D2/D3 与影响范围一致性检查依赖本小节）：
+     逐符号列出影响面 —— 符号 / 位置 / 直接上游影响 / 波及的测试面 / 改动要求。
+     无影响分析时可写「无（影响分析未触发）」但 MUST NOT 删除本标题。 -->
+
+| 符号 | 位置 | 直接上游影响 | 波及的测试面 | 改动要求 |
+| :--- | :--- | :--- | :--- | :--- |
+| \`<symbol>\` | \`<file:line>\` | <调用方 / 依赖方> | <测试文件> | <改什么> |
 
 ### 直接影响的文件
 
@@ -50,6 +70,16 @@ export const SPECS_TEMPLATE = `## ADDED Requirements
 export const DESIGN_TEMPLATE = `## Context
 
 <!-- 相关代码、架构现状、影响链（来自探索阶段的分析结论） -->
+
+${ARCHITECTURE_IMPACT_HEADING}
+
+<!-- 必填（验证门影响范围一致性检查依赖本小节；无跨切面影响时可写
+     「无架构影响」但 MUST NOT 删除本标题）。
+     列：受影响模块 / 模块职责 / 本变更对它的影响 / 断裂风险。 -->
+
+| 受影响模块 | 模块职责 | 本变更的影响 | 断裂风险 |
+| :--- | :--- | :--- | :--- |
+| \`<module-path>\` | <职责> | <改什么> | <风险与缓解> |
 
 ## Goals / Non-Goals
 
@@ -94,17 +124,26 @@ export const TASKS_TEMPLATE = `# Tasks: <change-name>
 
 ## 1. <任务组名>
 
-- [ ] 1.1 [代码] <任务描述>
+- [ ] 1.1 [代码] <任务描述> [N<id>]
   - 文件：\`<file-path>\`
   - 验证：<验证方式>
   - Spec Ref：<capability> / <Requirement>
   - Scenario Ref：<Scenario>
 
-- [ ] 1.2 [测试][单元][P0] <测试任务描述>
+- [ ] 1.2 [测试][单元][P0] <测试任务描述> [N<id>]
   - 文件：\`<test-file-path>\`
   - 验证：<验证方式>
   - Spec Ref：<capability> / <Requirement>
   - Scenario Ref：<Scenario>
+
+${CALLER_UPDATES_HEADING}
+
+<!-- 必填（验证门影响范围一致性检查依赖本小节）：
+     受影响模块 → 承接任务；无影响分析时写「无（影响分析未触发）」但 MUST NOT 删除本标题。 -->
+
+| 影响模块 | 承接任务 |
+| :--- | :--- |
+| \`<module-path>\` | <task ids> |
 `;
 
 // ── JSON 模板（JSON-primary 真源示例：change.json 段落 / tasks.json）────

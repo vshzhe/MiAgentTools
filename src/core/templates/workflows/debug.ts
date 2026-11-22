@@ -9,6 +9,7 @@ import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { buildPromptGateBlock, BUG_DIMENSIONS, GATE_PROTOCOL_PREAMBLE, renderGateWhitelistSection } from '../prompt-gate.js';
 import { buildFlowchartBlock, FAULT_CHAIN_FLOW_COLUMNS } from '../flowchart-gate.js';
 import { CODEGRAPH_CLI, CODEGRAPH_MCP, skillDelegation } from '../tool-whitelist.js';
+import { renderVerifyChecklist } from '../verify-checklist.js';
 import {
     CODEGRAPH_BUSY_LADDER,
     CODEGRAPH_CALL_DISCIPLINE,
@@ -157,7 +158,18 @@ const GRILL_DISCIPLINE_FULL = `### 2.3 排查期间的 grill-with-docs 纪律
 `;
 
 /** 规则基线 / 测试证据 / 一致性门细则（写入 references/gates-and-rules.md，主文件保留指针以守 500 行预算） */
-const GATES_AND_RULES_FULL = `### 7.3 实现后 review 环节（细则）
+const GATES_AND_RULES_FULL = `### 6.3 Markdown 校验（章节清单）
+
+\`proposal.md\` 含 Why / What Changes / Capabilities / Impact；\`specs/**/*.md\` 含 \`### Requirement:\` + \`#### Scenario:\`；\`design.md\` 含 Context / Decisions / Risks；\`tasks.md\` 任务带类型标签与 checkbox 状态。
+
+### 6.4 一致性证据与就绪门（细则）
+
+- **一致性**：运行 \`iagent spec conformance --strict\`，写 \`.openspec-tmp/pipeline-<change-name>/conformance-report.md\`；\`fail\` / 缺失 → 回 Phase 4
+- **就绪门**：运行 \`iagent spec validate --change "<name>" --ready\`（与 propose 侧同一 \`readiness.ts\`，MUST NOT 另立判定口径）：四类判定为结构 / 覆盖 / 锚点 / 能力对齐；\`fail\` → 按逐条诊断就地修正后重跑（≤3），超限回 Phase 4
+- **存量兼容**：锚点缺失对新变更记 error、对存量变更记 WARN + SKIP（不阻断）
+- **推进条件**：仅当制品反映全部修复、且两项证据均通过后才进入 Phase 7
+
+### 7.3 实现后 review 环节（细则）
 
 - **调用形态**：由主 agent 内联调用 \`iagent_review\` skill（\`executionMode=inline\` / \`independence=self\`，self 记 WARN），MUST NOT 派发子代理；review 检查修复实现完整度（缺陷链路覆盖、修复遗漏、明显缺陷），MUST NOT 重复 spec_verify_proposal 的一致性清单。
 - **报告落盘（强制）**：结论写入 \`.openspec-tmp/pipeline-<change-name>/review-report.md\`，文末汇总行 \`**summary**: pass|not-applicable|fail\`；收束判定读取该汇总行。
@@ -442,36 +454,18 @@ bug 无法用自动化测试捕获时（环境相关行为 / 时序 / 仅 UI）�
 
 **⚠️ 强制: 循环中所有修复完成后，变更制品必须反映所有已实现的修复。**
 
-### 6.1 更新制品（Markdown 优先）
+### 6.1 更新制品
 
-Markdown 是唯一真源 —— 直接更新 OpenSpec Markdown 制品；不得创建或更新 JSON 镜像：
+Markdown 是唯一真源，直接更新，不得创建 JSON 镜像：**proposal** What Changes 追加每个 bug 的根因与修复；**specs** 行为变化用 ADDED/MODIFIED/REMOVED/RENAMED 更新 Requirement/Scenario；**design** 决策变化更新 Decisions；**tasks** 更新 checkbox 并必要时追加回归测试任务（保留 \`Spec Ref\`/\`Scenario Ref\`）。遗留 JSON 变更只读兼容，写前须显式迁移。
 
-- **proposal**：把循环中**所有** bug 的根因与修复说明追加到 \`proposal.md\` 的 What Changes 下（每个 bug 追加一条）
-- **specs**：任一修复改变已记录行为时，用 ADDED/MODIFIED/REMOVED/RENAMED 更新对应的 \`specs/<capability>/spec.md\` Requirement/Scenario
-- **design**：任一修复改变已记录决策时，更新 \`design.md\` 的 Decisions
-- **tasks**：更新 \`tasks.md\` 的 checkbox，必要时追加回归测试任务；保留 \`Spec Ref\`/\`Scenario Ref\`
-- **Validate**：Markdown 编辑后运行 \`iagent spec validate --change "<name>"\` 并修正路径/行号诊断
-- **仅遗留 JSON 的变更**：只读兼容；写操作须先显式迁移
+### 6.2 持久化与校验（细则见 \`references/gates-and-rules.md\`）
 
-### 6.2 持久化根因分析
+- 按 bug 把完整诊断记录（提示词基线、复现、路径、证据、根因、修复理由）写入 \`exploration.md\`，含 \`## 提示词基线\` 与 \`## 功能流程（缺陷链路）\`；分级判定（2.2.3.5）一并持久化
+- \`iagent spec validate --change "<name>"\` 通过，失败按路径与行号修正
 
-- 把**所有** bug 的完整诊断记录（提示词基线、复现、排查路径、证据、根因、所选修复理由）写入变更目录的 \`exploration.md\`，按 bug 组织 —— 包含 \`## 提示词基线\` 段，使变更保留用户确认的语义来源；\`## 功能流程（缺陷链路）\` 段（2.4）承载确认后的缺陷链路与节点清单
-- **分级判定结果**（2.2.3.5）：每个 bug 的排查深度分级结论 MUST 一并持久化 —— 三条信号取值、所选路径（轻量 A / 深度 B）、是否信号降级；即"为什么这个缺陷走了这条排查路径"须可追溯，避免事后无法复盘排查深度是否合理
+### 6.4 一致性与就绪门
 
-### 6.3 Markdown 校验
-
-同步后校验 Markdown 制品：
-
-- \`iagent spec validate --change "<name>"\` 通过；失败时报出文件路径与行号
-- \`proposal.md\` 含 Why / What Changes / Capabilities / Impact；\`specs/**/*.md\` 含 \`### Requirement:\` + \`#### Scenario:\`；\`design.md\` 含 Context / Decisions / Risks；\`tasks.md\` 任务带类型标签与 checkbox 状态
-
-继续之前先修复任何违规 —— 同步不得损坏 Markdown 真源。
-
-### 6.4 实现一致性证据（强制）
-
-运行 \`iagent spec conformance --strict\` 并写 \`.openspec-tmp/pipeline-<change-name>/conformance-report.md\`（细则见 \`references/gates-and-rules.md\`）；\`fail\` / 缺失 → 回 Phase 4。
-
-仅当制品反映所有已实现的修复、且一致性证据已产出后，才进入 Phase 7。
+\`iagent spec conformance --strict\` 与 \`iagent spec validate --ready\`（就绪门，与 propose 同一 \`readiness.ts\`）；任一 \`fail\` → 回 Phase 4。
 
 ---
 ## Phase 7: 验证 — 覆盖所有修复
@@ -503,7 +497,7 @@ Markdown 是唯一真源 —— 直接更新 OpenSpec Markdown 制品；不得�
 
 ### 7.3 验证 PASS → 内联深度复查 → 实现 review → 收束（verify-close）
 
-验证 PASS 后：① 主 agent 内联深度复查（D1-D10 + B1-B7，每条结论带 \`文件:行\`）；② 内联调用 \`iagent_review\`，报告落盘 \`review-report.md\`，P0/P1 未修复 → strict 阻断并报告；P2 问题记录不阻断；③ 输出可归档结论（无需求文档桥）。验证/复查失败 → 按 7.2 自动修复循环；内联技能不可用 → strict 阻断或显式 degraded + WARN。
+验证 PASS 后：① 主 agent 内联深度复查（合并清单，每条结论带 \`文件:行\`）：${renderVerifyChecklist()}；② 内联调用 \`iagent_review\`，报告落盘 \`review-report.md\`，P0/P1 未修复 → strict 阻断并报告；P2 问题记录不阻断；③ 输出可归档结论（无需求文档桥）。验证/复查失败 → 按 7.2 自动修复循环；内联技能不可用 → strict 阻断或显式 degraded + WARN。
 
 ### 7.4 清理流程级调试工作区（强制）
 

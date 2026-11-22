@@ -7,6 +7,24 @@
 
 ## [Unreleased]
 
+## [4.15.0] - 2026-11-22
+
+### Added
+
+- `src/core/spec/validation/anchors.ts`（唯一源）：验证锚点常量（`### Impact Analysis` / `### 架构影响` / `### Caller Updates` / `[N<id>]`）——生成模板与验证技能共同引用，消除「生成侧不产出、验证侧却要求」的结构错配
+- `src/core/spec/validation/readiness.ts` + `iagent spec validate --ready`：提案就绪门（结构 / 覆盖 / 锚点 / 能力对齐四类确定性判定，纯函数无 I/O）；新变更缺项记 `error`、存量变更记 WARN + SKIP（按 `.openspec.yaml` 的 `created` 判定）
+- `src/core/templates/verify-checklist.ts`（唯一源）：D1-D10 + B1-B7 清单正文（`renderVerifyChecklist()`，含 `orchestrator` / `propose-selfcheck` 两个变体），五个编排/验证技能共同引用
+- `parseProposal` 新增 `whatChanges` / `capabilities` 结构化解析；`parseTasks` 新增 `nodeRefs`（`[N<id>]` 多节点）与兼容字段 `nodeRef` —— D1 / D3 / D10 的关键判定从 AI 语义变为确定性
+
+### Changed
+
+- `spec-propose` 终检顺序固定为 partial → 就绪门（`--ready`）→ strict → handoff 包（MUST NOT 重排）；新增压缩自检清单（与验证清单同源、不构成用户门）；delegated 回执新增 `readiness` 字段
+- `workflow` / `auto-workflow` 的 Phase 2→3 推进新增 `readiness.status=pass` 门控（缺字段须自行复核，MUST NOT 默认通过）
+- `debug` Phase 6 同步提案后复用同一就绪门（MUST NOT 另立判定口径）
+- `spec-verify-proposal` D2 新增 `design.md` 缺失分支（从 specs / proposal 取替代证据，双无则 SKIP 排除分母）；D3 改为确定性优先（冲突时以结构化解析结论为准并记 WARN）；影响面锚点改为引用 `anchors.ts`
+- 生成模板（proposal / design / tasks）新增验证锚点小节，锚点文本由 `anchors.ts` 插值
+- `.iagent/rules/spec.md` 增「验证锚点」与「终检顺序」两条要点；`AGENTS.md` 与 `openspec/CONTEXT.md` 同步单一源说明与新术语
+
 ## [4.14.1] - 2026-11-16
 
 ### Added
@@ -1876,7 +1894,8 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.14.1...HEAD
+[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.15.0...HEAD
+[4.15.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.14.1...v4.15.0
 [4.14.1]: https://github.com/vshzhe/MiAgentTools/compare/v4.14.0...v4.14.1
 [4.14.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.13.0...v4.14.0
 [4.13.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.12.0...v4.13.0

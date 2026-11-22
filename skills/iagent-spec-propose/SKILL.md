@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:4c3798763cf8eb706669c0f361062b4861c0250c153dba640b208f5c740e4182"
+  generatedFingerprint: "sha256:17560c3fd9805eee35d5233e6278ebbe7375086d1f260465fc35402b23d01373"
 ---
 
 提出新变更 —— 一步创建变更并生成全部制品。
@@ -60,6 +60,8 @@ metadata:
 **Step 0: 探索文件检测**
 
 > **delegated 模式分支**：若以 `mode=delegated` + `exploration-file=<path>` 被编排器委派，**跳过下面的用户选择提示**，直接对该文件执行迁移语义（移入变更目录为 `exploration.md`，成功后删除源文件），并在回执中报告迁移结果；`interactive` 模式保留下面的提示流程。
+>
+> **过桥载体校验（强制）**：`exploration-file` 指向的文件 MUST 存在且可读；不存在 / 不可读时报 `missing-exploration` 并停止，MUST NOT 跳过迁移静默继续生成（`exploration.md` 是探索→提案的唯一语义载体，跳过即丢失提示词基线与流程基准）。
 
 在创建变更前，MUST 扫描并关联探索文件：
 
@@ -214,13 +216,40 @@ metadata:
    iagent spec status --change "<name>"
    ```
 
-5.1 **终检（强制：strict validate + instructions apply）**
+5.1 **终检（强制：四步固定顺序，MUST NOT 重排）**
+
+   **顺序（D9）**：partial 逐制品校验 → **就绪门（`--ready`）** → strict 终检 → handoff 包。就绪门必须先于 handoff 包：包内 `sourceFingerprint` 覆盖制品内容，MUST 在全部修复完成后才产出，否则指纹与定稿内容不一致。
+
+   **5.1.a 压缩自检清单（与验证清单同源的确定性可判子集，不构成用户停门）**
+
+**压缩自检清单（与验证清单同源的确定性可判子集，不构成用户停门）**：
+
+1. 每个 Requirement 至少有一个承接任务（`Spec Ref` 为全路径 `<capability> / <Requirement>`）
+2. 每个 Scenario 至少有一个 `[测试]` 任务覆盖（`Scenario Ref` 为全路径或由同任务 Spec Ref 补全）
+3. 影响面三锚点齐备：`### Impact Analysis` / `### 架构影响` / `### Caller Updates`
+4. `proposal` 声明的能力 ↔ `specs/<capability>/` 目录逐一对应
+5. 每个任务标注对应的流程图节点 `[N<id>]`（变更含功能流程图时）
+
+> 本清单由 `src/core/templates/verify-checklist.ts` 的 `propose-selfcheck` 变体渲染。
+> FAIL 时自动修复并重跑（≤3）；超限后走既有三出口，MUST NOT 新增确认门。
+
+   **5.1.b 就绪门（确定性组合校验）**
+   ```bash
+   iagent spec validate --change "<name>" --ready
+   ```
+   - 四类判定：结构完整 / 覆盖完整 / 锚点齐备 / 能力对齐；FAIL 时诊断逐条给出 `filePath:line` 与缺失项，按诊断就地修复后重跑（≤3 次）
+   - 超限 → 走既有三出口（手动编辑 / 返回探索 / 查看差异），MUST NOT 新增确认门
+   - 与 `--partial` 互斥：就绪门 MUST NOT 在起草期模式下调
+
+   **5.1.c strict 终检 + apply 状态复核**
    ```bash
    iagent spec validate --change "<name>"
    iagent spec instructions apply --change "<name>" --json
    ```
    - `validate` 不带 `--partial` 即 **strict 终检**：`missing-specs` / `missing-tasks` 为 error，`design` 缺失不报错；结构错误与未匹配引用 MUST 在进入验证门前修复
    - `instructions apply` 复核 `instruction.state`：`blocked` 时按 `missingDeps` 继续生成（必需集未完成），MUST NOT 直接进入 Phase 3 验证；`ready` / `all_done` 才可继续
+
+   **5.1.d handoff 包**：见 5.5，MUST 在就绪门与 strict 终检均通过后产出
 
 5.5 **产出变更级 handoff 包（供 verify / apply / archive 只读复用）**
 
@@ -262,7 +291,7 @@ metadata:
 
 **Output**
 
-> **delegated 模式分支**：若 `mode=delegated`，输出**结构化回执**（change-name、生成制品清单、apply-ready 状态、`explorationFile` / `handoffPackPath` / `sourceFingerprint`、探索文件迁移结果），MUST NOT 输出"等待用户确认"停点——回执是中间状态，父编排在同一用户回合内继续验证；回执 MUST NOT 作为面向用户的最终消息（用户可见至多一行进度）；阶段推进主权归编排器。下述 interactive 输出仅适用于默认模式。
+> **delegated 模式分支**：若 `mode=delegated`，输出**结构化回执**（change-name、生成制品清单、apply-ready 状态、`explorationFile` / `handoffPackPath` / `sourceFingerprint` / `readiness`（`{ status: 'pass'|'fail', checks, diagnostics }`，来自 5.1.b 就绪门）、探索文件迁移结果），MUST NOT 输出"等待用户确认"停点——回执是中间状态，父编排在同一用户回合内继续验证；回执 MUST NOT 作为面向用户的最终消息（用户可见至多一行进度）；阶段推进主权归编排器。下述 interactive 输出仅适用于默认模式。
 
 全部制品完成且 Phase 3 验证通过后（规划边界：到此停止，等待用户发起新请求）：
 - 变更名与位置

@@ -53,3 +53,4 @@
 
 *更新时间: 2026-11-15*
 | 2026-11-15 | add-spec-update-capability | spec | 新增 spec 类技能 iagent-spec-update：已实现变更在测试暴露问题后的修订闭环（探索分析 → 原地更新提案 + revision.md → 再实现优化 → 修复前后能力测试对比），双轨根因定位 + 不可豁免破坏性改动确认门 + 写前快照回滚。 [代码/测试/使用说明] |
+| 2026-11-22 | improve-proposal-generation-completeness | spec | 提案一次完成度：验证锚点单一源（`anchors.ts`）+ CLI 确定性就绪门（`readiness.ts` / `validate --ready`，四类判定 + 存量 SKIP 兼容）+ 验证清单单一源（`verify-checklist.ts`，五技能插值）+ 解析器结构化（`whatChanges` / `capabilities` / `nodeRefs`），使 propose 收束即可通过 Phase 3；D1-D10 编号、90% 阈值、门白名单不变。[含测试] |

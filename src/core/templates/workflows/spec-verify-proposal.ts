@@ -4,6 +4,7 @@
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
 import { renderGateWhitelistSection } from '../prompt-gate.js';
+import { VERIFY_ANCHORS, renderAnchorHeading } from '../../spec/validation/anchors.js';
 
 const CONDITIONAL_DIMENSIONS_FULL = `### Dimension 6: 交互细节完整性 [由前端关键词自动触发]
 
@@ -124,6 +125,12 @@ D9 Score = (complex ops with decomposition / total complex ops) * 100%
 **FAIL 示例**：
 - "D9 FAIL: 用户下单流程 (4步骤, 含事务) 未拆解 —— 需要标注执行层和异常路径"
 
+> **D2 \`design.md\` 缺失分支细则（D8）**
+>
+> - **优先取替代证据**：从 \`specs/**/*.md\` 的 Requirement 正文与 \`proposal.md\` 的 Capabilities / Impact 小节提取技术选型证据；有证据时按本维度正常计分，报告标注「D2 证据来源：specs / proposal（design 缺失）」
+> - **双无则 SKIP**：\`design.md\` 缺失且 \`specs\` / \`proposal\` 均无技术选型证据（如纯文档 / 纯配置变更）→ 本维度标 **SKIP** 并从总分分母排除（不计入 \`triggered_count\`），MUST NOT 按 0 分拉低总分、MUST NOT 由 AI 自行豁免
+> - SKIP 时报告 MUST 注明原因，MUST NOT 静默跳过
+
 ### Dimension 10: 功能流程图节点覆盖度 [由 功能流程图 段自动触发]
 
 **Trigger**：探索产物 \`exploration.md\` 含 \`## 功能流程图\` 段时触发（该段由探索阶段产出并经流程最终确认门确认）。
@@ -171,11 +178,11 @@ const IMPACT_CONSISTENCY_FULL = `# 影响范围一致性检查细则（提案验
 
 ## 1. 存在性判定矩阵（N3）
 
-| 制品 | 判定锚点 | 缺失处置 |
+| 制品 | 判定锚点（由 \`anchors.ts\` 单一源渲染） | 缺失处置 |
 | :--- | :--- | :--- |
-| \`proposal.md\` 影响面 | \`## Impact\` 下影响面分析小节（影响面分析 / Impact Analysis） | 检查点 SKIP 排除分母 |
-| \`design.md\` 影响面 | \`## Context\` 下架构影响小节（架构影响 / Architecture Impact） | 同上 |
-| \`tasks.md\` 影响面 | \`### Caller Updates\` 小节 | 同上 |
+| \`proposal.md\` 影响面 | \`## Impact\` 下的 \`${renderAnchorHeading(VERIFY_ANCHORS.impactAnalysis)}\` 小节 | 检查点 SKIP 排除分母 |
+| \`design.md\` 影响面 | \`## Context\` 下的 \`${renderAnchorHeading(VERIFY_ANCHORS.architectureImpact)}\` 小节 | 同上 |
+| \`tasks.md\` 影响面 | \`${renderAnchorHeading(VERIFY_ANCHORS.callerUpdates)}\` 小节 | 同上 |
 
 - 判定以**小节标题锚点**为准；语义等价标题（不同措辞指向同一内容）MAY 计为存在，MUST 能指出对应之处，拿不准标「待验证」且 MUST NOT 据此判 FAIL
 - 生成侧来源：三制品由 workflow / auto-workflow 影响分析产出；独立 \`iagent-spec-propose\` 路径可能无影响面小节 —— 属「影响分析未触发」，合法 SKIP
@@ -325,11 +332,11 @@ Enabled Dimensions: D6 [✓/✗], D7 [✓/✗], D8 [✓/✗], D9 [✓/✗], D10 
 
 执行 D1-D10 评分前，先对**影响面三制品**做存在性判定（决定「影响范围一致性检查点」是否激活）：
 
-| 制品 | 存在判定锚点 |
+| 制品 | 存在判定锚点（MUST 来自 \`anchors.ts\`，MUST NOT 手写） |
 | :--- | :--- |
-| \`proposal.md\` 影响面 | \`## Impact\` 下的影响面分析小节（标题锚点：影响面分析 / Impact Analysis） |
-| \`design.md\` 影响面 | \`## Context\` 下的架构影响小节（标题锚点：架构影响 / Architecture Impact） |
-| \`tasks.md\` 影响面 | \`### Caller Updates\` 小节 |
+| \`proposal.md\` 影响面 | \`## Impact\` 下的 \`${renderAnchorHeading(VERIFY_ANCHORS.impactAnalysis)}\` 小节 |
+| \`design.md\` 影响面 | \`## Context\` 下的 \`${renderAnchorHeading(VERIFY_ANCHORS.architectureImpact)}\` 小节 |
+| \`tasks.md\` 影响面 | \`${renderAnchorHeading(VERIFY_ANCHORS.callerUpdates)}\` 小节 |
 
 **判定结果与处置**：
 
@@ -356,6 +363,8 @@ Enabled Dimensions: D6 [✓/✗], D7 [✓/✗], D8 [✓/✗], D9 [✓/✗], D10 
 ---
 
 ## 带评分的维度验证（D1-D10）
+
+**清单单一源**：维度编号 D1-D10 与 B1-B7 边界清单由 \`verify-checklist.ts\` 单一源维护（\`VERIFY_DIMENSIONS\` / \`VERIFY_BOUNDARY_RULES\`），本技能 MUST NOT 另写清单副本；以下 Dimension 段落为各维度的评分细则。
 
 ### Dimension 1: 需求覆盖
 
@@ -391,6 +400,8 @@ D2 Score = (matched tech choices / total tech choices) * 100%
 - "冲突：探索决定使用 'SQLite'，design 指定 'Redis caching'"
 - "缺失：探索选择 'email/password auth'，design 未提及认证"
 
+**\`design.md\` 缺失分支（SKIP 语义）**：design 为可选依赖，缺失时从 \`specs\` / \`proposal\` 取替代证据；双无则本维度 SKIP 并排除分母（MUST NOT 按 0 分拉低）。完整判定细则见 \`references/conditional-dimensions.md\`。
+
 ### Dimension 3: 任务完整性
 
 **Check**：\`specs/**/*.md\` 中每条需求 → \`tasks.md\` 中至少有一个**规范形态** \`Spec Ref\` 与其匹配的任务。
@@ -423,6 +434,8 @@ D3 Score = (requirements with tasks / total requirements) * 100%
 - "缺 Requirement：\`- Spec Ref：checkout-flow\` 只到 capability，无法计入覆盖"
 
 **待实现功能覆盖检查点（并入本维度，不新增维度编号）**：
+
+**确定性优先（BS6）**：链路核查 SHALL 优先消费 Markdown 结构化解析得到的确定性数据 —— \`ParsedProposal.whatChanges\`（\`## What Changes\` 列表项）与 \`ParsedProposal.capabilities\`（能力声明）；仅在解析缺项时退回语义判定。两部分结论冲突时 SHALL 以确定性结论为准并记 WARN 留痕，MUST NOT 由语义判定覆盖确定性结论。
 
 在既有「需求 → 任务」覆盖核查之上，对 \`proposal.md\` What Changes 的每个声明项执行**链路核查**（What Changes 变更项 → \`specs/**/*.md\` 对应 Requirement → \`tasks.md\` 承接任务）：
 

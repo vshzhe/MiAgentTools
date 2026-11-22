@@ -13,6 +13,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { VERIFY_ANCHORS } from '../src/core/spec/validation/anchors.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { getSpecVerifyProposalSkillTemplate } from '../src/core/templates/workflows/spec-verify-proposal.js';
@@ -118,11 +119,11 @@ describe('spec-verify-proposal：影响范围一致性检查（N3 存在性 / N5
     const instructions = getSpecVerifyProposalSkillTemplate().instructions;
 
     it('三制品存在且对齐：N3 锚点矩阵 + N5 三条对齐核查 + 细则读取引导', () => {
-        // N3 存在性判定（三制品小节锚点）
+        // N3 存在性判定（三制品小节锚点；锚点文本 MUST 来自 anchors.ts 单一源）
         expect(instructions).toContain('## 影响面制品存在性判定（条件检查点，流程节点 N3）');
-        expect(instructions).toContain('`proposal.md` 影响面 | `## Impact` 下的影响面分析小节');
-        expect(instructions).toContain('`design.md` 影响面 | `## Context` 下的架构影响小节');
-        expect(instructions).toContain('`tasks.md` 影响面 | `### Caller Updates` 小节');
+        expect(instructions).toContain(`\`proposal.md\` 影响面 | \`## Impact\` 下的 \`### ${VERIFY_ANCHORS.impactAnalysis}\` 小节`);
+        expect(instructions).toContain(`\`design.md\` 影响面 | \`## Context\` 下的 \`### ${VERIFY_ANCHORS.architectureImpact}\` 小节`);
+        expect(instructions).toContain(`\`tasks.md\` 影响面 | \`### ${VERIFY_ANCHORS.callerUpdates}\` 小节`);
         // N5 对齐核查三条
         expect(instructions).toContain('## 影响范围一致性检查（条件检查点，并入 D2/D3，流程节点 N5）');
         expect(instructions).toContain('**proposal Impact ↔ design 架构影响**');
@@ -264,7 +265,7 @@ describe('spec-verify：执行方式双语义显式化（N10）', () => {
         expect(instructions).toContain('存在**编排上下文** → 合并清单模式；否则 → 三维度 report-only 模式');
         expect(instructions).toContain('工作区标志为 `.openspec-tmp/pipeline-<change-name>/` 下已存在 handoff 包等编排产物');
         // 合并清单关键词
-        expect(instructions).toContain('**父编排内联合并清单模式**：**主 agent 内联**，一次合并执行 D1-D10 核心维度 + B1-B7 边界清单');
+        expect(instructions).toContain('**父编排内联合并清单模式**：**主 agent 内联**，一次合并执行下列单一源清单（含 D1-D10 核心维度 + B1-B7 边界清单');
         // 回执字段与报告落盘
         expect(instructions).toContain('`executionMode=inline`、`independence=self`');
         expect(instructions).toContain('验证报告 MUST 落盘 `.openspec-tmp/pipeline-<change-name>/verify-report.md`');
@@ -391,11 +392,18 @@ describe('改动边界守护（D1 / D2 / D3 硬约束）', () => {
         return out;
     }
 
-    it('src/core/spec/** 不含新增检查点语义（D1：CLI 结构校验代码零改动）', () => {
+    it('src/core/spec/** 结构校验与解析代码不含检查点语义（D1：校验/解析职责零耦合）', () => {
+        // 允许承载检查点语义的单一源模块（本变更新增，见 spec-readiness-gate / spec-verify-anchors）：
+        //   - validation/readiness.ts：就绪门（四类判定的单一实现）
+        //   - validation/anchors.ts：验证锚点单一源
+        //   - templates/index.ts：生成模板（按契约产出锚点）
+        // 其余（parser / status / archive / commands 之外的 spec 代码）MUST NOT 承载检查点语义。
+        const ALLOWED = ['validation/readiness.ts', 'validation/anchors.ts', 'templates/index.ts'];
         const files = collectTsFiles(path.join(process.cwd(), 'src', 'core', 'spec'));
         expect(files.length, 'src/core/spec 目录为空？').toBeGreaterThan(0);
         const offenders: string[] = [];
         for (const file of files) {
+            if (ALLOWED.some((allowed) => file.split(path.sep).join('/').endsWith(allowed))) continue;
             const text = fs.readFileSync(file, 'utf8');
             for (const keyword of NEW_CHECKPOINT_KEYWORDS) {
                 if (text.includes(keyword)) {
@@ -429,14 +437,20 @@ describe('改动边界守护（D1 / D2 / D3 硬约束）', () => {
         expect(offenders).toEqual([]);
     });
 
-    it('auto-workflow 固定维度清单枚举未被改写（扩展不改名）', () => {
+    it('auto-workflow 维度清单经单一源渲染且维度编号未被改写（扩展不改名）', () => {
+        // 清单正文已抽到 verify-checklist.ts 单一源；auto-workflow 只引用渲染函数
         const auto = fs.readFileSync(
             path.join(process.cwd(), 'src', 'core', 'templates', 'workflows', 'auto-workflow.ts'),
             'utf8'
         );
-        expect(auto).toContain(
-            'D1-D10 核心维度（D1 需求覆盖 / D2 技术一致性 / D3 任务完整性 / D4 边界覆盖 / D5 Pending 解决 / D6-D10 条件维度）'
+        expect(auto).toContain('renderVerifyChecklist()');
+        // 维度编号不变：单一源仍为 D1-D10（未新增 D11+）
+        const checklist = fs.readFileSync(
+            path.join(process.cwd(), 'src', 'core', 'templates', 'verify-checklist.ts'),
+            'utf8'
         );
+        expect(checklist).not.toMatch(/D1[1-9]/);
+        expect(checklist).toContain("id: 'D6-D10'");
     });
 
     it('总分公式与 90% 统一阈值字符串未被改写（D2 / D3）', () => {
@@ -445,5 +459,40 @@ describe('改动边界守护（D1 / D2 / D3 硬约束）', () => {
             'Overall Score = (D1 + D2 + D3 + D4 + D5 + sum(triggered D6-D10)) / (5 + triggered_count)'
         );
         expect(instructions).toContain('Threshold interpretation (unified 90% — the previous 70%/90% dual-band is removed):');
+    });
+});
+
+describe('D3 确定性优先 + D2 design 缺失分支（本变更新增）', () => {
+    const instructions = getSpecVerifyProposalSkillTemplate().instructions;
+
+    it('Scenario: 待实现功能覆盖检查优先消费结构化解析结论', () => {
+        expect(instructions).toContain('**确定性优先（BS6）**');
+        expect(instructions).toContain('`ParsedProposal.whatChanges`');
+        expect(instructions).toContain('`ParsedProposal.capabilities`');
+    });
+
+    it('Scenario: 确定性结论与语义冲突时确定性优先并留痕', () => {
+        expect(instructions).toContain('以确定性结论为准并记 WARN 留痕');
+        expect(instructions).toContain('MUST NOT 由语义判定覆盖确定性结论');
+    });
+
+    it('Scenario: design 缺失时从 specs / proposal 取替代证据', () => {
+        expect(instructions).toContain('从 `specs` / `proposal` 取替代证据');
+        expect(instructions).toContain('`references/conditional-dimensions.md`');
+    });
+
+    it('Scenario: design 缺失且无技术选型证据时 D2 SKIP 排除分母', () => {
+        expect(instructions).toContain('缺失时从 `specs` / `proposal` 取替代证据；双无则本维度 SKIP 并排除分母');
+        expect(instructions).toContain('MUST NOT 按 0 分拉低');
+        const references = getSpecVerifyProposalSkillTemplate().references ?? [];
+        const conditional = references.find((ref) => ref.path.includes('conditional-dimensions'));
+        expect(conditional).toBeDefined();
+        expect(conditional?.content).toContain('D2 `design.md` 缺失分支细则（D8）');
+    });
+
+    it('Scenario: 有替代证据时正常计分（D2 证据来源标注）', () => {
+        const references = getSpecVerifyProposalSkillTemplate().references ?? [];
+        const conditional = references.find((ref) => ref.path.includes('conditional-dimensions'));
+        expect(conditional?.content).toContain('D2 证据来源：specs / proposal（design 缺失）');
     });
 });

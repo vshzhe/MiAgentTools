@@ -41,6 +41,7 @@ src/
 │   │   ├── prompt-gate.ts          提示门控逻辑
 │   │   ├── flowchart-gate.ts       流程图门控
 │   │   ├── skill-distill.ts        项目技能蒸馏共享协议（C1-C6 / 证据判定 / 产物形态，三模板同一真源）
+│   │   ├── verify-checklist.ts     验证清单单一源（D1-D10 + B1-B7 + 压缩自检变体，五技能共同引用）
 │   │   └── workflows/              技能模板（中文正文）：功能名命名的 *.ts + spec-*.ts 共 23 个模板
 │   │                               （project-init 第 11 步为编排：委派 frontend/backend-skill-gen 两侧生成）
 │   ├── permissions.ts               会话级权限载体（settings.json 的 permissions.allow 非破坏合并）
@@ -76,6 +77,8 @@ src/
 │   │   ├── parser/                 Markdown 解析（公共 + proposal/design/spec/tasks）
 │   │   ├── model/artifact-model.ts 运行时类型（Markdown 唯一真源）
 │   │   ├── validation/             结构校验 + Scenario→Task 追溯
+│   │   │   ├── anchors.ts          验证锚点单一源（Impact Analysis / 架构影响 / Caller Updates / [N<id>]）
+│   │   │   ├── readiness.ts        提案就绪门（结构 + 覆盖 + 锚点 + 能力对齐，确定性纯函数）
 │   │   ├── migration.ts            显式 JSON → OpenSpec Markdown 迁移
 │   │   ├── fingerprint.ts          变更制品内容指纹（sourceFingerprint）
 │   │   ├── legacy-artifacts.ts     历史 JSON 只读兼容边界
@@ -172,14 +175,21 @@ node bin/iagent.js version bump  # 递增版本并写回 package.json / CHANGELO
 4. **新增技能类型**：`src/core/config.ts` 的 `SKILL_TYPES` 加条目，类型体系即 9→N 类
 5. **YAML 转义**：含冒号/引号的 frontmatter 值必须走 `escapeYamlValue`
 6. Windows 兼容：路径断言用 `replaceAll('\\', '/')` 归一化；`path.join` 不硬编码分隔符
-7. **spec 模板单一源（已落地）**：`workflows/spec-*.ts` 的正文仅维护 skill 版
+7. **验证清单与锚点单一源（已落地）**：D1-D10 + B1-B7 清单正文只在
+   `src/core/templates/verify-checklist.ts` 维护（`renderVerifyChecklist()`，含 `orchestrator` /
+   `propose-selfcheck` 两个变体）；验证锚点（`### Impact Analysis` / `### 架构影响` /
+   `### Caller Updates` / `[N<id>]`）只在 `src/core/spec/validation/anchors.ts` 定义。
+   五个编排/验证技能 MUST 插值引用，MUST NOT 各自手写清单或锚点副本 —— 清单/锚点改动只改一处。
+   就绪门 `src/core/spec/validation/readiness.ts` 是唯一判定实现（`iagent spec validate --ready`），
+   propose 终检顺序固定为 partial → ready → strict → handoff 包（MUST NOT 重排）。
+8. **spec 模板单一源（已落地）**：`workflows/spec-*.ts` 的正文仅维护 skill 版
    `getSpecXxxSkillTemplate().instructions`（唯一源），command 版 content 由
    `derive-command.ts` 的 `deriveCommandContent()` 从唯一源派生 —— 禁止直接编辑
    派生产物或另立手工字符串。裁剪段落用 `<!-- CMD:SKIP -->` / `<!-- /CMD:SKIP -->`
    成对标记（仅 skill 版可见）；未标记段落默认进入 command 版（fail-safe：漏标
    只会让 command 更长，不会缺失防护语句）；Guardrails 段永不标记。改动模板后
    仍须依次 `pnpm build && pnpm generate:skills`（见第 1 条）
-8. **版本号更新**：完成功能变更时同步更新版本号与变更日志，二者**随本次功能提交一并提交**
+9. **版本号更新**：完成功能变更时同步更新版本号与变更日志，二者**随本次功能提交一并提交**
    （不再单独提交 `chore: 版本号`）。以 `package.json` 当前 `version` 为基线，用
    `node bin/iagent.js version` 只读判定、`node bin/iagent.js version bump` 写回；
    判定输入是**实际实现影响面**（基线之后的提交 + Git diff + CHANGELOG `[Unreleased]`），

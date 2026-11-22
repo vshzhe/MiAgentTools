@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:8efaa28083f70ea85b10155ff10e7a03f079422db1098877e379bc71521ed963"
+  generatedFingerprint: "sha256:721d685fe4340d1a46add4c4f9f0614a1e0ce66d94a6d7f7b3ca5d3ed4352c98"
 ---
 
 
@@ -205,7 +205,7 @@ Phase 2.0 预迁移验证与影响分析完成后，探索文件迁移与全部�
 
 **Stage Envelope**：只传 `changeName` / `changeRoot` / `explorationFile` / `handoffPackPath` / `mode` / `resume` / `configPath` / `rulesPath`；MUST NOT 内联制品正文或完整 SKILL.md。子代理先读 handoff 包（若已存在），再按需增量读取探索文件。
 
-**回执续跑**：子代理回执 SHALL 含 `changeName` / `artifacts` / `applyReady` / `explorationFile` / `handoffPackPath` / `sourceFingerprint`；父级校验通过后**在同一用户回合内**进入 Phase 3。
+**回执续跑**：子代理回执 SHALL 含 `changeName` / `artifacts` / `applyReady` / `explorationFile` / `handoffPackPath` / `sourceFingerprint` / `readiness`；父级校验通过后**在同一用户回合内**进入 Phase 3。**就绪门控（强制）**：`readiness.status` MUST 为 `pass` 才能推进；`fail` → 回 Phase 2 就地修复后重跑（不新增用户门）。回执缺 `readiness` 字段时 MUST 自行运行 `iagent spec validate --change "<name>" --ready` 复核，MUST NOT 默认视为通过。
 
 **退出守卫**：被委派的 `iagent-spec-propose` 完成后 MUST NOT 自行进入实现或推进阶段；阶段推进主权归 `iagent-workflow`。
 

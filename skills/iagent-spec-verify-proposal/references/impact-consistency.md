@@ -4,10 +4,10 @@
 
 ## 1. 存在性判定矩阵（N3）
 
-| 制品 | 判定锚点 | 缺失处置 |
+| 制品 | 判定锚点（由 `anchors.ts` 单一源渲染） | 缺失处置 |
 | :--- | :--- | :--- |
-| `proposal.md` 影响面 | `## Impact` 下影响面分析小节（影响面分析 / Impact Analysis） | 检查点 SKIP 排除分母 |
-| `design.md` 影响面 | `## Context` 下架构影响小节（架构影响 / Architecture Impact） | 同上 |
+| `proposal.md` 影响面 | `## Impact` 下的 `### Impact Analysis` 小节 | 检查点 SKIP 排除分母 |
+| `design.md` 影响面 | `## Context` 下的 `### 架构影响` 小节 | 同上 |
 | `tasks.md` 影响面 | `### Caller Updates` 小节 | 同上 |
 
 - 判定以**小节标题锚点**为准；语义等价标题（不同措辞指向同一内容）MAY 计为存在，MUST 能指出对应之处，拿不准标「待验证」且 MUST NOT 据此判 FAIL

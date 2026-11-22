@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:842d3223139a61c50aff95d6328c3a6ba31af662d027595fa5acb70d0f2d3336"
+  generatedFingerprint: "sha256:5131ea25b057cf0a535474bd4ca6b6388313fc1f828ef50a99fa557c8158fff4"
 ---
 
 **验证前先读取项目规则基线（`.iagent/config.yaml` / `.iagent/rules/*.md` / `CLAUDE.md` / `AGENTS.md`）中的验证标准。** 重点检查未定义数据字段、架构分层违规、前端 UI 状态覆盖。
@@ -55,7 +55,22 @@ metadata:
 本技能存在**两种调用形态**，正文显式区分并给出判定信号（消除「单轮合并清单」与「独立三维度」的双语义歧义）：
 
 - **判定信号**：存在**编排上下文** → 合并清单模式；否则 → 三维度 report-only 模式。编排上下文判定：由工作流编排内联调用（如 auto-workflow 验证阶段、实现验证桥），工作区标志为 `.openspec-tmp/pipeline-<change-name>/` 下已存在 handoff 包等编排产物。
-- **父编排内联合并清单模式**：**主 agent 内联**，一次合并执行 D1-D10 核心维度 + B1-B7 边界清单；回执写 `executionMode=inline`、`independence=self`（自证记 WARN，可信度由固定清单 + 每条 `文件:行` 证据 + 报告落盘承担）；MUST NOT 为验证启动子代理；**报告路径**：验证报告 MUST 落盘 `.openspec-tmp/pipeline-<change-name>/verify-report.md`。
+- **父编排内联合并清单模式**：**主 agent 内联**，一次合并执行下列单一源清单（含 D1-D10 核心维度 + B1-B7 边界清单；清单正文由 `verify-checklist.ts` 渲染，MUST NOT 在本技能正文另写副本）：
+
+**固定清单（D1-D10 核心维度 + B1-B7 边界）**：
+
+1. **D1: 需求覆盖** — Decisions → 规格需求
+2. **D2: 技术一致性** — 技术选型 → `design.md`（design 缺失时从 specs / proposal 取证据，双无则 SKIP）
+3. **D3: 任务完整性** — 规格需求 → 任务（优先消费结构化解析结论）
+4. **D4: 边界覆盖** — 问题 / 边界场景 → 规格 Scenario
+5. **D5: Pending 解决** — Pending 事项 → 已解决
+6. **D6-D10: 条件维度** — 交互细节 / API 契约 / 数据库映射 / 业务步骤 / 流程图节点覆盖，未触发不计分
+7. **B1-B7 边界清单**：B1 自写制品自证（`independence=self` + WARN，结论必须带 `文件:行`）／B2 FAIL 同上下文修复（禁止新开代理 / 全量重读，≤3）／B3 归档内联失败沿用非阻断语义／B4 debug fix 内联共用预算 ≤3／B5 migration 上下文超限降级子代理 + WARN／B6 spec-bulk-archive 保留并行子代理（≤3）／B7 无 `delegate` 宿主仅阻断 propose/apply
+
+> 阈值：统一 90%；Overall Score = (D1 + D2 + D3 + D4 + D5 + sum(triggered D6-D10)) / (5 + triggered_count)。
+> 本清单由 `src/core/templates/verify-checklist.ts` 单一源渲染，MUST NOT 在各技能正文另写副本。
+
+  回执写 `executionMode=inline`、`independence=self`（自证记 WARN，可信度由固定清单 + 每条 `文件:行` 证据 + 报告落盘承担）；MUST NOT 为验证启动子代理；**报告路径**：验证报告 MUST 落盘 `.openspec-tmp/pipeline-<change-name>/verify-report.md`。
 - **独立调用三维度 report-only 模式**：用户独立调用（无编排上下文、无 pipeline 工作区）时，按执行步骤 4-8 的 Completeness / Correctness / Coherence 三维度执行 report-only 验证；不要求合并清单产物路径，报告按「输出格式」呈现给用户，MUST NOT 写 pipeline 工作区。
 - **读取范围（两形态通用）**：MUST FIRST 读 handoff 包「## 制品清单」，按锚点增量读取；合并清单模式回执写 `readScope`（独立调用无回执载体时在报告头部注明读取范围）。
 - **同上下文复跑（仅合并清单模式）**：FAIL 修复后在同一主上下文按 `fixDiff` 与上轮 `reportPath` 增量重跑，**禁止新开验证代理或全量重读**；循环上限 3 次；禁止 resume 充当复验（`contextReplay=true 记 WARN`）。

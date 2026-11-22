@@ -4,6 +4,7 @@
 import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
 import { renderGateWhitelistSection } from '../prompt-gate.js';
+import { renderVerifyChecklist } from '../verify-checklist.js';
 
 export function getSpecVerifyChangeSkillTemplate(): SkillTemplate {
     return {
@@ -38,7 +39,11 @@ ${renderGateWhitelistSection({ variant: 'readonly' })}
 本技能存在**两种调用形态**，正文显式区分并给出判定信号（消除「单轮合并清单」与「独立三维度」的双语义歧义）：
 
 - **判定信号**：存在**编排上下文** → 合并清单模式；否则 → 三维度 report-only 模式。编排上下文判定：由工作流编排内联调用（如 auto-workflow 验证阶段、实现验证桥），工作区标志为 \`.openspec-tmp/pipeline-<change-name>/\` 下已存在 handoff 包等编排产物。
-- **父编排内联合并清单模式**：**主 agent 内联**，一次合并执行 D1-D10 核心维度 + B1-B7 边界清单；回执写 \`executionMode=inline\`、\`independence=self\`（自证记 WARN，可信度由固定清单 + 每条 \`文件:行\` 证据 + 报告落盘承担）；MUST NOT 为验证启动子代理；**报告路径**：验证报告 MUST 落盘 \`.openspec-tmp/pipeline-<change-name>/verify-report.md\`。
+- **父编排内联合并清单模式**：**主 agent 内联**，一次合并执行下列单一源清单（含 D1-D10 核心维度 + B1-B7 边界清单；清单正文由 \`verify-checklist.ts\` 渲染，MUST NOT 在本技能正文另写副本）：
+
+${renderVerifyChecklist()}
+
+  回执写 \`executionMode=inline\`、\`independence=self\`（自证记 WARN，可信度由固定清单 + 每条 \`文件:行\` 证据 + 报告落盘承担）；MUST NOT 为验证启动子代理；**报告路径**：验证报告 MUST 落盘 \`.openspec-tmp/pipeline-<change-name>/verify-report.md\`。
 - **独立调用三维度 report-only 模式**：用户独立调用（无编排上下文、无 pipeline 工作区）时，按执行步骤 4-8 的 Completeness / Correctness / Coherence 三维度执行 report-only 验证；不要求合并清单产物路径，报告按「输出格式」呈现给用户，MUST NOT 写 pipeline 工作区。
 - **读取范围（两形态通用）**：MUST FIRST 读 handoff 包「## 制品清单」，按锚点增量读取；合并清单模式回执写 \`readScope\`（独立调用无回执载体时在报告头部注明读取范围）。
 - **同上下文复跑（仅合并清单模式）**：FAIL 修复后在同一主上下文按 \`fixDiff\` 与上轮 \`reportPath\` 增量重跑，**禁止新开验证代理或全量重读**；循环上限 3 次；禁止 resume 充当复验（\`contextReplay=true 记 WARN\`）。

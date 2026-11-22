@@ -363,3 +363,46 @@ describe('单制品模式与可写路径的边界语义', () => {
         expect(tasksInfo.resolvedOutputPath).toBe(payload.artifactPaths.tasks.resolvedOutputPath);
     });
 });
+
+describe('validate --ready：就绪门 CLI 契约', () => {
+    let root: string;
+    let cwd: string;
+
+    beforeEach(() => {
+        root = makeProject();
+        cwd = process.cwd();
+        process.chdir(root);
+    });
+
+    afterEach(() => {
+        process.chdir(cwd);
+        process.exitCode = 0;
+        fs.rmSync(root, { recursive: true, force: true });
+    });
+
+    it('Scenario: --ready 与 --partial 互斥（报冲突并非零退出码）', async () => {
+        makeChange(root);
+        const program = buildProgram();
+        program.exitOverride();
+        vi.spyOn(console, 'log').mockImplementation(() => {});
+        await program.parseAsync(['node', 'iagent', 'spec', 'validate', '--change', 'demo', '--ready', '--partial']);
+        expect(process.exitCode).toBe(1);
+        vi.restoreAllMocks();
+    });
+
+    it('Scenario: runSpecValidate --ready 输出四类判定', () => {
+        makeChange(root);
+        const result = runSpecValidate(root, 'demo', { ready: true });
+        expect(result.mode).toBe('ready');
+        expect(result.checks?.map((check) => check.id)).toEqual(['structure', 'coverage', 'anchors', 'capabilities']);
+    });
+
+    it('Scenario: --ready 不改变 strict / --partial 语义', () => {
+        makeChange(root);
+        const strict = runSpecValidate(root, 'demo');
+        expect(strict.mode).toBe('strict');
+        expect(strict.checks).toBeUndefined();
+        const partial = runSpecValidate(root, 'demo', { partial: true });
+        expect(partial.mode).toBe('partial');
+    });
+});

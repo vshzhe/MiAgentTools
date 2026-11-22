@@ -1,3 +1,14 @@
+### 6.3 Markdown 校验（章节清单）
+
+`proposal.md` 含 Why / What Changes / Capabilities / Impact；`specs/**/*.md` 含 `### Requirement:` + `#### Scenario:`；`design.md` 含 Context / Decisions / Risks；`tasks.md` 任务带类型标签与 checkbox 状态。
+
+### 6.4 一致性证据与就绪门（细则）
+
+- **一致性**：运行 `iagent spec conformance --strict`，写 `.openspec-tmp/pipeline-<change-name>/conformance-report.md`；`fail` / 缺失 → 回 Phase 4
+- **就绪门**：运行 `iagent spec validate --change "<name>" --ready`（与 propose 侧同一 `readiness.ts`，MUST NOT 另立判定口径）：四类判定为结构 / 覆盖 / 锚点 / 能力对齐；`fail` → 按逐条诊断就地修正后重跑（≤3），超限回 Phase 4
+- **存量兼容**：锚点缺失对新变更记 error、对存量变更记 WARN + SKIP（不阻断）
+- **推进条件**：仅当制品反映全部修复、且两项证据均通过后才进入 Phase 7
+
 ### 7.3 实现后 review 环节（细则）
 
 - **调用形态**：由主 agent 内联调用 `iagent-review` skill（`executionMode=inline` / `independence=self`，self 记 WARN），MUST NOT 派发子代理；review 检查修复实现完整度（缺陷链路覆盖、修复遗漏、明显缺陷），MUST NOT 重复 spec_verify_proposal 的一致性清单。

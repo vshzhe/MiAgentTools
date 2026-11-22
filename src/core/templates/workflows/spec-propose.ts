@@ -5,6 +5,7 @@ import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
 import { renderGateWhitelistSection } from '../prompt-gate.js';
 import { skillDelegation } from '../tool-whitelist.js';
+import { renderVerifyChecklist } from '../verify-checklist.js';
 import {
     GATE_SKIP_IDS,
     LEGACY_AUTO_MODE_PARAM,
@@ -46,6 +47,8 @@ ${renderGateWhitelistSection({ variant: 'no-gate' })}
 **Step 0: 探索文件检测**
 
 > **delegated 模式分支**：若以 \`${renderDelegationModeOption('delegated')}\` + \`exploration-file=<path>\` 被编排器委派，**跳过下面的用户选择提示**，直接对该文件执行迁移语义（移入变更目录为 \`exploration.md\`，成功后删除源文件），并在回执中报告迁移结果；\`interactive\` 模式保留下面的提示流程。
+>
+> **过桥载体校验（强制）**：\`exploration-file\` 指向的文件 MUST 存在且可读；不存在 / 不可读时报 \`missing-exploration\` 并停止，MUST NOT 跳过迁移静默继续生成（\`exploration.md\` 是探索→提案的唯一语义载体，跳过即丢失提示词基线与流程基准）。
 
 在创建变更前，MUST 扫描并关联探索文件：
 
@@ -200,13 +203,31 @@ ${renderGateWhitelistSection({ variant: 'no-gate' })}
    iagent spec status --change "<name>"
    \`\`\`
 
-5.1 **终检（强制：strict validate + instructions apply）**
+5.1 **终检（强制：四步固定顺序，MUST NOT 重排）**
+
+   **顺序（D9）**：partial 逐制品校验 → **就绪门（\`--ready\`）** → strict 终检 → handoff 包。就绪门必须先于 handoff 包：包内 \`sourceFingerprint\` 覆盖制品内容，MUST 在全部修复完成后才产出，否则指纹与定稿内容不一致。
+
+   **5.1.a 压缩自检清单（与验证清单同源的确定性可判子集，不构成用户停门）**
+
+${renderVerifyChecklist({ variant: 'propose-selfcheck' })}
+
+   **5.1.b 就绪门（确定性组合校验）**
+   \`\`\`bash
+   iagent spec validate --change "<name>" --ready
+   \`\`\`
+   - 四类判定：结构完整 / 覆盖完整 / 锚点齐备 / 能力对齐；FAIL 时诊断逐条给出 \`filePath:line\` 与缺失项，按诊断就地修复后重跑（≤3 次）
+   - 超限 → 走既有三出口（手动编辑 / 返回探索 / 查看差异），MUST NOT 新增确认门
+   - 与 \`--partial\` 互斥：就绪门 MUST NOT 在起草期模式下调
+
+   **5.1.c strict 终检 + apply 状态复核**
    \`\`\`bash
    iagent spec validate --change "<name>"
    iagent spec instructions apply --change "<name>" --json
    \`\`\`
    - \`validate\` 不带 \`--partial\` 即 **strict 终检**：\`missing-specs\` / \`missing-tasks\` 为 error，\`design\` 缺失不报错；结构错误与未匹配引用 MUST 在进入验证门前修复
    - \`instructions apply\` 复核 \`instruction.state\`：\`blocked\` 时按 \`missingDeps\` 继续生成（必需集未完成），MUST NOT 直接进入 Phase 3 验证；\`ready\` / \`all_done\` 才可继续
+
+   **5.1.d handoff 包**：见 5.5，MUST 在就绪门与 strict 终检均通过后产出
 
 5.5 **产出变更级 handoff 包（供 verify / apply / archive 只读复用）**
 
@@ -248,7 +269,7 @@ ${renderGateWhitelistSection({ variant: 'no-gate' })}
 
 **Output**
 
-> **delegated 模式分支**：若 \`${renderDelegationModeOption('delegated')}\`，输出**结构化回执**（change-name、生成制品清单、apply-ready 状态、\`explorationFile\` / \`handoffPackPath\` / \`sourceFingerprint\`、探索文件迁移结果），MUST NOT 输出"等待用户确认"停点——回执是中间状态，父编排在同一用户回合内继续验证；回执 MUST NOT 作为面向用户的最终消息（用户可见至多一行进度）；阶段推进主权归编排器。下述 interactive 输出仅适用于默认模式。
+> **delegated 模式分支**：若 \`${renderDelegationModeOption('delegated')}\`，输出**结构化回执**（change-name、生成制品清单、apply-ready 状态、\`explorationFile\` / \`handoffPackPath\` / \`sourceFingerprint\` / \`readiness\`（\`{ status: 'pass'|'fail', checks, diagnostics }\`，来自 5.1.b 就绪门）、探索文件迁移结果），MUST NOT 输出"等待用户确认"停点——回执是中间状态，父编排在同一用户回合内继续验证；回执 MUST NOT 作为面向用户的最终消息（用户可见至多一行进度）；阶段推进主权归编排器。下述 interactive 输出仅适用于默认模式。
 
 全部制品完成且 Phase 3 验证通过后（规划边界：到此停止，等待用户发起新请求）：
 - 变更名与位置

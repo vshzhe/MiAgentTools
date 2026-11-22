@@ -15,12 +15,15 @@
 **固定清单（D1-D10 核心维度 + B1-B7 边界）**：
 
 1. **D1: 需求覆盖** — Decisions → 规格需求
-2. **D2: 技术一致性** — 技术选型 → `design.md`
-3. **D3: 任务完整性** — 规格需求 → 任务
+2. **D2: 技术一致性** — 技术选型 → `design.md`（design 缺失时从 specs / proposal 取证据，双无则 SKIP）
+3. **D3: 任务完整性** — 规格需求 → 任务（优先消费结构化解析结论）
 4. **D4: 边界覆盖** — 问题 / 边界场景 → 规格 Scenario
 5. **D5: Pending 解决** — Pending 事项 → 已解决
 6. **D6-D10: 条件维度** — 交互细节 / API 契约 / 数据库映射 / 业务步骤 / 流程图节点覆盖，未触发不计分
 7. **B1-B7 边界清单**：B1 自写制品自证（`independence=self` + WARN，结论必须带 `文件:行`）／B2 FAIL 同上下文修复（禁止新开代理 / 全量重读，≤3）／B3 归档内联失败沿用非阻断语义／B4 debug fix 内联共用预算 ≤3／B5 migration 上下文超限降级子代理 + WARN／B6 spec-bulk-archive 保留并行子代理（≤3）／B7 无 `delegate` 宿主仅阻断 propose/apply
+
+> 阈值：统一 90%；Overall Score = (D1 + D2 + D3 + D4 + D5 + sum(triggered D6-D10)) / (5 + triggered_count)。
+> 本清单由 `src/core/templates/verify-checklist.ts` 单一源渲染，MUST NOT 在各技能正文另写副本。
 
 **证据契约（强制）**：每条结论 MUST 带 `文件:行` 或制品章节锚点；**无证据的结论 MUST NOT 计入通过**（标为「缺证据」）。报告 MUST 落盘 `.openspec-tmp/pipeline-<change-name>/verify-report.md`；回执记 `executionMode=inline` / `independence=self` / `readScope`。
 
