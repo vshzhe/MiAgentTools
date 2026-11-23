@@ -8,14 +8,14 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:e9fdac42adb120dd844b4f379409c23abb32dd37648e1a7f06e4ff1ca53c9035"
+  generatedFingerprint: "sha256:3d6206142e585302f9be7913e192580ce045e82b8fa5b09899f34854c8aa6524"
 ---
 
 **适用项目护栏（impl 域蒸馏，见 .iagent/rules/coding-rules.md）。** 未定义项标 **[待确认]**，禁止猜测。
 
 在变更工作流中归档一个已完成的变更。
 
-**handoff 包（只读 + 追加）**：若 `.openspec-tmp/pipeline-<change-name>/handoff-pack.md` 存在，本技能**只读**该包并在收尾时只向 `## 阶段结论` 追加一行（`phase=archive` / `status` / `artifact` / `nextAllowed` / `tokens`，tokens 不可得填 `—`）；MUST NOT 重产整包。包内 `## 已确认门`（门账本）同样**只读** —— MUST NOT 改写、删除或回填父级已写入的条目（账本条目表达门承载语义，取值域 = `GATE_SKIP_IDS`，与六节并列且不计入六节）。包缺失时按需直接读取制品；`sourceFingerprint` 与当前制品不一致时记 WARN 并以磁盘制品为准。包内 `## 硬约束` 为并列节，本技能**只读复用**（MUST NOT 在该节写入或改写）；`## 阶段结论` 的追加只由具备 `Write` 权限的 apply / archive 执行（verify 只读，不声称已追加）。
+**handoff 包（只读 + 追加）**：若 `.openspec-tmp/pipeline-<change-name>/handoff-pack.md` 存在，本技能**只读**该包并在收尾时只向 `## 阶段结论` 追加一行（`phase=archive` / `status` / `artifact` / `nextAllowed` / `tokens`，tokens 不可得填 `—`）；MUST NOT 重产整包。包内 `## 已确认门`（门账本）同样**只读** —— MUST NOT 改写、删除或回填父级已写入的条目（取值域 = `GATE_SKIP_IDS`，与六节并列且不计入六节）。包缺失时按需直接读取制品；`sourceFingerprint` 不一致时记 WARN 并以磁盘制品为准。包内 `## 硬约束` 为并列节，**只读复用**（MUST NOT 写入或改写）；`## 阶段结论` 的追加只由具备 `Write` 权限的 apply / archive 执行（verify 只读，不声称已追加）。
 
 ## 门白名单与 MUST NOT 确认清单
 
@@ -39,7 +39,7 @@ metadata:
 
 **Input**: 可选指定变更名；省略时检查能否从对话上下文推断。若含糊或有歧义，MUST 提示可用变更供用户选择。工作流也可能为自动执行直接传入变更名。
 
-**执行方式与读取范围（强制）**：单变更归档由**主 agent 内联**执行（`executionMode=inline`）；MUST NOT 为归档启动子代理；兼容窗内旧 `subagent` 回执记 deprecation WARN 并允许推进（下个 major 收紧为仅 `inline`）。内联执行前 MUST FIRST 读 handoff 包「## 制品清单」并按锚点增量读取，回执写 `readScope`；「## 阶段结论」5 列（tokens 可用时填 tokens=<数值>，不可得填 —）；指纹优先 iagent spec fingerprint --change <name>。
+   **执行方式与读取范围（强制）**：单变更归档由**主 agent 内联**执行（`executionMode=inline`）；MUST NOT 为归档启动子代理；兼容窗内旧 `subagent` 回执记 deprecation WARN 并允许推进（下个 major 收紧为仅 `inline`）。内联前 MUST FIRST 读 handoff 包「## 制品清单」并按锚点增量读取，回执写 `readScope`；「## 阶段结论」5 列（tokens 不可得填 —）；指纹优先 `iagent spec fingerprint --change <name>`。
 
 **Steps**
 
@@ -263,7 +263,7 @@ metadata:
 
    **月度索引损坏处置（强制，纯追加不重建）**：结构损坏、无法完整解析时 MUST 保留原文 + 仅追加本批最小条目（`| {date} | {change-name} | {module} | {summary} |`）+ 输出 WARN 提示人工修复（含损坏位置线索）；MUST NOT 丢弃既有历史条目，MUST NOT 阻断归档。
 
-   **根入口维护（强制，只更新链接与统计）**：根入口 SHALL 仅承担月份导航与全局模块统计。归档时 MUST 只允许：① 追加缺失的当月月份链接（已存在则跳过，MUST NOT 出现重复月份行）；② 从全部 `ARCHIVE-INDEX-*.md` 月度文件**确定性重算**全局模块统计（MUST NOT 使用增量累加；某月度文件不可解析时跳过该月并记 WARN）。根入口 MUST NOT 改写既有月度条目与既有条目文本。根入口缺失但存在月度文件时 SHALL 依据月度文件重建入口（月份导航 + 全局统计）并在归档摘要中报告该次重建；根入口损坏时 SHALL 保留原文 + 只补缺失月份链接 + WARN，MUST NOT 重建。
+**根入口维护（强制，只更新链接与统计）**：根入口仅承担月份导航与全局模块统计，归档时只允许：① 追加缺失的当月月份链接（已存在则跳过，MUST NOT 重复月份行）；② 从全部 `ARCHIVE-INDEX-*.md` **确定性重算**全局统计（MUST NOT 使用增量累加；某月不可解析时跳过并 WARN）。MUST NOT 改写既有月度条目与既有条目文本。根入口缺失但存在月度文件时 SHALL 依据月度文件重建入口并在归档摘要中报告；；根入口损坏时 SHALL 保留原文 + 只补缺失月份链接 + WARN，MUST NOT 重建。
 
    **失败与跳过不入索引（强制）**：失败或跳过的变更 MUST NOT 写入任何月度索引，也不得参与统计重算。
 
@@ -336,9 +336,9 @@ metadata:
       - 已存在时：若「月份导航」缺少当月行则追加 `| YYYY-MM | [ARCHIVE-INDEX-YYYY-MM.md](ARCHIVE-INDEX-YYYY-MM.md) | {条目数} |`；再从全部月度文件确定性重算全局模块统计并更新页脚时间戳
 <!-- /CMD:SKIP -->
 
-   **补充标注的标签白名单（强制，指令版同样适用）**：读取变更目录中的 `tasks.md`（历史 JSON-only 降级时只读 tasks.json），通过**匹配固定标签白名单**收集补充任务类型 `[测试]` / `[DB脚本]` / `[使用说明]`（排除 `[代码]`），并把 `[含<type1>/<type2>/...]` 追加到摘要（如 `[含测试/DB脚本]`）。只按白名单匹配 —— 不得收集"所有方括号内容"：`[测试]` 任务带层级/优先级子标注（`[测试][单元][P0]`），其中 `[单元]`/`[P0]` 不是任务类型，收集它们会产生 `[含测试/单元/P0]` 噪声。白名单之外的标签一律忽略（非阻塞；MAY 记录 WARN）。若无补充任务，跳过标注。
+   **补充标注的标签白名单（强制）**：读取 `tasks.md`（历史 JSON-only 降级时读 tasks.json），通过**匹配固定标签白名单**收集 `[测试]` / `[DB脚本]` / `[使用说明]`（排除 `[代码]`），把 `[含<type1>/<type2>]` 追加到摘要。只按白名单匹配，不得收集"所有方括号内容"—— `[测试][单元][P0]` 中的 `[单元]`/`[P0]` 不是任务类型。白名单外标签忽略（MAY 记 WARN）；无补充任务则跳过。
 
-   **跨平台说明**：Windows 上用 `path.join()` 构建路径。检查文件是否存在时注意大小写敏感性差异。
+   **跨平台说明**：Windows 上用 `path.join()` 构建路径；注意大小写敏感差异。
 
 7.5 **归档自动提交（非阻断，推送需确认）**
 
@@ -347,7 +347,11 @@ metadata:
    1. 收集待提交路径：该变更的制品固定清单（`proposal.md` / `design.md` / `tasks.md` / `exploration.md` / `.openspec.yaml` / `specs` 下全部 `.md`，排除 `attachments` 与 `需求文档.md`）+ 本次变更相关代码改动。无路径 → 跳过并说明
    2. 精确 `git add -- <具体路径>` + `git commit`，提交信息沿用 `iagent-commit` §3 规范，尾行 `提案: <change-name>`；MUST NOT 使用 `git add -A` / `git add .` / `git add openspec` / 目录通配
    3. 失败一律 WARN + 建议并继续（钩子拒绝 / 权限 / 身份未配置 / detached HEAD / 冲突）；工作区无关改动 MUST NOT 被纳入
-   4. **⛔ 推送确认门**（`destructive-change`，不可豁免、MUST NOT 被 `gate-skip` 跳过）：展示分支与 remote 后询问；确认 → `git push`，拒绝 → 保留本地提交；未配置 remote → WARN 跳过（非失败）
+   4. **⛔ 推送确认门**（`destructive-change`，不可豁免、不可被 `gate-skip` 跳过）：展示分支与 remote 后询问；确认 → `git push`，拒绝 → 保留本地提交；未配置 remote → WARN 跳过（非失败）
+
+7.6 **归档合并工作分支（强制，见 `references/branch-merge.md`）**
+
+   读 `## 分支状态`；缺失或 `branchMode≠work-branch` → 跳过记日志。否则 **⛔ 合并门**（归 `destructive-change`，**不可豁免、不可被 `gate-skip` 跳过**，与推送一次确认）→ `iagent git merge <branch> --into <baseBranch> --json` → 成功删分支（失败仅 WARN）并推送；用户拒绝合并 → 保留分支与提交。**冲突暂停列清单，MUST NOT abort / reset --hard / 丢弃产出**。**合并失败 MUST NOT 回滚归档**。
 
 8. **展示摘要**
 
@@ -359,6 +363,7 @@ metadata:
    - 归档索引更新状态（月度索引 `ARCHIVE-INDEX-YYYY-MM.md` 追加结果 / 根入口月份链接与全局统计维护结果 / 根入口重建或损坏 WARN）
    - CodeGraph 同步状态（已同步 / 跳过 —— 未初始化或出错）
    - Git 提交状态（已提交 <hash> / 无改动跳过 / 失败 WARN + 原因）与推送状态（已推送 / 未推送 —— 用户选择或未配置 remote）
+   - 分支合并状态（已合并到 <baseBranch> 并删除 <branch> / 合并冲突待处置 / 用户拒绝合并保留工作 / 非分支模式跳过）
    - 探索记忆同步状态（已同步 / 跳过 —— 无探索文件或无 delta spec / 失败 —— 已记录告警）
    - 流程级工作区清理结果（已清理 / 清理失败 WARN + 路径）
    - 关于任何告警的说明（未完成的制品/任务）
@@ -418,16 +423,15 @@ Review the archive if this was not intentional.
 **Guardrails**
 - 未提供变更时始终提示选择（除非变更名由工作流上下文显式传入）
 - 用制品图（iagent spec status --json）做完成度检查
-- 不要因告警阻塞归档 —— 仅告知（无需确认）
+- 不要因告警阻塞归档 —— 仅告知
 - **同名冲突不中止（D1/D2）**：目标名已存在时由 CLI 唯一化（`-2`、`-3`…，上限 99 次），技能以实际归档目录为事实来源；MUST NOT 指引重命名/删除既有归档，MUST NOT 覆盖既有归档
-- 移入归档时保留 .openspec.yaml（它随目录一起移动）
-- 保留 `attachments/` 子目录 —— 它随变更目录自动移动
-- 为月度索引 `ARCHIVE-INDEX-YYYY-MM.md` 提取摘要时，扫描 `tasks.md` 的补充类型标签，并把 `[含xxx]` 标注追加到摘要
+- 移入归档时保留 .openspec.yaml（随目录移动）与 `attachments/` 子目录
+- 为月度索引提取摘要时，按白名单扫描 `tasks.md` 的补充类型标签并追加 `[含xxx]` 标注
 - 归档移动前，为每个涉及的能力把探索记忆同步到 specs/<capability>/explorations.md；exploration.md 或 delta spec 缺失时跳过（并记日志）；绝不因同步失败阻塞归档
 - 需求文档桥与只读报告已移除：归档 MUST NOT 读取、报告、生成、对齐或迁出 `需求文档.md`；文件随变更目录原样保留
-- **归档只读**：MUST NOT 修改 `openspec/changes/archive/` 下的既有内容 —— 已归档变更是历史事实；整目录移动（`openspec/changes/<name>/` → `openspec/changes/archive/YYYY-MM-DD-<name>/`）不属于改写；根入口 `ARCHIVE-INDEX.md` 的月份链接与全局统计更新、月度索引 `ARCHIVE-INDEX-YYYY-MM.md` 的**追加**是显式例外；流程末尾保留一次护栏自检
+- **归档只读**：MUST NOT 修改 `openspec/changes/archive/` 下的既有内容 —— 已归档变更是历史事实；整目录移动（`openspec/changes/<name>/` → `openspec/changes/archive/YYYY-MM-DD-<name>/`）不属于改写；根入口 `ARCHIVE-INDEX.md` 的月份链接与全局统计更新、月度索引 `ARCHIVE-INDEX-YYYY-MM.md` 的**追加**是显式例外（Step 7.6 的分支合并改版本库状态，不属本约束面）；流程末尾保留一次护栏自检
 - 月度索引 `ARCHIVE-INDEX-YYYY-MM.md` 为**纯追加**：结构损坏时保留原文 + 仅追加本批最小条目 + WARN 提示人工修复，MUST NOT 全量重建或整体覆盖，MUST NOT 丢弃既有历史条目
-- 根入口 `ARCHIVE-INDEX.md` 只维护月份链接与全局模块统计：MUST NOT 改写既有条目；统计 MUST 从全部月度文件确定性重算（非增量累加）；缺失时依据月度文件重建，损坏时只补缺失月份链接 + WARN
+- 根入口 `ARCHIVE-INDEX.md` 只维护月份链接与全局模块统计（MUST NOT 改写既有条目；统计确定性重算）
 - 归档收尾清理流程级工作区 `.openspec-tmp/pipeline-<change-name>/`（同时识别旧 `apply-` 前缀）必须在追加 `phase=archive` 结论之后；清理失败只 WARN，不阻断归档、不改写阶段结论
 - 当变更声明 `skip_specs`（状态报告 specs 为 skipped）时，归档摘要 MUST 注明 "主规格未同步（skip_specs 声明）"，避免用户误以为规格同步被遗漏
 - 清晰展示发生了什么

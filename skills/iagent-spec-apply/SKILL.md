@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:e259705da729172b28848ab6b042598df76f42351f017a3b25bd592ae514bf56"
+  generatedFingerprint: "sha256:e2e68880d4230948ccfd25f4085436dc177c4f63bf0ebb68d6557e16207cd1b5"
 ---
 
 **实现前按三层读取规则与技能（MUST NOT 全量读取）：① `iagent rules --json --type impl` → `always` 层（config context / `CLAUDE.md` / `AGENTS.md`）恒读、`phase` 层（`coding-rules.md`）MUST 读、`onDemand` 层与本次实现相关时读；② `iagent skills --json --phase implement` → 读取筛选结果（design-only 不要求；范围明确时 MAY 追加 `--scope`）。逐源记录未读声明（相关性 / 读取 / 理由）；源缺失显式记「不存在」，读取失败记 WARN 并计入未读；`validation.status=incomplete` 记 WARN 并列入回执 `skillsIncomplete`；回执 SHALL 携带 `rulesRead` / `rulesSkipped` / `skillsRead` / `skillsSkipped`。三层细则见 `references/rule-loading.md`。** 禁止猜测数据库字段、API 参数或业务规则 —— 标 **[待确认]** 并询问用户。
@@ -185,6 +185,22 @@ metadata:
    - **门承载参数覆盖**：`gate-skip=design-confirmation`（兼容写法 `auto-mode=true`）时整道门被跳过 —— 不展示蓝图，直接进入 Step 6。未设置该参数或其为 false 时**不能**跳过本门（唯一例外：Step 5.5 第 2 级的账本兜底通道命中 —— 段内声明 `design-confirmation` 且与回执 `confirmedGates` 一致 → 跳过并记 WARN「使用了门账本兜底通道」；不一致 / 过期 → 视为未确认，本门照常执行）。
    - 本门**不能**跳过 —— 未经显式确认不得继续（除非主通道参数或账本兜底通道生效）
 
+   **分支准入（强制；细则见 `references/branch-isolation.md`）**
+
+   **## 分支状态（handoff 包并列节，与六节并列、不计入六节）**：由 `iagent-spec-apply` 在创建分支后立即写入，字段为 `branch` / `baseBranch` / `branchMode` / `createdAt`；`branchMode` 取值域为 `work-branch` / `none`。读取方（archive / debug / update）**只读复用**，段缺失时按 `branchMode=none` 继续并记 WARN，MUST NOT 猜测分支名。
+
+   **分支准入（Step 5.5 设计确认门之后、Step 6 批调度之前，强制）**
+
+1. 运行 `iagent git status --json` 探测：`installed=false` / `isRepo=false` / detached HEAD → 置 `branchMode=none` 并记 WARN，直接进入 Step 6（行为与无分支能力时一致）
+2. 运行 `git status --porcelain` 检查工作区：
+   - **有未提交改动** → **⛔ 暂停**（动作级 `destructive-change`），呈现三出口：①提交已有改动（走 `iagent-commit`）②stash 暂存后继续 ③取消实现；用户处置后回到本步复查。**MUST NOT 自动 `git stash`**、**MUST NOT 带脏工作区切换分支**
+   - **干净** → 运行 `iagent git branch --create iagent/<change-name> --json`（幂等：`created` / `reused` 均视为就绪；`failed` → 降级 `branchMode=none` + WARN 并继续）
+3. 把分支写入 handoff 包 `## 分支状态`（`branch` / `baseBranch` / `branchMode=work-branch` / `createdAt`）
+
+**分支名规则**：变更 `iagent/<change-name>`；无变更目录（独立调用）用 `iagent/apply-<timestamp>`。分支名 MUST NOT 含 `..`、前导 `/`、空白或 `~^:?*[\` 任一字符（CLI 会拒绝）。
+
+**Step 10.5 分叉**：`branchMode=work-branch` 时，Step 10.5 的「只暂存不提交」升级为**精确提交到工作分支**（固定清单 + 本次代码改动，逐条 `git add -- <具体路径>` 后 `git commit`，尾行 `提案: <change-name>`；提交前展示拟暂存清单，失败记 WARN 不阻断；**MUST NOT `git add -A`**）。该提交是合并的前提，属**实现期隔离动作**，MUST NOT 表述为归档自动提交；`branchMode=none` 时保持原语义。
+
    **临时工作区协议（流程级，由主代理管理）：**
    - 用户确认设计后（或门承载参数生效时）、派发任何批**之前**，创建流程级临时工作区 —— **优先项目内**：项目根下的 `.openspec-tmp/pipeline-<change-name>/`（路径用 path.join 构建以保证跨平台）。若项目 `.gitignore` 中尚无 `.openspec-tmp/` 条目则补上，使该工作区不会污染 git status；清理后保留该条目供后续运行使用。若项目根不可写，降级到系统临时目录 `iagent-pipeline-<change-name>/` 并记录 WARN 说明降级位置
    - 流程内产生的所有临时文件（handoff 包、编译校验脚本、临时配置、草稿输出）MUST 放在该工作区内 —— 不得把临时文件散落到项目目录各处
@@ -265,6 +281,7 @@ metadata:
    - 清理失败（文件被占用、权限不足）：记录 WARN 并给出工作区路径，MUST NOT 阻断流程
 
 10.5 **提案制品精确暂存（收尾提示，不提交）** ⚠️ 强制
+   - **分支模式分叉**：`branchMode=work-branch` 时本步升级为「精确提交到工作分支」（见 Step 5.5 后的「实现期提交」段与 `references/branch-isolation.md`）；`branchMode=none` 时保持下述只暂存语义
    - 目标变更名：本次执行的 `<change-name>`（无父流程时取唯一活跃变更；多活跃变更时以本次 change-name 为准）
    - 固定清单（逐条精确暂存，逐条校验前缀 `openspec/changes/<change-name>/`）：`proposal.md` / `design.md` / `tasks.md` / `exploration.md` / `.openspec.yaml` / `specs/**/*.md`
    - **排除**：`attachments/**` 与 `需求文档.md`

@@ -464,4 +464,15 @@ describe('补全表覆盖 git 命令（Git 能力集成）', () => {
         expect(bash).toContain('status');
         expect(bash).toContain('init');
     });
+
+    it('Scenario: 补全覆盖分支子命令（branch / merge 与四个参数）', () => {
+        for (const script of [generateBashCompletion(), generatePowerShellCompletion()]) {
+            expect(script).toContain('branch');
+            expect(script).toContain('merge');
+            expect(script).toContain('--create');
+            expect(script).toContain('--delete');
+            expect(script).toContain('--base');
+            expect(script).toContain('--into');
+        }
+    });
 });

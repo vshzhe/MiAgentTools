@@ -569,6 +569,8 @@ export function runSpecValidate(
     // design 为可选制品：仅在文件存在时校验，缺失 MUST NOT 产生 missing-design
     const design = wants('design') && fs.existsSync(designPath) ? parseDesign(designPath) : undefined;
     const tasks = wants('tasks') && fs.existsSync(tasksPath) ? parseTasks(tasksPath) : undefined;
+    const explorationPath = path.join(changeRoot, 'exploration.md');
+    const explorationRaw = fs.existsSync(explorationPath) ? fs.readFileSync(explorationPath, 'utf8') : undefined;
 
     // specs 是否已完成（有文件且结构无 error）——决定起草期未匹配引用能否降级
     const specsCompleted = specs.length > 0 && specs.every((spec) => spec.diagnostics.every((item) => item.severity !== 'error'));
@@ -580,6 +582,7 @@ export function runSpecValidate(
         design,
         specs,
         tasks,
+        ...(explorationRaw === undefined ? {} : { explorationRaw }),
         diagnostics: [],
         warnings: [],
     };

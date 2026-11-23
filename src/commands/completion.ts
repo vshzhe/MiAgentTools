@@ -96,9 +96,9 @@ const IAGENT_COMMANDS: {
     },
     {
         name: 'git',
-        description: 'Git 环境与仓库状态查询、幂等初始化',
-        flags: ['--json'],
-        subcommands: ['status', 'init'],
+        description: 'Git 环境与仓库状态查询、幂等初始化、分支操作',
+        flags: ['--json', '--create', '--delete', '--base', '--into'],
+        subcommands: ['status', 'init', 'branch', 'merge'],
     },
 ];
 

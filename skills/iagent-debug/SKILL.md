@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:ebbb0ed2b15ba5555e27c67831a1b45fa9235e908a674d406250551f6e278578"
+  generatedFingerprint: "sha256:26c93663d1d1d455621222bc7f383abf10467a7a868c386f192b598c1a3d6ae8"
 ---
 
 
@@ -18,15 +18,15 @@ metadata:
 
 本工作流引导你依次完成：
 1. **复现阶段（双轨入口）** —— 默认轨道为复现优先（失败测试或用户确认的显式步骤作为验收判据）；仅在无复现条件且具备 `文件:行` / 日志 / 测试硬证据时启用证据优先轨道，证据类型记入 `evidenceType`；两轨均无硬证据时只报告候选、不修复
-2. **排查阶段** —— 能力记忆注入 + CodeGraph 根因分析 + 排查深度分级（2.2.3.5：按影响半径 / 跨模块 / 根因清晰度选轻量或深度路径）+ grill-with-docs 纪律
+2. **排查阶段** —— 能力记忆注入 + CodeGraph 根因分析 + 排查深度分级（2.2.3.5：按影响半径 / 跨模块 / 根因清晰度 / 需求面扩展选路径）+ grill-with-docs 纪律
 3. **关联变更判定阶段** —— 判定 bug 归属哪个变更（进行中 / 新建修复变更 / 已归档来源 / 非缺陷），并在 2.4 之前收束出 `changeName` 与 `affectedSymbols`
 4. **修复阶段** —— 「诊断 + 方案」合并包内一次确认方案（多方案在包内选定；唯一方案给唯一性证据后随包直通；回退路径下方案门仅多方案时阻塞）→ 精准修复 → 由主 agent 内联调用 `iagent-test` 生成回归测试并验收
 5. **调试循环** —— 每次修复后可继续报告相关 bug（**非阻塞提示，不构成确认门**；用户主动提出时才追加循环），否则进入统一的 P5-P7
 6. **编译检查阶段** —— 复用 iagent-spec-apply 技能的编译检查约定（覆盖所有循环修复）
 7. **同步阶段** —— 更新变更制品并持久化所有根因分析（覆盖所有循环修复）
-8. **验证收束阶段（verify-close）** —— 失败时自动修复循环；通过后先深度复查，再直接收束（无需求文档桥）（覆盖所有循环修复）
+8. **验证收束阶段（verify-close）** —— 失败时自动修复循环；通过后先深度复查，再自动合并工作分支（分支模式）并收束（覆盖所有循环修复）
 
-**宿主阶段对应（宿主无关协议）**：Phase 1–3（含 2.4「诊断 + 方案」合并确认包收束与 2.3.5 变更归属判定）对应 `investigate` —— 交付 `rootCause` / `defectChain` / `changeName` / `affectedSymbols` / `fixDecision`（方案在 2.4 合并包内随根因一并确认）；Phase 4 对应 `fix` —— 方案确认门绑定条件 `multiple-fix-options`（合并包已产出 `fixDecision` 时门通常不适用；回退路径下存在多个可行方案置真→阻塞待确认；唯一且证据充分置假→门不适用、直通）；Phase 5–7 对应 `verify-close` —— 消费 fix 结果并交付验证/深度复查/可归档结论（无需求文档状态）。全部阶段仍由单一 `iagent-debug` 全流程技能承载，不拆分为多个对外技能。
+**宿主阶段对应（宿主无关协议）**：Phase 1–3（含 2.4 合并确认包与 2.3.5 变更归属判定）对应 `investigate` —— 交付 `rootCause` / `defectChain` / `changeName` / `affectedSymbols` / `fixDecision`（方案在 2.4 合并包内随根因确认）；Phase 4 对应 `fix` —— 方案门绑定条件 `multiple-fix-options`（合并包已产出 `fixDecision` 时通常不适用；回退路径下多方案置真→阻塞，唯一且证据充分置假→直通）；Phase 5–7 对应 `verify-close` —— 交付验证/深度复查/可归档结论。全部阶段由单一 `iagent-debug` 承载，不拆分。
 
 ## ⛔ GATE PROTOCOL — ACTIVE
 
@@ -99,21 +99,12 @@ metadata:
  {"content": "Phase 7: 验证 (覆盖所有修复)", "status": "pending"}]
 ```
 
-**动态 bug 跟踪**：调试循环继续到新 bug 时，向任务跟踪列表追加该 bug 的 P1-P4 阶段条目。每个 bug 的各阶段完成时标记为完成。例如：
-```
-[{"content": "Bug #1: Phase 1 复现", "status": "completed"},
- {"content": "Bug #1: Phase 2 排查定位", "status": "completed"},
- {"content": "Bug #1: Phase 3 关联变更判定", "status": "completed"},
- {"content": "Bug #1: Phase 4 修复 + 回归测试", "status": "completed"},
- {"content": "Bug #2: Phase 1 复现", "status": "in_progress"},
- {"content": "Bug #2: Phase 2 排查定位", "status": "pending"},
- ...]
-```
+**动态 bug 跟踪**：调试循环继续到新 bug 时向任务跟踪列表追加该 bug 的 P1-P4 条目，各阶段完成时标记完成（新 bug 的首条置 `in_progress`，其余 `pending`）。
 
 ---
 ## 执行方式与增量复验（强制）
 
-investigate / verify-close 内联；fix（修复 + 编译检查 + 范围内测试）由主 agent 内联执行，共用既有重试预算（≤3）；iagent-test 由主 agent 内联调用（不改为子代理）。增量复验：验证 FAIL 修复后**在同一主上下文**按 fixDiff 与上轮 reportPath 增量重跑清单，禁止新开验证代理、禁止重读未改动制品或全量重读；禁止 resume 充当复验（contextReplay=true 记 WARN）；循环上限 3 次。verify-close 内验证 / 复查均为内联（覆盖 D1-D10 + B1-B7 清单，每条结论带 `文件:行` 证据）。内联执行前先读 handoff 包「## 制品清单」并按锚点增量读取，回执写 readScope；「## 阶段结论」5 列（tokens 可用时填 tokens=<数值>，不可得填 —）。
+investigate / verify-close 内联；fix（修复 + 编译检查 + 范围内测试）由主 agent 内联执行，共用既有重试预算（≤3）；iagent-test 由主 agent 内联调用。增量复验：验证 FAIL 修复后**在同一主上下文**按 fixDiff 与上轮 reportPath 增量重跑清单，禁止新开验证代理、禁止全量重读；禁止 resume 充当复验（contextReplay=true 记 WARN）；循环上限 3 次。verify-close 内验证 / 复查均为内联（覆盖 D1-D10 + B1-B7 清单，每条结论带 `文件:行` 证据）。内联前先读 handoff 包「## 制品清单」并按锚点增量读取，回执写 readScope；「## 阶段结论」5 列（tokens 不可得填 —）。
 
 ## Phase 1: 复现（双轨入口：默认复现优先，证据优先为条件轨道）
 
@@ -238,11 +229,11 @@ bug 无法用自动化测试捕获时（环境相关行为 / 时序 / 仅 UI）�
 
 ### 4.2 强制回归测试（内联调用 `iagent-test`）
 
-每个修复 MUST 附一个修复前失败、修复后通过的测试；回归测试编写 SHALL 内联调用 `iagent-test`（传缺陷链路、Phase 1 复现证据、测试级别/优先级与变更名），MUST NOT 在 debug 内复制其框架/用例规则。`iagent-test` 不可用（未经显式 degraded 协商）→ strict 阻断，记录「strict 模式无法调用 `iagent-test`（技能调用机制不可用）时 SHALL 按能力协商**阻断并报告**」；显式协商 degraded 时才允许本地编写并透明记录。回归测试 MUST 覆盖缺陷链路的异常节点 + 根因节点。`iagent-test` 是框架/风格/用例规则的**唯一来源**；debug MUST NOT 再维护与之冲突的内联框架检测或测试生成规则；不可用时记录「未发生内联技能调用」，MUST NOT 以"自写 + WARN"绕过；证据优先轨道的回归测试为 characterization test。MUST NOT 报告测试验收通过：缺少前置失败证据、修复后仍失败或覆盖不足时，验收不通过。
+每个修复 MUST 附一个修复前失败、修复后通过的测试；回归测试编写 SHALL 内联调用 `iagent-test`（传缺陷链路、Phase 1 复现证据、测试级别/优先级与变更名），MUST NOT 在 debug 内复制其框架/用例规则。`iagent-test` 不可用（未经显式 degraded 协商）→ strict 阻断，记录「strict 模式无法调用 `iagent-test`（技能调用机制不可用）时 SHALL 按能力协商**阻断并报告**」；显式协商 degraded 时才允许本地编写并透明记录（此时记录「未发生内联技能调用」）。回归测试 MUST 覆盖缺陷链路的异常节点 + 根因节点。`iagent-test` 是框架/风格/用例规则的**唯一来源**；debug MUST NOT 再维护与之冲突的内联框架检测或测试生成规则，MUST NOT 以"自写 + WARN"绕过；证据优先轨道的回归测试为 characterization test。MUST NOT 报告测试验收通过：缺少前置失败证据、修复后仍失败或覆盖不足时，验收不通过。
 
 ### 4.3 修复后收束（调试循环的非阻塞出口）
 
-每个 bug 修复并验收后 MAY 提示「如还有其他相关 bug，可直接继续报告」—— 这是**非阻塞提示**，**不构成确认门**、MUST NOT 作为停点、MUST NOT 等待用户回答才继续；用户主动提出新 bug 时向任务跟踪列表追加该 bug 的 P1-P4 并重复循环，未提出时直接进入 Phase 5（编译检查）。MUST NOT 声明门白名单之外的确认门，MUST NOT 因「是否还有 bug」制造自造门。
+每个 bug 修复并验收后 MAY 提示「如还有其他相关 bug，可直接继续报告」—— 这是**非阻塞提示**，**不构成确认门**、MUST NOT 作为停点；用户主动提出新 bug 时追加该 bug 的 P1-P4 并重复循环，否则直接进入 Phase 5。MUST NOT 声明门白名单之外的确认门。
 
 ---
 ## Phase 5: 编译检查 — 汇总所有修复
@@ -287,12 +278,12 @@ Markdown 是唯一真源，直接更新，不得创建 JSON 镜像：**proposal*
 
 ### 7.1 内联执行验证（主 agent）
 
-对变更 `<name>`，由**主 agent 内联**调用 `iagent-spec-verify-proposal` 技能执行验证；Stage Envelope 只传 `changeName` / `changeRoot` / 制品路径 / `resume`，MUST NOT 内联制品正文或完整 SKILL.md；MUST NOT 为验证派生 Agent 子代理（`executionMode=inline` / `independence=self`）：
+对变更 `<name>`，由**主 agent 内联**调用 `iagent-spec-verify-proposal` 执行验证；Stage Envelope 只传 `changeName` / `changeRoot` / 制品路径 / `resume`，MUST NOT 内联制品正文；MUST NOT 派生 Agent 子代理（`executionMode=inline` / `independence=self`）：
 
-- `iagent-spec-verify-proposal` 是技能名，不是有效的 `iagent spec instructions` 制品 ID —— MUST NOT 将其作为 CLI 指令运行
-- 该技能通过读取制品与 exploration.md 执行 D1-D5 核心 + D6-D10 条件评分
+- `iagent-spec-verify-proposal` 是技能名，不是有效的 `iagent spec instructions` 制品 ID —— MUST NOT 作为 CLI 指令运行
+- 该技能读取制品与 exploration.md 执行 D1-D5 核心 + D6-D10 条件评分
 - **证据契约**：每条结论 MUST 带 `文件:行` 或制品章节锚点；无证据结论 MUST NOT 计入通过
-- 回执 SHALL 含 `score` / `reviewSummary` / 可选 `reportPath`；父级校验通过后**在同一用户回合内**继续 7.2/7.3
+- 回执 SHALL 含 `score` / `reviewSummary` / 可选 `reportPath`；校验通过后**在同一用户回合内**继续 7.2/7.3
 
 **降级（回退）（技能不可用）**：技能未安装或调用失败时，降级为主 agent 内联读取制品并手动执行 D1-D5 核心 + D6-D10 条件评分，并发出 WARN："iagent-spec-verify-proposal 技能不可用，降级为内联评分"。MUST NOT 静默跳过验证。
 
@@ -319,7 +310,11 @@ Markdown 是唯一真源，直接更新，不得创建 JSON 镜像：**proposal*
 7. **B1-B7 边界清单**：B1 自写制品自证（`independence=self` + WARN，结论必须带 `文件:行`）／B2 FAIL 同上下文修复（禁止新开代理 / 全量重读，≤3）／B3 归档内联失败沿用非阻断语义／B4 debug fix 内联共用预算 ≤3／B5 migration 上下文超限降级子代理 + WARN／B6 spec-bulk-archive 保留并行子代理（≤3）／B7 无 `delegate` 宿主仅阻断 propose/apply
 
 > 阈值：统一 90%；Overall Score = (D1 + D2 + D3 + D4 + D5 + sum(triggered D6-D10)) / (5 + triggered_count)。
-> 本清单由 `src/core/templates/verify-checklist.ts` 单一源渲染，MUST NOT 在各技能正文另写副本。；② 内联调用 `iagent-review`，报告落盘 `review-report.md`，P0/P1 未修复 → strict 阻断并报告；P2 问题记录不阻断；③ 输出可归档结论（无需求文档桥）。验证/复查失败 → 按 7.2 自动修复循环；内联技能不可用 → strict 阻断或显式 degraded + WARN。
+> 本清单由 `src/core/templates/verify-checklist.ts` 单一源渲染，MUST NOT 在各技能正文另写副本。；② 内联调用 `iagent-review`，报告落盘 `review-report.md`，P0/P1 未修复 → strict 阻断并报告；P2 问题记录不阻断；③ **验证后自动合并**（见下段）；④ 输出可归档结论（无需求文档桥）。验证/复查失败 → 按 7.2 自动修复循环；内联技能不可用 → strict 阻断或显式 degraded + WARN。
+
+**验证后自动合并（强制；语义见 `references/branch-isolation.md`）**
+
+   读 `## 分支状态`，`branchMode=work-branch` 才执行。授权 = Phase 7 **验证 PASS**；回执带 `mergeAuthorized` / `mergeResult`，**MUST NOT 写 `## 已确认门`**（域外 id 触发 `invalid-receipt`）。`iagent git merge <branch> --into <baseBranch> --json` → 成功删分支（失败仅 WARN）；**冲突暂停列清单，MUST NOT abort**，冲突不构成验证失败；非冲突失败 WARN。不新增停点。全文见 `references/branch-isolation.md`。
 
 ### 7.4 清理流程级调试工作区（强制）
 

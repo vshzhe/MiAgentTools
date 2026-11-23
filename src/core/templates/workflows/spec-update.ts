@@ -8,6 +8,7 @@ import type { SkillTemplate, CommandTemplate } from '../types.js';
 import { deriveCommandContent } from '../derive-command.js';
 import { CODEGRAPH_CLI, CODEGRAPH_MCP, skillDelegation } from '../tool-whitelist.js';
 import { GATE_PROTOCOL_PREAMBLE, renderGateWhitelistSection } from '../prompt-gate.js';
+import { BRANCH_ISOLATION_FULL, renderAutoMergeSection } from '../branch-isolation.js';
 
 /** 参考资料正文：修订清单 / 修订记录 / 能力对比三套模板（主文件按需加载） */
 const UPDATE_PROTOCOL_FULL = `# 修订协议参考（spec-update）
@@ -151,7 +152,11 @@ ${renderGateWhitelistSection()}
 
 - MUST 委派 \`iagent_spec_verify\` 做三维度一致性验证。
 - 对比结论为 **FAIL**（修复引入新缺陷 / 回归测试失败）→ MUST 在对比表中标 FAIL 并列出新引入的问题，MUST NOT 进入归档出口（停在修复后验证阶段，等待用户裁决）。
-- 对比结论为 **PASS** → 进入 Step 9。
+- 对比结论为 **PASS** → **验证后自动合并**（见下段），然后进入 Step 9。
+
+**验证后自动合并（强制；语义见 \`references/branch-isolation.md\`）**
+
+${renderAutoMergeSection('Step 8')}
 
 ## Step 9 结构化回执（N22）
 
@@ -183,7 +188,10 @@ nextAllowed: <下一步允许动作>
         license: 'MIT',
         compatibility: '依赖 iagent CLI（spec 命令组）。',
         metadata: { author: 'mi-agent-tools' },
-        references: [{ path: 'references/update-protocol.md', content: UPDATE_PROTOCOL_FULL }],
+        references: [
+            { path: 'references/update-protocol.md', content: UPDATE_PROTOCOL_FULL },
+            { path: 'references/branch-isolation.md', content: BRANCH_ISOLATION_FULL },
+        ],
     };
 }
 

@@ -16,6 +16,7 @@ import {
     CODEGRAPH_CLI_BOUNDARY,
     renderCodegraphProbeOrder,
 } from '../codegraph-protocol.js';
+import { BRANCH_ISOLATION_FULL, renderAutoMergeSection } from '../branch-isolation.js';
 import { deriveCommandContent } from '../derive-command.js';
 
 /** 提示词校验门全文（写入 references/prompt-gate.md，AI 在 Gate 触发时按需读取） */
@@ -67,13 +68,14 @@ ${CODEGRAPH_CLI_BOUNDARY}
 
 #### 2.2.3.5 排查深度分级（事前选定排查路径）
 
-**⚠️ 强制: 本步在常规查询（2.2.1–2.2.3）之后、深度探索（2.2.4）之前执行。** 三条分级信号全部产自常规查询，故本步不得前移；编号采用**十进制插入**（\`2.2.3.5\`）以**不重排既有编号**（2.2.0–2.2.4 的编号与语义均不变）。
+**⚠️ 强制: 本步在常规查询（2.2.1–2.2.3）之后、深度探索（2.2.4）之前执行。** 四条分级信号全部产自常规查询，故本步不得前移；编号采用**十进制插入**（\`2.2.3.5\`）以**不重排既有编号**（2.2.0–2.2.4 的编号与语义均不变）。
 
-**分级信号（三条客观信号，任一命中即深度路径）**：
+**分级信号（四条客观信号，任一命中即深度路径）**：
 
 - **(a) 影响半径**：\`codegraph_impact\` 在 depth ≤ 2 的受影响符号数 **≥ 5**，或受影响文件数 **≥ 3**
 - **(b) 跨模块**：受影响范围跨 **≥ 2** 个模块 / 目录
 - **(c) 根因清晰度**：2.2.2（主通道 \`codegraph_explore\` 的任务级上下文）**未能**一步定位单一高置信根因
+- **(d) 需求面扩展**：受影响模块 **超出** 原需求 / 提案声明的影响面（对照变更 \`proposal.md\` 的 \`### 需求发散承接\` 与 \`### Impact Analysis\`，或变更 \`exploration.md\` 的 \`## 需求发散\` 段）—— 命中即倾向深度路径，因为「面外」往往是共享契约或同类调用点被遗漏
 
 **分级结果（两条路径）**：
 
@@ -100,7 +102,7 @@ ${CODEGRAPH_CLI_BOUNDARY}
 
 **Trigger**: 满足以下任一条件时执行本节 ——
 
-1. **分级为深度路径（2.2.3.5 路径 B）** —— 即便已一步定位到单一高置信根因，大范围 / 跨模块缺陷仍须经 6 维分析确认是否存在未检视的系统性根因（设计意图 / 约束 / 权衡 / 模式 / 历史边界 / 隐式假设）
+1. **分级为深度路径（2.2.3.5 路径 B）** —— 大范围 / 跨模块缺陷即便已一步定位单一高置信根因，仍须经 6 维分析确认是否存在未检视的系统性根因（设计意图 / 约束 / 权衡 / 模式 / 历史边界 / 隐式假设）
 2. **升级兜底**：轻量路径（路径 A）下 2.2.1–2.2.3 **未能**定位单一高置信根因（多候选或置信不足）
 
 **仅当**分级为轻量路径 **且** 已定位单一高置信根因时，SKIP 本节以让简单缺陷走轻量路径。
@@ -204,11 +206,11 @@ const GATES_AND_RULES_FULL = `### 6.3 Markdown 校验（章节清单）
 
 **位置**：Phase 5 编译检查之后、Phase 6 同步之前。
 
-- **范围**：本次修复改动文件对应的既有测试 + 4.2 生成的回归测试；MUST NOT 把全量套件结果作为通过/失败判据
-- **运行**：按项目技术栈探测测试命令（Java \`mvn test\` / \`gradle test\`；Node \`pnpm test\` / \`npm test\`；Go \`go test ./...\`；Rust \`cargo test\`）；仅运行变更范围（可按测试类 / 文件过滤）
-- **失败处置**：范围内失败进入与编译检查相同的自动修复重试预算（≤3）；耗尽即写 \`fail\` 证据并暂停，MUST NOT 进入 Phase 6 / 归档；范围外存量失败仅 WARN 且 MUST NOT 阻塞
-- **证据**：写 \`.openspec-tmp/pipeline-<change-name>/test-report.md\`（九列 + \`**summary**:\` 汇总行；无测试框架 → \`not-applicable\` 并记 WARN），向 handoff 包 \`## 阶段结论\` 追加 \`test\` 行
-- **边界**：debug MUST NOT 因本步骤额外生成单测 —— 新增测试由 4.2 回归测试承担，避免重复生成
+- **范围**：本次修复改动文件对应的既有测试 + 4.2 回归测试；MUST NOT 以全量套件结果判通行
+- **运行**：按技术栈探测命令（Java \`mvn test\` / \`gradle test\`；Node \`pnpm test\` / \`npm test\`；Go \`go test ./...\`；Rust \`cargo test\`），仅跑变更范围（按类 / 文件过滤）
+- **失败处置**：范围内失败共用编译检查重试预算（≤3）；耗尽写 \`fail\` 证据并暂停，MUST NOT 进入 Phase 6 / 归档；范围外存量失败仅 WARN
+- **证据**：写 \`.openspec-tmp/pipeline-<change-name>/test-report.md\`（九列 + \`**summary**:\` 行；无框架 → \`not-applicable\` + WARN），向 handoff 包追加 \`test\` 行
+- **边界**：MUST NOT 因本步额外生成单测（由 4.2 承担）
 
 ## 6.4 实现一致性证据（强制）
 
@@ -234,15 +236,15 @@ export function getDebugSkillTemplate(): SkillTemplate {
 
 本工作流引导你依次完成：
 1. **复现阶段（双轨入口）** —— 默认轨道为复现优先（失败测试或用户确认的显式步骤作为验收判据）；仅在无复现条件且具备 \`文件:行\` / 日志 / 测试硬证据时启用证据优先轨道，证据类型记入 \`evidenceType\`；两轨均无硬证据时只报告候选、不修复
-2. **排查阶段** —— 能力记忆注入 + CodeGraph 根因分析 + 排查深度分级（2.2.3.5：按影响半径 / 跨模块 / 根因清晰度选轻量或深度路径）+ grill-with-docs 纪律
+2. **排查阶段** —— 能力记忆注入 + CodeGraph 根因分析 + 排查深度分级（2.2.3.5：按影响半径 / 跨模块 / 根因清晰度 / 需求面扩展选路径）+ grill-with-docs 纪律
 3. **关联变更判定阶段** —— 判定 bug 归属哪个变更（进行中 / 新建修复变更 / 已归档来源 / 非缺陷），并在 2.4 之前收束出 \`changeName\` 与 \`affectedSymbols\`
 4. **修复阶段** —— 「诊断 + 方案」合并包内一次确认方案（多方案在包内选定；唯一方案给唯一性证据后随包直通；回退路径下方案门仅多方案时阻塞）→ 精准修复 → 由主 agent 内联调用 \`iagent_test\` 生成回归测试并验收
 5. **调试循环** —— 每次修复后可继续报告相关 bug（**非阻塞提示，不构成确认门**；用户主动提出时才追加循环），否则进入统一的 P5-P7
 6. **编译检查阶段** —— 复用 iagent_spec_apply 技能的编译检查约定（覆盖所有循环修复）
 7. **同步阶段** —— 更新变更制品并持久化所有根因分析（覆盖所有循环修复）
-8. **验证收束阶段（verify-close）** —— 失败时自动修复循环；通过后先深度复查，再直接收束（无需求文档桥）（覆盖所有循环修复）
+8. **验证收束阶段（verify-close）** —— 失败时自动修复循环；通过后先深度复查，再自动合并工作分支（分支模式）并收束（覆盖所有循环修复）
 
-**宿主阶段对应（宿主无关协议）**：Phase 1–3（含 2.4「诊断 + 方案」合并确认包收束与 2.3.5 变更归属判定）对应 \`investigate\` —— 交付 \`rootCause\` / \`defectChain\` / \`changeName\` / \`affectedSymbols\` / \`fixDecision\`（方案在 2.4 合并包内随根因一并确认）；Phase 4 对应 \`fix\` —— 方案确认门绑定条件 \`multiple-fix-options\`（合并包已产出 \`fixDecision\` 时门通常不适用；回退路径下存在多个可行方案置真→阻塞待确认；唯一且证据充分置假→门不适用、直通）；Phase 5–7 对应 \`verify-close\` —— 消费 fix 结果并交付验证/深度复查/可归档结论（无需求文档状态）。全部阶段仍由单一 \`iagent_debug\` 全流程技能承载，不拆分为多个对外技能。
+**宿主阶段对应（宿主无关协议）**：Phase 1–3（含 2.4 合并确认包与 2.3.5 变更归属判定）对应 \`investigate\` —— 交付 \`rootCause\` / \`defectChain\` / \`changeName\` / \`affectedSymbols\` / \`fixDecision\`（方案在 2.4 合并包内随根因确认）；Phase 4 对应 \`fix\` —— 方案门绑定条件 \`multiple-fix-options\`（合并包已产出 \`fixDecision\` 时通常不适用；回退路径下多方案置真→阻塞，唯一且证据充分置假→直通）；Phase 5–7 对应 \`verify-close\` —— 交付验证/深度复查/可归档结论。全部阶段由单一 \`iagent_debug\` 承载，不拆分。
 
 ${GATE_PROTOCOL_PREAMBLE}
 
@@ -290,21 +292,12 @@ ${renderGateWhitelistSection()}
  {"content": "Phase 7: 验证 (覆盖所有修复)", "status": "pending"}]
 \`\`\`
 
-**动态 bug 跟踪**：调试循环继续到新 bug 时，向任务跟踪列表追加该 bug 的 P1-P4 阶段条目。每个 bug 的各阶段完成时标记为完成。例如：
-\`\`\`
-[{"content": "Bug #1: Phase 1 复现", "status": "completed"},
- {"content": "Bug #1: Phase 2 排查定位", "status": "completed"},
- {"content": "Bug #1: Phase 3 关联变更判定", "status": "completed"},
- {"content": "Bug #1: Phase 4 修复 + 回归测试", "status": "completed"},
- {"content": "Bug #2: Phase 1 复现", "status": "in_progress"},
- {"content": "Bug #2: Phase 2 排查定位", "status": "pending"},
- ...]
-\`\`\`
+**动态 bug 跟踪**：调试循环继续到新 bug 时向任务跟踪列表追加该 bug 的 P1-P4 条目，各阶段完成时标记完成（新 bug 的首条置 \`in_progress\`，其余 \`pending\`）。
 
 ---
 ## 执行方式与增量复验（强制）
 
-investigate / verify-close 内联；fix（修复 + 编译检查 + 范围内测试）由主 agent 内联执行，共用既有重试预算（≤3）；iagent_test 由主 agent 内联调用（不改为子代理）。增量复验：验证 FAIL 修复后**在同一主上下文**按 fixDiff 与上轮 reportPath 增量重跑清单，禁止新开验证代理、禁止重读未改动制品或全量重读；禁止 resume 充当复验（contextReplay=true 记 WARN）；循环上限 3 次。verify-close 内验证 / 复查均为内联（覆盖 D1-D10 + B1-B7 清单，每条结论带 \`文件:行\` 证据）。内联执行前先读 handoff 包「## 制品清单」并按锚点增量读取，回执写 readScope；「## 阶段结论」5 列（tokens 可用时填 tokens=<数值>，不可得填 —）。
+investigate / verify-close 内联；fix（修复 + 编译检查 + 范围内测试）由主 agent 内联执行，共用既有重试预算（≤3）；iagent_test 由主 agent 内联调用。增量复验：验证 FAIL 修复后**在同一主上下文**按 fixDiff 与上轮 reportPath 增量重跑清单，禁止新开验证代理、禁止全量重读；禁止 resume 充当复验（contextReplay=true 记 WARN）；循环上限 3 次。verify-close 内验证 / 复查均为内联（覆盖 D1-D10 + B1-B7 清单，每条结论带 \`文件:行\` 证据）。内联前先读 handoff 包「## 制品清单」并按锚点增量读取，回执写 readScope；「## 阶段结论」5 列（tokens 不可得填 —）。
 
 ## Phase 1: 复现（双轨入口：默认复现优先，证据优先为条件轨道）
 
@@ -429,11 +422,11 @@ bug 无法用自动化测试捕获时（环境相关行为 / 时序 / 仅 UI）�
 
 ### 4.2 强制回归测试（内联调用 \`iagent_test\`）
 
-每个修复 MUST 附一个修复前失败、修复后通过的测试；回归测试编写 SHALL 内联调用 \`iagent-test\`（传缺陷链路、Phase 1 复现证据、测试级别/优先级与变更名），MUST NOT 在 debug 内复制其框架/用例规则。\`iagent-test\` 不可用（未经显式 degraded 协商）→ strict 阻断，记录「strict 模式无法调用 \`iagent_test\`（技能调用机制不可用）时 SHALL 按能力协商**阻断并报告**」；显式协商 degraded 时才允许本地编写并透明记录。回归测试 MUST 覆盖缺陷链路的异常节点 + 根因节点。\`iagent_test\` 是框架/风格/用例规则的**唯一来源**；debug MUST NOT 再维护与之冲突的内联框架检测或测试生成规则；不可用时记录「未发生内联技能调用」，MUST NOT 以"自写 + WARN"绕过；证据优先轨道的回归测试为 characterization test。MUST NOT 报告测试验收通过：缺少前置失败证据、修复后仍失败或覆盖不足时，验收不通过。
+每个修复 MUST 附一个修复前失败、修复后通过的测试；回归测试编写 SHALL 内联调用 \`iagent-test\`（传缺陷链路、Phase 1 复现证据、测试级别/优先级与变更名），MUST NOT 在 debug 内复制其框架/用例规则。\`iagent-test\` 不可用（未经显式 degraded 协商）→ strict 阻断，记录「strict 模式无法调用 \`iagent_test\`（技能调用机制不可用）时 SHALL 按能力协商**阻断并报告**」；显式协商 degraded 时才允许本地编写并透明记录（此时记录「未发生内联技能调用」）。回归测试 MUST 覆盖缺陷链路的异常节点 + 根因节点。\`iagent_test\` 是框架/风格/用例规则的**唯一来源**；debug MUST NOT 再维护与之冲突的内联框架检测或测试生成规则，MUST NOT 以"自写 + WARN"绕过；证据优先轨道的回归测试为 characterization test。MUST NOT 报告测试验收通过：缺少前置失败证据、修复后仍失败或覆盖不足时，验收不通过。
 
 ### 4.3 修复后收束（调试循环的非阻塞出口）
 
-每个 bug 修复并验收后 MAY 提示「如还有其他相关 bug，可直接继续报告」—— 这是**非阻塞提示**，**不构成确认门**、MUST NOT 作为停点、MUST NOT 等待用户回答才继续；用户主动提出新 bug 时向任务跟踪列表追加该 bug 的 P1-P4 并重复循环，未提出时直接进入 Phase 5（编译检查）。MUST NOT 声明门白名单之外的确认门，MUST NOT 因「是否还有 bug」制造自造门。
+每个 bug 修复并验收后 MAY 提示「如还有其他相关 bug，可直接继续报告」—— 这是**非阻塞提示**，**不构成确认门**、MUST NOT 作为停点；用户主动提出新 bug 时追加该 bug 的 P1-P4 并重复循环，否则直接进入 Phase 5。MUST NOT 声明门白名单之外的确认门。
 
 ---
 ## Phase 5: 编译检查 — 汇总所有修复
@@ -478,12 +471,12 @@ Markdown 是唯一真源，直接更新，不得创建 JSON 镜像：**proposal*
 
 ### 7.1 内联执行验证（主 agent）
 
-对变更 \`<name>\`，由**主 agent 内联**调用 \`iagent_spec_verify_proposal\` 技能执行验证；Stage Envelope 只传 \`changeName\` / \`changeRoot\` / 制品路径 / \`resume\`，MUST NOT 内联制品正文或完整 SKILL.md；MUST NOT 为验证派生 Agent 子代理（\`executionMode=inline\` / \`independence=self\`）：
+对变更 \`<name>\`，由**主 agent 内联**调用 \`iagent_spec_verify_proposal\` 执行验证；Stage Envelope 只传 \`changeName\` / \`changeRoot\` / 制品路径 / \`resume\`，MUST NOT 内联制品正文；MUST NOT 派生 Agent 子代理（\`executionMode=inline\` / \`independence=self\`）：
 
-- \`iagent_spec_verify_proposal\` 是技能名，不是有效的 \`iagent spec instructions\` 制品 ID —— MUST NOT 将其作为 CLI 指令运行
-- 该技能通过读取制品与 exploration.md 执行 D1-D5 核心 + D6-D10 条件评分
+- \`iagent_spec_verify_proposal\` 是技能名，不是有效的 \`iagent spec instructions\` 制品 ID —— MUST NOT 作为 CLI 指令运行
+- 该技能读取制品与 exploration.md 执行 D1-D5 核心 + D6-D10 条件评分
 - **证据契约**：每条结论 MUST 带 \`文件:行\` 或制品章节锚点；无证据结论 MUST NOT 计入通过
-- 回执 SHALL 含 \`score\` / \`reviewSummary\` / 可选 \`reportPath\`；父级校验通过后**在同一用户回合内**继续 7.2/7.3
+- 回执 SHALL 含 \`score\` / \`reviewSummary\` / 可选 \`reportPath\`；校验通过后**在同一用户回合内**继续 7.2/7.3
 
 **降级（回退）（技能不可用）**：技能未安装或调用失败时，降级为主 agent 内联读取制品并手动执行 D1-D5 核心 + D6-D10 条件评分，并发出 WARN："iagent_spec_verify_proposal 技能不可用，降级为内联评分"。MUST NOT 静默跳过验证。
 
@@ -499,7 +492,11 @@ Markdown 是唯一真源，直接更新，不得创建 JSON 镜像：**proposal*
 
 ### 7.3 验证 PASS → 内联深度复查 → 实现 review → 收束（verify-close）
 
-验证 PASS 后：① 主 agent 内联深度复查（合并清单，每条结论带 \`文件:行\`）：${renderVerifyChecklist()}；② 内联调用 \`iagent_review\`，报告落盘 \`review-report.md\`，P0/P1 未修复 → strict 阻断并报告；P2 问题记录不阻断；③ 输出可归档结论（无需求文档桥）。验证/复查失败 → 按 7.2 自动修复循环；内联技能不可用 → strict 阻断或显式 degraded + WARN。
+验证 PASS 后：① 主 agent 内联深度复查（合并清单，每条结论带 \`文件:行\`）：${renderVerifyChecklist()}；② 内联调用 \`iagent_review\`，报告落盘 \`review-report.md\`，P0/P1 未修复 → strict 阻断并报告；P2 问题记录不阻断；③ **验证后自动合并**（见下段）；④ 输出可归档结论（无需求文档桥）。验证/复查失败 → 按 7.2 自动修复循环；内联技能不可用 → strict 阻断或显式 degraded + WARN。
+
+**验证后自动合并（强制；语义见 \`references/branch-isolation.md\`）**
+
+   ${renderAutoMergeSection('Phase 7')}
 
 ### 7.4 清理流程级调试工作区（强制）
 
@@ -561,6 +558,7 @@ Markdown 是唯一真源，直接更新，不得创建 JSON 镜像：**proposal*
             { path: 'references/investigation-protocol.md', content: INVESTIGATION_PROTOCOL_FULL },
             { path: 'references/grill-discipline.md', content: GRILL_DISCIPLINE_FULL },
             { path: 'references/gates-and-rules.md', content: GATES_AND_RULES_FULL },
+            { path: 'references/branch-isolation.md', content: BRANCH_ISOLATION_FULL },
         ],
     };
 }

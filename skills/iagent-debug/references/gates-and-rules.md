@@ -44,11 +44,11 @@
 
 **位置**：Phase 5 编译检查之后、Phase 6 同步之前。
 
-- **范围**：本次修复改动文件对应的既有测试 + 4.2 生成的回归测试；MUST NOT 把全量套件结果作为通过/失败判据
-- **运行**：按项目技术栈探测测试命令（Java `mvn test` / `gradle test`；Node `pnpm test` / `npm test`；Go `go test ./...`；Rust `cargo test`）；仅运行变更范围（可按测试类 / 文件过滤）
-- **失败处置**：范围内失败进入与编译检查相同的自动修复重试预算（≤3）；耗尽即写 `fail` 证据并暂停，MUST NOT 进入 Phase 6 / 归档；范围外存量失败仅 WARN 且 MUST NOT 阻塞
-- **证据**：写 `.openspec-tmp/pipeline-<change-name>/test-report.md`（九列 + `**summary**:` 汇总行；无测试框架 → `not-applicable` 并记 WARN），向 handoff 包 `## 阶段结论` 追加 `test` 行
-- **边界**：debug MUST NOT 因本步骤额外生成单测 —— 新增测试由 4.2 回归测试承担，避免重复生成
+- **范围**：本次修复改动文件对应的既有测试 + 4.2 回归测试；MUST NOT 以全量套件结果判通行
+- **运行**：按技术栈探测命令（Java `mvn test` / `gradle test`；Node `pnpm test` / `npm test`；Go `go test ./...`；Rust `cargo test`），仅跑变更范围（按类 / 文件过滤）
+- **失败处置**：范围内失败共用编译检查重试预算（≤3）；耗尽写 `fail` 证据并暂停，MUST NOT 进入 Phase 6 / 归档；范围外存量失败仅 WARN
+- **证据**：写 `.openspec-tmp/pipeline-<change-name>/test-report.md`（九列 + `**summary**:` 行；无框架 → `not-applicable` + WARN），向 handoff 包追加 `test` 行
+- **边界**：MUST NOT 因本步额外生成单测（由 4.2 承担）
 
 ## 6.4 实现一致性证据（强制）
 

@@ -23,7 +23,7 @@ src/
 │   ├── show.ts                       iagent show（模糊匹配 + 详情）
 │   ├── completion.ts                 iagent completion（bash/pwsh 补全脚本生成与安装）
 │   ├── skills.ts                     iagent skills（项目技能枚举 + 完整性校验）
-│   ├── git.ts                        iagent git（status / init）
+│   ├── git.ts                        iagent git（status / init / branch / merge）
 │   ├── rules.ts                      iagent rules（项目规则源枚举）
 │   ├── onboarding.ts                 init 后的引导提示
 │   ├── spec.ts                       iagent spec 子命令组（new / status / fingerprint / migrate / validate / conformance / instructions / archive / render / sidecar）
@@ -33,7 +33,7 @@ src/
 │   ├── config.ts                     常量中心：SKILL_PREFIX、9 类 SKILL_TYPES、AI_TOOLS
 │   ├── project-config.ts             .iagent/ 配置读写（config.yaml + rules/）
 │   ├── rule-selection.ts             规则三层归类内核（always/phase/on-demand + 技能阶段/范围筛选，纯函数）
-│   ├── git-capability.ts             Git 能力内核（检测只读 / 执行注入 runner：安装、init、精确暂存提交、推送）
+│   ├── git-capability.ts             Git 能力内核（检测只读 / 执行注入 runner：安装、init、精确暂存提交、推送、分支创建/合并/删除）
 │   ├── templates/
 │   │   ├── types.ts                 SkillTemplate / CommandTemplate 接口
 │   │   ├── registry.ts              模板注册表 + deriveCommandId 派生规则 + 指令白名单回填
@@ -45,6 +45,8 @@ src/
 │   │   ├── flowchart-gate.ts       流程图门控
 │   │   ├── skill-distill.ts        项目技能蒸馏共享协议（C1-C6 / 证据判定 / 产物形态，三模板同一真源）
 │   │   ├── verify-checklist.ts     验证清单单一源（D1-D10 + B1-B7 + 压缩自检变体，五技能共同引用）
+│   │   ├── branch-isolation.ts     分支隔离协议单一源（分支状态段 / 准入 / 实现期提交 / 归档合并 / 自动合并 / 非目标）
+│   │   ├── divergence.ts           需求发散单一源（五维定义 / 落盘形态 / 承接表锚点）
 │   │   ├── rule-loading-protocol.ts 规则三层加载细则单一源（always/phase/on-demand 共用正文）
 │   │   └── workflows/              技能模板（中文正文）：功能名命名的 *.ts + spec-*.ts 共 23 个模板
 │   │                               （project-init 第 11 步为编排：委派 frontend/backend-skill-gen 两侧生成）
@@ -82,6 +84,7 @@ src/
 │   │   ├── model/artifact-model.ts 运行时类型（Markdown 唯一真源）
 │   │   ├── validation/             结构校验 + Scenario→Task 追溯
 │   │   │   ├── anchors.ts          验证锚点单一源（Impact Analysis / 架构影响 / Caller Updates / [N<id>]）
+│   │   │   ├── divergence-check.ts 需求发散判定实现（段/五维存在性，纯函数，就绪门第 5 判定）
 │   │   │   ├── readiness.ts        提案就绪门（结构 + 覆盖 + 锚点 + 能力对齐，确定性纯函数）
 │   │   ├── migration.ts            显式 JSON → OpenSpec Markdown 迁移
 │   │   ├── fingerprint.ts          变更制品内容指纹（sourceFingerprint）
@@ -205,6 +208,18 @@ node bin/iagent.js version bump  # 递增版本并写回 package.json / CHANGELO
     ② 推送前 MUST 经推送确认门（`destructive-change`，不可豁免、MUST NOT 被 `gate-skip` 跳过）；
     ③ 提交失败 MUST NOT 阻断归档。除该窄通道外任何调用方 MUST NOT 自动 `git commit`。
     Git 相关白名单条目统一走 `tool-whitelist.ts` 的 `GIT_CLI`（`Bash(git:*)`），MUST NOT 逐模板手写。
+10.5 **分支隔离与合并门**：实现期写操作落在工作分支 `iagent/<change-name>`（分支协议单一源
+    `src/core/templates/branch-isolation.ts`）。三条硬约束：① 分支准入前 MUST 检查
+    `git status --porcelain`，脏工作区暂停并三出口，MUST NOT 自动 `git stash`、MUST NOT 带脏切换；
+    ② 合并门归 `destructive-change`（不可豁免、MUST NOT 被 `gate-skip` 跳过），归档路径必经，
+    debug / spec-update 在验证 PASS 后自动合并并以回执 `mergeAuthorized` 表达（MUST NOT 写
+    `## 已确认门`）；③ 合并冲突 MUST NOT `git merge --abort` / `reset --hard` / 丢弃产出，
+    合并失败 MUST NOT 回滚归档。无 Git / 非仓库 / detached HEAD → `branchMode=none` + WARN，
+    实现与归档照常。分支状态写入 handoff 包并列节 `## 分支状态`（四字段，apply 写、其余只读）。
+10.6 **需求发散与就绪门第 5 判定**：探索产物 MUST 含 `## 需求发散` 五维段（单一源
+    `src/core/templates/divergence.ts`），proposal 产出 `### 需求发散承接` 表；就绪门第 5 判定
+    `divergence`（`divergence-check.ts`，纯函数、无 AI 语义）校验段与五维非空。MUST NOT 改变
+    D1-D10 维度编号、90% 阈值或总分公式；`skip_specs` / `legacyJson` 不豁免本判定。
 11. **版本号更新**：完成功能变更时同步更新版本号与变更日志，二者**随本次功能提交一并提交**
    （不再单独提交 `chore: 版本号`）。以 `package.json` 当前 `version` 为基线，用
    `node bin/iagent.js version` 只读判定、`node bin/iagent.js version bump` 写回；

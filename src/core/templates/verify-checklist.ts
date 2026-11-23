@@ -59,6 +59,7 @@ export const PROPOSE_SELF_CHECK_ITEMS = [
     '影响面三锚点齐备：`### Impact Analysis` / `### 架构影响` / `### Caller Updates`',
     '`proposal` 声明的能力 ↔ `specs/<capability>/` 目录逐一对应',
     '每个任务标注对应的流程图节点 `[N<id>]`（变更含功能流程图时）',
+    '需求发散承接：探索含 `## 需求发散` 段时，`proposal` 的 `## Impact` 下存在 `### 需求发散承接` 表且逐维度承接到能力 / 节点',
 ] as const;
 
 /**

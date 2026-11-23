@@ -153,6 +153,8 @@ export interface ParsedChange {
     design?: ParsedDesign;
     specs: ParsedSpec[];
     tasks?: ParsedTasks;
+    /** `exploration.md` 原文（存在时）；供需求发散判定读取（变更 git-branch-isolation） */
+    explorationRaw?: string;
     diagnostics: ArtifactDiagnostic[];
     warnings: ArtifactDiagnostic[];
 }

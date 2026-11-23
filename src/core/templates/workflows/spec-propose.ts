@@ -312,6 +312,11 @@ ${renderVerifyChecklist({ variant: 'propose-selfcheck' })}
 - \`exploration.md\` 的 \`## Decisions\` 每条 MUST 带稳定 id \`D<n>\`；id 一经分配 MUST NOT 复用、重排或删除后重编号
 - 本技能生成的 \`specs/**/spec.md\` 与 \`design.md\` MUST 在受某决策约束的内容处标注 \`(D<n>)\`；未标注来源的硬约束 SHALL 被判为可追溯性缺失
 
+**需求发散承接（变更 \`git-branch-isolation\`，强制）：**
+- 探索产物含 \`## 需求发散\` 段时，本技能 MUST 在 proposal \`## Impact\` 下产出 \`### 需求发散承接\` 表（\`能力 / 影响类别 | 影响条目 | 承接需求 / 任务\`）
+- 逐维度承接：段内写 \`无\` 的维度可省略；有影响的维度 MUST 逐条映射到已生成的 Requirement 或任务 id，MUST NOT 留空或写「见上文」
+- 该表是验证阶段 D2/D3 影响范围一致性检查的证据源；发散段缺失时记 WARN 并跳过（存量变更向后兼容），MUST NOT 臆造条目
+
 **流程基准消费规则**
 
 当关联的 \`exploration.md\` 含**经用户确认**的 \`## 功能流程图\` 段时，该流程图即**流程基准**，本技能 MUST 以其为**生成锚点**：

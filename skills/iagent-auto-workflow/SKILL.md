@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:9608e1a63b4b4018650e2852c1c224b1b2ed1ed1208481f8838c8e58b85c6351"
+  generatedFingerprint: "sha256:ac4bf315d3deb462289ab4c16b296464d4654ee5dacddb8c3d660525da7f86a9"
 ---
 
 
@@ -65,18 +65,17 @@ Phase 1 SHALL 由主 agent 内联委派阶段 `iagent-spec-explore`（传 `mode=
 
 **⚠️ 自动执行：本阶段在 Phase 1 完成后立即开始 —— 不停顿、不宣告、不向用户提问。若你刚完成 Phase 1，下一个动作 MUST 是 Phase 2 的 2.0 步（影响分析）。禁止输出单独的「探索完成」消息 —— 直接继续进入 Phase 2 的工具调用。若你在到达此点之前结束了回复，立即从 Phase 2 继续。**
 
-### 2.0 影响分析（自动执行）
+### 2.0 影响分析（自动执行，五维扩面）
 
-Pending 段含符号时，逐个符号运行影响分析：
-```bash
-codegraph_impact --symbol <symbol> --direction upstream（宿主暴露时可选；缺失时回落 codegraph_explore）
-```
+**一次广查询 + 分维归集（强制，禁止逐维重复调用）**：以一次 `codegraph_explore` 广查询（主题合并、`maxFiles` ≤ 12）获取符号、文件与调用链，再按五维归集 —— MUST NOT 为每个维度单独发起查询（重复查询是 CodeGraph busy 排队的主要来源）。`codegraph_impact` 为可选增强，缺失或 busy 耗尽时降级 Grep 估算并记 WARN，MUST NOT 阻塞提案。
 
-**多符号并行执行**：识别出两个及以上影响符号时，在单轮回复中并行发起影响查询（多个工具调用）。全部结果合并写入制品的对应影响段；单个符号维持现有的单次查询行为。
+五维（与探索产物 `## 需求发散` 同源）：**直接影响** / **间接影响** / **契约影响**（含向后兼容）/ **同类场景** / **非功能影响**。
 
 **结果写入位置**：
-- `proposal.md` Impact: Impact Analysis 段
+- `proposal.md` Impact: Impact Analysis 段（符号级表）+ `### 需求发散承接` 表（五维承接 → 需求 / 任务）
 - `design.md` Context: Architecture Impact 段
+
+**来源优先**：探索回执的 `explorationFile` 已含经用户确认的 `## 需求发散` 段时，MUST 以其为五维基线做增补，MUST NOT 重新发散或改写既有条目。
 
 ### 2.1 提案生成（委派 iagent-spec-propose，自动阶段）
 

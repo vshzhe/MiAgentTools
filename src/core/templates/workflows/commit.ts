@@ -78,6 +78,7 @@ export function getCommitSkillTemplate(): SkillTemplate {
 - **MUST NOT 使用 \`git add -A\` / \`git add openspec\` / \`git add openspec/changes\`**：暂存范围必须按固定清单逐条精确指定
 - **MUST NOT 自动 commit（交互式）**：\`/iagent:commit\` 交互式调用中，确认前 MUST NOT 执行 \`git commit\`
 - **归档自动提交的窄通道例外（唯一）**：\`iagent_spec_archive\` / \`iagent_spec_bulk_archive\` 的归档收尾 MAY 不经交互式确认即执行本地 commit，但 MUST 同时满足三项前提 —— ① 只暂存固定清单（MUST NOT \`git add -A\` / \`git add .\` / \`git add openspec\`）；② 推送前 MUST 经推送确认门（\`destructive-change\`，不可豁免、MUST NOT 被 \`gate-skip\` 跳过）；③ 提交失败 MUST NOT 阻断归档。**除上述窄通道外，任何调用方 MUST NOT 自动执行 \`git commit\`**
+- **分支模式下实现期提交（不属窄通道）**：\`iagent_spec_apply\` 在 \`branchMode=work-branch\` 时按固定清单**精确提交到工作分支**，是合并的前提。它属**实现期隔离动作**，MUST NOT 被表述为归档自动提交，也不构成对上述窄通道的扩张 —— 分支模式外的 apply 仍保持「只暂存不提交」，且两条路径均 MUST NOT 使用 \`git add -A\`
 - 一次提交只做一件事：混合了功能与修复时建议拆分
 - 禁止提交：密钥、.env、构建产物、用户明确排除的文件`,
         license: 'MIT',

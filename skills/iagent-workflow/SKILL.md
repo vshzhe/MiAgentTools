@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: impl
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:721d685fe4340d1a46add4c4f9f0614a1e0ce66d94a6d7f7b3ca5d3ed4352c98"
+  generatedFingerprint: "sha256:3dc9d85caa7f13849e45d6fa3f57b50e512ae433840b6d8ad32ca2eb4d7ac1af"
 ---
 
 
@@ -148,14 +148,13 @@ If "### For Phase 2 Impact Analysis" section exists AND has symbols:
 
 Pending 段含符号时，影响分析始终运行，不询问用户。
 
-#### 影响分析执行
+#### 影响分析执行（五维扩面）
 
-**使用 CodeGraph 影响面工具**：
-```bash
-codegraph_impact --symbol <symbol> --direction upstream --maxDepth 3（宿主暴露时可选；缺失时回落 codegraph_explore）
-```
+**一次广查询 + 分维归集（强制，禁止逐维重复调用）**：以一次 `codegraph_explore` 广查询（主题合并、`maxFiles` ≤ 12）获取符号、文件与调用链，再按五维归集 —— MUST NOT 为每个维度单独发起查询（重复查询是 CodeGraph busy 排队的主要来源）。`codegraph_impact` 为可选增强（宿主暴露时使用），缺失或 busy 耗尽时降级 Grep 估算并记 WARN，MUST NOT 阻塞提案。
 
-**多符号并行执行**：识别出两个及以上影响面符号时，把影响面查询并行发起（单轮响应内多个工具调用），而不是逐个串行。全部结果合并进制品的影响面小节；单个符号沿用既有的单次查询行为。
+五维（与探索产物 `## 需求发散` 同源）：**直接影响** / **间接影响**（共享工具 / 数据模型 / 配置 / 公共组件 / 既有调用方）/ **契约影响**（API / CLI / 事件 / DB schema / 文件格式，含向后兼容）/ **同类场景**（同一模式的其它调用点）/ **非功能影响**（性能 / 并发 / 权限 / 可观测性 / 多语言与多平台）。
+
+**来源优先**：探索回执的 `explorationFile` 已含经用户确认的 `## 需求发散` 段时，MUST 以其为五维基线做增补，MUST NOT 重新发散或改写既有条目。
 
 **影响面结果结构**：
 ```
@@ -175,7 +174,7 @@ codegraph_impact --symbol <symbol> --direction upstream --maxDepth 3（宿主暴
 #### 落盘影响面结果
 
 为制品生成存好结果：
-- `proposal.md` 的 Impact：影响面分析小节
+- `proposal.md` 的 Impact：影响面分析小节 + `### 需求发散承接` 表（五维承接 → 需求 / 任务）
 - `design.md` 的 Context：架构影响小节
 - tasks.md：包含 ### Caller Updates 小节
 

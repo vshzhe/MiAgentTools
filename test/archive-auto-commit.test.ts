@@ -9,6 +9,8 @@ import { getSpecArchiveChangeSkillTemplate } from '../src/core/templates/workflo
 import { getSpecBulkArchiveSkillTemplate } from '../src/core/templates/workflows/spec-bulk-archive.js';
 import { getProjectInitSkillTemplate } from '../src/core/templates/workflows/project-init.js';
 import { getCommitSkillTemplate } from '../src/core/templates/workflows/commit.js';
+import { BRANCH_STATE_SECTION } from '../src/core/templates/branch-isolation.js';
+import { GATE_SKIP_IDS } from '../src/core/host-orchestration/delegation-contract.js';
 
 /** 把 references 一并拼入（渐进披露） */
 function fullText(skill: { instructions: string; references?: { content: string }[] }): string {
@@ -148,5 +150,38 @@ describe('commit.ts 约束收窄', () => {
         expect(text).toContain('③ 提交失败 MUST NOT 阻断归档');
         // 排他性
         expect(text).toContain('除上述窄通道外');
+    });
+});
+
+describe('归档收尾合并工作分支（变更 git-branch-isolation）', () => {
+    const archiveText = fullText(getSpecArchiveChangeSkillTemplate());
+
+    it('Scenario: 合并门与推送门同一步呈现', () => {
+        expect(archiveText).toContain('合并门');
+        expect(archiveText).toContain('与推送一次确认');
+        // 位置：归档自动提交之后、摘要之前
+        const submit = archiveText.indexOf('7.5 **归档自动提交');
+        const merge = archiveText.indexOf('归档合并工作分支');
+        const summary = archiveText.indexOf('8. **展示摘要');
+        expect(merge).toBeGreaterThan(submit);
+        expect(summary).toBeGreaterThan(merge);
+    });
+
+    it('Scenario: 合并失败不回滚归档', () => {
+        expect(archiveText).toContain('合并失败 MUST NOT 回滚归档');
+    });
+
+    it('Scenario: 非分支模式跳过合并', () => {
+        expect(archiveText).toContain(BRANCH_STATE_SECTION);
+        expect(archiveText).toMatch(/缺失或 `branchMode≠work-branch` → 跳过记日志/);
+    });
+
+    it('合并门不可被 gate-skip 跳过（与推送门一致）', () => {
+        expect(archiveText).toContain('不可被 `gate-skip` 跳过');
+        expect(GATE_SKIP_IDS as readonly string[]).not.toContain('merge-confirmation');
+    });
+
+    it('合并摘要含合并状态行', () => {
+        expect(archiveText).toContain('分支合并状态');
     });
 });

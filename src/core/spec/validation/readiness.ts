@@ -11,6 +11,7 @@
  * 存量/新变更严格度依据变更目录 `.openspec.yaml` 的 `created`（D3）。
  */
 
+import * as path from 'node:path';
 import type {
     ArtifactDiagnostic,
     ParsedChange,
@@ -19,14 +20,16 @@ import type {
 import { validateParsedChange } from './artifact-validator.js';
 import { buildConformance } from './conformance.js';
 import { VERIFY_ANCHORS, ANCHOR_ARTIFACTS } from './anchors.js';
+import { DIVERGENCE_HANDOFF_ANCHOR } from '../../templates/divergence.js';
+import { findDivergenceGaps } from './divergence-check.js';
 
 /** 就绪门能力生效日期（此日之后创建的变更按新变更严格度判定） */
 export const READINESS_EFFECTIVE_DATE = '2026-11-22';
 
 /** 单类判定结果 */
 export interface ReadinessCheck {
-    /** 判定名：structure / coverage / anchors / capabilities */
-    id: 'structure' | 'coverage' | 'anchors' | 'capabilities';
+    /** 判定名：structure / coverage / anchors / capabilities / divergence */
+    id: 'structure' | 'coverage' | 'anchors' | 'capabilities' | 'divergence';
     /** 判定标题（用于输出） */
     label: string;
     /** pass / fail / skipped */
@@ -102,6 +105,11 @@ export function buildReadiness(change: ParsedChange, options: ReadinessOptions =
     const capabilities = checkCapabilities(change, options, diagnostics);
     checks.push(capabilities);
     if (capabilities.status === 'skipped') skipped.push(capabilities.id);
+
+    // ── 5. 需求发散（变更 git-branch-isolation） ───────────────────
+    const divergence = checkDivergence(change, newChange, diagnostics, legacyWarnings);
+    checks.push(divergence);
+    if (divergence.status === 'skipped') skipped.push(divergence.id);
 
     return {
         valid: checks.every((check) => check.status !== 'fail'),
@@ -256,8 +264,7 @@ function checkAnchors(
     return { id: 'anchors', label: '锚点齐备', status: 'pass' };
 }
 
-/** 判定 4：proposal 声明能力 ↔ specs 目录 */
-function checkCapabilities(
+/** 判定 4：proposal 声明能力 ↔ specs 目录 */function checkCapabilities(
     change: ParsedChange,
     options: ReadinessOptions,
     diagnostics: ArtifactDiagnostic[],
@@ -340,4 +347,38 @@ function hasHeadingInRaw(rawContent: string | undefined, anchor: string): boolea
         if (match !== null && match[2].trim() === anchor) return true;
     }
     return false;
+}
+
+/**
+ * 判定 5：需求发散段齐备（变更 `git-branch-isolation`）。
+ *
+ * 只做**确定性存在性校验**（段存在 + 五维小节非空或固定字面量 `无`），
+ * MUST NOT 含 AI 语义判定 —— 质量由验证阶段的 D2/D3 以承接表为证据评估。
+ * 严格度沿用 `isNewChange`：新变更缺项记 error 并 fail；存量变更记 WARN 并 skipped。
+ */
+function checkDivergence(
+    change: ParsedChange,
+    newChange: boolean,
+    diagnostics: ArtifactDiagnostic[],
+    legacyWarnings: ArtifactDiagnostic[],
+): ReadinessCheck {
+    const gaps = findDivergenceGaps(change.explorationRaw);
+    if (gaps.length === 0) {
+        return { id: 'divergence', label: '需求发散', status: 'pass' };
+    }
+    const filePath = path.join(change.changeRoot, 'exploration.md');
+    const message =
+        `需求发散不完整：${gaps.join('；')}`
+        + `（proposal 可在 \`### ${DIVERGENCE_HANDOFF_ANCHOR}\` 承接，但探索段是判定来源）`;
+    if (newChange) {
+        diagnostics.push({ severity: 'error', code: 'divergence-incomplete', message, filePath, line: 1 });
+        return { id: 'divergence', label: '需求发散', status: 'fail' };
+    }
+    legacyWarnings.push({ severity: 'warning', code: 'divergence-incomplete-legacy', message, filePath, line: 1 });
+    return {
+        id: 'divergence',
+        label: '需求发散',
+        status: 'skipped',
+        skipReason: `存量变更需求发散不完整（记 WARN，不阻断）：${gaps.join('；')}`,
+    };
 }

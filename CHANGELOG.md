@@ -7,6 +7,25 @@
 
 ## [Unreleased]
 
+## [4.18.0] - 2026-11-23
+
+### Added
+
+- `src/core/templates/branch-isolation.ts`（分支隔离协议单一源）：`## 分支状态` 载体 + apply 准入 + 实现期提交 + 归档合并 + 验证后自动合并 + 非目标声明，四个技能共用
+- `src/core/templates/divergence.ts` + `src/core/spec/validation/divergence-check.ts`（需求发散单一源与判定实现）：五维定义（直接影响 / 间接影响 / 契约影响 / 同类场景 / 非功能影响）与纯函数存在性判定
+- `git-capability.ts` 新增分支能力：`isWorkingTreeClean`（只读）/ `createWorkBranch`（幂等，复用既有分支时切换过去）/ `mergeWorkBranch`（`--no-ff`，冲突返回清单不 abort）/ `deleteMergedBranch`（`-d` 非 `-D`）
+- `iagent git branch`（`--create` / `--delete` / `--base`）与 `iagent git merge <branch>`（`--into`）子命令，均支持 `--json`；补全表同步
+- 能力规格：`git-branch-capability` / `branch-isolated-workflow` / `divergence-analysis` 三项
+
+### Changed
+
+- `spec-apply`：Step 5.5 之后新增**分支准入**（脏工作区三出口，MUST NOT 自动 stash）；Step 10.5 在 `branchMode=work-branch` 时升级为**精确提交到工作分支**
+- `spec-archive`：新增 **Step 7.6 归档合并**——合并门归 `destructive-change`（不可豁免、不可 `gate-skip`、与推送一次确认），冲突暂停不 abort，合并失败不回滚归档
+- `debug` Phase 7 与 `spec-update` Step 8：验证 PASS 后**自动合并**工作分支，授权以回执 `mergeAuthorized` / `mergeResult` 表达（MUST NOT 写 `## 已确认门`）
+- `spec-explore` 新增 **1.5.6 需求发散**（与流程最终确认门合并呈现，不新增用户停点）；`spec-propose` 产出 `### 需求发散承接` 表；`workflow` / `auto-workflow` 的 Phase 2.0 改为**一次广查询 + 分维归集**；`debug` 2.2.3.5 新增「需求面扩展」信号
+- 就绪门由四判定扩为**五判定**（新增 `divergence`）；D1-D10 维度编号、90% 阈值与总分公式不变
+- `AGENTS.md` 新增守则 10.5（分支隔离与合并门）/ 10.6（需求发散与就绪门第 5 判定）；`openspec/CONTEXT.md` 新增七条术语
+
 ## [4.17.0] - 2026-11-22
 
 ### Added
@@ -1929,7 +1948,8 @@ npm 公开首发版本。版本号自此重新起算为 1.0.0（此前 8.x 为�
 [2.1.0]: https://github.com/mi-agent-tools/compare/v2.0.0...v2.1.0
 [1.18.1]: https://github.com/mi-agent-tools/compare/v1.18.0...v1.18.1
 [1.18.0]: https://github.com/mi-agent-tools/compare/v1.17.0...v1.18.0
-[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.17.0...HEAD
+[Unreleased]: https://github.com/vshzhe/MiAgentTools/compare/v4.18.0...HEAD
+[4.18.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.17.0...v4.18.0
 [4.17.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.16.0...v4.17.0
 [4.16.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.15.0...v4.16.0
 [4.15.0]: https://github.com/vshzhe/MiAgentTools/compare/v4.14.1...v4.15.0

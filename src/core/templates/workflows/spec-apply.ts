@@ -7,6 +7,12 @@ import { skillDelegation } from '../tool-whitelist.js';
 import { renderGateWhitelistSection } from '../prompt-gate.js';
 import { DYNAMIC_RULE_LOADING_FULL } from '../rule-loading-protocol.js';
 import {
+    BRANCH_ISOLATION_FULL,
+    renderApplyBranchAdmission,
+    renderApplyBranchCommit,
+    renderBranchStateSection,
+} from '../branch-isolation.js';
+import {
     GATE_SKIP_IDS,
     LEGACY_AUTO_MODE_PARAM,
     renderDelegationModeContract,
@@ -425,6 +431,12 @@ ${renderDelegationModeContract()}
    - **门承载参数覆盖**：\`${renderGateSkipOption(GATE_SKIP_IDS)}\`（兼容写法 \`${LEGACY_AUTO_MODE_PARAM}=true\`）时整道门被跳过 —— 不展示蓝图，直接进入 Step 6。未设置该参数或其为 false 时**不能**跳过本门（唯一例外：Step 5.5 第 2 级的账本兜底通道命中 —— 段内声明 \`design-confirmation\` 且与回执 \`confirmedGates\` 一致 → 跳过并记 WARN「使用了门账本兜底通道」；不一致 / 过期 → 视为未确认，本门照常执行）。
    - 本门**不能**跳过 —— 未经显式确认不得继续（除非主通道参数或账本兜底通道生效）
 
+   **分支准入（强制；细则见 \`references/branch-isolation.md\`）**
+
+   ${renderBranchStateSection()}
+
+   ${renderApplyBranchAdmission()}
+
    **临时工作区协议（流程级，由主代理管理）：**
    - 用户确认设计后（或门承载参数生效时）、派发任何批**之前**，创建流程级临时工作区 —— **优先项目内**：项目根下的 \`.openspec-tmp/pipeline-<change-name>/\`（路径用 path.join 构建以保证跨平台）。若项目 \`.gitignore\` 中尚无 \`.openspec-tmp/\` 条目则补上，使该工作区不会污染 git status；清理后保留该条目供后续运行使用。若项目根不可写，降级到系统临时目录 \`iagent-pipeline-<change-name>/\` 并记录 WARN 说明降级位置
    - 流程内产生的所有临时文件（handoff 包、编译校验脚本、临时配置、草稿输出）MUST 放在该工作区内 —— 不得把临时文件散落到项目目录各处
@@ -505,6 +517,7 @@ ${renderDelegationModeContract()}
    - 清理失败（文件被占用、权限不足）：记录 WARN 并给出工作区路径，MUST NOT 阻断流程
 
 10.5 **提案制品精确暂存（收尾提示，不提交）** ⚠️ 强制
+   - **分支模式分叉**：\`branchMode=work-branch\` 时本步升级为「精确提交到工作分支」（见 Step 5.5 后的「实现期提交」段与 \`references/branch-isolation.md\`）；\`branchMode=none\` 时保持下述只暂存语义
    - 目标变更名：本次执行的 \`<change-name>\`（无父流程时取唯一活跃变更；多活跃变更时以本次 change-name 为准）
    - 固定清单（逐条精确暂存，逐条校验前缀 \`openspec/changes/<change-name>/\`）：\`proposal.md\` / \`design.md\` / \`tasks.md\` / \`exploration.md\` / \`.openspec.yaml\` / \`specs/**/*.md\`
    - **排除**：\`attachments/**\` 与 \`需求文档.md\`
@@ -568,6 +581,7 @@ ${renderDelegationModeContract()}
             { path: 'references/rule-loading.md', content: DYNAMIC_RULE_LOADING_FULL },
             { path: 'references/batch-scheduling.md', content: BATCH_SCHEDULING_FULL },
             { path: 'references/compile-check.md', content: COMPILE_CHECK_DETAIL },
+            { path: 'references/branch-isolation.md', content: BRANCH_ISOLATION_FULL },
         ],
     };
 }

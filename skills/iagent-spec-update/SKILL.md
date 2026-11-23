@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:8e3e92d389b4571de8c984177fbc9db0f8e577b284362db6ef83fac19238524b"
+  generatedFingerprint: "sha256:9fd2bb059dbc4e95e04e03be8c35ff520f39196261fec42da51beeac90f13f90"
 ---
 
 **修订已实现的变更。** 适用场景：变更已完成提案与实现、用户测试后发现问题 —— 对测试问题做探索分析 → 在**同一变更身份**内原地更新提案制品 → 再实现优化 → 修复前后能力测试对比。
@@ -115,7 +115,11 @@ metadata:
 
 - MUST 委派 `iagent-spec-verify` 做三维度一致性验证。
 - 对比结论为 **FAIL**（修复引入新缺陷 / 回归测试失败）→ MUST 在对比表中标 FAIL 并列出新引入的问题，MUST NOT 进入归档出口（停在修复后验证阶段，等待用户裁决）。
-- 对比结论为 **PASS** → 进入 Step 9。
+- 对比结论为 **PASS** → **验证后自动合并**（见下段），然后进入 Step 9。
+
+**验证后自动合并（强制；语义见 `references/branch-isolation.md`）**
+
+读 `## 分支状态`，`branchMode=work-branch` 才执行。授权 = Step 8 **验证 PASS**；回执带 `mergeAuthorized` / `mergeResult`，**MUST NOT 写 `## 已确认门`**（域外 id 触发 `invalid-receipt`）。`iagent git merge <branch> --into <baseBranch> --json` → 成功删分支（失败仅 WARN）；**冲突暂停列清单，MUST NOT abort**，冲突不构成验证失败；非冲突失败 WARN。不新增停点。全文见 `references/branch-isolation.md`。
 
 ## Step 9 结构化回执（N22）
 

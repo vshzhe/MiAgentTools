@@ -4,6 +4,9 @@
  * 设计（见 `openspec/specs/git-capability/spec.md`）：
  *   - **检测函数纯只读**：`detectGit` / `isGitRepository` / `findParentRepository` / `probeInstallers`
  *   - **执行函数接受注入的 `CommandRunner`**：`installGit` / `initRepository` / `stagePathsAndCommit` / `push`
+ *   - **分支能力**（变更 git-branch-isolation）：`isWorkingTreeClean`（只读）/
+ *     `createWorkBranch` / `mergeWorkBranch` / `deleteMergedBranch`（契约见
+ *     `openspec/specs/git-branch-capability/spec.md`）
  *
  * `CommandRunner` 签名与 `src/core/dependencies.ts` 一致 —— 测试注入 mock 时不产生真实进程。
  * 外部进程 MUST 走 `child-process.ts` 的 `spawnCommand`（Windows shell 兼容 + DEP0190 规避）。
@@ -274,6 +277,240 @@ export function push(options: { cwd: string; runner?: GitCommandRunner }): PushR
     }
     return { ok: true };
 }
+
+// ── 分支能力（变更 git-branch-isolation） ─────────────────────────────
+
+/** 工作区状态（只读） */
+export interface WorkingTreeStatus {
+    clean: boolean;
+    /** `git status --porcelain` 的非空行（原样保留状态码与路径） */
+    dirty: string[];
+    /** 命令失败时的摘要（clean 恒为 false） */
+    reason?: string;
+}
+
+/** 分支创建结果 */
+export interface CreateBranchResult {
+    action: 'created' | 'reused' | 'skipped' | 'failed';
+    branch: string;
+    baseBranch?: string;
+    reason?: string;
+}
+
+/** 分支合并结果 */
+export interface MergeBranchResult {
+    ok: boolean;
+    merged: boolean;
+    /** 冲突文件列表（取自 `git diff --name-only --diff-filter=U`） */
+    conflicts: string[];
+    detail?: string;
+}
+
+/** 删除已合并分支的结果 */
+export interface DeleteBranchResult {
+    action: 'deleted' | 'skipped';
+    reason?: string;
+}
+
+/**
+ * 分支名校验：拒绝可造成路径注入或 git 解析歧义的写法。
+ *
+ * 允许字母 / 数字 / `-` / `_` / `.` / `/`（git 常规分支名），拒绝以下情形：
+ * 空名、含空白、含 `..`、前导或结尾 `/`、前导 `-`、含 `~ ^ : ? * [ \` 任一字符。
+ *
+ * @returns 合法时返回 `null`；非法时返回原因
+ */
+export function validateBranchName(name: string): string | null {
+    const trimmed = name.trim();
+    if (trimmed === '') return '分支名 MUST NOT 为空';
+    if (trimmed !== name) return '分支名 MUST NOT 含首尾空白';
+    if (/\s/.test(trimmed)) return '分支名 MUST NOT 含空白字符';
+    if (trimmed.includes('..')) return '分支名 MUST NOT 含 `..`';
+    if (trimmed.startsWith('/') || trimmed.endsWith('/')) return '分支名 MUST NOT 以 `/` 开头或结尾';
+    if (trimmed.startsWith('-')) return '分支名 MUST NOT 以 `-` 开头';
+    if (/[~^:?*[\\]/.test(trimmed)) return '分支名 MUST NOT 含 `~ ^ : ? * [ \\` 任一字符';
+    return null;
+}
+
+/**
+ * 检查工作区是否干净（纯只读）。
+ *
+ * 经 `git status --porcelain` 判定；命令失败返回 `clean: false` + `reason` 而不抛错
+ * （调用方据此降级或暂停，不得误判为干净）。
+ */
+export function isWorkingTreeClean(
+    dir: string,
+    runner: GitCommandRunner = defaultGitRunner,
+): WorkingTreeStatus {
+    const result = runner('git', ['status', '--porcelain'], { cwd: dir });
+    if (result.status !== 0 || result.error !== undefined) {
+        return { clean: false, dirty: [], reason: tailOutput(result) };
+    }
+    const dirty = `${result.stdout ?? ''}`
+        .split(/\r?\n/)
+        .filter((line) => line.trim() !== '');
+    return { clean: dirty.length === 0, dirty };
+}
+
+/** 读取当前分支名（detached HEAD 时返回 `HEAD` 或原始输出；失败返回 null） */
+function currentBranch(dir: string, runner: GitCommandRunner): string | null {
+    const result = runner('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: dir });
+    if (result.status !== 0 || result.error !== undefined) return null;
+    return `${result.stdout ?? ''}`.trim() || null;
+}
+
+/**
+ * 幂等创建并切换工作分支。
+ *
+ * 三分支返回：
+ *   - 已在目标分支 → `skipped`
+ *   - 分支已存在（不在其上）→ `reused`（MUST NOT 覆盖或重置）
+ *   - 否则 `git checkout -b <name>`
+ *
+ * `options.baseBranch` 显式传入时 MUST 与当前分支一致，否则以失败返回
+ * （防止在错误基点上创建分支）。
+ */
+export function createWorkBranch(options: {
+    name: string;
+    baseBranch?: string;
+    cwd: string;
+    runner?: GitCommandRunner;
+}): CreateBranchResult {
+    const runner = options.runner ?? defaultGitRunner;
+    const invalid = validateBranchName(options.name);
+    if (invalid !== null) {
+        return { action: 'failed', branch: options.name, reason: invalid };
+    }
+
+    const current = currentBranch(options.cwd, runner);
+    if (current === null) {
+        return {
+            action: 'failed',
+            branch: options.name,
+            reason: '无法解析当前分支（非仓库 / detached HEAD）',
+        };
+    }
+    if (current === options.name) {
+        return {
+            action: 'skipped',
+            branch: options.name,
+            baseBranch: options.baseBranch ?? current,
+            reason: '已在目标分支',
+        };
+    }
+    if (options.baseBranch !== undefined && options.baseBranch !== current) {
+        return {
+            action: 'failed',
+            branch: options.name,
+            baseBranch: options.baseBranch,
+            reason: `基点分支不一致：声明 ${options.baseBranch}，实际当前 ${current}`,
+        };
+    }
+
+    const exists = runner('git', ['rev-parse', '--verify', '--quiet', `refs/heads/${options.name}`], {
+        cwd: options.cwd,
+    });
+    if (exists.status === 0 && exists.error === undefined) {
+        // 复用既有分支时 MUST 切换过去 —— 否则后续写操作仍落在当前分支上，
+        // 回执声称 work-branch 却未实际隔离（分支隔离语义被静默破坏）。
+        const checkout = runner('git', ['checkout', options.name], { cwd: options.cwd });
+        if (checkout.status !== 0 || checkout.error !== undefined) {
+            return {
+                action: 'failed',
+                branch: options.name,
+                baseBranch: current,
+                reason: tailOutput(checkout),
+            };
+        }
+        return {
+            action: 'reused',
+            branch: options.name,
+            baseBranch: current,
+            reason: '分支已存在，复用而不覆盖',
+        };
+    }
+
+    const created = runner('git', ['checkout', '-b', options.name], { cwd: options.cwd });
+    if (created.status !== 0 || created.error !== undefined) {
+        return {
+            action: 'failed',
+            branch: options.name,
+            baseBranch: current,
+            reason: tailOutput(created),
+        };
+    }
+    return { action: 'created', branch: options.name, baseBranch: current };
+}
+
+/**
+ * 合并工作分支（`git merge --no-ff`）。
+ *
+ * 冲突时返回冲突文件清单且 **MUST NOT** 执行 `git merge --abort` / `git reset --hard`
+ * —— 冲突态保留供调用方与用户处置。任何失败均返回状态而不抛错。
+ */
+export function mergeWorkBranch(options: {
+    name: string;
+    into?: string;
+    cwd: string;
+    runner?: GitCommandRunner;
+}): MergeBranchResult {
+    const runner = options.runner ?? defaultGitRunner;
+    const invalid = validateBranchName(options.name);
+    if (invalid !== null) {
+        return { ok: false, merged: false, conflicts: [], detail: invalid };
+    }
+
+    if (options.into !== undefined) {
+        const checkout = runner('git', ['checkout', options.into], { cwd: options.cwd });
+        if (checkout.status !== 0 || checkout.error !== undefined) {
+            return { ok: false, merged: false, conflicts: [], detail: tailOutput(checkout) };
+        }
+    }
+
+    const merge = runner('git', ['merge', '--no-ff', '--no-edit', options.name], { cwd: options.cwd });
+    if (merge.status === 0 && merge.error === undefined) {
+        return { ok: true, merged: true, conflicts: [] };
+    }
+
+    const conflicts = runner('git', ['diff', '--name-only', '--diff-filter=U'], { cwd: options.cwd });
+    const conflictFiles =
+        conflicts.status === 0 && conflicts.error === undefined
+            ? `${conflicts.stdout ?? ''}`
+                  .split(/\r?\n/)
+                  .map((line) => line.trim())
+                  .filter((line) => line !== '')
+            : [];
+
+    return {
+        ok: false,
+        merged: false,
+        conflicts: conflictFiles,
+        detail: tailOutput(merge),
+    };
+}
+
+/**
+ * 删除已合并分支（`git branch -d`，**非** `-D`）。
+ *
+ * 未合并分支会被 git 拒绝 → 返回 `skipped` + 原因；MUST NOT 强制删除。
+ */
+export function deleteMergedBranch(options: {
+    name: string;
+    cwd: string;
+    runner?: GitCommandRunner;
+}): DeleteBranchResult {
+    const runner = options.runner ?? defaultGitRunner;
+    const invalid = validateBranchName(options.name);
+    if (invalid !== null) {
+        return { action: 'skipped', reason: invalid };
+    }
+    const result = runner('git', ['branch', '-d', options.name], { cwd: options.cwd });
+    if (result.status === 0 && result.error === undefined) {
+        return { action: 'deleted' };
+    }
+    return { action: 'skipped', reason: tailOutput(result) };
+}
+
 
 /** 截取输出尾部作为失败摘要（最多 3 行 / 300 字符） */
 function tailOutput(result: SpawnCommandResult): string {

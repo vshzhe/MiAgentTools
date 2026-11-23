@@ -110,6 +110,7 @@ interface Fixture {
     designFile?: string;
     specFiles?: string[];
     tasksFile?: string;
+    explorationFile?: string;
 }
 
 function writeFixture(opts: {
@@ -117,6 +118,7 @@ function writeFixture(opts: {
     design?: string;
     specs?: Array<{ capability: string; body: string }>;
     tasks?: string;
+    exploration?: string;
 }): Fixture {
     const dir = makeTempDir();
     const fixture: Fixture = { dir };
@@ -141,6 +143,10 @@ function writeFixture(opts: {
         fixture.tasksFile = path.join(dir, 'tasks.md');
         fs.writeFileSync(fixture.tasksFile, opts.tasks, 'utf8');
     }
+    if (opts.exploration !== undefined) {
+        fixture.explorationFile = path.join(dir, 'exploration.md');
+        fs.writeFileSync(fixture.explorationFile, opts.exploration, 'utf8');
+    }
     return fixture;
 }
 
@@ -152,10 +158,24 @@ function toModel(fixture: Fixture, changeName = 'add-alpha'): ParsedChange {
         design: fixture.designFile === undefined ? undefined : parseDesign(fixture.designFile),
         specs: (fixture.specFiles ?? []).map((file) => parseSpec(file)),
         tasks: fixture.tasksFile === undefined ? undefined : parseTasks(fixture.tasksFile),
+        ...(fixture.explorationFile === undefined
+            ? {}
+            : { explorationRaw: fs.readFileSync(fixture.explorationFile, 'utf8') }),
         diagnostics: [],
         warnings: [],
     };
 }
+
+const EXPLORATION_OK = `## 需求发散
+
+| 维度 | 条目 |
+| :--- | :--- |
+| 直接影响 | 影响 \`src/a.ts\` |
+| 间接影响 | 无 |
+| 契约影响 | 无 |
+| 同类场景 | 无 |
+| 非功能影响 | 无 |
+`;
 
 const NEW_CHANGE = { created: '2099-01-01' };
 const LEGACY_CHANGE = { created: '2020-01-01' };
@@ -177,7 +197,7 @@ describe('isNewChange 判定', () => {
     });
 });
 
-describe('就绪门：四类判定', () => {
+describe('就绪门：五类判定', () => {
     afterEach(() => {
         // 每个用例自建 fixture，统一在 finally 清理见各用例
     });
@@ -188,11 +208,14 @@ describe('就绪门：四类判定', () => {
             design: DESIGN_OK,
             specs: [{ capability: 'alpha', body: SPECS_OK }],
             tasks: TASKS_OK,
+            exploration: EXPLORATION_OK,
         });
         try {
             const result = buildReadiness(toModel(fixture), NEW_CHANGE);
             expect(result.valid).toBe(true);
-            expect(result.checks.map((check) => check.id)).toEqual(['structure', 'coverage', 'anchors', 'capabilities']);
+            expect(result.checks.map((check) => check.id)).toEqual([
+                'structure', 'coverage', 'anchors', 'capabilities', 'divergence',
+            ]);
             expect(result.checks.every((check) => check.status === 'pass')).toBe(true);
             expect(result.diagnostics).toHaveLength(0);
         } finally {

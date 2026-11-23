@@ -8,7 +8,7 @@ metadata:
   author: mi-agent-tools
   type: spec
   generatedBy: "snapshot"
-  generatedFingerprint: "sha256:2c513c414e51bb504ea618d10b5fe590578f44f400b0743198d80cfdd4d3d24e"
+  generatedFingerprint: "sha256:9a511c1a63d38a9ed96769f088327672c6b2d9d74d26280f58e25f75e94ffc56"
 ---
 
 提出新变更 —— 一步创建变更并生成全部制品。
@@ -229,6 +229,7 @@ metadata:
 3. 影响面三锚点齐备：`### Impact Analysis` / `### 架构影响` / `### Caller Updates`
 4. `proposal` 声明的能力 ↔ `specs/<capability>/` 目录逐一对应
 5. 每个任务标注对应的流程图节点 `[N<id>]`（变更含功能流程图时）
+6. 需求发散承接：探索含 `## 需求发散` 段时，`proposal` 的 `## Impact` 下存在 `### 需求发散承接` 表且逐维度承接到能力 / 节点
 
 > 本清单由 `src/core/templates/verify-checklist.ts` 的 `propose-selfcheck` 变体渲染。
 > FAIL 时自动修复并重跑（≤3）；超限后走既有三出口，MUST NOT 新增确认门。
@@ -333,6 +334,11 @@ metadata:
 **决策可追溯（D<n>）：**
 - `exploration.md` 的 `## Decisions` 每条 MUST 带稳定 id `D<n>`；id 一经分配 MUST NOT 复用、重排或删除后重编号
 - 本技能生成的 `specs/**/spec.md` 与 `design.md` MUST 在受某决策约束的内容处标注 `(D<n>)`；未标注来源的硬约束 SHALL 被判为可追溯性缺失
+
+**需求发散承接（变更 `git-branch-isolation`，强制）：**
+- 探索产物含 `## 需求发散` 段时，本技能 MUST 在 proposal `## Impact` 下产出 `### 需求发散承接` 表（`能力 / 影响类别 | 影响条目 | 承接需求 / 任务`）
+- 逐维度承接：段内写 `无` 的维度可省略；有影响的维度 MUST 逐条映射到已生成的 Requirement 或任务 id，MUST NOT 留空或写「见上文」
+- 该表是验证阶段 D2/D3 影响范围一致性检查的证据源；发散段缺失时记 WARN 并跳过（存量变更向后兼容），MUST NOT 臆造条目
 
 **流程基准消费规则**
 

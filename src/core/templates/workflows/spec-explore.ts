@@ -6,6 +6,7 @@ import { deriveCommandContent } from '../derive-command.js';
 import { buildPromptGateBlock, buildPromptGateCompact, GATE_PROTOCOL_PREAMBLE, renderGateWhitelistSection, REQUIREMENT_DIMENSIONS } from '../prompt-gate.js';
 import { buildFlowchartBlock, buildFlowchartCompact, REQUIREMENT_FLOW_COLUMNS } from '../flowchart-gate.js';
 import { DYNAMIC_RULE_LOADING_FULL } from '../rule-loading-protocol.js';
+import { DIVERGENCE_ANALYSIS_FULL, renderDivergenceSection } from '../divergence.js';
 import { CODEGRAPH_CLI, CODEGRAPH_MCP } from '../tool-whitelist.js';
 import {
     CODEGRAPH_BUSY_LADDER,
@@ -559,6 +560,10 @@ const EXPLORATION_PROTOCOL_FULL = `## 强制检查点体系（delegated 模式�
 - **节点数超 50**：按子流程分节，主流程图以子流程节点聚合、子流程各自展开清单表
 - **确认前不得推进**：用户确认前 MUST NOT 进入 1.6 探索完成检测，MUST NOT 向提案阶段传递流程基准
 - **流程基准用途**：确认后的流程图 = **流程基准**，随探索文件迁移（Phase 2.3）一并进入变更目录，由 1.6.6 聚合一致性门与下游 propose / verify 共同消费
+
+### 1.5.6 需求发散（强制检查点，与 1.5.5 流程门合并呈现）
+
+${renderDivergenceSection()}
 
 ### 1.6 探索完成检测
 
@@ -1380,6 +1385,16 @@ ${FLOWCHART}
 - **拒绝不阻断**：用户在流程最终确认门上拒绝确认或明确不表态时，记录原始流程图与**未确认状态**后继续探索，MUST NOT 反复要求确认、MUST NOT 陷入死锁；该未确认状态随探索产物传递（propose 降级为仅凭 exploration.md 生成、verify 的节点覆盖度维度 SKIP）
 - **落盘方式**：本技能不设强制产出文件，无探索文件时流程图保留在会话中，并在创建或关联探索文件时写入
 
+## 需求发散
+
+**Trigger: 与功能流程图同一轮产出（合并呈现，不新增用户停顿）；纯概念探讨时可选。** 五维：直接影响 / 间接影响 / 契约影响 / 同类场景 / 非功能影响。
+
+- 落盘为探索产物 \`## 需求发散\` 段；每条带 \`文件:行\` 或 \`[推断]\` / \`[新建]\`，维度确无内容写固定字面量 \`无\`
+- 与 1.5.5 流程最终确认门合并呈现，**不新增用户停顿**（探索阶段仍只有 1 个流程级阻塞门）；用户修改流程图时 MUST **重新评估受影响维度**
+- 由就绪门第 5 判定 \`divergence\` 做确定性校验，避免退化为无人消费的散文
+
+> **完整发散细则**见 \`references/divergence-analysis.md\`（五维追问表 / 证据与留痕 / 下游承接 / 判定口径）。
+
 ---
 
 ## 强制检查点体系（delegated 模式）
@@ -1434,6 +1449,7 @@ ${FLOWCHART}
             { path: 'references/multi-project-scan.md', content: MULTI_PROJECT_SCAN_FULL },
             { path: 'references/grill-playbook.md', content: GRILL_PLAYBOOK_FULL },
             { path: 'references/deep-analysis.md', content: DEEP_ANALYSIS_FULL },
+            { path: 'references/divergence-analysis.md', content: DIVERGENCE_ANALYSIS_FULL },
         ],
     };
 }

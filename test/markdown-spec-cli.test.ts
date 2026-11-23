@@ -390,11 +390,13 @@ describe('validate --ready：就绪门 CLI 契约', () => {
         vi.restoreAllMocks();
     });
 
-    it('Scenario: runSpecValidate --ready 输出四类判定', () => {
+    it('Scenario: runSpecValidate --ready 输出五类判定', () => {
         makeChange(root);
         const result = runSpecValidate(root, 'demo', { ready: true });
         expect(result.mode).toBe('ready');
-        expect(result.checks?.map((check) => check.id)).toEqual(['structure', 'coverage', 'anchors', 'capabilities']);
+        expect(result.checks?.map((check) => check.id)).toEqual([
+            'structure', 'coverage', 'anchors', 'capabilities', 'divergence',
+        ]);
     });
 
     it('Scenario: --ready 不改变 strict / --partial 语义', () => {
